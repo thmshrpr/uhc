@@ -30,11 +30,17 @@ SEM CExpr
   | Tup    lhs.ghcexpr = undefined
   | Sel    lhs.ghcexpr = undefined
 
-ATTR CBind CBindL [ | | ghcdefg: ValueDefg ]
+ATTR CBindL [ | | ghcdefg: ValueDefg ]
 SEM CBindL
-  | Cons lhs.ghcdefg = @hd.ghcdefg -- TODO: make lets work with this (use tail also)
+  | Cons
+         lhs.ghcdefg = case @tl.ghcdefg of
+                         ValueDefg_RecValues [] -> ValueDefg_Value @hd.ghcdef -- TODO: is rec only needed for mutual recursion?
+                         ValueDefg_RecValues l  -> ValueDefg_RecValues (@hd.ghcdef:l)
+                         ValueDefg_Value d     -> ValueDefg_RecValues [@hd.ghcdef, d]
+  | Nil  lhs.ghcdefg = ValueDefg_RecValues []
+ATTR CBind [ | | ghcdef: ValueDef ]
 SEM CBind 
-  | Bind lhs.ghcdefg = ValueDefg_Value (ValueDef_ValueDef (show @nm) (convertType Ty_Any) @expr.ghcexpr)
+  | Bind lhs.ghcdef = ValueDef_ValueDef (show @nm) (convertType Ty_Any) @expr.ghcexpr
 
 %%]
 

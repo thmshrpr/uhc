@@ -8,6 +8,7 @@
 %%[8_1 hs import(UU.Pretty,EHGhcCore) export(ppGhcModule)
 ppGhcModule :: GhcModule -> PP_Doc
 ppGhcModule  = sem_GhcModule
+
 %%]
 
 % pretty printer of the AbsSyn
@@ -34,11 +35,14 @@ SEM Argument
   | Type         lhs . pp = "@" >#< pp_parens @type.pp
 
 SEM ValueDefg
-  | RecValues    lhs . pp = "%rec" >#< "{" >#< @values.pp >#< "}"
+  | RecValues    lhs . pp = "%rec" >#< pp_block "{" "}" ";" @values.pps
   | Value        lhs . pp = @value.pp 
 
+ATTR ValueDefs [ | | pps : {[PP_Doc]} ]
+
 SEM ValueDefs
-  | Cons         lhs . pp = @hd.pp >#< ";" >-< @tl.pp -- TODO: ';' must be a seperator, not a suffix!
+  | Cons         lhs . pps = @hd.pp : @tl.pps
+  | Nil          lhs . pps = []
 
 SEM Binder
   | Type         lhs . pp = "@" >#< @type.pp
