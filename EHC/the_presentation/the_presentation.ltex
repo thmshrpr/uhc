@@ -191,7 +191,7 @@ http://www.cs.uu.nl/groups/ST/Eifl/EHCToGhcCore
 
 %%%%%%%%%%%%% Reintroducing Data Types in GHC Core %%%%%%%%%%%%%
 \begin{Slide}[Reintroducing Data Types in GHC Core]
-\item
+\item 
 \end{Slide}
 
 %%%%%%%%%%%%% Examples %%%%%%%%%%%%%%%
@@ -202,94 +202,6 @@ http://www.cs.uu.nl/groups/ST/Eifl/EHCToGhcCore
 %%%%%%%%%%%%% Conclusions %%%%%%%%%%%%%%
 \begin{Slide}[Conclusions]
 \item
-\end{Slide}
-
-\begin{Slide}
-\item Generate bidirectional maps for \emph{arbitrary} method types:
-\begin{code}
-bimapOp      :: forall(a genA) EP a genA -> EP (Op a) (Op genA)
-bimapOp epA  = bimap{Op a}sub([a := epA])
-\end{code}
-\item |bimap| is a meta-function, evaluated at compile time, that returns a Haskell expression.
-\item We define |bimap| by induction to the structure of the type expression:
-\begin{code}
-bimap{a} sub(rho)     = rho(a)
-bimap{(->)} sub(rho)  = bimapArrow
-bimap{T} sub(rho)     = bimapT
-bimap{t u} sub(rho)   = (bimap{t} sub(rho)) (bimap{u} sub(rho))
-\end{code}
-\end{Slide}
-\begin{Slide}
-\item An example. The |Both| type:
-\begin{code}
-type Both a -> a
-
-   bimapBoth epA
-=  bimap{a -> a} sub(rho = [a := epA])
-=  (bimap{(->) a} sub(rho)) (bimap{a} sub(rho))
-=  (bimap{(->)} sub(rho) (bimap{a} sub(rho))) (bimap{a} sub(rho))
-=  bimapArrow epA epA
-=  EP  {  to     = \f -> to epA . f . from epA
-       ,  from  = \f -> from epA . f. to epA }
-\end{code}
-
-\end{Slide}
-
-\begin{Slide}
-\item What if there is a data type involved:
-\begin{code}
-type ReadBin a = Bin -> (a, Bin)
-
-   bitmapReadBin ep
-=  bimap{Bin -> (a,Bin)} sub(rho = [a:= ep])
-=  bimapArrow (bimap{Bin} sub(rho)) (bimap{(a, Bin)} sub(rho))
-\end{code}
-\item We need |bimapBin| and |bimapPair|.
-\item |Bin| is not parameterised, so nothing to do:
-\begin{code}
-bimapBin  :: EP Bin Bin
-bimapBin  = idEP
-
-idEP      :: forall(a) EP a a
-idEP      = EP{to = \x -> x, from = \x -> x}
-\end{code}
-\end{Slide}
-\begin{Slide}
-\item A pair is parameterised over two types:
-%format genB = "b^{\circ}"
-%format genX = "x^{\circ}"
-%format genY = "y^{\circ}"
-\begin{code}
-bimapPair :: forall(a genA b genB) EP a genA -> EP b genB -> EP (a,b) (genA, genB)
-bimapPair epA epB  = 
-	EP  {  to    = \ (gen(x),gen(y)) ->(to epA genX, to epB genY)
-	    ,  from  = \ (x,y) -> (from epA x, from epB y)}
-\end{code}
-\item |bimapT| can be defined by induction on the structure of the type of |T|
-\item the type of |bimapT| has a kind indexed type |Bimap{k} T T|:
-%format genT = "t^{\circ}"
-%format k1
-%format k2
-\begin{code}
-Bimap{*} t genT = EP t genT
-Bimap{k1 -> k2} t genT =
-	forall(a genA) Bimap{k1} a genA -> Bimap{k2} (t a) (genT genA)
-\end{code}
-\end{Slide}
-\begin{Slide}[Implementation]
-\item The implementation is a source to source translation
-\item Generate |gen(T)| for data type |T|
-\item Generate an embedding projection pair that convert between T and gen(T)
-\item Create a simple class declaration for C without the generic default methods
-\item Create for each generic method |op :: Op a| a bidirectional map
-\item Instance declaration for |C 1|, |C (a + b)| and |C (a * b)| by selecting the eponymous equations from the class declaration
-\item Extend the instance declaration by adding the definitions of the generic methods
-\end{Slide}
-
-\begin{Slide}[Further points]
-\item Constructor information for |Show| and |Read| classes
-\item Efficienty: inlining tries to remove the generic form of the datatypes so the do not exist at runtime
-\item Higher order kinded types
 \end{Slide}
 
 \end{document}
