@@ -16,7 +16,7 @@ SEM ...
 
 {
 buildTypeBinders :: [ String ] -> [ TypeBinder ]
-buildTypeBinders = map (\x-> TypeBinder_TypeBinder x (Kind_Atom (AtomicKind Lifted)))
+buildTypeBinders = map (\x-> TypeBinder_TypeBinder x (Kind_Atom AtomicKind_Lifted))
 }
 
 %%]

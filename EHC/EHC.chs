@@ -125,7 +125,11 @@ doCompileRun filename opts
                       ;  writeFile (fpathToStr (fpathSetSuff "java" jFP))
                             (disp jPP 120 "")
                       }
-               GHCCoreCode -> putStr "GHC-Core output: Not implemented yet!\n"
+               GHCCoreCode -> do
+                      {  let hcrPP = ppGhcModule (ghcmodule_Syn_AGItf wrRes)
+                      ;  writeFile (fpathToStr (fpathSetSuff "hcr" fp))
+                            (disp hcrPP 120 "")
+                      }
          }
 %%]
 

@@ -1,10 +1,9 @@
-DATA Module
+DATA GhcModule
 	| Module
 		name : {MIdent}
 		tdefs : TypeDefs
 		lvdefs : ValueDefgs
 		vdefs : ValueDefgs
-                main: ValueDef
 DATA TypeDef
 	| Data 
 		name : {DIdent}
