@@ -12,6 +12,14 @@
 %%[8 hs import (GRINCCommon)
 %%]
 
+%%[8 hs export(CmmUnit(..), CmmToplevel(..), CmmSectionElement(..), CmmDatum(..), CmmSize(..), CmmInitString(..), CmmDeclaration(..), CmmProcedure(..), CmmBody, CmmBodyElement(..) CmmStatement(..), CmmExpression(..), CmmActual(..), CmmLValue(..), CmmAlternative(..), CmmRange(..))
+%%]
+%%[8 hs export(CmmToplevels, CmmSectionElements, CmmData, CmmExpressions,  CmmActuals, CmmAlternatives, CmmRanges, CmmLValues)
+%%]
+
+%%[8 hs export(CmmName, CmmNames, CmmExternalName, CmmExternalNames, CmmHwName, CmmHwNames, CmmType(..), CmmOptionalType, CmmKind, CmmFormal, CmmFormals, CmmTargetSpec(..), CmmByteOrder(..), CmmCallConv, CmmKindedName, CmmKindedNames
+%%]
+
 %%[8 import(CmmCodeAbsSyn)
 DERIVING * : Show, Eq
 %%]
@@ -25,18 +33,25 @@ type CmmHwName        = (CmmName, Maybe String)
 type CmmHwNames       = [CmmHwName]
 data CmmType          = CmmBits Int
                       | CmmName String
-                      deriving Show, Eq                          
+                      deriving (Show, Eq)
 type CmmOptionalType  = Maybe CmmType
 type CmmKind          = String
-data CmmTargetSpec    = TargetSpec 
+type CmmFormal = ( CmmKind	-- kind
+                 , Bool		-- invariant
+                 , CmmType	-- type
+                 , CmmName	-- name
+                 )
+type CmmFormals       = [CmmFormal]
+data CmmTargetSpec    = TargetSpec
                           Int            -- memsize
                           CmmByteOrder   -- byteorder
                           Int            -- pointersize
                           Int            -- wordsize
-                        deriving Show, Eq                          
-data CmmByteOrder     = LittleEndian | BigEndian
-                        deriving Show, Eq                          
-type CmmCallConv      = String                        
+                      deriving (Show, Eq)
+data CmmByteOrder     = LittleEndian 
+                      | BigEndian
+                      deriving (Show, Eq)
+type CmmCallConv      = String
 type CmmKindedName    = (CmmKind, CmmName)
 type CmmKindedNames   = [CmmKindedName]
 %%]

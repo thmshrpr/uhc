@@ -20,18 +20,26 @@ help:
 	echo "<n>/grinc    : make GRIN compiler (back end) version <n> (where <n> in {$(GRINC_VERSIONS)})" ;\
 	echo "grincs       : make all back end compiler (grinc) versions" ;\
 
+### UTILS
+
 ##########################
 ### GRINC
 ##########################
 
-GRINC_SOURCE     := grinc/GRINC.hs grinc/GRINCCommon.hs EHCommon.hs EHScanner.hs GrinCode.hs gri/GRIParser.hs 
+GRINC_SOURCE     := grinc/GRINC.hs grinc/GRINCCommon.hs EHCommon.hs EHScanner.hs GrinCode.hs gri/GRIParser.hs grinc/CmmCode.hs grinc/CmmCodePretty.hs
 
 grc: $(GRINC_SOURCE) Makefile
 	$(GHC) --make -package uust -package data -ilib -igrinc -igri $< -o $@
 	strip $@
 
+grinc/CmmCodePretty.hs: grinc/CmmCodePretty.ag Makefile
+	cd $(dir $<) &&	$(AGC) -cfspr $(notdir $<)
+
+grinc/CmmCode.hs: grinc/CmmCode.ag Makefile
+	cd $(dir $<) &&	$(AGC) -dr $(notdir $<)
+
 GrinCode.hs: GrinCode.ag Makefile
-	$(AGC) -dr $<
+	cd $(dir $<) &&	$(AGC) -dr $(notdir $<)
 
 %.hs: %.ag Makefile
 	cd $(dir $<) &&	$(AGC) -dcfspr $(notdir $<)

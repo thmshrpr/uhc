@@ -32,7 +32,7 @@ DATA CmmSectionElement
   | Procedure     procedure    : CmmProcedure
   | Data          data         : CmmData
  
-Data CmmDatum
+DATA CmmDatum
   | Label         name         : {CmmName}
   | Align         align        : {Int}
   | Reserve       type         : {CmmType}
@@ -44,6 +44,7 @@ DATA CmmSize
   | Many
 
 DATA CmmInitString
+  | None
   | List          elements     : CmmExpressions
   | String        string       : String 
   | UnicodeString string       : String
@@ -65,16 +66,16 @@ DATA CmmDeclaration
 DATA CmmProcedure
   | Procedure     name         : {CmmName}
                   callConv     : {CmmCallConv}
-                  args         : CmmFormals
+                  args         : {CmmFormals}
                   body         : CmmBody
 
-DATA CmmBody
+DATA CmmBodyElement
   | Declaration   declaration  : CmmDeclaration
   | StackReserve  data         : CmmData
   | Statement     statement    : CmmStatement
 
 -- MISSING: Recoverable assignment of primitive operations
--- MISSING: Targets, Flow, Alias informations
+-- MISSING: Targets, Flow, Alias information on Call
 -- MISSING: Continuation support
 DATA CmmStatement
   | Nop
@@ -88,8 +89,8 @@ DATA CmmStatement
   | Span          key          : CmmExpression
                   value        : CmmExpression
 		  body         : CmmBody
-  | Assign        lval         : CmmLValue
-                  expression   : CmmExpression
+  | Assign        lvals        : CmmLValues
+                  expressions  : CmmExpressions
   | Call          callConv     : {CmmCallConv}
                   fun          : CmmExpression
 		  args         : CmmActuals
@@ -97,8 +98,8 @@ DATA CmmStatement
   | TailCall      callConv     : {CmmCallConv}
                   fun          : CmmExpression
 		  args         : CmmActuals
-                  recievers    : {CmmKindedNames}
-  | Return        args         : CmmActuals
+  | Return        callConv     : {CmmCallConv}
+                  args         : CmmActuals
   | Label         name         : {CmmName}
   | GoTo          target       : CmmExpression
 
@@ -121,11 +122,6 @@ DATA CmmExpression
   | Primitive     name         : {CmmName}
                   args         : CmmActuals
 
-DATA CmmFormal
-  | Formal        kind         : {CmmKind}
-                  invariant    : {Bool}
-                  type         : {CmmType}
-                  name         : {CmmName}
 DATA CmmActual
   | Actual        kind         : {CmmKind}
                   val          : CmmExpression
@@ -149,9 +145,26 @@ TYPE CmmToplevels       = [CmmToplevel]
 TYPE CmmSectionElements = [CmmSectionElement]
 TYPE CmmData            = [CmmDatum]
 TYPE CmmExpressions     = [CmmExpression]
-TYPE CmmFormals         = [CmmFormal]
 TYPE CmmActuals         = [CmmActual]
+TYPE CmmLValues         = [CmmLValue]
 TYPE CmmAlternatives    = [CmmAlternative]
 TYPE CmmRanges          = [CmmRange]
+TYPE CmmBody            = [CmmBodyElement]
+%%]
 
+%%[8
+SET AllAlternatives       = CmmAlternative CmmAlternatives
+SET AllData               = CmmDatum CmmData
+SET AllToplevels          = CmmToplevel CmmToplevels
+SET AllCmmSectionElements = CmmSectionElement CmmSectionElements
+SET AllCmmExpressions     = CmmExpression CmmExpressions
+SET AllCmmActuals         = CmmActual CmmActuals
+SET AllCmmRanges          = CmmRange CmmRanges
+SET AllCmmLValues         = CmmLValue CmmLValues
+
+SET AllNT                 = AllAlternatives AllData AllToplevels AllCmmSectionElements
+                            AllCmmExpressions AllCmmActuals AllCmmRanges AllCmmLValues
+                            CmmSize CmmInitString CmmDeclaration CmmProcedure
+                            CmmBody CmmStatement
+SET All                   = AllNT CmmUnit
 %%]

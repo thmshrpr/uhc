@@ -15,7 +15,7 @@
 %%[8 import(UU.Parsing, UU.Pretty, EHCommon, EHScanner, GRIParser, GrinCode)
 %%]
 
-%%[8 import (FPath,GRINCCommon)
+%%[8 import (FPath,GRINCCommon, CmmCodePretty)
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

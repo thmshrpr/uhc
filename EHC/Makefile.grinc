@@ -11,14 +11,16 @@ SHUFFLE_ORDER  := 1 < 2 < 3 < 4 < 5 < 6 < 7 < 8 < 9 < 10 < 11, 4 < 4_2
 
 # tools
 SHUFFLE := bin/shuffle
+AGC     := uuagc
+GHC     := ghc
 LHS2TEX := lhs2TeX
 
+
 #default rule
-default: 8/grinc
+default: 8/grc
 
 #help rule
 .PHONY: help
-
 help:
 	@echo "Usage: make <rule>" ;\
 	echo ;\
@@ -47,11 +49,11 @@ shuffle/Shuffle.hs: shuffle/Shuffle.ag
 
 #every version should have its own sources here?
 
-SOURCES_HS  := $(foreach dir, . lib ,$(wildcard $dir/*.hs))
+SOURCES_HS  := $(foreach dir, . ,$(wildcard $(dir)/*.hs))
 SOURCES_AG  := 
 
-SOURCES_CHS := $(foreach dir, . gri grinc ,$(wildcard $dir/*.chs))
-SOURCES_CAG := $(foreach dir, . gri grinc ,$(wildcard $dir/*.cag))
+SOURCES_CHS := $(foreach dir, . gri grinc ,$(wildcard $(dir)/*.chs))
+SOURCES_CAG := $(foreach dir, . gri grinc ,$(wildcard $(dir)/*.cag))
 
 # Not used but good to know:
 ALL_SOURCES := Makefile.col $(SOURCES_HS) $(SOURCES_AG) $(SOURCES_CHS) $(SOURCES_CAG)
@@ -61,27 +63,28 @@ ALL_TARGETS = $(addprefix $(1)/, Makefile $(SOURCES_HS) $(SOURCES_AG) $(SOURCES_
 
 V     = $(firstword $(subst /, ,$@))
 BUILD = $(MAKE) -C $V $(notdir $@)
+SBASE = $(notdir $(basename $<))
 	
 # well we want to keep our files!
 .PRECIOUS: $(foreach V,$(VERSIONS), $V/%.ag $V/%.hs $V/Makefile)
 
-8/Makefile: Makefile.col
+8/Makefile: Makefile.col shuffle
 	mkdir -p 8
 	$(SHUFFLE) --gen=$V -a --lhs2tex=no -b $(notdir) --order="$(SHUFFLE_ORDER)" $< > $@
 
-8/%.ag: %.cag
+8/%.ag: %.cag shuffle
 	mkdir -p $(dir $@)
-	$(SHUFFLE) --gen=$V --ag --order="$(SHUFFLE_ORDER)" $< | $(LHS2TEX) --newcode > $@
+	$(SHUFFLE) --gen=$V --ag --order="$(SHUFFLE_ORDER)" -b $(SBASE) $< | $(LHS2TEX) --newcode > $@.tmp && mv $@.tmp $@
 
-8/%.hs: %.chs
+8/%.hs: %.chs shuffle
 	mkdir -p $(dir $@)
-	$(SHUFFLE) --gen=$V --hs --order="$(SHUFFLE_ORDER)" $< | $(LHS2TEX) --newcode > $@
+	$(SHUFFLE) --gen=$V --hs --order="$(SHUFFLE_ORDER)" -b $(SBASE) $< | $(LHS2TEX) --newcode > $@.tmp && mv $@.tmp $@
 
-8/%.hs: %.hs
+8/%.hs: %.hs shuffle
 	mkdir -p $(dir $@)
 	cp $< $@
 
-8/%.ag: %.ag
+8/%.ag: %.ag shuffle
 	mkdir -p $(dir $@)
 	cp $< $@
 
@@ -107,3 +110,11 @@ BUILD = $(MAKE) -C $V $(notdir $@)
 	$(BUILD)
 1/%:  $(call ALL_TARGETS,1)
 	$(BUILD)
+
+.PHONY: again clean distclean
+again:
+	rm -rf 8/grc 8/grinc/
+clean:
+	rm -rf $(VERSIONS)
+distclean: clean
+	rm -f $(SHUFFLE)
