@@ -1,7 +1,6 @@
 default: ehc_to_ghc_core.pdf
 
 %.aux: %.tex
-	latex $< 
 
 %.dvi: %.tex
 	latex $<
@@ -9,12 +8,11 @@ default: ehc_to_ghc_core.pdf
 %.ps: %.dvi
 	dvips -f $< > $@
 
-%.bbl: %.aux
+%.pdf: %.tex references.bib
+	pdflatex $< 
 	bibtex $(<:.tex=)
 	rm -f $(<:.tex=.ind)
-	makeindex $(<:.aux=.tex)
-
-%.pdf: %.tex %.bbl
+	makeindex $(<)
 	pdflatex $<
 
 ehc_to_ghc_core.tex: ehc_to_ghc_core.ltex
