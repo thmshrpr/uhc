@@ -75,6 +75,9 @@
 %%[8 export(groupSortOn)
 %%]
 
+%%[8_1 export(EHCCodeType(..),ehcoptCodeJava,ehcoptCode)
+%%]
+
 %%[9 export(hsnOImpl,hsnCImpl)
 %%]
 
@@ -406,6 +409,14 @@ data Verbosity
 %%% Options
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+%%[EHCCodeOpts.8.1
+-- functions to keep the version .8 parts working
+ehcoptCode     o = case ehcoptCodeType o of { EHCCoreCode -> True; _ -> False }
+ehcoptCodeJava o = case ehcoptCodeType o of { JavaCode    -> True; _ -> False }
+	
+data EHCCodeType = EHCCoreCode | JavaCode | GHCCoreCode 
+%%]
+
 %%[EHCOpts.1
 data EHCOpts    = EHCOptions    {  ehcoptDumpPP         ::  Maybe String
                                 ,  ehcoptShowTopTyPP    ::  Bool
@@ -420,6 +431,13 @@ data EHCOpts    = EHCOptions    {  ehcoptDumpPP         ::  Maybe String
                                 ,  ehcoptVerbosity      ::  Verbosity
 %%]
 
+
+%%[EHCOpts.8.1
+                                ,  ehcoptCodeType       ::  EHCCodeType
+                                ,  ehcoptSearchPath     ::  [String]
+                                ,  ehcoptVerbosity      ::  Verbosity
+%%]
+
 %%[defaultEHCOpts.1
 defaultEHCOpts  = EHCOptions    {  ehcoptDumpPP         =   Just "pp"
                                 ,  ehcoptShowTopTyPP    =   False
@@ -430,6 +448,11 @@ defaultEHCOpts  = EHCOptions    {  ehcoptDumpPP         =   Just "pp"
 %%[defaultEHCOpts.8
                                 ,  ehcoptCode           =   True
                                 ,  ehcoptCodeJava       =   False
+                                ,  ehcoptSearchPath     =   []
+                                ,  ehcoptVerbosity      =   VerboseQuiet
+%%]
+%%[defaultEHCOpts.8.1
+                                ,  ehcoptCodeType       =   GHCCoreCode
                                 ,  ehcoptSearchPath     =   []
                                 ,  ehcoptVerbosity      =   VerboseQuiet
 %%]
@@ -451,6 +474,11 @@ cmdLineOpts
           "dump code (java -> .java) on file, default=code (-> .code)"
 %%]
 
+%%[cmdLineOptsA.8.1
+     ,  Option "c"  ["code"]   (OptArg oCode "ghc-core")
+          "dump code (java -> .java, ghc-core -> .hcr) on file, default=ghc-core (-> .hcr)"
+%%]
+
 %%[cmdLineOptsB.1
   where  oPretty     ms  o =  case ms of
                                 Just "no"   -> o { ehcoptDumpPP        = Nothing   }
@@ -467,6 +495,13 @@ cmdLineOpts
          oCode       ms  o =  case ms of
                                 Just "java"  -> o { ehcoptCodeJava     = True      }
                                 _            -> o { ehcoptCode         = True      }
+%%]
+
+%%[cmdLineOptsB.8.1
+         oCode       ms  o =  case ms of
+                                Just "java"      -> o { ehcoptCodeType = JavaCode    }
+                                Just "ghc-core"  -> o { ehcoptCodeType = GHCCoreCode }
+                                _                -> o { ehcoptCodeType = EHCCoreCode }
 %%]
 
 %%[1.Options
@@ -495,6 +530,23 @@ cmdLineOpts
      ]
 %%@cmdLineOptsB.1
 %%@cmdLineOptsB.8
+%%]
+
+%%[8_1.Options -(1.Options 8.Options)
+%%@EHCCodeOpts.8.1
+%%@EHCOpts.1
+%%@EHCOpts.8.1
+                                }
+
+%%@defaultEHCOpts.1
+%%@defaultEHCOpts.8.1
+                                }
+
+%%@cmdLineOptsA.1
+%%@cmdLineOptsA.8.1
+     ]
+%%@cmdLineOptsB.1
+%%@cmdLineOptsB.8.1
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

@@ -1,0 +1,119 @@
+DATA Module
+	| Module
+		name : {MIdent}
+		tdefs : TypeDefs
+		lvdefs : ValueDefgs
+		vdefs : ValueDefgs
+                main: ValueDef
+DATA TypeDef
+	| Data 
+		name : {DIdent}
+		binders : TypeBinders
+		cdefs : ConsDefs
+	| Newtype
+		name : {DIdent}
+		binders : Binders
+		mt : MaybeType
+DATA ConsDef
+	| ConsDef 
+		name :  {DCon}
+		typebinders: TypeBinders
+		ty: AtomicType
+DATA ValueDefg
+	| RecValues 
+		values: ValueDefs
+	| Value
+		value: ValueDef
+
+DATA ValueDef
+	| ValueDef 
+		name: {VIdent}
+		type: Type
+		expr: Expression
+
+DATA AtomicExpr
+	| Var
+		name: {VIdent}
+	| Cons
+		name: {DCon}
+	| Lit
+		value: {Int}
+	| Nested
+		expr: Expression
+
+DATA Expression
+	| Atomic
+		atom: AtomicExpr
+	| App
+		fun: AtomicExpr
+		arg: Argument
+	| Lambda
+		binders: Binders
+		exp: Expression
+	| Let
+		valueDefs: ValueDefgs
+		exp: Expression
+DATA Argument
+	| TypeArgument
+		type: AtomicType
+	| ValueArgument
+		value: AtomicExpr
+DATA Binder
+	| TypeBinder 
+		type: TypeBinder
+	| ValueBinder
+		value: ValueBinder
+DATA ValueBinder
+	| ValueBinder
+		var : {VIndent}
+		type : Type
+DATA TypeBinder
+	| TypeBinder
+		var : {TVar}
+		kind : Kind
+
+DATA Type
+	| BasicType
+		type: BasicType
+	| ForallType
+		binders: TypeBinders
+		type: Type
+	| Arrow
+		type1: BasicType
+		type2: Type
+DATA BasicType
+	| Atom
+		type: AtomicType
+	| App
+		fun: BasicType
+		arg: AtomicType
+DATA AtomicType
+	| TypeVar
+		var: {TVar}
+	| TypeCons
+		cons: {DIdent}
+	| Nested
+		type: Type
+
+DATA Kind
+	| Atom
+		kind: AtomicKind
+	| Arrow
+		kind1: AtomicKind
+		kind2: Kind
+DATA AtomicKind
+	| Lifted
+	| Unlifted
+	| Open
+	| Nested
+		kind: Kind
+
+TYPE TypeBinders = [ TypeBinder ]
+TYPE Binders = [ Binder ]
+TYPE ValueDefgs = [ ValueDefg ]  
+TYPE ValueDefs = [ ValueDef ]  
+
+DATA MaybeType
+	| Just 
+		type : Type
+	| Nothing

@@ -85,7 +85,7 @@ doCompileRun filename opts
          }
 %%]
 
-%%[88.doCompile -1.doCompile
+%%[8.doCompile -1.doCompile
 doCompileRun :: String -> EHCOpts -> IO ()
 doCompileRun filename opts
 %%@doCompileA.1
@@ -104,6 +104,28 @@ doCompileRun filename opts
                             (disp jPP 120 "")
                       }
             else  return ()
+         }
+%%]
+
+%%[8_1.doCompile -8.doCompile
+doCompileRun :: String -> EHCOpts -> IO ()
+doCompileRun filename opts
+%%@doCompileA.1
+%%@doCompileB.8
+%%@doCompileC.8
+%%@doCompileD.1
+         ;  case ehcoptCodeType opts of
+               EHCCoreCode -> do
+                      {  writeFile (fpathToStr (fpathSetSuff "code" fp))
+                            (disp codePP 120 "")
+                      }
+               JavaCode    -> do
+                      {  let (jBase,jPP) = cexprJavaSrc (cmodule_Syn_AGItf wrRes)
+                             jFP = fpathSetBase jBase fp
+                      ;  writeFile (fpathToStr (fpathSetSuff "java" jFP))
+                            (disp jPP 120 "")
+                      }
+               GHCCoreCode -> putStr "GHC-Core output: Not implemented yet!\n"
          }
 %%]
 

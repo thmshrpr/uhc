@@ -93,7 +93,7 @@ SHUFFLE_DOC_PDF		:= $(SHUFFLE_DIR)/ShuffleDoc.pdf
 
 SHUFFLE_SRC			:= $(SHUFFLE_DIR)/$(SHUFFLE_AG)
 
-SHUFFLE_ORDER		:= 1 < 2 < 3 < 4 < 5 < 6 < 7 < 8 < 9, 6 < 6_1
+SHUFFLE_ORDER		:= 1 < 2 < 3 < 4 < 5 < 6 < 7 < 8 < 9, 6 < 6_1, 8 < 8_1
 
 
 RULER				:= bin/ruler
@@ -174,7 +174,7 @@ doc: $(SHUFFLE_DOC_PDF)
 #include mk/ehfiles.mk
 
 ### Versioned ehc's
-VERSIONS			:= $(sort 1 2 3 4 5 6 7 8)
+VERSIONS			:= $(sort 1 2 3 4 5 6 7 8 8_1)
 VERSION_LAST		:= $(word $(words $(VERSIONS)), $(VERSIONS))
 VERSION_FIRST		:= $(word 1, $(VERSIONS))
 
@@ -275,6 +275,13 @@ EHC_V7				:= $(addprefix $(VF)/,$(EHC))
 
 ### Version 8
 V					:= 8
+VF					:= $(V)
+include mk/ehfiles.mk
+EHC_V8				:= $(addprefix $(VF)/,$(EHC))
+### End of Version 8
+
+### Version 8:1
+V					:= 8_1
 VF					:= $(V)
 include mk/ehfiles.mk
 EHC_V8				:= $(addprefix $(VF)/,$(EHC))
