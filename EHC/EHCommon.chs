@@ -18,7 +18,7 @@
 %%[1 import(UU.Pretty, List) export(PP_DocL, ppListSep, ppCommaList, ppListSepFill, ppSpaced, ppAppTop, ppCon, ppCmt)
 %%]
 
-%%[1 export(MkConAppAlg, mkApp, mkConApp, mkArrow)
+%%[1 export(MkConApp, mkApp, mkConApp, mkArrow)
 %%]
 
 %%[1.mkProdApp.exp export(mkProdApp)
@@ -93,7 +93,7 @@
 %%[8 export(hsnLclSupplyL)
 %%]
 
-%%[9 export(hsnOImpl,hsnCImpl,hsnIsUnknown)
+%%[9 export(hsnOImpl,hsnCImpl,hsnPrArrow,hsnIsPrArrow,hsnIsUnknown)
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -196,9 +196,10 @@ hsnPrimAddInt						=	HNm "primAddInt"
 %%[9
 hsnOImpl                            =   HNm "(#"
 hsnCImpl                            =   HNm "#)"
-%%]
+hsnPrArrow                          =   HNm "=>"
 
-%%[9
+hsnIsPrArrow                        ::  HsName -> Bool
+hsnIsPrArrow    hsn                 =   hsn == hsnPrArrow
 hsnIsUnknown                        =   (==hsnUnknown)
 %%]
 
@@ -219,9 +220,11 @@ hsnLclSupplyL = map (\i -> HNm ("_" ++ show i)) [1..]
 newtype UID= UID [Int] deriving (Eq,Ord)
 %%]
 
-%%[2.UID.Rest
+%%[2.UID.UIDL
 type UIDL = [UID]
+%%]
 
+%%[2.UID.Show
 instance Show UID where
   show (UID ls) = concat . intersperse "_" . map show . reverse $ ls
 %%]
@@ -300,10 +303,12 @@ seqToList (Seq s) = s []
 %%% Building specific structures
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%[1.mkApp.Base
-type MkConAppAlg t = (HsName -> t,t -> t -> t,t -> t,t -> t)
+%%[1.MkConApp
+type MkConApp t = (HsName -> t,t -> t -> t,t -> t,t -> t)
+%%]
 
-mkApp :: MkConAppAlg t -> [t] -> t
+%%[1.mkApp.Base
+mkApp :: MkConApp t -> [t] -> t
 mkApp (_,app,top,_) ts
   =  case ts of
        [t]  ->  t
@@ -311,20 +316,20 @@ mkApp (_,app,top,_) ts
 %%]
 
 %%[1.mkApp.mkConApp
-mkConApp :: MkConAppAlg t -> HsName -> [t] -> t
+mkConApp :: MkConApp t -> HsName -> [t] -> t
 mkConApp alg@(con,_,_,_) c ts = mkApp alg (con c : ts)
 %%]
 
 %%[1.mkApp.mkProdApp
-mkProdApp :: MkConAppAlg t -> [t] -> t
+mkProdApp :: MkConApp t -> [t] -> t
 mkProdApp alg ts = mkConApp alg (hsnProd (length ts)) ts
 %%]
 
 %%[7 -1.mkApp.mkProdApp
 %%]
 
-%%[1.mkApp.Rest
-mkArrow :: MkConAppAlg t -> t -> t -> t
+%%[1.mkApp.mkArrow
+mkArrow :: MkConApp t -> t -> t -> t
 mkArrow alg@(con,_,_,_) a r = mkApp alg [con hsnArrow,a,r]
 %%]
 
@@ -335,7 +340,7 @@ mkArrow alg@(con,_,_,_) a r = mkApp alg [con hsnArrow,a,r]
 %%[ppAppTop.1
 ppAppTop :: PP arg => (HsName,arg) -> [arg] -> PP_Doc -> PP_Doc
 ppAppTop (conNm,con) args dflt
-  =  if       hsnIsArrow conNm  then     ppListSep "" "" (" " ++ show hsnArrow ++ " ") args
+  =  if       hsnIsArrow conNm  then     ppListSep "" "" (" " >|< con >|< " ") args
      else if  hsnIsProd conNm   then     ppListSep "(" ")" "," args
 %%]
 
@@ -580,7 +585,7 @@ hdAndTl :: [a] -> (a,[a])
 hdAndTl (a:as) = (a,as)
 %%]
 
-%%[2.Misc
+%%[2.unionL
 unionL :: Eq a => [[a]] -> [a]
 unionL = foldr union []
 %%]

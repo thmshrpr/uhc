@@ -15,7 +15,7 @@
 %%[1 hs export(tyArrowArgRes, tyArrowArgsRes, tyArrowArgs, tyArrowRes, tyAppFunArgs, tyProdArgs, tyAppArgs) 
 %%]
 
-%%[2 hs export(TyVarId, TyVarIdL, mkTyVar, mkNewTyVar, mkNewUIDTyVarL, mkNewTyVarL, mkTyFreshProd, mkTyFreshProdFrom, tyEnsureNonBotTop) 
+%%[2 hs export(TyVarId, TyVarIdL, mkTyVar, mkNewTyVar, mkNewUIDTyVarL, mkNewTyVarL, mkTyFreshProd, mkTyFreshProdFrom, tyEnsureNonAny) 
 %%]
 
 %%[3 hs export(mkTyQu, TyVarCateg(..))
@@ -54,13 +54,16 @@
 %%[8 hs export(tyRecOffset) 
 %%]
 
-%%[9 hs export(Pred(..),predNm,predTy,tyPredNm,tyPredMatchNm,predMatchNm,tyPred,tyLImplsPreds,tyArrowImplsRes,tyArrowImplsArgRes,mkTyPr)
+%%[9 hs export(Pred(..),predNm,predTy,tyPredNm,tyPredMatchNm,predMatchNm,tyPred,tyLImplsPreds,tyArrowImplsRes,tyArrowImplsArgRes,mkTyPr,tyPrArrowArgsRes)
 %%]
 
 %%[9 hs export(tyRecExts,tyRecRow,tyArrowArity,tyQuant)
 %%]
 
 %%[9 hs export(tyImpls,Impls(..),ImplsVarId,mkImplsVar,implsPredsTail,implsUIDs,implsPredsMbTail,tyIsImplsTail,tyImplsPreds)
+%%]
+
+%%[9 hs export(TyCtxt(..))
 %%]
 
 %%[9_1 hs export(TyPlusId)
@@ -217,23 +220,25 @@ tyIsQu t = case t of {Ty_Quant _ _ _ -> True; _ -> False}
 %%% Construction of type
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+%%[1.mkTyArrow hs
+algTy        ::  MkConApp Ty
+algTy        =   (Ty_Con,Ty_App,id,id)
+
+mkTyArrow    ::  TyL -> Ty -> Ty
+mkTyArrow    =   flip (foldr (mkArrow algTy))
+%%]
+
 %%[1.mkTy hs
-algTy :: MkConAppAlg Ty
-algTy = (Ty_Con,Ty_App,id,id)
+mkTyApp      ::  TyL -> Ty
+mkTyApp      =   mkApp algTy
 
-mkTyArrow :: TyL -> Ty -> Ty
-mkTyArrow = let mk = mkArrow algTy in flip (foldr mk)
-
-mkTyApp :: TyL -> Ty
-mkTyApp = mkApp algTy
-
-mkTyConApp :: HsName -> TyL -> Ty
-mkTyConApp = mkConApp algTy
+mkTyConApp   ::  HsName -> TyL -> Ty
+mkTyConApp   =   mkConApp algTy
 %%]
 
 %%[1.mkTyProdApp hs
-mkTyProdApp :: TyL -> Ty
-mkTyProdApp = mkProdApp algTy
+mkTyProdApp  ::  TyL -> Ty
+mkTyProdApp  =   mkProdApp algTy
 %%]
 
 %%[7.mkTyProdApp -1.mkTyProdApp hs
@@ -269,9 +274,9 @@ mkNewTyVarL :: Int -> UID -> TyL
 mkNewTyVarL sz u = snd (mkNewUIDTyVarL sz u)
 %%]
 
-%%[2.tyEnsureNonBotTop hs
-tyEnsureNonBotTop :: UID -> Ty -> Ty
-tyEnsureNonBotTop u t = if t /= Ty_Any then t else mkNewTyVar u
+%%[2.tyEnsureNonAny hs
+tyEnsureNonAny :: UID -> Ty -> Ty
+tyEnsureNonAny u t = if t /= Ty_Any then t else mkNewTyVar u
 %%]
 
 %%[3.mkTyQu hs
@@ -330,8 +335,11 @@ tySumEmpty	= mkTySum []
 %%% Destruction
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%[1.unMkTy.sigs hs
+%%[1.unMkTy.sigs.tyArrow hs
 tyArrowArgRes   :: Ty -> (Ty,Ty)
+%%]
+
+%%[1.unMkTy.sigs.Rest hs
 tyArrowArgsRes  :: Ty -> (TyL,Ty)
 tyAppFunArgs    :: Ty -> (Ty,TyL)
 tyAppArgs       :: Ty -> TyL
@@ -381,7 +389,7 @@ tyAppArgs    = snd . tyAppFunArgs
 %%]
 
 %%[1.tyProdArgs hs
-tyProdArgs = tyAppArgs
+tyProdArgs   = tyAppArgs
 %%]
 
 %%[4 hs
@@ -557,6 +565,9 @@ predNm = tyAppFunConNm . predTy
 
 tyPredNm :: Ty -> HsName
 tyPredNm = predNm . tyPred
+
+tyPrArrowArgsRes :: Ty -> ([Pred],Pred)
+tyPrArrowArgsRes tp = let (tl,t) = tyArrowArgsRes tp in (map tyPred tl, tyPred t)
 %%]
 
 %%[9 hs
@@ -567,6 +578,7 @@ predMatchNm :: Pred -> HsName
 predMatchNm p
   =  case p of
        Pred_Class t    -> tyAppFunConNm t
+       Pred_Pred  t    -> predMatchNm . snd . tyPrArrowArgsRes $ t
 %%]
 %%[10 hs
        Pred_Lacks _ l  -> hsnPrefix "_Lab_" l
@@ -578,6 +590,7 @@ predTy p
   =  case p of
        Pred_Class t    -> t
 %%]
+       Pred_Arrow a r  -> Ty_Con hsnPrArrow
 %%[10 hs
        Pred_Lacks t _  -> t
 %%]
@@ -609,5 +622,13 @@ tyIsImplsTail _                          = False
 
 implsUIDs :: Impls -> [UID]
 implsUIDs = map poId . fst . implsPredsTail
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Context of type
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[9 hs
+data TyCtxt = TyCtxt_Ty | TyCtxt_Pred | TyCtxt_Class deriving (Show,Eq)
 %%]
 

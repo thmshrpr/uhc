@@ -250,8 +250,7 @@ SEM Expr
 SEM Decl
   | TySig       tyExpr      .   tyGam               =   gamPushNew @lhs.tyGam
                 loc         .   fo                  =   fitsIn weakFIOpts @fe @lUniq2 @tyExpr.ki kiStar
-                lhs         .   tyGam               =   @lhs.tyGam
-                            .   kiCnstr             =   foCnstr @fo |=> @tyExpr.kiCnstr
+                lhs         .   kiCnstr             =   foCnstr @fo |=> @tyExpr.kiCnstr
 %%]
 
 %%[7
@@ -355,37 +354,42 @@ SEM AGItf
 %%% Type signatures
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%[1.tySigGam.TysigLet
-ATTR AllDecl [ tySigGam: ValGam | gathTySigGam: ValGam | ]
+%%[1.gathTySigGam
+ATTR AllDecl [ | gathTySigGam: ValGam | ]
 
 SEM Decl
-  | TySig       lhs         .   gathTySigGam        =   gamAdd
+  | TySig       loc         .   gamSigTy            =   @tyExpr.ty
+                            .   gathTySigGam        =   gamAdd
                                                             @nm (ValGamInfo @gamSigTy)
                                                             @lhs.gathTySigGam
+                lhs         .   tyGam               =   @lhs.tyGam
 
 SEM Expr
   | Let         decls       .   gathTySigGam        =   emptyGam
-                            .   tySigGam            =   @decls.gathTySigGam
+%%]
+
+%%[1.tySigGam.TysigLet
+ATTR AllDecl [ tySigGam: ValGam | | ]
+
+SEM Expr
+  | Let         decls       .   tySigGam            =   @decls.gathTySigGam
 %%]
 
 %%[1.tySigGam.Val
 SEM Decl
   | Val         loc         .   (sigTy,hasTySig)    =   case @patExpr.mbTopNm of
-                                                          Nothing  ->  (Ty_Any,False)
-                                                          Just nm  ->  case gamLookup nm @lhs.tySigGam of
-                                                                         Nothing   -> (Ty_Any,False)
-                                                                         Just vgi  -> (vgiTy vgi,True)
-%%]
-
-%%[1.TySig
-SEM Decl
-  | TySig       loc         .   sigTy               =   @tyExpr.ty
-                            .   gamSigTy            =   @sigTy
+                                                          Nothing
+                                                            ->  (Ty_Any,False)
+                                                          Just nm
+                                                            ->  case gamLookup nm @lhs.tySigGam of
+                                                                  Nothing   -> (Ty_Any,False)
+                                                                  Just vgi  -> (vgiTy vgi,True)
 %%]
 
 %%[3.TySig
 SEM Decl
-  | TySig       loc         .   sigTy               :=  tyQuantify (`elem` @tyExpr.tyVarWildL) @tyExpr.ty
+  | TySig       loc         .   sigTy               =   tyQuantify (`elem` @tyExpr.tyVarWildL) @tyExpr.ty
+                            .   gamSigTy            :=  @sigTy
 %%]
 
 %%[4_2
@@ -487,13 +491,8 @@ ATTR PatExpr [ | | mbTopNm: {Maybe HsName} ]
 
 SEM PatExpr
   | Var VarAs   loc         .   mbTopNm             =   if @nm == hsnWild then Nothing else Just @nm
-  | Con CConst IConst App AppTop
+  | * - Var VarAs
                 loc         .   mbTopNm             =   Nothing
-%%]
-
-%%[7
-SEM PatExpr
-  | Rec         loc         .   mbTopNm             =   Nothing
 %%]
 
 %%[7.topNm

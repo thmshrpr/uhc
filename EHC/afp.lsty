@@ -1,4 +1,5 @@
 %include lhs2TeX.fmt
+%include afp.fmt
 
 % xfig figure
 \newcommand{\XFigLatex}[1]{%
@@ -89,7 +90,7 @@
  \parbox{\textwidth}{\csname #1\endcsname}
 %else
  \csname #1\endcsname
- \vspace{-1.5\parskip}
+ \vspace{-1.1ex}
 %endif
 }
 \newcommand{\chunkCmdFrameUse}[1]{%
@@ -100,10 +101,12 @@
 \newcommand{\chunkCmdUsePrevLit}[1]{{\color{blue}\chunkCmdUse{#1}}}
 \newcommand{\chunkCmdUsePrev}[1]{\par\chunkRefsExpanded{#1}}
 \newcommand{\chunkCmdUseOnPrev}[2]{%
-%if expandPrevRef
+%if optExpandPrevRef
 {\par\chunkRefsExpanded{#1}\chunkCmdUseMark{#2}}
 %else
-{\par{\color{blue}...page(s)~\chunkRefs{#1}}\setlength{\parskip}{0cm}\chunkCmdUseMark{#2}}
+{\chunkCmdUseMark{#2}}
+% {\par{[see page(s)~\chunkRefs{#1}]}\setlength{\parskip}{0cm}\chunkCmdUseMark{#2}}
+% {\par{\color{blue}...page(s)~\chunkRefs{#1}}\setlength{\parskip}{0cm}\chunkCmdUseMark{#2}}
 %endif
 }
 \newcommand{\chunkMark}[1]{%
@@ -119,12 +122,14 @@
 % ruler related
 \newcommand{\rulerCmdDef}[1]{\expandafter\def\csname #1\endcsname}
 \newcommand{\rulerCmdUse}[1]{\csname #1\endcsname}
-\newcommand{\ruleRef}[1]{rule~\textsf{#1}}
-\newcommand{\RuleRef}[1]{Rule~\textsf{#1}}
+\newcommand{\ruleRef}[1]{rule~\textsc{#1}}
+\newcommand{\RuleRef}[1]{Rule~\textsc{#1}}
 
 % referencing
-\newcommand{\figRef}[1]{figure~\ref{#1}}
-\newcommand{\FigRef}[1]{Figure~\ref{#1}}
+% \newcommand{\figRef}[1]{figure~\ref{#1}}
+% \newcommand{\FigRef}[1]{Figure~\ref{#1}}
+\newcommand{\figRef}[1]{Fig.~\ref{#1}}
+\newcommand{\FigRef}[1]{Fig.~\ref{#1}}
 \newcommand{\secRef}[1]{section~\ref{#1}}
 %if llncs || acm
 \newcommand{\pageRef}[1]{}
@@ -170,6 +175,15 @@ appendix~\ref{#1}
 \DefineVerbatimEnvironment%
  {TTtiny}{Verbatim}
  {fontsize=\tiny}
+
+% AG feature appearing later in the text, after the primer
+\newenvironment{AGFeature}[2]{%
+\label{#1}
+\begin{description}
+\item[|AGFeature|: #2.]
+}{%
+\end{description}
+}
 
 % Indexing
 \newcommand{\Ix}[1]{\index{#1}}

@@ -87,12 +87,17 @@
 %format Gammab      = Gamma "^{b}"
 
 %format sigmak      = sigma "^{k}"
+%format sigman      = sigma "_{n}"
 %format sigmapk     = sigma "_{p}^{k}"
 %format sigmaq      = sigma "^{q}"
 %format sigmab      = sigma "^{b}"
 %format sigmal      = sigma "^{l}"
 %format sigmar      = sigma "^{r}"
 %format sigma'
+%format sigma1
+%format sigma2
+%format sigma3
+%format sigma4
 
 %format Cnstr       = "\mathcal{C}"
 %format Cnstrp		= Cnstr "^{p}"
@@ -113,6 +118,10 @@
 %format tvar2
 %format tvar3
 %format tvar4
+%format tvarv1
+%format tvarv2
+%format tvarv3
+%format tvarv4
 
 %format tcon        = c
 
@@ -128,10 +137,9 @@
 %format instc		= inst "_{" tvarc "}"
 %format instE		= inst "^{" exists "}"
 
-%format sigma1
-%format sigma2
-%format sigma3
-%format sigma4
+%format lbl			= l
+%format lbln		= lbl "_{n}"
+%format lbl1
 
 %format // 	    		= "/"
 %format /=/ 	    	= "{\eqcirc}"
@@ -147,6 +155,7 @@
 %format <:   			= "\leftsquigarrow "
 %format .    			= "."
 %format :=	 			= "{\coloneqq}"
+%format =@= 			= "{\varparallel}"
 
 
 %format fiopt			= iota
@@ -187,7 +196,8 @@
 
 %format Top         	= "\top "
 %format Bot         	= "\bot "
-%format ANY				= "\makebox[0cm][l]{\(\top\)}\bot{}"
+% format ANY				= "\makebox[0cm][l]{\(\top\)}\bot{}"
+%format ANY				= "{\Box}"
 
 %format `union`			= "\cup "
 %format `subset`		= "{\subset}"
@@ -197,7 +207,7 @@
 
 %format InstUnExists    = "inst^{" exists "}"
 
-%format ftv				= "\ftv "
+% format ftv				= "\ftv "
 
 %format `gamUnit`		= :->
 %format `fitsIn`		= <=
@@ -212,7 +222,14 @@
 
 %format NYI				= "\mbox{\color{red}[Not yet implemented]}"
 
+%format AGFeature		= "\mathcal{AG}"
 
+%format name1
+%format name2
+%format attr1
+%format attr2
+%format node1
+%format node2
 
 
 %elif style == newcode

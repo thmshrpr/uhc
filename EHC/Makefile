@@ -34,7 +34,7 @@ AG_PRIMER_TEX		:= $(AG_PRIMER_CAG_TEX) $(AG_PRIMER_CHS_TEX)
 
 # lhs2tex
 LHS2TEX_PATH 		:=
-LHS2TEX_OPTS_BASE	:= --set=asArticle --set=wide --set=expandPrevRef --set=yesBeamer --set=useHyperref
+LHS2TEX_OPTS_BASE	:= --set=asArticle --set=wide --unset=optExpandPrevRef --set=yesBeamer --set=useHyperref
 LHS2TEX_OPTS		:= $(LHS2TEX_OPTS_BASE) --set=forAfpHandout
 LHS2TEX				:= lhs2TeX $(LHS2TEX_OPTS) $(LHS2TEX_PATH)
 
@@ -56,6 +56,9 @@ DIST				:= $(DATE)-ehc
 DIST_PREFIX			:= 
 DIST_ZIP			:= $(DIST_PREFIX)$(DIST).zip
 DIST_TGZ			:= $(DIST_PREFIX)$(DIST).tgz
+
+# distribution for afp04 lecture notes
+DIST_AFP04			:= dist-afp04
 
 # distributed/published stuff for WWW
 WWW_SRC_ZIP			:= www/current-ehc-src.zip
@@ -81,7 +84,7 @@ AGCC				= cd `dirname $2` ; $(AGC) $1 `basename $2`
 AFP_FMT_OTHER		:= lag2TeX.fmt pretty.fmt parsing.fmt
 
 # type rules, in ruler format
-AFP_RULES			:= rules.rul
+AFP_RULES			:= rules.rul rules2.rul
 AFP_RULES_TEX		:= $(AFP_RULES:.rul=.tex)
 
 # pictures in pgf format
@@ -255,9 +258,6 @@ all: afp-full ehcs doc gris
 
 doc: $(SHUFFLE_DOC_PDF)
 
-#%.lag:%.cag
-#	$(SHUFFLE) --ag $< > $@
-
 %.tex:%.lag
 	$(call LHS2TEX_POLY,$<,$@)
 
@@ -299,28 +299,28 @@ GRI_CHS				:= $(GRI_LHS:.lhs=.chs)
 SHUFFLE_LHS		= \
 	dir=`dirname $2` ; \
 	mkdir -p $$dir ; \
-	$(SHUFFLE) --gen=$$dir --base=$6 $3 $1 --order="$(SHUFFLE_ORDER)" | $4 > $2
+	$(SHUFFLE) --gen=$5 --base=$6 $3 $1 --order="$(SHUFFLE_ORDER)" | $4 > $2
 
 # SHUFFLE_LHS_AG(src file, dst file, version, base)
 SHUFFLE_LHS_AG		= \
-	$(call SHUFFLE_LHS,$1,$2,--ag,$(LHS2TEX) --newcode,$3,$4)
+	$(call SHUFFLE_LHS,$1,$2,--ag,$(LHS2TEX) --newcode,`dirname $2`,$4)
 
 # SHUFFLE_LHS_HS(src file, dst file, version, base)
 SHUFFLE_LHS_HS		= \
-	$(call SHUFFLE_LHS,$1,$2,--hs,$(LHS2TEX) --newcode | $(SUBST_LINE_CMT),$3,$4)
+	$(call SHUFFLE_LHS,$1,$2,--hs,$(LHS2TEX) --newcode | $(SUBST_LINE_CMT),`dirname $2`,$4)
 
 # SHUFFLE_LHS_TEX(src file, dst file, version,base)
 SHUFFLE_LHS_TEX		= \
-	$(call SHUFFLE_LHS,$1,$2,--latex --xref-except=shuffleXRefExcept,$(LHS2TEX) $(LHS2TEX_POLY_MODE),$3,$4)
+	$(call SHUFFLE_LHS,$1,$2,--latex --xref-except=shuffleXRefExcept,$(LHS2TEX) $(LHS2TEX_POLY_MODE),`dirname $2`,$4)
 #	$(call SHUFFLE_LHS,$1,$2,--latex --index --xref-except=shuffleXRefExcept,$(LHS2TEX) --poly,$3,$4)
 
-# RULER_LHS(src file, dst file, lhs2tex)
+# RULER_LHS(base, src file, dst file, lhs2tex)
 RULER_LHS		= \
-	$(RULER) --latex $1 | $3 > $2
+	$(RULER) --latex --base $1 $2 | $4 > $3
 
-# RULER_LHS_TEX(src file, dst file)
+# RULER_LHS_TEX(base, src file, dst file)
 RULER_LHS_TEX		= \
-	$(call RULER_LHS,$1,$2,$(LHS2TEX) --poly)
+	$(call RULER_LHS,$1,$2,$3,$(LHS2TEX) --poly)
 
 
 ### Version 1
@@ -433,7 +433,7 @@ GRI_V11				:= $(addprefix $(VF)/,$(GRI))
 
 ### AG Primer's Repmin AG variant
 $(AG_PRIMER_CAG:.cag=.ag): %.ag: %.cag $(SHUFFLE)
-	$(call SHUFFLE_LHS_AG,$<,$@,1,Main) ; \
+	$(call SHUFFLE_LHS,$<,$@,--ag,$(LHS2TEX) --newcode,1,Main) ; \
 	touch $@
 
 $(D_BUILD_BIN)/repminag: $(AG_PRIMER)RepminAG.hs
@@ -490,7 +490,7 @@ $(AFP_STY): afp.lsty Makefile
 	$(call LHS2TEX_POLY_3,$<,$@)
 
 $(AFP_RULES_TEX): %.tex: %.rul $(RULER) $(AFP_FMT)
-	$(call RULER_LHS_TEX,$<,$@)
+	$(call RULER_LHS_TEX,$(*F),$<,$@)
 
 agprimer: $(D_BUILD_BIN)/repminag $(D_BUILD_BIN)/repminhs $(D_BUILD_BIN)/expr
 
@@ -513,6 +513,9 @@ afp-tr:
 
 afp04:
 	$(MAKE) AFP=$@ AFP_TEX_DPDS= LHS2TEX_OPTS="$(LHS2TEX_OPTS_BASE) --set=llncs --set=storyAFP04Notes --set=omitTBD --set=omitLitDiscuss" afp-bib
+
+afp04-dist-tex:
+	$(MAKE) AFP=afp04-dist AFP_TEX_DPDS= LHS2TEX_OPTS="$(LHS2TEX_OPTS_BASE) --set=llncs --set=storyAFP04Notes --set=omitTBD --set=omitLitDiscuss --set=dist" afp04-dist.tex
 
 afp-tst:
 	$(MAKE) AFP=$@ AFP_TEX_DPDS= LHS2TEX_OPTS="$(LHS2TEX_OPTS_BASE) --set=llncs --set=storyAFP04Notes --set=omitTBD --set=omitLitDiscuss" afp
@@ -538,7 +541,7 @@ afp-slides:
 eh-intro:
 	$(MAKE) AFP=$@ AFP_TEX_DPDS= LHS2TEX_POLY_MODE=--poly LHS2TEX_OPTS="$(LHS2TEX_OPTS) --set=storyEHIntro --set=asSlides --set=omitTBD --set=omitLitDiscuss" afp
 
-.PHONY: shuffle ruler brew ehcs dist www www-sync gri gris agprimer
+.PHONY: shuffle ruler brew ehcs dist www www-sync gri gris agprimer dist-afp04
 
 shuffle: $(SHUFFLE)
 
@@ -734,6 +737,20 @@ $(DIST_ZIP): $(addprefix $(VERSION_LAST)/,$(EHC_DPDS_ALL_MIN_TARG)) Makefile tes
 	tar cfz $(DIST_TGZ) $(DIST) ; \
 	echo "== tar ==" ; \
 	zip -qur $(DIST_ZIP) $(DIST)
+
+dist-afp04: afp04-dist-tex
+	@rm -rf $(DIST_AFP04) ; \
+	mkdir -p $(DIST_AFP04) ; \
+	latex --jobname afp04 afp04 ; \
+	cp $(addprefix afp04.,pdf dvi aux toc) rules.tex afp-pgf.tex $(DIST_AFP04) ; \
+	cp afp04-dist.tex $(DIST_AFP04)/afp04.tex ; \
+	cp -r tmp-afp04 figs $(DIST_AFP04) ; \
+	cp $(addsuffix .sty,afp04 doubleequals infrule beamerthemeafp kscode textpos) llncs.cls $(DIST_AFP04) ; \
+	cp $(addprefix /Volumes/Apps/Install/LaTeX/,latex-beamer-2.21.tar.gz pgf-0.62.tar.gz xcolor-2.00.tar.gz xkeyval.tar.gz) $(DIST_AFP04) ; \
+	cp /Volumes/Apps/Install/lhs2TeX/lhs2tex-1.9.tar.bz2 $(DIST_AFP04) ; \
+	cp -r /Volumes/Work/Library/texmf $(DIST_AFP04) ; \
+	cp -r /usr/local/share/lhs2tex/lhs2TeX.sty $(DIST_AFP04) ; \
+	tar cfz $(DIST_AFP04).tgz $(DIST_AFP04)
 
 wc:
 	grep frametitle $(AFP_LHS) | wc

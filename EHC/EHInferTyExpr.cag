@@ -11,7 +11,9 @@
 
 %%[1.tyGam
 ATTR AllTyExpr [ | tyGam: TyGam | ]
+%%]
 
+%%[1.check
 SEM TyExpr
   | Con         loc         .  (tgi,nmErrs)         =   case tyGamLookup @nm @lhs.tyGam of
                                                           Nothing    ->  (TyGamInfo Ty_Any
@@ -31,8 +33,9 @@ SEM TyExpr
 
 %%[3.tyVarGather
 SEM TyExpr
-  | Var         (loc.tgi,lhs.tyGam)                 =   case tyGamLookup @nm @lhs.tyGam of
-                                                          Nothing    ->  let  t    =  mkNewTyVar @lUniq
+  | Var VarWild loc         .   tyVarId             =   @lUniq
+                (loc.tgi,lhs.tyGam)                 =   case tyGamLookup @nm @lhs.tyGam of
+                                                          Nothing    ->  let  t    =  mkNewTyVar @tyVarId
                                                                               tgi  =  TyGamInfo t
                                                                          in   (tgi,gamAdd @nm tgi @lhs.tyGam)
                                                           Just tgi   ->  (tgi,@lhs.tyGam)
@@ -70,6 +73,11 @@ SEM TyExpr
   | Wild        lhs         .   tyVarWildL          =   [@tyVarId]
 %%]
 
+%%[3.tyVarWildL
+SEM TyExpr
+  | VarWild     lhs         .   tyVarWildL          =   [@tyVarId]
+%%]
+
 %%[9
 SEM TyExpr
   | Impls       lhs         .   tyVarWildL          =   [@implsVarId]
@@ -95,7 +103,8 @@ ATTR TyExpr TyVar [ | | ki: Ty ]
 ATTR TyExprs TyVars [ | | kiL: TyL ]
 
 SEM TyExpr
-  | Var         (loc.tgi,lhs.tyGam)                 :=  tyGamLookupOrAdd @nm @lUniq @lhs.kiCnstr @lhs.tyGam
+  | Var VarWild
+                (loc.tgi,lhs.tyGam)                 :=  tyGamLookupOrAdd @nm @lUniq @lhs.kiCnstr @lhs.tyGam
                 loc         .   ki                  =   tgiKi @tgi
   | Wild        loc         .   tgi                 :=  let t = mkNewTyVar @tyVarId in mkTGI t t
                             .   ki                  =   tgiKi @tgi
@@ -151,12 +160,13 @@ SEM RowTyExpr
 ATTR PrExpr [ | | ki: Ty ]
 
 SEM PrExpr
-  | Class       loc         .   ki                  =   kiStar
-%%]
-
-%%[10
-SEM PrExpr
-  | Lacks       loc         .   ki                  =   kiStar
+  | *           lhs         .   ki                  =   kiStar
+  | Class       loc         .   fo                  =   if @nmIsDef
+                                                        then fitsIn weakFIOpts emptyFE @lUniq
+                                                                (@tyExprs.kiCnstr |=> (@tyExprs.kiL `mkTyArrow` kiStar))
+                                                                (@tyExprs.kiCnstr |=> pigiKi @pigi)
+                                                        else emptyFO
+                lhs         .   kiCnstr             =   foCnstr @fo |=> @tyExprs.kiCnstr
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -172,27 +182,28 @@ SEM TyExpr
 %%% Type of TyExpr, TyVar
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%[1
+%%[1.ty
 ATTR TyExpr [ | | ty: Ty ]
 
 SEM TyExpr
-  | Con         lhs         .   ty                  =   Ty_Con @nm
-  | App         lhs         .   ty                  =   Ty_App @func.ty @arg.ty
+  | Con         loc         .   ty                  =   Ty_Con @nm
+  | App         loc         .   ty                  =   Ty_App @func.ty @arg.ty
 %%]
 
 %%[2.ty
 SEM TyExpr
-  | Wild        lhs         .   ty                  =   tgiTy @tgi
+  | Wild        loc         .   ty                  =   tgiTy @tgi
 %%]
 
 %%[3
 SEM TyExpr
-  | Var         lhs         .   ty                  =   tgiTy @tgi
+  | Var VarWild
+                loc         .   ty                  =   tgiTy @tgi
 %%]
 
 %%[4
 SEM TyExpr
-  | Quant       lhs         .   ty                  =   Ty_Quant @qu @tv @tyExpr.ty
+  | Quant       loc         .   ty                  =   Ty_Quant @qu @tv @tyExpr.ty
 %%]
 
 %%[5
@@ -218,7 +229,7 @@ SEM TyVars
 %%[9
 SEM TyExpr
   | Impls NoImpls
-                lhs         .   ty                  =   tgiTy @tgi
+                loc         .   ty                  =   tgiTy @tgi
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -229,7 +240,7 @@ SEM TyExpr
 ATTR RowTyExpr [ | | tyRow: Ty ]
 
 SEM TyExpr
-  | Row         lhs         .   ty                  =   @rowTyExpr.tyRow
+  | Row         loc         .   ty                  =   @rowTyExpr.tyRow
 
 SEM RowTyExpr
   | Empty       lhs         .   tyRow               =   tyRowEmpty
@@ -250,6 +261,15 @@ ATTR PrExpr [ | | pr: Pred ]
 
 SEM PrExpr
   | Class       loc         .   pr                  =   Pred_Class (@nm `mkTyConApp` @tyExprs.tyL)
+  | Arrow       loc         .   pr                  =   Pred_Pred @prTy
+%%]
+
+%%[9
+ATTR PrExpr [ | | prTy: Ty ]
+
+SEM PrExpr
+  | Arrow       loc         .   prTy                =   [@arg.prTy] `mkTyArrow` @res.prTy
+  | * - Arrow   loc         .   prTy                =   @ty
 %%]
 
 %%[10
@@ -270,20 +290,11 @@ ATTR PrExpr [ | | ty: Ty ]
 ATTR PrExprs [ | | tyL: TyL ]
 
 SEM PrExpr
-  | *           lhs         .   ty                  =   Ty_Pred @pr
+  | *           loc         .   ty                  =   Ty_Pred @pr
 
 SEM PrExprs
   | Nil         lhs         .   tyL                 =   []
   | Cons        lhs         .   tyL                 =   @hd.ty : @tl.tyL
-%%]
-
-%%[9
-ATTR PrExpr [ | | kiL: TyL ]
-%%]
-
-%%[10
-SEM PrExpr
-  | Lacks       lhs         .   kiL                 =   []
 %%]
 
 

@@ -24,6 +24,7 @@ SEM Expr
                                         >-< @errBodyPP
   | App         loc     .   pp      =   @func.pp >#< @arg.pp
   | Parens      loc     .   pp      =   pp_parens @expr.pp
+  | TypeAs      loc     .   pp      =   @expr.pp >#< "::" >#< @tyExpr.pp
 %%]
 
 %%[1.Base.ExprComplex
@@ -76,12 +77,10 @@ SEM Decl
 %%[3
 SEM TyExpr
   | Var         loc     .   pp      =   pp @nm
+  | VarWild     loc     .   pp      =   "%" >|< pp @nm
 %%]
 
 %%[4
-SEM Expr
-  | TypeAs      loc     .   pp      =   @expr.pp >#< "::" >#< @tyExpr.pp
-
 SEM PatExpr
   | TypeAs      loc     .   pp      =   @patExpr.pp >#< "::" >#< @tyExpr.pp
 
@@ -198,19 +197,18 @@ SEM TyExpr
 
 SEM PrExpr
   | Class       loc     .   pp      =   ppSpaced (pp @nm : @tyExprs.ppL)
+  | Arrow       loc     .   pp      =   @arg.pp >#< hsnPrArrow >#< @res.pp
 
 SEM PrExprs
   | Nil         lhs     .   ppL     =   []
   | Cons        lhs     .   ppL     =   @hd.pp : @tl.ppL
 
 SEM Decl
-  | Class       loc     .   pp      =   "class"     >#< ppListSep "(" ")" ", " @ctxtPrExprs.ppL
-                                                    >#< "=>" >#< @prExpr.pp
+  | Class       loc     .   pp      =   "class"     >#< @tyPrExpr.pp
                                                     >#< "|" >#< ppListSep "" "" ", " @funcDeps.ppL
                                                     >#< "where" >-< indent 2 @decls.pp
   | Instance    loc     .   pp      =   "instance"  >|< maybe empty (\(n,e) -> " " >|< n >#< (if e then "<:" else "::")) @mbNmElim
-                                                    >#< ppListSep "(" ")" ", " @ctxtPrExprs.ppL
-                                                    >#< "=>" >#< @prExpr.pp
+                                                    >#< @tyPrExpr.pp
                                                     >#< "where" >-< indent 2 @decls.pp
                                                     >-< @errInstPP
                                                     >-< @errDeclsPP
