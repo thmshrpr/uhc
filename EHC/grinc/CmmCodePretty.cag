@@ -61,9 +61,8 @@ SEM CmmProcedure
 SEM CmmStatement
   | Nop             loc . pp    = pp ";"
   | If              loc . pp    = "if" >#< @condition.pp >-< pp_braces @body.pp
-  | IfElse          loc . pp    = pp_ite "if" "{" ("}" >#< "else" >#< "{") "}"
-                                     @condition.pp @ifbody.pp @elsebody.pp
-  | Switch          loc . pp    = "case" >#< @expr.pp >-< @alts.pp
+  | IfElse          loc . pp    = "if ">#< @condition.pp >-< pp_braces @ifbody.pp >-< "else" >-< pp_braces @elsebody.pp
+  | Switch          loc . pp    = "switch" >#< @expr.pp >-< pp_braces @alts.pp
   | Span            loc . pp    = "span" >#< @key.pp >#< @value.pp >-< pp_braces @body.pp
   | Assign          loc . pp    = @lvals.pp >#< "=" >#< ppListComma id @expressions.pps              >|< ";"
   | Call            loc . ppLHS = ppListComma ppReciever @recievers

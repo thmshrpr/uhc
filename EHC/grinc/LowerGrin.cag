@@ -93,7 +93,7 @@ TODO: is this name generation correct (clashes?!)
 %%[8 hs
 newNames :: HsName -> Int -> [HsName]
 newNames base count | count == 0 = []
-                    | otherwise  = suffix ".Tag" : map (\n -> suffix $ ".Field" ++ show n) [1..(count-1)]
+                    | otherwise  = suffix "_Tag" : map (\n -> suffix $ "_Field" ++ show n) [1..(count-1)]
 	where
 	suffix = hsnSuffix base
 
@@ -109,12 +109,31 @@ isJust m = case m of
   
 %%]
 
+
+Substitution is not done on all places
+So we retrieve the new pattern
+
+%%[8
+ATTR GrExpr [ | | noVector: {Bool} ]
+ATTR GrPat [ | | newPat: {GrPat} ]
+
+SEM GrExpr
+  | Store      lhs . noVector      = True
+  | * - Store  lhs . noVector      = False
+
+SEM GrExpr
+  | Seq     loc  . patNode      = if @expr.noVector then @pat.grTrf else @pat.newPat
+	    body . grNodeSubst  = if @expr.noVector then @lhs.grNodeSubst else @pat.grNodeSubst
+            lhs  . grTrf        = GrExpr_Seq @expr.grTrf @patNode @body.grTrf
+%%]
+
 %% Rename \v to \(t f1 f2 fl)
 %%[8
 SEM GrPat
   | Var       loc . (tn, fldnL)  = let (tn:fldnL) = newNames @nm @lhs.maxTagSizeAll
                                    in (tn, fldnL)
-              lhs . grTrf        = GrPat_Node (GrTag_Var @tn) @fldnL
+              lhs . newPat        = GrPat_Node (GrTag_Var @tn) @fldnL
+  | * - Var   lhs . newPat        = @grTrf
 %%]
 
 %% Substitute names!

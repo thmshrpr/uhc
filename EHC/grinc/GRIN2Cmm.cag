@@ -317,7 +317,17 @@ SEM GrExpr
 %%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%[8
-ATTR AllGrExpr [ targetNames: {CmmNames} | | buildBody USE {.} {id}: {CmmBody->CmmBody} ]
+ATTR AllGrExpr [ targetNames: {CmmNames} | | ]
+ATTR GrExpr    [ | | buildBody USE {.} {id}: {CmmBody->CmmBody} ]
+ATTR GrAltL    [  | | cmmAlts: {CmmAlternatives} ]
+ATTR GrAlt     [  | | cmmAlt: {CmmAlternative} ]
+
+SEM GrAlt 
+  | Alt    loc  . cmmBody     = @expr.buildBody []
+           lhs  . cmmAlt      = CmmAlternative_Alt [@pat.cmmRange] @cmmBody 
+SEM GrAltL
+  | Cons   lhs  . cmmAlts     = @hd.cmmAlt : @tl.cmmAlts
+  | Nil    lhs  . cmmAlts     = []
 
 SEM GrBind
   | Bind   expr . targetNames = []
@@ -327,7 +337,8 @@ SEM GrExpr
   | Seq    expr . targetNames = @pat.cmmNames
            body . targetNames = []
 
-  | Case   loc  . buildBody   = (body nop:)
+  | Case   loc  . switchStm   = switch @val.caseExpr @altL.cmmAlts
+                . buildBody   = (body @switchStm:)
 
   | Call   loc  . recievers   = names2knames @lhs.targetNames
                 . callStm     = buildCall @isLastExpr (hsName2cmmName @nm) @argL.cmmActuals @recievers
@@ -361,7 +372,7 @@ SEM GrExpr
 
   | Update loc  . buildBody   = (body nop:)
            
--- Collect return arguments
+-- Collect return arguments (for unit operation)
 ATTR GrVal GrValL [ | | cmmReturn USE {++} {[]}: {CmmActuals} cmmCopy USE {++} {[]}: {CmmExpressions} ]
 SEM GrVal
   | Node       loc . cmmExpr   = varRef (fromJust @tag.tagName)
@@ -382,7 +393,7 @@ SEM GrVal
                    . cmmReturn = [ ptrArg @cmmExpr ]
                    . cmmCopy   = [ @cmmExpr ]
 
--- Collect fucntion arguments
+-- Collect fucntion arguments 
 ATTR GrValL [ | | cmmActuals : {CmmActuals} ]
 ATTR GrVal  [ | | cmmActual  : {CmmActual } ]
 
@@ -390,9 +401,10 @@ SEM GrValL
   | Cons     lhs . cmmActuals = @hd.cmmActual : @tl.cmmActuals
   | Nil      lhs . cmmActuals = []
 
+ATTR AllGrNT [ | | copy: SELF ]
 SEM GrVal
   | Var      loc . cmmActual = buildArg @lhs.cafEnv @nm
-  | * - Var  loc . cmmActual = error "actual requested, but no GrVal_Var" 
+  | * - Var  loc . cmmActual = error $ "actual requested, but no GrVal_Var: "  ++ show @copy
 
 --Collect names for a pattern in Seq
 ATTR GrPat GrPatL [ | | cmmNames USE {++} {[]}: {CmmNames} ]
@@ -403,6 +415,18 @@ SEM GrPat
   | Tag        loc . cmmNames = maybe [] (\e-> [e]) @tag.tagName
   | Empty      loc . cmmNames = []
   | Var        loc . cmmNames = [ hsName2cmmName @nm ]
+
+-- Collect scrutiniser for case
+ATTR GrVal [ | | caseExpr: {CmmExpression} ]
+SEM GrVal
+  | Tag        lhs . caseExpr  = @cmmExpr
+  | * - Tag    lhs . caseExpr  = error $ "not a tag in a case " ++ show @copy
+
+-- Collect Range for case
+ATTR GrPat [ | | cmmRange: {CmmRange} ] 
+SEM GrPat
+  | Tag        loc . cmmRange = maybe (error "unknown tag in case pattern") (\n -> CmmRange_Single $ varRef n) @tag.tagName
+  | * - Tag    loc . cmmRange = error $ "no tag in case pattern " ++ show @copy
 %%]
 
 %%[8 hs
@@ -473,7 +497,7 @@ SEM GrModule
 -- NOTE: As a convention the tags are named after the their binding name with "@@0F" preprended
 --       see also: Collecting Tags
 cafNode4name :: HsName -> CmmName
-cafNode4name hn = "@0F" ++ hsName2cmmName hn
+cafNode4name hn = "@F" ++ hsName2cmmName hn
 
 cafOffset :: HsName -> [(HsName, Int)] -> Int
 cafOffset nm env = maybe (error $ "no CAF found named '" ++ show nm ++ "'") id $ lookup nm env
