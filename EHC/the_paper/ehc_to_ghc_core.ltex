@@ -519,6 +519,23 @@ HERE WE ARE LEFT \ldots write about renaming\ldots
 
 \subsection{Outputting GHC Core Code}
 
+\medskip
+
+Outputting the GHC Core code  was quit straightforward, we just created a pretty printer for our version, which is located in the file {\bf EHGhcCorePretty.cag} and made some changes in the pretty printer of the types ({\bf EHTyPretty.cag}).
+
+To make the generated output compilable, we needed to include some extra information when printing Integers and Characters, i.e. describing that they are unboxed:
+
+
+\begin{code}
+boxInt i =  "GHCziBase.Izh" >#< pp_parens (i >#< "::GHCziPrim.Intzh" )
+boxChar c =  "GHCziBase.Czh" >#< pp_parens (c >#< "::GHCziPrim.Charzh" )
+\end{code}
+
+
+We have encountered a problem with the pretty printer that is not clear yet: When the expected output generated is too big, the pretty printer wont work.
+
+....
+
 \subsubsection{Outputting Types}
 
 Some story about the code \ldots
@@ -582,7 +599,15 @@ SEM Ty
 
 \section{Type aguments}
 
- include picture overview2 \ldots
+See Figure \ref{overview2} for overview.... 
+
+\begin{figure}
+\caption{Overview of ......}
+\label{overview2}
+\includegraphics[scale=1.5,angle=-90]{overview2}
+\end{figure}
+
+\bigskip
 
 \section{Overview to the added/created files}
 
@@ -640,6 +665,27 @@ whas this usefull?
 is EHC nice?
 
 \section{Examples}
+
+\medskip
+
+Here we show some examples, so its easier to understand the main translation. For each example we will show the code in the 3 phases, which are EH, EHCode and GHC Core.
+
+The first example is a simple representation of the Integer 3:
+
+\begin{code}
+>>> EH int <<<
+let
+in 3
+
+>>> EHCode int <<<
+module int
+3
+>>> GHC Core int <<<
+%module Top
+top :: GHCziBase.Int = GHCziBase.Izh (3 ::GHCziPrim.Intzh);
+\end{code}
+
+.....
 
 %%%% REFERENCES %%%
 \section{References}
