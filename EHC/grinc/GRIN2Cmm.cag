@@ -13,7 +13,7 @@ BUG in Shuffle: hiding kan niet geparsed worden voor infix functies (haakjes wor
 import EHCommon hiding ((<+>))
 %%]
 
-%%[8 hs import(Data.Char, Data.List(nub), GrinCode, CmmCode) export(grin2cmm,CmmUnit(..))
+%%[8 hs import(Data.Char, Data.List(nub), Data.Maybe, GrinCode, CmmCode) export(grin2cmm,CmmUnit(..))
 grin2cmm :: GrModule -> CmmUnit
 grin2cmm gr = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf gr))
                                    (Inh_GrAGItf {})
@@ -184,6 +184,34 @@ varRef'    = varRef    . hsName2cmmName
 varUpdate' = varUpdate . hsName2cmmName
 %%]
 
+%%%%%%%%%%%%%%%%
+%% Primitives %%
+%%%%%%%%%%%%%%%%
+
+%%[8 hs
+-- primitivesTable: list of (name, (required imports, arguments -> result variables -> primitve))
+primitivesTable :: [(String, ([String], CmmNames -> CmmNames -> CmmStatement))]
+primitivesTable
+  = [ ("primAddInt", ([], emitPrimAddInt))
+    , ("primCmpInt", ([], emitPrimCmpInt))
+    ]
+
+emitPrimAddInt (l:r:[]) tn = assignOrReturn tn (varRef l <+> varRef r)
+
+emitPrimCmpInt (l:r:[]) tn 
+  = ite (prim "gt" [valArg $ varRef l,valArg $ varRef r])
+        [body . assignOrReturn tn $ varRef "@C$_GT"]
+        (Just [body $ ite (prim "lt" [valArg $ varRef l,valArg $ varRef r])
+            [body . assignOrReturn tn $ varRef "@C$_LT"]
+            (Just [body . assignOrReturn tn $ varRef "@C$_EQ"])
+        ])
+
+assignOrReturn tn expr = case tn of
+                             [e] -> assign [varUpdate e] [expr]
+                             [ ] -> ret "" [valArg expr]
+                             _   -> error $ "too many arguments in call: " ++ show tn
+%%]
+
 %%%%%%%%%%%%%%%%%%%%%%%%%
 %% Collecting Imports  %%
 %%%%%%%%%%%%%%%%%%%%%%%%%
@@ -193,13 +221,13 @@ ATTR GrModule [ | | imports: {Maybe CmmToplevel} ]
 ATTR AllGrNT [ | | importedNames USE {++} {[]}: {CmmExternalNames} ]
 
 SEM GrModule
-  | Mod            loc . importedNames = nub @bindL.importedNames
-                   loc . imports       = if null @importedNames
-                                         then Nothing
-                                         else Just $ CmmToplevel_Declaration (imports @importedNames)
+  | Mod           loc . importedNames = nub @bindL.importedNames
+                  loc . imports       = if null @importedNames
+                                        then Nothing
+                                        else Just $ CmmToplevel_Declaration (imports @importedNames)
 SEM GrExpr
-  | FFI           loc .  importedNames = [(cmmName @nm, Just @nm)]
-
+  | FFI           loc . neededNames   = maybe [@nm] fst $ lookup @nm primitivesTable
+                      . importedNames = map (\n -> (cmmName n, Just n)) @neededNames
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%
@@ -220,6 +248,8 @@ SEM GrModule
 %%  Cmm code, top level %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%
 
+Merge everyting together into a C-- compilation unit
+
 %%[8
 ATTR GrAGItf GrModule [ | | cmmUnit : CmmUnit ]
 
@@ -232,16 +262,15 @@ SEM GrModule
                                       unitTarget           = toplevel $ target 32 LittleEndian 32 32
 				      grin_main            = buildDriver (HNm "main") @lhs.cafEnv
                                       toplevelProcedures   = grin_main : map toplevel @bindL.cmmProcs
-                                      buildTagConst (t, i) = toplevel . constant (Just valType) t $ int i
                                       tagConstants         = map buildTagConst $ zip @tags [1..]
+                                      buildTagConst (t, i) = toplevel . constant (Just valType) t $ int i
                                   in CmmUnit_Unit 
                                        $ unitTarget : unitTypedefs : 
                                          (externals $ tagConstants ++ cafNodes : toplevelProcedures)
 %%]
 
-%%[8.builder hs
+%%[8.driver hs
 buildDriver nm env = toplevel $ procedure "@grin_main" "" [] [ tailcallEval (buildArg env nm) ]
-
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -297,7 +326,6 @@ SEM GrBind
 SEM GrExpr
   | Seq    expr . targetNames = @pat.cmmNames
            body . targetNames = []
-           loc  . buildBody   = @expr.buildBody . @body.buildBody
 
   | Case   loc  . buildBody   = (body nop:)
 
@@ -305,7 +333,14 @@ SEM GrExpr
                 . callStm     = buildCall @isLastExpr (hsName2cmmName @nm) @argL.cmmActuals @recievers
                 . buildBody   = (body @callStm :)
 
-  | FFI    loc  . buildBody   = (body nop:)
+  | FFI    loc  . recievers   = names2knames @lhs.targetNames
+                . mbPrim      = lookup @nm primitivesTable
+                . isPrim      = isJust @mbPrim
+                . primStm     = snd (fromJust @mbPrim) (map hsName2cmmName @argL) @lhs.targetNames
+                . callStm     = call "C" (varRef $ cmmName @nm) (map (valArg . varRef') @argL) @recievers
+                . buildBody   = if @isPrim then (body @primStm :)
+                                else if not @isLastExpr then (body @callStm :)
+                                else error "FFI as last expression"
 
   | App    loc  . recievers   = names2knames @lhs.targetNames
                 . callStm     = buildCall @isLastExpr apply (buildArg @lhs.cafEnv @nm : @argL.cmmActuals) @recievers
@@ -329,13 +364,13 @@ SEM GrExpr
 -- Collect return arguments
 ATTR GrVal GrValL [ | | cmmReturn USE {++} {[]}: {CmmActuals} cmmCopy USE {++} {[]}: {CmmExpressions} ]
 SEM GrVal
-  | Node       loc . cmmExpr   = varRef @tag.tagName
+  | Node       loc . cmmExpr   = varRef (fromJust @tag.tagName)
                    . cmmReturn = valArg @cmmExpr : @fldL.cmmReturn
                    . cmmCopy   = @cmmExpr : @fldL.cmmCopy
   | NodeAdapt  loc . cmmExpr   = error "no cmmExpr for GrVal_NodeAdapt"
                    . cmmReturn = @cmmExpr
                    . cmmCopy   = @cmmExpr
-  | Tag        loc . cmmExpr   = varRef @tag.tagName
+  | Tag        loc . cmmExpr   = varRef (fromJust @tag.tagName)
                    . cmmReturn = [ valArg @cmmExpr ]
                    . cmmCopy   = [ @cmmExpr ]
   | Empty      loc . cmmReturn = []
@@ -362,9 +397,10 @@ SEM GrVal
 --Collect names for a pattern in Seq
 ATTR GrPat GrPatL [ | | cmmNames USE {++} {[]}: {CmmNames} ]
 SEM GrPat
-  | Node       loc . cmmNames = "@tmp" : map hsName2cmmName @fldL
+  | Node       loc . fldNames = map hsName2cmmName @fldL
+               loc . cmmNames = maybe @fldNames (: @fldNames) @tag.tagName
   | NodeSplit  loc . cmmNames = error "No NodeAdapt suport in GrPat"
-  | Tag        loc . cmmNames = [ "@tmp" ]
+  | Tag        loc . cmmNames = maybe [] (\e-> [e]) @tag.tagName
   | Empty      loc . cmmNames = []
   | Var        loc . cmmNames = [ hsName2cmmName @nm ]
 %%]
@@ -379,28 +415,25 @@ names2knames = map ((,) "")
 %%  Collecting Tags %%
 %%%%%%%%%%%%%%%%%%%%%%
 
-tag2cmm (GrTag_Var v)            = error $ "tag2cmm: GrTag contains a variable ("++ show v ++")"
-tag2cmm (GrTag_Lit categ int nm) = '@' : (show int) ++ (categStr ++ hsName2cmmName nm)
-	where
-
 %%[8
 ATTR AllGrNT [ | | tags USE {++} {[]}: {[CmmName]} ]
-ATTR GrTag [ | | tagName: {CmmName} ]
+ATTR GrTag [ | | tagName: {Maybe CmmName} ]
 
 SEM GrModule
   | Mod loc . tags    = nub @bindL.tags
 
 SEM GrTag
-  | Lit    loc . tagName = let categStr = case @categ of
-                                            GrTagCon          -> "C"
-                                            GrTagHole       -> "H"
-                                            GrTagRec        -> "R"
-                                            GrTagApp        -> "A"
-                                            GrTagFun        -> "F" 
-                                            GrTagPApp need  -> 'P' : show need
-                           in '@' : (show @int) ++ categStr ++ hsName2cmmName @nm
-           loc . tags    = [ @tagName ]
-  | Var    loc . tagName = error $ "tag2cmm: GrTag contains a variable ("++ show @nm ++")"
+  | Lit      loc . tagName = let categStr = case @categ of
+                                              GrTagCon          -> "C"
+                                              GrTagHole       -> "H"
+                                              GrTagRec        -> "R"
+                                              GrTagApp        -> "A"
+                                              GrTagFun        -> "F" 
+                                              GrTagPApp need  -> 'P' : show need
+                             in Just $ '@' : categStr ++ hsName2cmmName @nm
+             loc . tags    = maybe [] (\e -> [e]) @tagName
+  | Var      loc . tagName = Just $ hsName2cmmName @nm
+  | Unboxed  loc . tagName = Nothing
 
 %%]
 
