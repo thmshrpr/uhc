@@ -91,9 +91,9 @@
 
 The purpose of this project is to generate GHC Core code from EHC language. GHC Core is an intermediate language of the Glasgow Haskell Compiler \cite{www04ghc} which is an internal representation of various compiling stages in GHC.
 
-EHC is a more-or-less Haskell Compiler and it is a evolutionary project because the final compiler envolves via intermediate steps, so it is divided in various versions. This backend is an extension of version 8 of EHC (8\_1) so it will be one more step to extend the future compiler. EHC has an intermediate Core language too, EHCode. That will be our source language to generate the GHC Core. 
+EHC is a more-or-less Haskell Compiler and it is a evolutionary project because the final compiler evolves via intermediate steps, so it is divided in various versions. This backend is an extension of version 8 of EHC (8\_1) so it will be one more step to extend the future compiler. EHC has an intermediate Core language too, EHCode. That will be our source language to generate the GHC Core. 
 
-This report is pointed to students or people that are interested to extend this project and we assume that they already have knowledge in the implementation and structure of EHC. We will try to be specific explainning the various steps of the implementation,showing the code and some examples.
+This report is pointed to students or people that are interested to extend this project and we assume that they already have knowledge in the implementation and structure of EHC. We will try to be specific explaining the various steps of the implementation,showing the code and some examples.
 
 See Figure \ref{overview1} for overview of the project. 
 
@@ -220,7 +220,7 @@ The EHCode uses a strict let binding to force evaluation. Called let! (Let bang)
 
 To get a new output chain in the compiler not much has to be changed. The files to look in is are { \bf EHC.chs } and { \bf EHCommon.chs}. The latter contains the definitions of the 'option datatype' and command line switch definitions and help messages (see variable |cmdLineOpts|). 
 
-If the option is added (in our case a new option to the @-c@ switch) the compiler driver must be extended. This is done in { \bf EHC.chs }. The shuffle part @outputPass@ contains the compiler output pass. Overriding this to allow output is not hard since two examples already are availible (java output and code output).
+If the option is added (in our case a new option to the @-c@ switch) the compiler driver must be extended. This is done in { \bf EHC.chs }. The shuffle part @outputPass@ contains the compiler output pass. Overriding this to allow output is not hard since two examples already are available (java output and code output).
 
 \subsection{Makefile}
 
@@ -230,7 +230,7 @@ To make the AG files compile some @DPDS_*@ variables should be added. Which have
 
 The second problem is that an AG file not always should output the datatypes. These should be defined in the @EHC_LAG_FOR_HS_*@ variables, which are used in the file {\bf mk/ehfiles.mk}. So here we also have to add these variable lines.
 
-We have noted that not all dependencies are correct at the moment, which is a shame. But since we had very limited time we just continued working at the intresting parts.
+We have noted that not all dependencies are correct at the moment, which is a shame. But since we had very limited time we just continued working at the interesting parts.
 
 \section{Add type information to EHCode}
 
@@ -341,11 +341,11 @@ SEM Expr
                                                         (rceMatch [(n,@expr.ty)] @alts.caltL cvarUndefined)
 \end{code}
 
-As you can see the case alternative uses a binding, so we have to add that one too. The changes have been simple until now. The case is the first place the front end is actually doing something with EHCode rather than just building up the tree. It applies a pattern mattching comiling algorithm. The top level function of this algorithm is the |rceMatch| function. The changes needed to its implementation are far from trivial.
+As you can see the case alternative uses a binding, so we have to add that one too. The changes have been simple until now. The case is the first place the front end is actually doing something with EHCode rather than just building up the tree. It applies a pattern matching compiling algorithm. The top level function of this algorithm is the |rceMatch| function. The changes needed to its implementation are far from trivial.
 
 \subsubsection{Pattern matching compiling algorithm}
 
-The front uses an Patern-matching compiler algorithm described in \cite{ipt:impl-func-prog-lang}.  The algoritm converts a nested pattern to a non overlapping pattern which is flat. i.e. Has a constructor and a list of variables. We give an example below.
+The front uses an Pattern-matching compiler algorithm described in \cite{ipt:impl-func-prog-lang}.  The algorithm converts a nested pattern to a non overlapping pattern which is flat. i.e. Has a constructor and a list of variables. We give an example below.
 
 \medskip
 
@@ -370,9 +370,9 @@ case x of
 
 Note that the let! expression is the forcing part of EHCode. Not the case expression. 
 
-Since the algorithm can introduce let bindings and introduces new pattern variables we need to give the types of all identifiers and make them traverse through the algoritm. We have to introduce the type in the Constructor arguments since such an argument might change into a variable (see example above).
+Since the algorithm can introduce let bindings and introduces new pattern variables we need to give the types of all identifiers and make them traverse through the algorithm. We have to introduce the type in the Constructor arguments since such an argument might change into a variable (see example above).
 
-\header{More typeinfo}
+\header{More type-info}
 A constructor in a pattern stores it arguments in a CPatBind datatype, so we extend that datatype.
 
 \medskip
@@ -388,9 +388,9 @@ DATA  CPatBind
 
 \medskip
  
-The attribute |cbindL| is a associative list from argument name to its pattern. The argument name is the name of a label in a record. in case of a normal application the name is undefined. There is no reason to use an associative list for this since no lookup is done. However the datatype is availible and is nothing more than a list of tuples which is exacly what was needed here.
+The attribute |cbindL| is a associative list from argument name to its pattern. The argument name is the name of a label in a record. in case of a normal application the name is undefined. There is no reason to use an associative list for this since no lookup is done. However the datatype is available and is nothing more than a list of tuples which is exactly what was needed here.
 
-To get the type info out of EH language we change this attribute to include also the type info. The change is straitforward, we save types of record fields and of arguments of applications.
+To get the type info out of EH language we change this attribute to include also the type info. The change is straightforward, we save types of record fields and of arguments of applications.
 
 Finally  this list is used to create the pattern bindings.
 
@@ -490,9 +490,9 @@ rceMatchVar (arg:args') alts ce
 
 \header{rceMatchCon}
 
-|rceMatchCon| takes care of grouping of patterns which start with the same constructor and create an |let!| and a case which only will inspect the top level constructor and create the rest of the match by calling rceMatch recursively. So it flattens the pattern match into a case with distict constuctor tags which binds variables only.
+|rceMatchCon| takes care of grouping of patterns which start with the same constructor and create an |let!| and a case which only will inspect the top level constructor and create the rest of the match by calling rceMatch recursively. So it flattens the pattern match into a case with distinct constructor tags which binds variables only.
 
-The information in the |CPatBind_Bind| is extracted to be used in a let bound variabe or in a pattern variable.
+The information in the |CPatBind_Bind| is extracted to be used in a let bound variable or in a pattern variable.
 
 \medskip
 
@@ -545,11 +545,11 @@ in   e
 
 \medskip
 
-GHC Core needs the datatype the same way as Haskell defines them. So we will have to reintroduce them. Forunately there is a type environment at every let expression which contains the structure and all type information of the newly introduced datatypes (attribute |lQuTyGam|). We add this information to EHCode. In section \ref{reintroduce_datatypes} we reconstruct datatype declarations out of this gamma.
+GHC Core needs the datatype the same way as Haskell defines them. So we will have to reintroduce them. Fortunately there is a type environment at every let expression which contains the structure and all type information of the newly introduced datatypes (attribute |lQuTyGam|). We add this information to EHCode. In section \ref{reintroduce_datatypes} we reconstruct datatype declarations out of this gamma.
 
 \section{Translating EHCode to GhcCore}
 
-Now we have introduced type information into EHCode the translations to GhcCore is for most language constructs straitforward. There are two exceptions to that.
+Now we have introduced type information into EHCode the translations to GhcCore is for most language constructs straightforward. There are two exceptions to that.
 
 \begin{enumerate}
 	\item let! and case constructs
@@ -622,14 +622,14 @@ in e'
 \end{tabular}
 \end{center}
 
-The last case we should take care of would be a case without a let!. This construction might be introduced when it can be proven by the compiler that the expression to be scrutinized is always a value and thus does not need evaluation. In this case the |vbind| of the GHC Core |%case| expression makes the job difficult. Without the |let!| we have no clue what the type of this binding should be. 
+The last case we should take care of would be a case without a let!. This construction might be introduced when the compiler can proof that the expression to be scrutinized is always a value and thus does not need evaluation. In this case the |vbind| of the GHC Core |%case| expression makes the job difficult. Without the |let!| we have no clue what the type of this binding should be. 
 
 Currently the compiler generates an error when this situation occurs.
 
 \subsection{Reintroducing data definitions}
 \label{reintroduce_datatypes}
 
-GHC Core require datatype declarions. We are going to use the datatype information stored in let expression to reintroduce datatype declarations. But first we have to overcome another problem. in EH it is allowed to define datatypes in every let binding, but GHC Core allows it only at the toplevel. To prevent nameclashes we append a unique number to all datatype and constructor names. An other options would be number every let unique however we chose to number the constructor and datatype names. See section \ref{examples} for an example of a redefined datatype.
+GHC Core require datatype declarations. We are going to use the datatype information stored in let expression to reintroduce datatype declarations. But first we have to overcome another problem. in EH it is allowed to define datatypes in every let binding, but GHC Core allows it only at the toplevel. To prevent name clashes we append a unique number to all datatype and constructor names. An other options would be number every let unique however we chose to number the constructor and datatype names. See section \ref{examples} for an example of a redefined datatype.
 
 The reintroduction is done by the |tyGam2DataTypes| which destruct the datatype environment and builds a list of GHC Core datatypes.
 
@@ -669,7 +669,7 @@ The |convertTy| in this code is a renaming function of the datatype names which 
 
 Outputting the GHC Core code  was quite straightforward, we just created a pretty printer for our version, which is located in the file {\bf EHGhcCorePretty.cag} and made some changes in the pretty printer of the types ({\bf EHTyPretty.cag}). 
 
-To make the generated output compilable, we needed to include some extra information when printing Integers and Characters, i.e. describing that they where boxed direcly.
+To make the generated output compilable, we needed to include some extra information when printing Integers and Characters, i.e. describing that they where boxed directly.
 
 \medskip
 
@@ -695,7 +695,7 @@ To output correctly the Types we just changed the {\bf EHTyPretty.cag} in some p
 \medskip
 
 We use an inherited attribute to signal the GHC Core output of types.  We added
-the ppGhcCoreTy to take the module identifier and give it to the type prittyprinter to use in GHC Core output.
+the |ppGhcCoreTy| to take the module identifier and give it to the type prettyprinter to use in GHC Core output.
 
 \medskip
 
@@ -713,7 +713,7 @@ ppGhcCoreTy moduleID ty
 
 \bigskip
 
-Every type or constructor identifier must have a GHC Module identifier. It must be a fully qualified name. So we output this. If the constructor is a buildin type it needs the GHHziBase modulename. The zi is an encoding for the '.' (dot).
+Every type or constructor identifier must have a GHC Module identifier. It must be a fully qualified name. So we output this. If the constructor is a build-in type it needs the GHHziBase modulename. The zi is an encoding for the '.' (dot).
 
 Every other constructor identifier uses the module name in the attribute |ghcModuleID|.
 
@@ -729,7 +729,7 @@ SEM Ty
 
 \bigskip
 
-\section{Future work: Type aguments}
+\section{Future work: Type arguments}
 
 GHC Core allows types as arguments of polymorphic functions in the style of Typed lambda calculus. Suppose we have the following useless EH program:
 
@@ -758,13 +758,13 @@ In GHC Core this would be expressed as:
 
 \medskip
 
-Note that the type arguments are always the first argument. This not clear from the definition of the grammer of GHC Core as given in \cite{tolmach2001ghc-core} (see also section \ref{GhcCore}). Type arguments are always passed when a polymorphic identifier is used. Haskell allows only monomorphic arguments so this is ok.
+Note that the type arguments are always the first argument. This not clear from the definition of the grammar of GHC Core as given in \cite{tolmach2001ghc-core} (see also section \ref{GhcCore}). Type arguments are always passed when a polymorphic identifier is used. Haskell allows only monomorphic arguments so this is ok.
 
 The correct introduction of the type arguments need even more type information. Every application should include the types of both function and application. The function expression can be used to get the number of type arguments and the types of the arguments are filled in in the correct positions.
 
 But what to do with polymorphic arguments. These are not allowed and should get their type arguments to make them monomporph. As show in the last |skipInt| in the example above.
 
-Unfornuatly our time did not permit to investigate this deeper, let alone implement this.
+Unfortunately our time did not permit to investigate this deeper, let alone implement this.
 
 \section{Overview to the added/created files}
 
@@ -796,10 +796,10 @@ And we have changed files from version 8 of EHC:
                      Made some changes on EHCode Abstract Syntax Tree;
 \item
 {\bf EHCode.cag}: 
-                     Changed auxiliar functions related to EHCode Abstract Syntax Tree;
+                     Changed auxiliary functions related to EHCode Abstract Syntax Tree;
 \item
 {\bf EHCommon.chs}: 
-                     Added auxiliar function;
+                     Added auxiliary function;
 \item
 {\bf EHGenCode.cag}: 
                      Changed functions related to the translation of EH language to EHCode;
