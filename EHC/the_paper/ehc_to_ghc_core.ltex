@@ -87,7 +87,7 @@ EHC is a more-or-less Haskell Compiler and it is a evolutionary project because 
 
 This report is pointed to students or people that are interested to extend this project and we assume that they already have knowledge in the implementation and structure of EHC. We will try to be specific explainning the various steps of the implementation,showing the code and some examples.
 
-See Figure\ref{overview1} for overview of the project. 
+See Figure \ref{overview1} for overview of the project. 
 
 \bigskip
 
@@ -209,7 +209,7 @@ The EHCode uses a strict let binding to force evaluation. Called let! (Let bang)
 
 \section{Hook into the compiler}
 
-Compilerdriver, prettyprinter, Makefile \ldots
+Compilerdriver, Makefile \ldots
 
 \section{Add type information to bindings}
 
@@ -448,60 +448,25 @@ rceMatchCon args@((nm,ty):args') alts ce
 
 We just assume here that |cpatVarTy| will succeed. but it is only defined for pattern variables. We need the types of every argument of the Pattern constructor to make nested patterns work as expected. To do this we need to at this information in the |CPatBind_Bind|. We have not done this yet. |cpatVarTy| will just returns the type of a variable.
 
-\section{Reintroducing data definitions}
+\section{Translating EHCode to GhcCore}
+
+\subsection{Reintroducing data definitions}
 
 HERE WE ARE LEFT \ldots
-
-\begin{code}
-%%[8.DataConstr
-SEM DataConstr
-  | Constr      loc         .   tag         =   fromJust (tyRecOffset @conNm @lhs.dataAltTy)
-                lhs         .   cbindL      =   let  len = length @fields.tyL
-                                                     nms = map (\i -> HNm ("x" ++ show i)) [1..len]
-                                                in   [CBind_Bind @conNm
-                                                        (mkCExprLam nms
-                                                          (mkCExprApp (CExpr_App CExpr_Tup (CExpr_Int @tag))
-                                                            (map CExpr_Var nms)))
-                                                     ]
-%%]
-
-%%[8_1.DataConstr -8.DataConstr
-SEM DataConstr
-  | Constr      loc         .   tag         =   fromJust (tyRecOffset @conNm @lhs.dataAltTy)
-                lhs         .   cbindL      =   let zipNameAndType ty lf i = let list = lf (i+1)
-                                                                             in (HNm ("x" ++ show i), ty):list
-                                                    nms = foldr zipNameAndType (const []) @fields.tyL 1
-                                                in   [CBind_Bind @conNm @dataConTy
-                                                        (mkCExprLam nms
-                                                          (mkCExprApp (CExpr_App CExpr_Tup (CExpr_Int @tag))
-                                                            (map (CExpr_Var . fst) nms)))
-                                                     ]
-%%]
-\end{code}
+write about renaming\ldots
 
 \medskip
 
 \begin{code}
-%%[8.ceStrictIn hs
-ceStrictIn :: HsName -> CExpr -> (CExpr -> CExpr) -> CExpr
-ceStrictIn nm e mkC = CExpr_Let CBindStrict [CBind_Bind nm e] (mkC (CExpr_Var nm))
-%%]
-
-%%[8_1.ceStrictIn -8.ceStrictIn hs
-ceStrictIn :: HsName -> Ty -> CExpr -> (CExpr -> CExpr) -> CExpr
-ceStrictIn nm t e mkC = CExpr_Let CBindStrict emptyGam [CBind_Bind nm t e] (mkC (CExpr_Var nm))
-%%]
 \end{code}
 
-\bigskip
+\medskip
 
-\section{Outputting GHC Core Code}
+\subsection{Outputting GHC Core Code}
 
+\subsubsection{Outputting Types}
 
-
-\subsection{Outputting Types}
-
-...........
+Some story about the code \ldots
 
 \medskip
 
@@ -528,7 +493,7 @@ instance PP Ty where
 
 \bigskip
 
-ghcModuleID....
+ghcModuleID\ldots
 
 \medskip
 
@@ -544,7 +509,7 @@ ATTR TyAGItf AllTy [ ghcModuleID: {Maybe String} | | pp: PP_Doc ]
 
 \bigskip
 
-ppTy in GHC.....
+ppTy in GHC\ldots
 
 \medskip
 
@@ -560,6 +525,10 @@ SEM Ty
 
 \bigskip
 
+\section{Type aguments}
+
+ include picture overview2 \ldots
+
 \section{Overview to the added/created files}
 
 This is an overview of what we have specifically done in the files point of view. We have created version 8\_1 of EHC adding some necessary files:
@@ -570,7 +539,7 @@ This is an overview of what we have specifically done in the files point of view
                      It contains the Data type of the Abstract Syntax Tree used to represent GHC Core language;
 \item
 {\bf EHGhcCoreMain.cag}:  
-                     It contains the operational semantics and auxiliar functions applied to the GHC Core AST;
+                     It contains the translation from EHCode to GHC Core;
 \item
 {\bf EHGhcCore.cag}: 
                      It contains the Haskell importable interface to GhcCore backend;
@@ -590,7 +559,7 @@ And we have changed files from version 8 of EHC:
                      Made some changes on EHCode Abstract Syntax Tree;
 \item
 {\bf EHCode.cag}: 
-                     Changed Haskell functions related to EHCode Abstract Syntax Tree;
+                     Changed auxiliar functions related to EHCode Abstract Syntax Tree;
 \item
 {\bf EHCommon.chs}: 
                      Added auxiliar function;
@@ -605,12 +574,27 @@ And we have changed files from version 8 of EHC:
                      Changed the Pretty Printer for Types;
 \item
 {\bf Makefile}:
-                     Added make rules for version 8\_1;
+                     Added make rules for version 8\_1 and rules for the new files;
 \end{itemize}
 
 \bigskip
 
-\section{Auxiliar Haskell Function}
+\section{Conclusions}
+
+whas this usefull?
+is EHC nice?
+
+\section{Examples}
+
+%%%% REFERENCES %%%
+\section{References}
+\bibliographystyle{../uhcbook}
+%\bibliographystyle{plain}
+\bibliography{references}
+
+------- 8< ------ SNIP ------- 8< ------
+......
+
 We have added a simple haskell function to verify if a HsName is a Constructor.
 
 \medskip
@@ -625,9 +609,6 @@ hsnIsCon  _                        = False
 
 \bigskip
 
-\section{Compiling the Backend}
-
-......
 
 
 \begin{code}
@@ -701,14 +682,5 @@ data EHCCodeType = EHCCoreCode | JavaCode | GHCCoreCode
 %%]
 \end{code}
 
-\section{Conclusions}
-
-\section{Examples}
-
-%%%% REFERENCES %%%
-\section{References}
-\bibliographystyle{../uhcbook}
-%\bibliographystyle{plain}
-\bibliography{references}
 
 \end{document}
