@@ -83,7 +83,7 @@ doCompileRun :: String -> Opts -> IO ()
 doCompileRun fn opts
   = do { let input = mkTopLevelFPath "grin" fn
        ; gr <- parseGrin input opts
-       ; putStrLn (show gr)
+--       ; putStrLn (show gr)
        ; let cmm    = grin2cmm gr
              output = fpathSetSuff "cmm" input
        ; writeCmm cmm output opts
