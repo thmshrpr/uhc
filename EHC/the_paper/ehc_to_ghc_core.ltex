@@ -8,6 +8,7 @@
 %include lhs2TeX.fmt
 %include lhs2TeX.sty
 
+%%%% Nice AG %%%%
 %format ATTR = "\mathbf{ATTR}"
 %format DATA = "\mathbf{DATA}"
 %format SEM = "\mathbf{SEM}"
@@ -15,7 +16,12 @@
 %format loc = "\mathbf{loc}"
 %format . = "."
 %format @ = "\;\at"
+
+%%%% Nice Haskell %%%%
 %format $ = "\;\$\;"
+
+%%%% Nice GHC Core %%%%
+%format % = "\%"
 
 \usepackage{a4wide}
 \usepackage{natbib}
@@ -99,7 +105,7 @@ See Figure \ref{overview1} for overview of the project.
 \end{figure}
 
 
-\section{The Grammar of GHC Core}
+\section{The Grammar of GHC Core} \label{GhcCore}
 
 Below a bit simplified grammar definition of GHC Core. The complete description of the external core language is Grammar is represented in \cite{tolmach2001ghc-core} from which we copied and modified the definition below. We tried to define a Abstract Syntax data definition which is close to the GHC Core Concrete syntax. It should be easy to understand the data type for GHC Core used in EHC. The main difference is the merge of Atomic expressions into Expressions. The datatype is defined in {\bf EHGhcCoreAbsSyn.cag}.
 
@@ -212,7 +218,7 @@ The EHCode uses a strict let binding to force evaluation. Called let! (Let bang)
 
 Compilerdriver, Makefile \ldots
 
-\section{Add type information to bindings}
+\section{Add type information to EHCode}
 
 In the beginning we were using directly the EH language. This language had all the information we needed. But of course a lot of analysis and desugaring in the front end of EHC is done on EH when translating into EHCode so the EH language is for the front-end only.
 
@@ -348,7 +354,7 @@ case x of
 
 \medskip
 
-Note that the let! statement is the forcing part of EHCode. Not the case statement. 
+Note that the let! expression is the forcing part of EHCode. Not the case expression. 
 
 Since the algorithm can introduce let bindings and introduces new pattern variables we need to give the types of all identifiers and make them traverse through the algoritm. We have to introduce the type in the Constructor arguments since such an argument might change into a variable (see example above).
 
@@ -504,18 +510,132 @@ rceMatchCon args@((nm,ty):args') alts ce
 
 \medskip
 
+\subsection{Datatypes}
+
+Datatypes in EHCode are translated into Constructor functions which generate records and variants. See example below
+
+\medskip
+\noindent EH
+\begin{code}
+let  data MaybeInt  =  Just Int 
+                    |  Nothing
+in   e
+\end{code}
+\medskip
+\noindent translate into EHCode
+\begin{code}
+let  Just     =  \x1 ->  #()  (0)  (x1) 
+     Nothing  =          #()  (1) 
+in   e
+\end{code}
+
+\medskip
+
+GHC Core needs the datatype the same way as Haskell defines them. So we will have to reintroduce them. Forunately there is a type environment at every let expression which contains the structure and all type information of the newly introduced datatypes (attribute |lQuTyGam|). We add this information to EHCode. In section \ref{reintroduce_datatypes} we reconstruct datatype declarations out of this gamma.
+
 \section{Translating EHCode to GhcCore}
 
-\subsection{Reintroducing data definitions}
+Now we have introduced type information into EHCode the translations to GhcCore is for most language constructs straitforward. There are two exceptions to that.
 
-HERE WE ARE LEFT \ldots write about renaming\ldots
+\begin{enumerate}
+	\item let! and case constructs
+	\item Datatype definitions
+	\item type arguments for polymorphic functions and constructors.
+\end{enumerate}
+
+We will only show these aspects of the translation process. The source file is {\bf EHGhcCoreMain.cag}.
+
+\subsection{let! and case}
+
+EHCode evaluate with let!. GhcCore with a case construct. Defining a mapping from a let! to a case is surprisingly simple. The most common case would be a let! followed by a case since the let! construct is only generated for a case expression in the EH language. Not all constructs though, consider the following program:
+
+\medskip
+\begin{code}
+case x of 
+    y  ->  e
+\end{code} 
+\medskip
+
+This case expression, with a match on a variable, is removed and a let! without a case expression results. So we should take care of this situation.
+
+Recall the case expression of GHC Core in section \ref{GhcCore}. The translation rules are a natural translation.  For the let! without a case we map to a GHC Core case expression with one alternative; The default alternative.
+
+%format p1 = "p^{1}"
+%format e1 = "e^{1}"
+%format pn = "p^{n}"
+%format en = "e^{n}"
+%format e'
+\begin{center}
+\begin{tabular}[c]{||rcl||}
+\hline & & \\
+\begin{minipage}{5cm}
+\begin{code}
+let!  x :: t = e
+in    case x of 
+          p1  ->  e1
+	  ...
+          pn  ->  en
+\end{code} 
+\end{minipage}
+& $\mapsto$ &
+\begin{minipage}{5cm}
+\begin{code}
+%case e of x :: t
+          p1  ->  e1
+	  ...
+          pn  ->  en
+\end{code}
+\end{minipage}
+
+\\ & & \\ \hline & & \\ 
+
+\begin{minipage}{5cm}
+\begin{code}
+let!  x :: t = e
+in e'
+\end{code} 
+\end{minipage}
+& $\mapsto$ &
+\begin{minipage}{5cm}
+\begin{code}
+%case e of x :: t
+          %_  ->  e'
+\end{code}
+\end{minipage}
+
+\\ & & \\ \hline
+
+\end{tabular}
+\end{center}
+
+The last case we should take care of would be a case without a let!. This construction might be introduced when it can be proven by the compiler that the expression to be scrutinized is always a value and thus does not need evaluation. In this case the |vbind| of the GHC Core |%case| expression makes the job difficult. Without the |let!| we have no clue what the type of this binding should be. 
+
+Currently the compiler generates an error when this situation occurs.
+
+\subsection{Reintroducing data definitions}
+\label{reintroduce_datatypes}
+
+GHC Core require datatype declarions. We are going to use the datatype information stored in let expression to reintroduce datatype declarations. But first we have to overcome another problem. in EH it is allowed to define datatypes in every let binding, but GHC Core allows it only at the toplevel. To prevent nameclashes we append a unique number to all datatype and constructor names.
+
+the reintroduction is done by the |tyGam2DataTypes| which destruct the datatype environment and builds a list of GHC Core datatypes.
 
 \medskip
 
 \begin{code}
+tyGam2DataTypes tnamesMap cnamesMap tg =
+                              let  datas                       =  gamToAssocL tg
+                                   ghcdata                     =  map buildDataType datas
+                                   buildDataType (dt,ti)       =  TypeDef_Data (show . fromJust "TypeDef_Data" $ gamLookup dt tnamesMap) [] (buildAlternatives $ tgiData ti)
+                                   buildAlternatives structTy  =  let  vars  ::  [(HsName, [(HsName, Ty)])]
+                                                                       vars  =   assocLMapSnd (snd . tyRecExts) . snd . tyRecExts $ structTy
+                                                                       buildAlternative (cnm,fields) = ConsDef_ConsDef (show . fromJust "ConsDef_ConsDef" $ gamLookup cnm cnamesMap) [] (map (convertTy tnamesMap . snd) fields)
+                                                                  in map buildAlternative vars
+                              in  ghcdata
 \end{code}
 
 \medskip
+
+The |tnamesMap| and |cnamesMap| are rename maps which should contain a mapping for all datatype and constructor names. Note that this translation is incorrect with respect to the higher kinded datatypes. Those types should get the correct number of type arguments.
 
 \subsection{Outputting GHC Core Code}
 
