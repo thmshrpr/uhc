@@ -1,4 +1,3 @@
-
 %
 %  Efficient Implementation of Functional Languages
 %  2004/2005
@@ -15,7 +14,7 @@
 %format lhs = "\mathbf{lhs}"
 %format . = "."
 %format @ = "\;\at"
-%format $ = "\$"
+%format $ = "\;\$\;"
 
 \usepackage{a4wide}
 \usepackage{natbib}
@@ -37,7 +36,7 @@
 %\usepackage{epic}
 %\usepackage{eepic}
 
-%\usepackage{hyperref}
+\usepackage{hyperref}
 
 
 \newcommand{\derives}{\mbox{$\rightarrow$}}
@@ -49,6 +48,8 @@
 \newcommand{\at}{\texttt{@@}}
 \newcommand{\att}{@@}
 \newcommand{\lam}{\texttt{\char`\\}}
+
+\newcommand{\file}[1]{\noindent {\bf #1}}
 
 \title{\sf EHC to GHC Core Backend \\
 \begin{tabular}{c}
@@ -79,9 +80,9 @@
 \newpage
 \section{Introduction}
 
-The purpose of this project is to generate GHC Core code from EHC language. GHC Core is an intermediate language of the Glasgow Haskell Compiler which is an internal representation of various compiling stages in GHC.
+The purpose of this project is to generate GHC Core code from EHC language. GHC Core is an intermediate language of the Glasgow Haskell Compiler \cite{www04ghc} which is an internal representation of various compiling stages in GHC.
 
-EHC is a more-or-less Haskell Compiler and it is a evolutionary project because the final compiler envolves via intermediate steps, so it is divided in various versions. This backend is an extension of version 8 of EHC (8\_1) so it will be one more step to extend the future compiler.EHC has an intermediate Core language too, that will be our source language to generate the GHC Core. 
+EHC is a more-or-less Haskell Compiler and it is a evolutionary project because the final compiler envolves via intermediate steps, so it is divided in various versions. This backend is an extension of version 8 of EHC (8\_1) so it will be one more step to extend the future compiler. EHC has an intermediate Core language too, EHCode. That will be our source language to generate the GHC Core. 
 
 This report is pointed to students or people that are interested to extend this project and we assume that they already have knowledge in the implementation and structure of EHC. We will try to be specific explainning the various steps of the implementation,showing the code and some examples.
 
@@ -180,115 +181,185 @@ We use the following notational conventions for syntax:
 \end{tabular}
 }
 
-\section{The Source Language}
+Ty refers in our implementation to the datatype defined in {\bf EHTyAbsSyn.cag}.
 
-The source language of the backend is EHC Core, although in the beginning we were using directly the EH language. This language had all the information we needed but of course a lot of analysis and desugaring in the front end of EHC is done on EH when translating into EHC Core. 
+\subsection{EHCode vs GHC-Core}
 
-The Abstract Syntax Tree of EH Core is specified in {\bf EHCodeAbsSyn.cag}, now we are going to explain what we have changed in the tree, then we will show the changes when we generate the EH Core,which is implied in {\bf EHGenCode.cag}, and after in the related Haskell functions specified in the {\bf EHCode.cag}.
+There are several essential differences between Ghc Core and EHCode.
 
-\bigskip
+\subsubsection{Types}
+On several places the GHC Core language require type information.
 
-\subsection{The Abstract Syntax Tree}
+\begin{itemize}
+\item In function applications All polymorphic functions and all higher kinded datatypes should get type arguments.
+\item all bindings of names to expressions should contain type information.
+\item all literals needs to be typed explicit, this is due to the fact that literals in haskell refer to type classes. i.e. a constant 3 is of type |(Num t) => t|. Since Ghc at this level has no type classes anymore it needs to know which instance of Num it has to use.
+\end{itemize}
 
-On several places the GHC Core language require type information. Notable ...
+The EHCode language however does not incorperate type information. Since we generate GHC Core out of EHCode we have to incorperate it into EHCode.
+
+\subsubsection{Datatypes}
+EHCode convert datatypes into (untyped?) records. GHC Core defines datatypes the same way as haskell datatypes. So we must have means to re\"introduce them.
+
+\subsection{Evaluation forcing constructs}
+
+The EHCode uses a strict let binding to force evaluation. Called let! (Let bang). The GhcCore uses the case expression as the only place where evaluating is forced.
+
+\section{Hook into the compiler}
+
+Compilerdriver, prettyprinter, Makefile \ldots
+
+\section{Add type information to bindings}
+
+In the beginning we were using directly the EH language. This language had all the information we needed. But of course a lot of analysis and desugaring in the front end of EHC is done on EH when translating into EHC Core so the EH language is for the front-end only. We need a few stages 
+
+We are going to explain what we have changed in EHCode abstract syntex. Then we will show the changes when we generate the EHCode, which is done in {\bf EHGenCode.cag}.
+
+\subsection{Top Module}
+
+To make a correct GhcModule out of EH code we bind the toplevel EH expression to en exported top level function named \emph{top}. Since every binding needs a type we have to add the type of the expression that corresponds to the top binding. So we introduce a ty in CModule.
+
+\medskip
+
+\file{EHCodeAbsSyn.cag}
+\begin{code}
+DATA  CModule
+  |  Mod         baseName        :  {String}
+                 ty              :  Ty
+                 expr            :  CExpr
+\end{code}
+
+\medskip
+
+Generating this information from EH is simple.
+
+\medskip
+
+\file{EHGenCode.cag}
+\begin{code}
+SEM AGItf
+  | AGItf       lhs         .   cmodule     =   CModule_Mod @lhs.baseName @expr.ty @expr.cexpr
+%%]
+\end{code}
+
+\subsection{Lambda Abstractions}
+
+In Lambda Abstractions we add a Type for binding of argument variables.
+
+\medskip
+
+\file{EHAbsSyn.cag}
+\begin{code}
+DATA CExpr
+  |  Lam         arg             :  {HsName}
+                 ty              :  Ty
+                 body            :  CExpr
+\end{code}
+
+\medskip
+
+Again this is not hard to include.
+
+\medskip
+\file{EHGenCode.cag}
+\begin{code}
+SEM CEXpr
+  | Lam         loc         .   cexpr       :=   CExpr_Lam @arg.topNm @arg.ty (rceMatch [@arg.topNm] [CAlt_Alt [@arg.cpat] @body.cexpr] cvarUndefined)
+\end{code}
+
+\subsection{Pattern variables}
+
+For the pattern variables we also include it in the same way.
+
+\medskip
+
+\file{EHAbsSyn.cag}
+\begin{code}
+DATA CPat
+  | Var         pnm             : {CPatNm}
+                ty              : Ty
+\end{code}
+
+\file{EHGenCode.cag}
+\begin{code}
+SEM PatExpr
+  | Var         lhs         .   cpat        =   CPat_Var @cpNm
+\end{code}
+
+\subsection{Let bindings}
+
+We add Type information in the binds so we could know the type of the expression which is binded so we can create a typed bindings in a let. 
+
+\medskip
+
+\begin{code}
+DATA CBind
+  | Bind        nm              : {HsName}
+                ty              : Ty
+                expr            : CExpr
+\end{code}
+
+\medskip
+
+GHC Core provides Foreign Function Interface but we did not introduce that yet, we just included a type in the Foreign Function Interface but do nothing with it.
+
+\medskip
+
+\begin{code}
+SEM Decl
+  | Val         lhs         .   cbindL      =   [CBind_Bind @patExpr.topNm @expr.ty @expr.cexpr] ++ @patExpr.cbindL
+  | FFI         lhs         .   cbindL      =   [CBind_Bind @nm @sigTy (CExpr_Var (HNm @impEnt))]
+
+SEM Expr
+  | Case        loc         .   cexpr       :=   let  n = uidHNm @lUniq
+                                                 in   mkCExprLet CBindPlain emptyGam [CBind_Bind n @expr.ty @expr.cexpr]
+                                                        (rceMatch [(n,@expr.ty)] @alts.caltL cvarUndefined)
+%%]
+\end{code}
+
+As you can see the case alternative uses a binding to, so we have to add that one too. The changes have been simple until now. But the case is the first place the front end is actually doing something with EHCode rather than just building up the tree. It applies a pattern mattching comiling algorithm. The top level function of this algorithm is the rceMatch function.
+
+\subsubsection{Pattern matching compiling algorithm}
+
+The front uses an Patern-matching compiler algorithm described in \cite{ipt:impl-func-prog-lang}.  The algoritm converts a nested pattern to a non overlapping pattern which is flat. i.e. Has a constructor and a list of variables. We give an example below.
+
+\medskip
+
+\noindent The algorithm changes a nested / overlapping case 
+\begin{code}
+case x of
+    Left (Left   z)  -> z
+    Left (Right  z)  -> z
+\end{code}
+
+%format y'
+\noindent into a flat case
+\begin{code}
+case x of
+    Left y ->  let! y' = y
+               in  case y' of 
+                      Left   z  -> y
+                      Right  z  -> z
+\end{code}
+
+\medskip
+
+Note that the let! statement is the forcing part of EHCode. Not the case statement. 
+
+Since the algorithm can introduce let bindings and introduces new pattern variables we need to incorperate the types and make them traverse through the algoritm.
+
+HERE WE ARE LEFT\ldots
 
 \begin{itemize}
 \item
-We have considered that a Code Module has, besides of a base name and an code expression, an extra Type that corresponds to the top binding;
+We add Type information in the variables of the Patterns.
 
 \medskip
 
 \begin{code}
-%%[8.CModule
-DATA  CModule
-  |  Mod         baseName        :  {String}
-                 expr            :  CExpr
-%%]
-
-%%[8_1.CModule -8.CModule
-DATA  CModule
-  |  Mod         baseName        :  {String}
-                 ty              :  Ty
-                 expr            :  CExpr
-%%]
-\end{code}
-
-\bigskip
-
-\item
-In Let expressions we have added a Type Gama so we could after create data type constructors in GHC Core. In Lambda Abstractions we have added a Type for binding;
-
-\medskip
-
-\begin{code}
-%%[8.LamLet
-  |  Let         categ           :  {CBindCateg}
-                 binds           :  CBindL
-                 body            :  CExpr
-  |  Lam         arg             :  {HsName}
-                 body            :  CExpr
-%%]
-
-%%[8_1.LamLet -8.LamLet
-  |  Let         categ           :  {CBindCateg}
-                 tyGam           :  {TyGam}
-                 binds           :  CBindL
-                 body            :  CExpr
-  |  Lam         arg             :  {HsName}
-                 ty              :  Ty
-                 body            :  CExpr
-%%]
-\end{code}
-
-\bigskip
-
-\item
-We have added Type information in the Binds so we could know the type of the related expression;
-
-\medskip
-
-\begin{code}
-%%[8.Bind
-DATA CBind
-  | Bind        nm              : {HsName}
-                expr            : CExpr
-%%]
-
-%%[8_1.Bind -8.Bind
-DATA CBind
-  | Bind        nm              : {HsName}
-                ty              : Ty
-                expr            : CExpr
-%%]
-\end{code}
-
-\bigskip
-
-\item
-We have added Type information in the variables of the Patterns;
-
-\medskip
-
-\begin{code}
-%%[8.CPat
-DATA CPat
-  | Var         pnm             : {CPatNm}
-  | Con         pnm             : {CPatNm}
-                tag             : {Int}
-                tagNm           : {HsName}
-                binds           : CPatBindL
-  | Undef
-%%]
-
-%%[8_1.CPat -8.CPat
 DATA CPat
   | Var         pnm             : {CPatNm}
                 ty              : Ty
-  | Con         pnm             : {CPatNm}
-                tag             : {Int}
-                tagNm           : {HsName}
-                binds           : CPatBindL
-  | Undef
 %%]
 \end{code}
 
@@ -301,27 +372,6 @@ DATA CPat
 Changing the Abstract Syntax Tree of EH Core we had to update the code generation correctly. Below you can see the various changes:
 
 Now the CModule receives the type of the top expression;
-
-\medskip
-
-
-\begin{code}
-%%[8.Top
-ATTR AGItf [ | | cmodule: CModule ]
-
-SEM AGItf
-  | AGItf       lhs         .   cmodule     =   CModule_Mod @lhs.baseName @expr.cexpr
-%%]
-
-%%[8_1.Top -8.Top
-ATTR AGItf [ | | cmodule: CModule ]
-
-SEM AGItf
-  | AGItf       lhs         .   cmodule     =   CModule_Mod @lhs.baseName @expr.ty @expr.cexpr
-%%]
-\end{code}
-
-\bigskip
 
 ?????
 
@@ -340,7 +390,7 @@ SEM AGItf
 
 \bigskip
 
-To create a correct Bind list in the Values we have added the type of the expression. GHC Core provides Foreign Function Interface but we did not introduced yet, we just included a type in the Foreign Function Interface but it is not working properly;
+To create a correct Bind list in the Values we have added the type of the expression. GHC Core provides Foreign Function Interface but we did not introduced yet, we just included a type in the Foreign Function Interface but it is not working properly.
 
 \medskip
 
