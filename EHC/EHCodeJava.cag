@@ -16,6 +16,9 @@
 WRAPPER CodeAGItf
 %%]
 
+%%[8_1 hs import(EHGam)
+%%]
+
 %%[8 hs
 cexprJavaSrc :: CModule -> (String,PP_Doc)
 cexprJavaSrc cmod

@@ -16,7 +16,15 @@
 %%[8
 DATA CodeAGItf
   | AGItf       module          : CModule
+%%]
 
+%%[8.CModule
+DATA CModule
+  | Mod         baseName        : {String}
+                expr            : CExpr
+%%]
+
+%%[8_1.CModule -8.CModule
 DATA CModule
   | Mod         baseName        : {String}
                 ty              : Ty
@@ -25,19 +33,23 @@ DATA CModule
 
 %%[8
 DATA CExpr
-  | Let         categ           : {CBindCateg}
-                binds           : CBindL
-                body            : CExpr
   | App         func            : CExpr
                 arg             : CExpr
 %%]
 
-%%[8.Lam
+%%[8.LamLet
+  | Let         categ           : {CBindCateg}
+                binds           : CBindL
+                body            : CExpr
   | Lam         arg             : {HsName}
                 body            : CExpr
 %%]
 
-%%[8_1.Lam -8.Lam
+%%[8_1.LamLet -8.LamLet
+  | Let         categ           : {CBindCateg}
+                tyGam           : {TyGam}
+                binds           : CBindL
+                body            : CExpr
   | Lam         arg             : {HsName}
                 ty              : Ty
                 body            : CExpr

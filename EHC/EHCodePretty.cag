@@ -19,6 +19,9 @@
 WRAPPER CodeAGItf CExpr
 %%]
 
+%%[8_1 hs import(EHGam)
+%%]
+
 %%[8 hs
 ppCModule :: CModule -> PP_Doc
 ppCModule cmod

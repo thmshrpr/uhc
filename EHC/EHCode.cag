@@ -27,11 +27,14 @@
 %%[8 hs export(ceStrictIn)
 %%]
 
-%%[8 import(EHCodeAbsSyn)
+%%[8.AbsSyn import(EHCodeAbsSyn)
 DERIVING *     : Show, Eq
 %%]
+%%[8_1.AbsSyn -8.AbsSyn import(EHCodeAbsSyn)
+DERIVING *     : Show
+%%]
 
-%%[8_1 hs import(EHTy) export(cpatVarTy)
+%%[8_1 hs import(EHTy, EHGam) export(cpatVarTy)
 %%]
 
 %%[9 hs import(FiniteMap,EHTy) export(CBindLMap, emptyCBindLMap, Coe(..), mkCoe, coeId, coeIsId, mkAppCoe, mkLamCoe, mkLetRecCoe, mkCBindLForUIDL)
@@ -86,22 +89,29 @@ cpatNmEither o u pnm = case pnm of {CPatNmOrig n -> o n; CPatNmUniq n -> u n}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%[8 hs
+mkCExprApp :: CExpr -> [CExpr] -> CExpr
+mkCExprApp f as = foldl (\f a -> CExpr_App f a) f as
+
+%%]
+
+%%[8.mkLamLet hs
 mkCExprLet :: CBindCateg -> CBindL -> CExpr -> CExpr
 mkCExprLet c bs e = if null bs then e else CExpr_Let c bs e
 
 mkCExprLetRec :: CBindL -> CExpr -> CExpr
 mkCExprLetRec = mkCExprLet CBindRec
 
-mkCExprApp :: CExpr -> [CExpr] -> CExpr
-mkCExprApp f as = foldl (\f a -> CExpr_App f a) f as
-%%]
-
-%%[8.mkLam hs
 mkCExprLam :: [HsName] -> CExpr -> CExpr
 mkCExprLam as e = foldr (\n e -> CExpr_Lam n e) e as
 %%]
 
-%%[8_1.mkLam -8.mkLam hs
+%%[8_1.mkLamLet -8.mkLamLet hs
+mkCExprLet :: CBindCateg -> TyGam -> CBindL -> CExpr -> CExpr
+mkCExprLet c tg bs e = if null bs then e else CExpr_Let c tg bs e
+
+mkCExprLetRec :: TyGam -> CBindL -> CExpr -> CExpr
+mkCExprLetRec = mkCExprLet CBindRec
+
 mkCExprLam :: [(HsName, Ty)] -> CExpr -> CExpr
 mkCExprLam as e = foldr (\(n,t) e -> CExpr_Lam n t e) e as
 %%]
@@ -152,9 +162,16 @@ caltLPatNms = nub . sort . map (cpatVarNm . caltPat)
 
 cvarUndefined :: CExpr
 cvarUndefined = CExpr_Var hsnUndefined
+%%]
 
+%%[8.ceStrictIn hs
+ceStrictIn :: HsName -> CExpr -> (CExpr -> CExpr) -> CExpr
+ceStrictIn nm e mkC = CExpr_Let CBindStrict [CBind_Bind nm e] (mkC (CExpr_Var nm))
+%%]
+
+%%[8_1.ceStrictIn -8.ceStrictIn hs
 ceStrictIn :: HsName -> Ty -> CExpr -> (CExpr -> CExpr) -> CExpr
-ceStrictIn nm t e mkC = CExpr_Let CBindStrict [CBind_Bind nm t e] (mkC (CExpr_Var nm))
+ceStrictIn nm t e mkC = CExpr_Let CBindStrict emptyGam [CBind_Bind nm t e] (mkC (CExpr_Var nm))
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

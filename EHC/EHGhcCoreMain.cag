@@ -3,7 +3,7 @@
 %include afp.fmt
 %%]
 
-%%[8_1 hs import(EHCode, EHCommon, EHTy, EHGhcCore) export(genGhcCore)
+%%[8_1 hs import(EHCode, EHCommon, EHTy, EHGhcCore, EHGam) export(genGhcCore)
 genGhcCore :: CModule -> GhcModule
 genGhcCore m = sem_CodeAGItf_AGItf (sem_CModule m) 
 %%]
@@ -14,7 +14,7 @@ WRAPPER CodeAGItf
 
 %%[8_1
 ATTR CModule CodeAGItf [ | | ghcmodule : GhcModule ]
-ATTR CExpr  [ | | ghcexpr : Expression ]
+ATTR CExpr  [ | | ghcexpr : Expression caseAlts: {Maybe Alternatives} ]
 
 SEM CModule
   | Mod lhs.ghcmodule = GhcModule_Module "Top" [] [] [createMainFunction @ty @expr.ghcexpr]
@@ -24,12 +24,20 @@ SEM CExpr
   | Char   lhs   . ghcexpr  = Expression_CLit @char
   | Var    lhs   . ghcexpr  = Expression_Var (show @nm)
   | App    lhs   . ghcexpr  = createApplication Ty_Any @func.ghcexpr [@arg.ghcexpr]
-  | Let    lhs   . ghcexpr  = Expression_Let @binds.ghcdefg @body.ghcexpr
+  | Let    lhs   . ghcexpr  = case @categ of
+                                CBindStrict -> Expression_Case @caseExpr @caseVarBind @caseAlts
+                                _           -> Expression_Let @binds.ghcdefg @body.ghcexpr
+           loc   . (caseVarBind,caseExpr) = let (ValueDefg_Value (ValueDef_ValueDef var ty e)) = @binds.ghcdefg
+                                            in (ValueBinder_ValueBinder var ty, e)
+           loc   . caseAlts               = maybe [Alternative_Default @body.ghcexpr] id @body.caseAlts
+
            binds . category = @categ
   | Lam    lhs   . ghcexpr  = Expression_Lambda [Binder_Value $ ValueBinder_ValueBinder (show @arg) @ty ] @body.ghcexpr
-  | Case   lhs   . ghcexpr  = Expression_Case @expr.ghcexpr (ValueBinder_ValueBinder "casebinder" Ty_Any) @alts.ghcalts
+  | Case   lhs   . ghcexpr  = error "case without a let!" -- Expression_Case @expr.ghcexpr (ValueBinder_ValueBinder "casebinder" Ty_Any) @alts.ghcalts
   | Tup    lhs   . ghcexpr  = Expression_CLit 'T'
   | Sel    lhs   . ghcexpr  = error "Sel rule ni"
+  | Case     lhs . caseAlts = Just @alts.ghcalts
+  | * - Case lhs . caseAlts = Nothing
 
 ATTR CBindL [ category: {CBindCateg} | | ghcdefg: ValueDefg ]
 SEM CBindL
@@ -38,7 +46,7 @@ SEM CBindL
                          CBindPlain  -> ValueDefg_Value @hd.ghcdef
                          CBindRec    -> let ValueDefg_RecValues l = @tl.ghcdefg 
                                         in ValueDefg_RecValues (@hd.ghcdef : l)
-                         CBindStrict -> ValueDefg_Value @hd.ghcdef -- TODO: make a case out of it
+                         CBindStrict -> ValueDefg_Value @hd.ghcdef
   | Nil  lhs.ghcdefg = ValueDefg_RecValues []
 ATTR CBind [ | | ghcdef: ValueDef ]
 SEM CBind 

@@ -31,6 +31,26 @@ instance PP Ty where
   pp t = ppTy t
 %%]
 
+%%[8_1.ppTy -1.ppTy hs
+ppTy :: Ty -> PP_Doc
+ppTy ty
+  =  let  t =  wrap_TyAGItf
+                 (sem_TyAGItf (TyAGItf_AGItf ty))
+                 (Inh_TyAGItf False)
+     in   pp_Syn_TyAGItf t
+
+ppGhcCoreTy :: Ty -> PP_Doc
+ppGhcCoreTy ty
+  =  let  t =  wrap_TyAGItf
+                 (sem_TyAGItf (TyAGItf_AGItf ty))
+                 (Inh_TyAGItf True)
+     in   pp_Syn_TyAGItf t
+
+instance PP Ty where
+  pp t = ppTy t -- TODO: TyPretty should never call pp directly on Ty
+%%]
+
+
 %%[9 hs
 instance PP Pred where
   pp p = ppTy (Ty_Pred p)
@@ -87,8 +107,15 @@ SEM Ty
 %%% Pretty printed type
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%[1.pp
+%%[1.ppAttr 
 ATTR TyAGItf AllTy [ | | pp: PP_Doc ]
+%%]
+
+%%[8_1.ppAttr -1.ppAttr
+ATTR TyAGItf AllTy [ outputGhcTypes: {Bool} | | pp: PP_Doc ]
+%%]
+
+%%[1.pp
 
 SEM Ty
   | Con             loc     .   pp      =   ppCon @nm

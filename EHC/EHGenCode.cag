@@ -9,7 +9,14 @@
 %%% Generation of code
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%[8
+%%[8.Top
+ATTR AGItf [ | | cmodule: CModule ]
+
+SEM AGItf
+  | AGItf       lhs         .   cmodule     =   CModule_Mod @lhs.baseName @expr.cexpr
+%%]
+
+%%[8_1.Top -8.Top
 ATTR AGItf [ | | cmodule: CModule ]
 
 SEM AGItf
@@ -28,23 +35,21 @@ SEM Expr
   | CConst      loc         .   cexpr       =   CExpr_Char @char
   | Var         loc         .   cexpr       =   CExpr_Var @nm
   | Con         loc         .   cexpr       =   CExpr_Var @nm
-  | Let         loc         .   cexpr       =   mkCExprLet CBindRec @decls.cbindL @body.cexpr
   | App         loc         .   cexpr       =   CExpr_App @func.cexpr @arg.cexpr
   | Rec         loc         .   cexpr       =   foldl CExpr_App CExpr_Tup (map snd . tyRowCanonOrder $ @recExpr.cexprL)
   | Sel         loc         .   offset      =   maybe (-1) id (tyRecOffset @lbl @expr.ty)
                             .   cexpr       =   CExpr_Sel @expr.cexpr ctagNone (CExpr_Int @offset)
-%%]
-
-%%[8.LamCase
+  | Let         loc         .   cexpr       =   mkCExprLet CBindRec @decls.cbindL @body.cexpr
   | Lam         loc         .   cexpr       =   CExpr_Lam @arg.topNm (rceMatch [@arg.topNm] [CAlt_Alt [@arg.cpat] @body.cexpr] cvarUndefined)
   | Case        loc         .   cexpr       =   let  n = uidHNm @lUniq
                                                 in   mkCExprLet CBindPlain [CBind_Bind n @expr.cexpr]
                                                         (rceMatch [n] @alts.caltL cvarUndefined)
 %%]
-%%[8_1.LamCase -8.LamCase
-  | Lam         loc         .   cexpr       =   CExpr_Lam @arg.topNm @arg.ty (rceMatch [(@arg.topNm,@arg.ty)] [CAlt_Alt [@arg.cpat] @body.cexpr] cvarUndefined)
-  | Case        loc         .   cexpr       =   let  n = uidHNm @lUniq
-                                                in   mkCExprLet CBindPlain [CBind_Bind n @expr.ty @expr.cexpr]
+%%[8_1.LetLamCase
+  | Let         loc         .   cexpr       :=   mkCExprLet CBindRec @lQuTyGam @decls.cbindL @body.cexpr
+  | Lam         loc         .   cexpr       :=   CExpr_Lam @arg.topNm @arg.ty (rceMatch [(@arg.topNm,@arg.ty)] [CAlt_Alt [@arg.cpat] @body.cexpr] cvarUndefined)
+  | Case        loc         .   cexpr       :=   let  n = uidHNm @lUniq
+                                                 in   mkCExprLet CBindPlain emptyGam [CBind_Bind n @expr.ty @expr.cexpr]
                                                         (rceMatch [(n,@expr.ty)] @alts.caltL cvarUndefined)
 %%]
 
@@ -332,7 +337,7 @@ rceRebinds (nm,ty) alts = [ CBind_Bind n ty (CExpr_Var nm) | (CPatNmOrig n) <- c
 rceMatchVar :: [(HsName, Ty)] -> CAltL -> CExpr -> CExpr
 rceMatchVar (arg:args') alts ce
   =  let  remMatch  = rceMatch args' [CAlt_Alt remPats e | (CAlt_Alt (CPat_Var n t : remPats) e) <- alts] ce
-     in   mkCExprLet CBindPlain (rceRebinds arg alts) remMatch
+     in   mkCExprLet CBindPlain emptyGam (rceRebinds arg alts) remMatch
 
 rceMatchCon :: [(HsName, Ty)] -> CAltL -> CExpr -> CExpr
 rceMatchCon args@((nm,ty):args') alts ce
@@ -349,7 +354,7 @@ rceMatchCon args@((nm,ty):args') alts ce
                                  altPat        =  case head alts of
                                                     CAlt_Alt (CPat_Con n t tn pbinds : _) _
                                                       -> CPat_Con n t tn [ CPatBind_Bind o n (CPat_Var (cpatVarNm p) (cpatVarTy p)) | (CPatBind_Bind o n p) <- pbinds ]
-                            in   CAlt_Alt [altPat] (mkCExprLet CBindPlain (rceRebinds (arg',ty) alts) subMatch)
+                            in   CAlt_Alt [altPat] (mkCExprLet CBindPlain emptyGam (rceRebinds (arg',ty) alts) subMatch)
                       )
                  .  groupBy (\a1 a2 -> caltTag a1 == caltTag a2)
                  .  sortBy (\a1 a2 -> caltTag a1 `compare` caltTag a2)
@@ -378,7 +383,7 @@ rceMatch args alts ce
                   _  ->  let  bty = Ty_Any -- cpatVarTy . caltPat . head $ alts
                               bnm = HNm ("_casecont_" ++ (show . cpatVarNm . caltPat . head $ alts))
                               vc = rceMatchVarCon args alts (CExpr_Var bnm)
-                         in   mkCExprLet CBindPlain [CBind_Bind bnm bty e] vc
+                         in   mkCExprLet CBindPlain emptyGam [CBind_Bind bnm bty e] vc
         )
         ce
      $ (rceSplit caltIsVar alts)

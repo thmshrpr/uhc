@@ -24,6 +24,10 @@
 %%[8_1 hs import(EHGhcCore)
 %%]
 
+%%[8_1.Trace hs import(Debug.Trace)
+%%]
+
+
 
 %%[9 hs import(Set,FiniteMap,EHPred,EHCodePretty,EHCodeSubst)
 %%]
