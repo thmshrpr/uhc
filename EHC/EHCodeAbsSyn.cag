@@ -30,8 +30,20 @@ DATA CExpr
                 body            : CExpr
   | App         func            : CExpr
                 arg             : CExpr
+%%]
+
+%%[8.Lam
   | Lam         arg             : {HsName}
                 body            : CExpr
+%%]
+
+%%[8_1.Lam -8.Lam
+  | Lam         arg             : {HsName}
+                ty              : Ty
+                body            : CExpr
+%%]
+
+%%[8 
   | Var         nm              : {HsName}
   | Tup
   | Sel         expr            : CExpr

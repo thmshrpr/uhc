@@ -17,7 +17,7 @@ ATTR CModule CodeAGItf [ | | ghcmodule : GhcModule ]
 ATTR CExpr  [ | | ghcexpr : Expression ]
 
 SEM CModule
-  | Mod lhs.ghcmodule = GhcModule_Module "Main" [] [] [createFunction "main" @ty @expr.ghcexpr ] 
+  | Mod lhs.ghcmodule = GhcModule_Module "Top" [] [] [createMainFunction @ty @expr.ghcexpr]
 
 SEM CExpr
   | Int    lhs   . ghcexpr  = Expression_ILit @int
@@ -26,7 +26,7 @@ SEM CExpr
   | App    lhs   . ghcexpr  = createApplication Ty_Any @func.ghcexpr [@arg.ghcexpr]
   | Let    lhs   . ghcexpr  = Expression_Let @binds.ghcdefg @body.ghcexpr
            binds . category = @categ
-  | Lam    lhs   . ghcexpr  = Expression_Lambda [Binder_Value $ ValueBinder_ValueBinder (show @arg) Ty_Any ] @body.ghcexpr
+  | Lam    lhs   . ghcexpr  = Expression_Lambda [Binder_Value $ ValueBinder_ValueBinder (show @arg) @ty ] @body.ghcexpr
   | Case   lhs   . ghcexpr  = Expression_Case @expr.ghcexpr (ValueBinder_ValueBinder "casebinder" Ty_Any) @alts.ghcalts
   | Tup    lhs   . ghcexpr  = Expression_CLit 'T'
   | Sel    lhs   . ghcexpr  = error "Sel rule ni"
@@ -68,11 +68,14 @@ SEM CPat
 ATTR CPatBindL CPatBind [ | | values USE {++} {[]} : ValueBinders ]
 %%]
 
-%%[8_1 hs
+%%[8_1 hs import(Data.Char)
 
-createFunction :: VIdent -> Ty -> Expression  -> ValueDefg
-createFunction f t e = ValueDefg_Value (ValueDef_ValueDef f t e)
+createMainFunction :: Ty -> Expression  -> ValueDefg
+createMainFunction t e = ValueDefg_Value (ValueDef_ValueDef "top" t e)
 
 createApplication :: Ty -> Expression -> [Expression] -> Expression
 createApplication t f as = Expression_App f (map Argument_Value as) -- TODO: if Type is polymorthic add type arguments
+
+moduleName (h:t) = toUpper h : t
+functionName (h:t) = toLower h : t
 %%]

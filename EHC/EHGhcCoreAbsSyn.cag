@@ -17,7 +17,7 @@ DATA TypeDef
 		cdefs : ConsDefs
 	| Newtype
 		name : {DIdent}
-		binders : Binders
+		binders : TypeBinders
 		mt : MaybeType
 DATA ConsDef
 	| ConsDef 

@@ -134,7 +134,6 @@ default: 8_1/ehc
 	8_1/ehc $<
 	@echo ">>> OUTPUT $@ <<<"
 	@cat "ghctests/$@"
-	@rm -f "ghctests/$@"
  
 help:
 	@echo "make <n>/ehc     : make compiler version <n>" ; \

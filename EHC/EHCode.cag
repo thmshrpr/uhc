@@ -92,11 +92,18 @@ mkCExprLet c bs e = if null bs then e else CExpr_Let c bs e
 mkCExprLetRec :: CBindL -> CExpr -> CExpr
 mkCExprLetRec = mkCExprLet CBindRec
 
-mkCExprLam :: [HsName] -> CExpr -> CExpr
-mkCExprLam as e = foldr (\n e -> CExpr_Lam n e) e as
-
 mkCExprApp :: CExpr -> [CExpr] -> CExpr
 mkCExprApp f as = foldl (\f a -> CExpr_App f a) f as
+%%]
+
+%%[8.mkLam hs
+mkCExprLam :: [HsName] -> CExpr -> CExpr
+mkCExprLam as e = foldr (\n e -> CExpr_Lam n e) e as
+%%]
+
+%%[8_1.mkLam -8.mkLam hs
+mkCExprLam :: [(HsName, Ty)] -> CExpr -> CExpr
+mkCExprLam as e = foldr (\(n,t) e -> CExpr_Lam n t e) e as
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

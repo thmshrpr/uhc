@@ -42,7 +42,7 @@ SEM Expr
                                                         (rceMatch [n] @alts.caltL cvarUndefined)
 %%]
 %%[8_1.LamCase -8.LamCase
-  | Lam         loc         .   cexpr       =   CExpr_Lam @arg.topNm (rceMatch [(@arg.topNm,@arg.ty)] [CAlt_Alt [@arg.cpat] @body.cexpr] cvarUndefined)
+  | Lam         loc         .   cexpr       =   CExpr_Lam @arg.topNm @arg.ty (rceMatch [(@arg.topNm,@arg.ty)] [CAlt_Alt [@arg.cpat] @body.cexpr] cvarUndefined)
   | Case        loc         .   cexpr       =   let  n = uidHNm @lUniq
                                                 in   mkCExprLet CBindPlain [CBind_Bind n @expr.ty @expr.cexpr]
                                                         (rceMatch [(n,@expr.ty)] @alts.caltL cvarUndefined)
@@ -408,12 +408,13 @@ SEM DataConstr
 %%[8_1.DataConstr -8.DataConstr
 SEM DataConstr
   | Constr      loc         .   tag         =   fromJust (tyRecOffset @conNm @lhs.dataAltTy)
-                lhs         .   cbindL      =   let  len = length @fields.tyL
-                                                     nms = map (\i -> HNm ("x" ++ show i)) [1..len]
-                                                in   [CBind_Bind @conNm Ty_Any
+                lhs         .   cbindL      =   let zipNameAndType ty lf i = let list = lf (i+1)
+                                                                             in (HNm ("x" ++ show i), ty):list
+                                                    nms = foldr zipNameAndType (const []) @fields.tyL 1
+                                                in   [CBind_Bind @conNm tyInt
                                                         (mkCExprLam nms
                                                           (mkCExprApp (CExpr_App CExpr_Tup (CExpr_Int @tag))
-                                                            (map CExpr_Var nms)))
+                                                            (map (CExpr_Var . fst) nms)))
                                                      ]
 %%]
 
