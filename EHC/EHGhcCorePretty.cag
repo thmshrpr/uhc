@@ -25,7 +25,7 @@ SEM Expression
   | Var          lhs . pp = pp @name
   | Cons         lhs . pp = pp @name
   | ILit         lhs . pp = pp @value
-  | CLit         lhs . pp = pp @value
+  | CLit         lhs . pp = pp (show @value)
   | Nested       lhs . pp = pp_parens @expr.pp
   | App          lhs . pp = @fun.pp >#< @args.pp
   | Lambda       lhs . pp = "\\" >|< @binders.pp >#< "->" >#< @expr.pp

@@ -131,10 +131,10 @@ LHS2TEX_CODE			= \
 default: 8_1/ehc
 
 %.hcr : ghctests/%.eh 8_1/ehc 
-	@echo ">>>> $@ <<<<"
 	8_1/ehc $<
 	@echo ">>> OUTPUT $@ <<<"
 	@cat "ghctests/$@"
+	@rm -f "ghctests/$@"
  
 help:
 	@echo "make <n>/ehc     : make compiler version <n>" ; \
