@@ -23,7 +23,7 @@
 
 
 %\usepackage{graphics}
-%\usepackage{graphicx}
+\usepackage{graphicx}
 %\usepackage{color}
 %\usepackage{alltt}
 %\usepackage[portuges]{babel}
@@ -76,7 +76,7 @@
 
 
 \tableofcontents
-
+\newpage
 \section{Introduction}
 
 The purpose of this project is to generate GHC Core code from EHC language. GHC Core is an intermediate language of the Glasgow Haskell Compiler which is an internal representation of various compiling stages in GHC.
@@ -85,12 +85,22 @@ EHC is a more-or-less Haskell Compiler and it is a evolutionary project because 
 
 This report is pointed to students or people that are interested to extend this project and we assume that they already have knowledge in the implementation and structure of EHC. We will try to be specific explainning the various steps of the implementation,showing the code and some examples.
 
+See Figure\ref{overview1} for overview of the project. 
+
 \bigskip
+
+\begin{figure}
+\caption{Overview of the 3 languages in EHC}
+\label{overview1}
+\includegraphics[scale=0.5,angle=-90]{overview1}
+\end{figure}
 
 
 \section{The Grammar of GHC Core}
 
-Below a bit simplified grammar definition of GHC Core. The complete description of the external core language is Grammar is represented in \cite{tolmach2001ghc-core} from which we copied and modified the definition below. We tried to define a Abstract Syntax data defintion which is close to the GHC Core Concrete syntax. It should be easy to understand the data type for GHC Core used in EHC. The main difference is the merge of Atomic expressions into Expressions. The datatype is defined in {\bf EHGhcCoreAbsSyn.cag}.
+Below a bit simplified grammar definition of GHC Core. The complete description of the external core language is Grammar is represented in \cite{tolmach2001ghc-core} from which we copied and modified the definition below. We tried to define a Abstract Syntax data definition which is close to the GHC Core Concrete syntax. It should be easy to understand the data type for GHC Core used in EHC. The main difference is the merge of Atomic expressions into Expressions. The datatype is defined in {\bf EHGhcCoreAbsSyn.cag}.
+
+\medskip
 
 We use the following notational conventions for syntax:
 
@@ -172,7 +182,8 @@ We use the following notational conventions for syntax:
 
 \section{The Source Language}
 
-The source language of the backend is EHC Core, although in the beginning we were using directly the EH language. This language had all the information we needed But of course a lot of analysis and desugaring in the front end of EHC is done on EH when translating into EHC Core. 
+The source language of the backend is EHC Core, although in the beginning we were using directly the EH language. This language had all the information we needed but of course a lot of analysis and desugaring in the front end of EHC is done on EH when translating into EHC Core. 
+
 The Abstract Syntax Tree of EH Core is specified in {\bf EHCodeAbsSyn.cag}, now we are going to explain what we have changed in the tree, then we will show the changes when we generate the EH Core,which is implied in {\bf EHGenCode.cag}, and after in the related Haskell functions specified in the {\bf EHCode.cag}.
 
 \bigskip
@@ -766,6 +777,42 @@ crCompileCUPass2HS modNm cr
 %%]
 \end{code}
 
+\bigskip
+
+
+\begin{code}
+%%[EHCCodeOpts.8.1
+-- functions to keep the version .8 parts working
+ehcoptCode     o = case ehcoptCodeType o of { EHCCoreCode -> True; _ -> False }
+ehcoptCodeJava o = case ehcoptCodeType o of { JavaCode    -> True; _ -> False }
+
+data EHCCodeType = EHCCoreCode | JavaCode | GHCCoreCode
+%%]
+
+%%[EHCOpts.8.1
+                                ,  ehcoptCodeType       ::  EHCCodeType
+                                ,  ehcoptSearchPath     ::  [String]
+                                ,  ehcoptVerbosity      ::  Verbosity
+%%]
+
+%%[defaultEHCOpts.8.1
+                                ,  ehcoptCodeType       =   GHCCoreCode
+                                ,  ehcoptSearchPath     =   []
+                                ,  ehcoptVerbosity      =   VerboseQuiet
+%%]
+
+%%[cmdLineOptsA.8.1
+     ,  Option "c"  ["code"]   (OptArg oCode "ghc-core")
+          "dump code (java -> .java, ghc-core -> .hcr) on file, default=ghc-core (-> .hcr)"
+%%]
+
+%%[cmdLineOptsB.8.1
+         oCode       ms  o =  case ms of
+                                Just "java"      -> o { ehcoptCodeType = JavaCode    }
+                                Just "ghc-core"  -> o { ehcoptCodeType = GHCCoreCode }
+                                _                -> o { ehcoptCodeType = EHCCoreCode }
+%%]
+\end{code}
 
 \section{Examples}
 
