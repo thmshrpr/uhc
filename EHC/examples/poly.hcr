@@ -1,0 +1,1 @@
+id :: %forall t . t -> t = \ @ t (a::t) -> a;

@@ -1,0 +1,48 @@
+#!/bin/sh
+
+function wait() {
+local line
+echo
+read line
+test -z "$line"
+}
+
+function animate() {
+local basefile=`basename $1`
+
+echo
+echo ">>> EH $basefile <<<"
+cat $basefile.eh
+
+wait || return
+
+make $basefile.code  >&/dev/null
+echo ">>> EHCode $basefile <<<"
+cat $basefile.code
+
+wait || return
+
+make $basefile.hcr  >&/dev/null
+echo ">>> GHC Core $basefile <<<"
+cat $basefile.hcr
+
+wait || return
+
+make $basefile  >&/dev/null
+echo ">>> running $basefile <<<"
+./$basefile
+
+wait || return
+
+}
+
+# define the slideshow
+animate int
+animate letbinding
+animate polymorph
+animate datatype
+animate doubledata
+animate case
+animate nestedcase
+animate recursivedata
+animate recursivedata2

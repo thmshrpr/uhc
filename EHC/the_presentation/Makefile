@@ -11,5 +11,5 @@ slides: the_presentation.pdf
 %.pdf: %.ps
 	ps2pdf $<
 
-the_presentation.tex: the_presentation.ltex overview1.latex
+the_presentation.tex: the_presentation.ltex overview1.latex overview2.eps
 	lhs2TeX --poly $< > $@

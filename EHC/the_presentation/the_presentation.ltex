@@ -95,15 +95,10 @@
 %format bs1
 %format bs2
 
-%format gen (a)     = a "^{\circ}"
-%format forall (a)  = "\forall{" a "}."
-%format :*:         = " :\!\!*\!\!:"
-%format a'          = "\ensuremath{\overline{a}}"
-%format .           = "\cdot"
-%format rho         = "\varrho"
-
-%% Bugfix:
-%format genA        =  "a^{\circ}"
+%format gen (a)      = a "^{\circ}"
+%format forall (a)  = "\forall{" a "}"
+%format .            = "\cdot"
+%format %            = "\%"
 
 \begin{document} 
 \pagestyle{fancy}
@@ -123,10 +118,12 @@ http://www.cs.uu.nl/groups/ST/Eifl/EHCToGhcCore
 %\centerslidesfalse
 
 %%%%%%%%%%%%% Project Overview %%%%%%%%%%%%%
-\begin{Slide}[Project Overview]
-\item
+\NoHeaders
+\begin{slide} 
+\slideheading{Project Overview}\bigskip
 \input{overview1.latex}
-\end{Slide} 
+\end{slide} 
+\NormalHeaders
 
 \begin{Slide}[Introduction]
 \item What are we going to talk about?
@@ -175,6 +172,7 @@ http://www.cs.uu.nl/groups/ST/Eifl/EHCToGhcCore
 	\item EHCode uses a strict let binding (let!) to force evaluation
 	\item GHC Core forces evaluation only in case expressions
 \end{itemize}
+\item Top level bindings in GHCCore vs an expression in EHCode
 \end{Slide}
 
 %%%%%%%%%%%%% Incorporating the Backend in EHC %%%%%%%%%%%%%
@@ -191,17 +189,50 @@ http://www.cs.uu.nl/groups/ST/Eifl/EHCToGhcCore
 
 %%%%%%%%%%%%% Reintroducing Data Types in GHC Core %%%%%%%%%%%%%
 \begin{Slide}[Reintroducing Data Types in GHC Core]
-\item 
+	\item EH language defines datatypes in let bindings (scoped)
+	\item GHC Core allows only one location for the bindings (global)
+		\subitem consequence: every datatype should be renamed to a unique name
+	\medskip
+	\item In every let binding in EH an environment exits which contains new defined datatypes 
+		\subitem Store these environments in |let| nodes of EHCode
 \end{Slide}
+	
+\begin{slide}
+\includegraphics{overview2.eps}
+\end{slide}
 
 %%%%%%%%%%%%% Examples %%%%%%%%%%%%%%%
-\begin{Slide}[Examples]
-\item 
+\begin{Slide}[GhcCore transformation]
+\item Examples
+\end{Slide}
+
+%%%%%%%%%%%%% Type arguments %%%%%%%%%%%%%%%
+\begin{Slide}[Future work - Type arguments]
+\item suppose we have
+\begin{code}
+let  skipInt :: forall a . Int -> a -> a
+     skipInt i x = x
+     twice x = skipInt x skipInt
+in   ...
+\end{code}
+
+\item ghc core would be
+\begin{code}
+%let  skipInt :: %forall a . Int -> a -> a = 
+          \@a (x::a) -> a
+      twice :: %forall a . Int -> Int -> a -> a =
+          \@t (x::Int) -> skipInt @(Int -> t -> t) x (skipInt @t)
+%in   ...
+\end{code}
 \end{Slide}
 
 %%%%%%%%%%%%% Conclusions %%%%%%%%%%%%%%
 \begin{Slide}[Conclusions]
-\item
+\item Lots of small changes need to be done 
+	\subitem they eat up time
+\item GHCCore can be used quite a long way with EHCode
+	\subitem hardest point are type arguments
+\item GHCCore as backend limits EH language extensions to whatever GHC has implemented
 \end{Slide}
 
 \end{document}
