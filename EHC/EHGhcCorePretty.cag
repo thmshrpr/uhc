@@ -10,37 +10,58 @@ ppGhcModule :: GhcModule -> PP_Doc
 ppGhcModule  = sem_GhcModule
 
 semiList = foldr  (\l r -> l >|< ";"  >-< r) empty 
+
 boxInt i =  "GHCziBase.Izh" >#< pp_parens (i >#< "::GHCziPrim.Intzh" )
 boxChar c =  "GHCziBase.Czh" >#< pp_parens (c >#< "::GHCziPrim.Charzh" )
-
+addModuleName mnm nm = mnm ++ ('.':nm)
 %%]
 
 % pretty printer of the AbsSyn
 %%[8_1 import(EHGhcCoreAbsSyn)
 ATTR AllGhcCore [ | | pp USE {>-<} {empty} : PP_Doc ]
+ATTR AllButTopGhcCore [ moduleName: MIdent | | ]
 
 SEM GhcModule
-  | Module	lhs . pp = "%module" >#< @name >-< @tdefs.pp >-< semiList @lvdefs.pps >-< semiList @vdefs.pps >-< ""
+  | Module	 lhs . pp  = "%module" >#< @name >-< @tdefs.pp >-< semiList @lvdefs.pps >-< semiList @vdefs.pps >-< ""
+                 tdefs .moduleName = @name
+                 lvdefs.moduleName = @name
+                 vdefs .moduleName = @name
+
+SEM TypeDefs
+  | Cons         lhs . pp  = @hd.pp >|< ";" >-< @tl.pp
+  | Nil          lhs . pp  = empty
+
+SEM TypeDef
+  | Data      lhs . pp  = "%data" >#< addModuleName @lhs.moduleName @name >#< @binders.pp >#< "=" >#< pp_block "{" "}" ";" @cdefs.pps
+  | Newtype   lhs . pp  = pp "<NOT IMPLEMENTED: TypeDef_Newtype>" 
+
+ATTR ConsDefs [ | | pps : {[PP_Doc]} ]
+SEM ConsDefs
+  | Cons         lhs . pps = @hd.pp : @tl.pps
+  | Nil          lhs . pps = []
+
+SEM ConsDef
+  | ConsDef      lhs . pp  = addModuleName @lhs.moduleName @name >#< @typebinders.pp >#< hlist_sp (map (ppGhcCoreTy @lhs.moduleName) @tys)
 
 SEM ValueDef
-  | ValueDef    lhs . pp = @name >#< "::" >#< (pp @type) >#< "=" >#< @expr.pp
+  | ValueDef     lhs . pp  = @name >#< "::" >#< (ppGhcCoreTy @lhs.moduleName @type) >#< "=" >#< @expr.pp
 
 SEM Expression
-  | Var          lhs . pp = pp @name
-  | Cons         lhs . pp = pp @name
-  | ILit         lhs . pp = boxInt $ pp @value
-  | CLit         lhs . pp = boxChar $ pp (show @value)
-  | Nested       lhs . pp = pp_parens @expr.pp
-  | App          lhs . pp = @fun.pp >#< @args.pp
-  | Lambda       lhs . pp = "\\" >|< pp_block "" "" " " @binders.pps >#< "->" >#< @expr.pp
-  | Let          lhs . pp = "%let" >#< @valueDefg.pp
-                            >-< "%in" >#< @expr.pp
-  | Case         lhs . pp = "%case" >#< @expr.pp >#< "%of"
-                            >-< @vbind.pp 
-                            >-< pp_block "{" "}" ";" @alts.pps
+  | Var          lhs . pp  = pp @name
+  | Cons         lhs . pp  = pp $ addModuleName @lhs.moduleName @name
+  | ILit         lhs . pp  = boxInt $ pp @value
+  | CLit         lhs . pp  = boxChar $ pp (show @value)
+  | Nested       lhs . pp  = pp_parens @expr.pp
+  | App          lhs . pp  = @fun.pp >#< @args.pp
+  | Lambda       lhs . pp  = "\\" >|< pp_block "" "" " " @binders.pps >#< "->" >#< @expr.pp
+  | Let          lhs . pp  = "%let" >#< @valueDefg.pp
+                             >-< "%in" >#< @expr.pp
+  | Case         lhs . pp  = "%case" >#< @expr.pp >#< "%of"
+                             >-< @vbind.pp 
+                             >-< pp_block "{" "}" ";" @alts.pps
 SEM Argument
-  | Value        lhs . pp = pp_parens @value.pp
-  | Type         lhs . pp = "@" >#< pp_parens (pp @type)
+  | Value        lhs . pp  = pp_parens @value.pp
+  | Type         lhs . pp  = "@" >#< pp_parens (ppGhcCoreTy @lhs.moduleName @type)
 
 ATTR ValueDefgs [ | | pps : {[PP_Doc]} ]
 SEM ValueDefgs
@@ -48,8 +69,8 @@ SEM ValueDefgs
   | Nil          lhs . pps = []
 
 SEM ValueDefg
-  | RecValues    lhs . pp = "%rec" >#< pp_block "{" "}" ";" @values.pps
-  | Value        lhs . pp = @value.pp 
+  | RecValues    lhs . pp  = "%rec" >#< pp_block "{" "}" ";" @values.pps
+  | Value        lhs . pp  = @value.pp 
 
 ATTR Binders [ | | pps : {[PP_Doc]} ]
 
@@ -64,10 +85,17 @@ SEM ValueDefs
   | Nil          lhs . pps = []
 
 SEM Binder
-  | Type         lhs . pp = "@" >#< (pp @type)
+  | Type         lhs . pp  = "@" >#< @type.pp
 
 SEM ValueBinder
-  | ValueBinder  lhs . pp = pp_parens $ @var >#< "::" >#< (pp @type)
+  | ValueBinder  lhs . pp  = pp_parens $ @var >#< "::" >#< (ppGhcCoreTy @lhs.moduleName @type)
+
+SEM TypeBinder
+  | TypeBinder   lhs . pp  = pp @var
+
+SEM TypeBinders
+  | Cons         lhs . pp  = @hd.pp >#< @tl.pp
+  | Nil          lhs . pp  = empty
 
 ATTR Alternatives [ | | pps : {[PP_Doc]} ]
 SEM Alternatives
@@ -75,6 +103,6 @@ SEM Alternatives
   | Nil          lhs . pps = []
 
 SEM Alternative
-  | Alternative lhs . pp = @name >#< @typebinders.pp >#< @valuebinders.pp >#< "->" >#< @expr.pp
-  | Default     lhs . pp = "%_" >#< "->" >#< @expr.pp
+  | Alternative  lhs . pp  = addModuleName @lhs.moduleName @name >#< @typebinders.pp >#< @valuebinders.pp >#< "->" >#< @expr.pp
+  | Default      lhs . pp  = "%_" >#< "->" >#< @expr.pp
 %%]

@@ -214,7 +214,6 @@ SEM PatExpr
                 lhs         .   cbindL      =   @cbindL ++ @cbindLSub
 %%]
 
-% TODO: This t is the type of p and not of this CExpr_Sel thing (what is it doing actually)
 %%[8_1.PatExprAppTop -8.PatExprAppTop
   | AppTop Rec  loc         .   cbindL      =   concat
                                                 .  map  (\(CPatBind_Bind o _ p)
@@ -373,7 +372,7 @@ rceMatch [] alts  ce
   =  case [ e | (CAlt_Alt [] e) <- alts ] of
        (e:_)  -> e
        _      -> ce
--- TODO: create a correct type here!
+-- TODO: create a correct type in bty for the new let binding!
 rceMatch args alts ce
   =  foldr
         (\alts e

@@ -130,8 +130,8 @@ LHS2TEX_CODE			= \
 
 default: 8_1/ehc
 
-%.hcr : ghctests/%.eh 8_1/ehc 
-	8_1/ehc $<
+%.hcr : 8_1/ehc 
+	$(MAKE) -C ghctests $@
 	@echo ">>> OUTPUT $@ <<<"
 	@cat "ghctests/$@"
  

@@ -1,4 +1,6 @@
 #!/bin/sh
-make "$1".hcr && 
+SOURCE="$1"
+shift
+8_1/ehc "$SOURCE" &&
 rm -f ghctests/Main.o ghctests/Main.hi &&
-ghc ghctests/"$1".hcr ghctests/Main.hs 
+ghc ghctests/"$SOURCE" ghctests/Main.hs "$@"

@@ -31,19 +31,19 @@ instance PP Ty where
   pp t = ppTy t
 %%]
 
-%%[8_1.ppTy -1.ppTy hs
+%%[8_1.ppTy -1.ppTy hs import(Data.Maybe) export(ppGhcCoreTy)
 ppTy :: Ty -> PP_Doc
 ppTy ty
   =  let  t =  wrap_TyAGItf
                  (sem_TyAGItf (TyAGItf_AGItf ty))
-                 (Inh_TyAGItf False)
+                 (Inh_TyAGItf Nothing)
      in   pp_Syn_TyAGItf t
 
-ppGhcCoreTy :: Ty -> PP_Doc
-ppGhcCoreTy ty
+ppGhcCoreTy ::  String -> Ty -> PP_Doc
+ppGhcCoreTy moduleID ty
   =  let  t =  wrap_TyAGItf
                  (sem_TyAGItf (TyAGItf_AGItf ty))
-                 (Inh_TyAGItf True)
+                 (Inh_TyAGItf (Just moduleID))
      in   pp_Syn_TyAGItf t
 
 instance PP Ty where
@@ -112,7 +112,7 @@ ATTR TyAGItf AllTy [ | | pp: PP_Doc ]
 %%]
 
 %%[8_1.ppAttr -1.ppAttr
-ATTR TyAGItf AllTy [ outputGhcTypes: {Bool} | | pp: PP_Doc ]
+ATTR TyAGItf AllTy [ ghcModuleID: {Maybe String} | | pp: PP_Doc ]
 %%]
 
 %%[1.pp
@@ -125,6 +125,14 @@ SEM Ty
                                                              (ppAppTop (@appFunNm,@appFunPP) @appArgPPL @ppDflt)
                                             else  @ppDflt
   | Any             loc     .   pp      =   pp hsnUnknown
+%%]
+
+%%[8_1.pp
+SEM Ty
+  | Con            loc      . conName   = let ghcModName nm mid = if @nm == hsnInt || @nm == hsnChar then "GHCziBase." else (mid ++ ".")
+                                              ghcQualName nm mid = hsnPrefix (ghcModName nm mid) nm
+                                          in (maybe @nm (ghcQualName @nm) @lhs.ghcModuleID)
+                            . pp        := ppCon @conName
 %%]
 
 %%[2.Var

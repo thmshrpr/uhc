@@ -14,46 +14,49 @@ WRAPPER CodeAGItf
 
 %%[8_1
 ATTR CModule CodeAGItf [ | | ghcmodule : GhcModule ]
-ATTR CExpr  [ | | ghcexpr : Expression caseAlts: {Maybe Alternatives} ]
+ATTR CExpr  [ | | ghcexpr : Expression caseAlts: {Maybe Alternatives} datatypes USE {++} {[]}: TypeDefs ]
 
 SEM CModule
-  | Mod lhs.ghcmodule = GhcModule_Module "Top" [] [] [createMainFunction @ty @expr.ghcexpr]
+  | Mod lhs.ghcmodule = GhcModule_Module "Top"  @expr.datatypes [] [createMainFunction @ty @expr.ghcexpr]
 
 SEM CExpr
   | Int    lhs   . ghcexpr  = Expression_ILit @int
   | Char   lhs   . ghcexpr  = Expression_CLit @char
-  | Var    lhs   . ghcexpr  = Expression_Var (show @nm)
+  | Var    lhs   . ghcexpr  = (if hsnIsCon @nm then Expression_Cons else Expression_Var) (convertName @nm)
   | App    lhs   . ghcexpr  = createApplication Ty_Any @func.ghcexpr [@arg.ghcexpr]
-  | Let    lhs   . ghcexpr  = case @categ of
+  | Let    lhs   . ghcexpr  = case @binds.ghcdefg of
+                                ValueDefg_RecValues [] -> @body.ghcexpr
+                                _                      -> @ghcexpr
+           loc   . ghcexpr  = case @categ of
                                 CBindStrict -> Expression_Case @caseExpr @caseVarBind @caseAlts
                                 _           -> Expression_Let @binds.ghcdefg @body.ghcexpr
            loc   . (caseVarBind,caseExpr) = let (ValueDefg_Value (ValueDef_ValueDef var ty e)) = @binds.ghcdefg
                                             in (ValueBinder_ValueBinder var ty, e)
            loc   . caseAlts               = maybe [Alternative_Default @body.ghcexpr] id @body.caseAlts
-
            binds . category = @categ
            binds . tyGam    = @tyGam
-  | Lam    lhs   . ghcexpr  = Expression_Lambda [Binder_Value $ ValueBinder_ValueBinder (show @arg) @ty ] @body.ghcexpr
-  | Case   lhs   . ghcexpr  = error "case without a let!" -- Expression_Case @expr.ghcexpr (ValueBinder_ValueBinder "casebinder" Ty_Any) @alts.ghcalts
-  | Tup    lhs   . ghcexpr  = Expression_CLit 'T'
+  | Lam    lhs   . ghcexpr  = Expression_Lambda [Binder_Value $ ValueBinder_ValueBinder (convertName @arg) @ty ] @body.ghcexpr
+  | Case   lhs   . ghcexpr  = error "case without a let!" -- Expression_Case @expr.ghcexpr (ValueBinder_ValueBinder "_casebinder_" Ty_Any) @alts.ghcalts
+  | Tup    lhs   . ghcexpr  = error "Tup rule ni" -- Expression_CLit 'T'
   | Sel    lhs   . ghcexpr  = error "Sel rule ni"
   | Case     lhs . caseAlts = Just @alts.ghcalts
   | * - Case lhs . caseAlts = Nothing
 
 ATTR CBindL [ category: {CBindCateg} tyGam: {TyGam} | | ghcdefg: ValueDefg ]
 SEM CBindL
-  | Cons
-         lhs.ghcdefg = case @lhs.category of
+  | Cons lhs.ghcdefg = if @hd.isDataBinding then @tl.ghcdefg else @ghcdefg
+         loc.ghcdefg = case @lhs.category of
                          CBindPlain  -> ValueDefg_Value @hd.ghcdef
                          CBindRec    -> let ValueDefg_RecValues l = @tl.ghcdefg 
                                         in ValueDefg_RecValues (@hd.ghcdef : l)
                          CBindStrict -> ValueDefg_Value @hd.ghcdef
   | Nil  lhs.ghcdefg = ValueDefg_RecValues []
-ATTR CBind [ tyGam: {TyGam} | | ghcdef: ValueDef ]
+ATTR CBind [ tyGam: {TyGam} | | ghcdef: ValueDef  isDataBinding: {Bool}]
 SEM CBind 
-  | Bind lhs.ghcdef       = if hsnIsCon @nm then @ghccreatedef else @ghcdef
-         loc.ghcdef       = ValueDef_ValueDef (show @nm) @ty @expr.ghcexpr
-         loc.ghccreatedef = mkCreateConFunction @nm @ty @lhs.tyGam
+  | Bind lhs.ghcdef        = if @isDataBinding then @ghccreatedef else @ghcdef
+         loc.ghcdef        = ValueDef_ValueDef (convertName @nm) @ty @expr.ghcexpr
+            .ghccreatedef  = ValueDef_ValueDef "" Ty_Any (Expression_ILit 1) -- TODO: filter out nonsense
+            .isDataBinding = hsnIsCon @nm
 
 ATTR CAltL [ | | ghcalts : Alternatives ]
 SEM CAltL
@@ -71,10 +74,10 @@ SEM CPatL
 
 SEM CPat
   | Var    lhs . cname = error "EHGhcCoreMain: Var pattern found"
-           lhs . values = [ ValueBinder_ValueBinder (show @pnm) @ty ]
+           lhs . values = [ ValueBinder_ValueBinder (convertName . cpatNmNm $ @pnm) @ty ]
   | Undef  lhs . cname = error "EHGhcCoreMain: Undef in pattern found while requesting cname"
            lhs . values = error "EHGhcCoreMain: Undef in pattern found while requesting values"
-  | Con    lhs . cname  = show @tagNm
+  | Con    lhs . cname  = convertName @tagNm
 
 ATTR CPatBindL CPatBind [ | | values USE {++} {[]} : ValueBinders ]
 
@@ -88,57 +91,29 @@ createMainFunction t e = ValueDefg_Value (ValueDef_ValueDef "top" t e)
 createApplication :: Ty -> Expression -> [Expression] -> Expression
 createApplication t f as = Expression_App f (map Argument_Value as) -- TODO: if Type is polymorthic add type arguments
 
-createTupApp :: [(String,Ty)] -> (Ty, Expression)
-createTupApp []                 = (Ty_Con (HNm "EmptyTuple"), Expression_Cons "EmptyTuple")
-createTupApp [(n,t)]            = (t, Expression_Var n)
-createTupApp [(n1,t1),(n2,t2)]  = (t, Expression_App (Expression_Cons "Tuple") [Argument_Type t1, Argument_Type t2, Argument_Value (Expression_Var n1), Argument_Value (Expression_Var n2)])
-          where
-          t = mkTyConApp (HNm "Tuple")  [t1,t2]
-createTupApp ((n,t1):rest)       = (t,Expression_App (Expression_Cons "Tuple") [Argument_Type t1, Argument_Type t, Argument_Value (Expression_Var n), Argument_Value e])
-        where
-       	(t2, e) = createTupApp rest
-       	t = mkTyConApp (HNm "Tuple") [t1,t2]
-
-convertRecordTy = fst . createTupApp . assocLMap (\n t -> ("x" ++ show n, t)) . snd . tyRecExts
-
---TODO give the correct types to the Inl and Inr constructors
-createEitherApp :: [(HsName,Ty)] -> HsName -> Expression -> (Ty,Expression)
-createEitherApp [] _ e = error "createEitherApp: called with empty list" --(Ty_Any, e)
-createEitherApp [(n,t)] _ e = (t',e)
-	where 
-	t' = convertRecordTy t
-createEitherApp [(n1,t1),(n2,t2)] cn e | n1 == cn = (t,Expression_App (Expression_Cons "Inl")  [Argument_Type t1', Argument_Type t2', Argument_Value e])
-                                       | n2 == cn = (t,Expression_App (Expression_Cons "Inr")  [Argument_Type t1', Argument_Type t2', Argument_Value e])
-	where
-	t = mkTyConApp (HNm "Either") [t1',t2']
-	t1' = convertRecordTy t1
-	t2' = convertRecordTy t2
-createEitherApp ((n1,t1):rest) cn e | n1 == cn = (t,Expression_App (Expression_Cons "Inl")  [Argument_Type t1', Argument_Type t2', Argument_Value e])
-                                    | otherwise = (t,Expression_App (Expression_Cons "Inr")  [Argument_Type t1', Argument_Type t2', Argument_Value e2])
-	where
-	(t2,e2) = createEitherApp rest cn e
-	t = mkTyConApp (HNm "Either") [t1',t2']
-	t1' = convertRecordTy t1
-	t2' = convertRecordTy t2
-
-moduleName (h:t) = toUpper h : t
-functionName (h:t) = toLower h : t
+convertName (HNm nm@(c:_ )) | isDigit c = "_" ++ nm
+convertName (HNm nm@(c:cs)) | c == '!'  = "_bang_" ++ cs
+convertName (HNPos p      )             = "_pos_" ++ show p
+convertName nm                          = show nm
 %%]
 
-%%[8_1.mkCreateConFunction hs import(Debug.Trace)
-mkCreateConFunction nm ty tyGam = let (Just typeinfo) = flip tyGamLookup tyGam . tyConNm . snd . tyArrowArgsRes $ ty
-                                      dataTy          = tgiData typeinfo
-                                      alternativesTy  = snd . tyRecExts $ dataTy
-                                      body = mkBody alternativesTy nm
-                                      --
-                                  in ValueDef_ValueDef ("create" ++ (show nm)) ty body
-trace' ::  Show a => a -> b -> b
-trace' t b = trace (show t) b
+%%% DATATYPES %%%
 
-mkBody tys nm = let (Just ty) = lookup nm tys
-                    fields = assocLMap (\n t -> ("x" ++ show n, t)) (snd $ tyRecExts ty)
-                    binders = map snd $ assocLMap (\n t -> (n,Binder_Value (ValueBinder_ValueBinder n t))) fields
-                    lambdaBody = snd $ createEitherApp tys nm (snd $ createTupApp fields)
-            in if null binders then Expression_Cons "EmptyTuple" else trace' lambdaBody $ Expression_Lambda binders lambdaBody
-                           
+%%[8_1 
+
+SEM CExpr
+  | Let lhs . datatypes = tyGam2DataTypes @tyGam
+%%]
+
+%%[8_1 hs
+tyGam2DataTypes tg = let datas = gamToAssocL tg
+                         ghcdata = map buildDataType datas
+                         -- TODO: use type bindings for higher kinds
+                         buildDataType (dt,ti) = TypeDef_Data (show dt) [] (buildAlternatives $ tgiData ti)
+                         buildAlternatives structTy = let -- [(ConstrName,[(field,type)])]
+                                                          vars :: [(HsName, [(HsName, Ty)])]
+                                                          vars = assocLMapSnd (snd . tyRecExts) . snd . tyRecExts $ structTy
+                                                          buildAlternative (cnm,fields) = ConsDef_ConsDef (show cnm) [] (map snd fields) 
+                                                      in map buildAlternative vars
+                     in ghcdata
 %%]

@@ -132,10 +132,10 @@ doCompileRun filename opts
                       {  let cmod   = cmodule_Syn_AGItf wrRes
                              ghcmod = genGhcCore cmod
                              hcrPP  = ppGhcModule ghcmod
-                    --;  putStr (show ghcmod)
-                      ;  putStr "\n"
                       ;  writeFile (fpathToStr (fpathSetSuff "hcr" fp))
                             (disp hcrPP 120 "")
+                      ;  putStrLn "*** GHC Core AST:"
+                      ;  putStrLn (show ghcmod)
                       }
          }
 %%]
