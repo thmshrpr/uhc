@@ -49,6 +49,28 @@ SEM GrValL
   | Nil  lhs . len = 0
 %%]
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Locations of Patterns and values %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Since GrVal is not really structured, we need to know if we are inside a Node
+already.  The substitution of GrVal in a Case is different from the others, so
+we want to know that also.
+
+%%[8
+ATTR GrVal GrValL AllAdapt GrPat GrPatL GrAlt GrAltL [ isInCase: {Bool} | | ]
+SEM GrExpr
+  | * - Case loc  . isInCase = False
+  | Case     loc  . isInCase = True
+
+ATTR GrVal GrValL AllAdapt [ isInNode: {Bool} | | ]
+SEM GrExpr  
+  | *        loc  . isInNode = False
+SEM GrVal
+  | Node     fldL . isInNode = True
+%%]
+
+
 %%%%%%%%%%%%%%%%%%%
 %% Vectorisation %%
 %%%%%%%%%%%%%%%%%%%
@@ -75,6 +97,8 @@ isJust m = case m of
   
 %%]
 
+%% Rename \v to \(t f1 f2 fl)
+%% TODO: if unboxed values are returned, this should not be done, ehc output need to change
 
 %%[8
 ATTR GrAGItf [ | | grTrf: GrModule ]
@@ -84,56 +108,92 @@ SEM GrPat
   | Var       loc . (tn, fldnL)  = let (tn:fldnL) = newNames @nm @lhs.maxTagSizeAll
                                    in (tn, fldnL)
               lhs . grTrf        = GrPat_Node (GrTag_Var @tn) @fldnL
+%%]
 
+%% Substitute names!
+%% Substitution in a case will be different (see below)
+%% We here already change the value of the case to represent only the tag
+
+%%[8
 ATTR AllGrNT [ grNodeSubst : {FiniteMap HsName GrVal} | |                                        ]
 ATTR GrPat   [                                        | | grNodeSubst : {FiniteMap HsName GrVal} ]
-ATTR GrVal GrPat   [ | | isTrf : {Bool} ]
+ATTR GrVal   [ | | isTrf : {Bool} ]
+
 
 SEM GrAGItf
   | AGItf    module . grNodeSubst = emptyFM
 
 SEM GrPat
   | Var      lhs . grNodeSubst = addToFM @lhs.grNodeSubst @nm (GrVal_Node (GrTag_Var @tn) (map GrVal_Var @fldnL))
-             lhs . isTrf       = True
-  | * - Var  lhs . isTrf       = False
 
 SEM GrVal
-  | Var      loc . newVal      = lookupFM @lhs.grNodeSubst @nm
-             lhs . isTrf       = isJust @newVal
-             lhs . grTrf       = maybe @grTrf id @newVal
-  | * - Var  lhs . isTrf       = False
-
+  | Var      loc .maybeNode    = lookupFM @lhs.grNodeSubst @nm
+                 . node        = fromJust @maybeNode 
+                 . newVal      = let tag      = case @node of 
+                                                  GrVal_Node t _ -> t
+                                     caseNode = GrVal_Tag tag
+				 in if @lhs.isInCase then caseNode else @node
+             loc . isTrf       = isJust @maybeNode && not @lhs.isInNode
+             lhs . grTrf       = if @isTrf then @newVal else @grTrf
+  | * - Var  loc . isTrf       = False
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%
 %% Case simplification %%
 %%%%%%%%%%%%%%%%%%%%%%%%%
 
+We use the framework of the vectorisation transformation en transform the alternatives and patterns of a case
+
 %%[8
-ATTR GrPat GrAlt GrAltL  [ changedVal : {(HsName, GrVal)} | | ]
-ATTR GrPat GrAlt [ | | grAltNodeSubst: {FiniteMap HsName GrVal} ]
-ATTR GrVal [ || newVal : {Maybe GrVal} oldName : {HsName} ]
-ATTR GrAlt GrAltL [ canTrf : {Bool} | | ]
+
+-- Collect the information of the transformation and send it to the pattern inside the case
+ATTR GrVal [ || changedVal : {(Maybe HsName, GrVal)} ]
+ATTR GrPat GrPatL GrAlt GrAltL  [ changedVal : {(Maybe HsName, GrVal)} | | ]
+SEM GrVal
+  | Var           lhs . changedVal  = (Just @nm, @node)
+  | * - Var Node  lhs . changedVal  = error "no change for anything but GrVal_Var or GrVal_Node in a case"
 
 SEM GrExpr
-  |  Case      loc  . changedVal     = if @val.isTrf then (@val.oldName, fromJust @val.newVal) else undefined
-                    . canTrf         = @val.isTrf
+  |  Case         loc  . changedVal = @val.changedVal
+  | * - Case      loc  . changedVal = undefined
+
+-- A case on a node should be translated into a tag only (the vectorisation already does so)
+SEM GrVal
+  | Node          lhs  . grTrf      = if @lhs.isInCase then  GrVal_Tag @tag.grTrf else @grTrf
+	          lhs  . changedVal = (Nothing, @grTrf)
+	          lhs  . isTrf      = @lhs.isInCase -- this overides the local atribute defined above
+
+
+-- We need to change the Alternatives patterns to a Tag only
+SEM GrPat
+  | Node          loc  . newNode = GrPat_Tag @tag.grTrf
+                  lhs  . grTrf   = if @lhs.isInCase then @newNode else @grTrf
+  | * - Node Var  lhs  . grTrf   = if @lhs.isInCase then error "Not a GrPat_Node in a case" else @grTrf
+
+SEM GrSplit
+  | Sel          loc . changedVal = error "GrSplit_Sel"
+                 loc . isInNode   = error "GrSplit_Sel"
+                 loc . isInCase   = error "GrSplit_Sel"
+
+
+-- Now we need to update the changes in the substition mapping
+-- as a bonus we translate nodes with variable tags into known tags
+ATTR GrPat GrAlt [ | | grAltNodeSubst: {FiniteMap HsName GrVal} ]
+ATTR GrAlt GrAltL [ canTrf : {Bool} | | ]
+SEM GrExpr
+  |  Case      altL . canTrf          = @val.isTrf
 
 SEM GrAlt
   | Alt        expr . grNodeSubst    = if @lhs.canTrf then @pat.grAltNodeSubst else @pat.grNodeSubst
-
-SEM GrVal
-  | Var        lhs . oldName = @nm
-  | * - Var    lhs . oldName = error "no old name for anything but GrVal_Var"
+  
 
 SEM GrPat 
-  | Node       lhs  . grAltNodeSubst = let (name, GrVal_Node (GrTag_Var tv) fldL) = @lhs.changedVal
-					   newTag   = GrVal_Node @tag.grTrf fldL
-					   mappings = listToFM $ zipWith (\o n -> (o, n)) @fldL fldL
-                                       in (addToFM @lhs.grNodeSubst name newTag) `plusFM` mappings
-  | NodeSplit  lhs  . grAltNodeSubst = error "GrPat_NodeSplit not handled in Case simplification"
-  | Var        lhs  . grAltNodeSubst = error "variable in case!"
-  | Tag        lhs  . grAltNodeSubst = let (name, _) = @lhs.changedVal
-                                       in addToFM @lhs.grNodeSubst name (GrVal_Tag @tag.grTrf)
-  | Empty LitInt lhs . grAltNodeSubst = error "not expected GrPat_{Empty,LitInt} in Case simplification"
+  | Node         lhs  . grAltNodeSubst = let (name, GrVal_Node (GrTag_Var tv) fldL) = @lhs.changedVal
+					     newNode  = GrVal_Node @tag.grTrf fldL
+                                             mappings = listToFM $ zipWith (\o n -> (o, n)) @fldL fldL
+                                             fm       = maybe @lhs.grNodeSubst (\n -> addToFM @lhs.grNodeSubst n newNode) name
+                                         in fm `plusFM` mappings
+  | Tag          lhs  . grAltNodeSubst = let (name, _) = @lhs.changedVal
+                                         in maybe @lhs.grNodeSubst (\n -> addToFM @lhs.grNodeSubst n (GrVal_Tag @tag.grTrf)) name
+  | * - Node Tag lhs  . grAltNodeSubst = error "GrPat_??? not handled in Case simplification"
 %%]
