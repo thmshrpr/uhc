@@ -25,7 +25,7 @@ ATTR AllCodeNT [ newConstructorNames: {Gam HsName HsName} newTypeNames: {Gam HsN
 SEM CodeAGItf
   | AGItf module.unique = 0
           module.newConstructorNames = emptyGam
-          module.newTypeNames = assocLToGam [(HNm "Int", HNm "Int"), (HNm "Char", HNm "Char")]
+          module.newTypeNames = assocLToGam [(hsnInt, hsnInt), (hsnChar, hsnChar), (hsnArrow, hsnArrow), (hsnUnknown, hsnUnknown), (hsnWild, hsnWild)]
           -- module.newConstructorNames = assocLToGam [( HNm "Var", HNm "Var"),( HNm "Rec", HNm "Rec"),( HNm "Ext", HNm "Ext"), (HNm "Int", HNm "Int"), (HNm "Char", HNm "Char")]
 
 ATTR CExpr  [ topLevel : {Bool} | | ghcexpr : Expression caseAlts: {Maybe Alternatives} datatypes USE {++} {[]}: TypeDefs ]
