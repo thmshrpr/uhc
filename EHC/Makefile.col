@@ -31,7 +31,7 @@ help:
 ### GRINC
 ##########################
 
-GRINC_SOURCE     := grinc/GRINC.hs grinc/GRINCCommon.hs EHCommon.hs EHScanner.hs GrinCode.hs gri/GRIParser.hs grinc/GRIN2Cmm.hs grinc/CmmCode.hs grinc/CmmCodePretty.hs
+GRINC_SOURCE     := grinc/GRINC.hs grinc/GRINCCommon.hs EHCommon.hs EHScanner.hs GrinCode.hs gri/GRIParser.hs grinc/GRIN2Cmm.hs grinc/CmmCode.hs grinc/CmmCodePretty.hs grinc/LowerGrin.hs
 
 grc: $(GRINC_SOURCE) Makefile
 	$(GHC) --make -package uust -package data -ilib -igrinc -igri $< -o $@
@@ -40,11 +40,14 @@ grc: $(GRINC_SOURCE) Makefile
 grinc/GRIN2Cmm.hs: grinc/GRIN2Cmm.ag GrinCodeAbsSyn.ag GrinCode.hs grinc/CmmCode.ag Makefile
 	$(call AGCC,$<,$(AGC_FLAGS_CODE) -P ../)
 
-grinc/CmmCodePretty.hs: grinc/CmmCodePretty.ag grinc/CmmCodeAbsSyn.ag Makefile
+grinc/CmmCodePretty.hs: grinc/CmmCodePretty.ag grinc/CmmCodeAbsSyn.ag grinc/CmmCode.hs Makefile
 	$(call AGCC,$<,$(AGC_FLAGS_CODE))
 
 grinc/CmmCode.hs: grinc/CmmCode.ag Makefile
 	$(call AGCC,$<,$(AGC_FLAGS_DATA))
+
+grinc/LowerGrin.hs: grinc/LowerGrin.ag GrinCodeAbsSyn.ag GrinCode.hs Makefile
+	$(call AGCC,$<,$(AGC_FLAGS_CODE) -P ../)
 
 GrinCode.hs: GrinCode.ag Makefile
 	$(call AGCC,$<,$(AGC_FLAGS_DATA))

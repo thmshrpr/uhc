@@ -12,10 +12,10 @@
 %%[1 module Main import(System, GetOpt, IO, Control.Monad)
 %%]
 
-%%[8 import(UU.Parsing, UU.Pretty(pp), EHCommon, EHScanner, GRIParser, GrinCode)
+%%[8 import(UU.Parsing, UU.Pretty(pp), EHCommon, EHScanner, GRIParser, GrinCode, GrinCodePretty)
 %%]
 
-%%[8 import (FPath,GRINCCommon, GRIN2Cmm, CmmCodePretty)
+%%[8 import (FPath,GRINCCommon, LowerGrin, GRIN2Cmm, CmmCodePretty)
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -82,8 +82,9 @@ writeCmm cmm fp opts
 doCompileRun :: String -> Opts -> IO ()
 doCompileRun fn opts
   = do { let input = mkTopLevelFPath "grin" fn
-       ; gr <- parseGrin input opts
-       ; when (optDebug opts) (putStrLn (show gr))
+       ; gr' <- parseGrin input opts
+       ; let gr = lowerGrin gr'
+       ; when (optDebug opts) (putStrLn (show.ppGrModule Nothing $ gr))
        ; let cmm    = grin2cmm gr
              output = fpathSetSuff "cmm" input
        ; when (optDebug opts) (putStrLn "=============" >> putStrLn (show cmm))
