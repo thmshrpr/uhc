@@ -336,10 +336,13 @@ SEM Decl
   | FFI         lhs         .   cbindL      =   [CBind_Bind @nm @sigTy (CExpr_Var (HNm @impEnt))]
 
 SEM Expr
-  | Case        loc         .   cexpr       :=   let  n = uidHNm @lUniq
-                                                 in   mkCExprLet CBindPlain emptyGam [CBind_Bind n @expr.ty @expr.cexpr]
-                                                        (rceMatch [(n,@expr.ty)] @alts.caltL cvarUndefined)
+  | Case        loc         .   cexpr       :=  
+					    let n = uidHNm @lUniq
+                                            in mkCExprLet CBindPlain emptyGam [CBind_Bind n @expr.ty @expr.cexpr]
+                                                     (rceMatch [(n,@expr.ty)] @alts.caltL cvarUndefined)
 \end{code}
+
+\medskip
 
 As you can see the case alternative uses a binding, so we have to add that one too. The changes have been simple until now. The case is the first place the front end is actually doing something with EHCode rather than just building up the tree. It applies a pattern matching compiling algorithm. The top level function of this algorithm is the |rceMatch| function. The changes needed to its implementation are far from trivial.
 
@@ -413,7 +416,8 @@ SEM PatExpr
                 lhs         .   cpbindL     =   []
 
   | AppTop Con Rec
-                loc         .   cpatBinds   =   map (\(o,(n,(t,p))) -> CPatBind_Bind o n t p) . zip [0..] . tyRowCanonOrder . reverse $ @cpbindL
+                loc         .   cpatBinds   =  map (\(o,(n,(t,p))) -> CPatBind_Bind o n t p) . 
+								zip [0..] . tyRowCanonOrder . reverse $ @cpbindL
                 lhs         .   cpat        =   CPat_Con @cpNm @tag @appFunNm @cpatBinds
 \end{code}
 
@@ -447,7 +451,10 @@ rceMatch args alts ce
         ce
      $ (rceSplit caltIsVar alts)
 
+
 -- nothing changed here
+
+
 rceSplit :: (CAlt -> Bool) -> CAltL -> [CAltL]
 rceSplit f []   = []
 rceSplit f [x]  = [[x]]
@@ -479,13 +486,17 @@ Matching on a single variable is superfluous. |rceMatchVar| converts such a patt
 
 \file{EHGenCode.cag}
 \begin{code}
+
 rceRebinds :: (HsName,Ty) -> CAltL -> CBindL
-rceRebinds (nm,ty) alts = [ CBind_Bind n ty (CExpr_Var nm) | (CPatNmOrig n) <- caltLPatNms alts, n /= nm ]
+rceRebinds (nm,ty) alts = 
+                        [ CBind_Bind n ty (CExpr_Var nm) | (CPatNmOrig n) <- caltLPatNms alts, n /= nm ]
+
 
 rceMatchVar :: [(HsName, Ty)] -> CAltL -> CExpr -> CExpr
-rceMatchVar (arg:args') alts ce
-  =  let  remMatch  = rceMatch args' [CAlt_Alt remPats e | (CAlt_Alt (CPat_Var n t : remPats) e) <- alts] ce
-     in   mkCExprLet CBindPlain emptyGam (rceRebinds arg alts) remMatch
+rceMatchVar (arg:args') alts ce = 
+ let  remMatch  = 
+      rceMatch args' [CAlt_Alt remPats e | (CAlt_Alt (CPat_Var n t : remPats) e) <- alts] ce
+ in   mkCExprLet CBindPlain emptyGam (rceRebinds arg alts) remMatch
 \end{code}
 
 \header{rceMatchCon}
@@ -505,15 +516,21 @@ rceMatchCon args@((nm,ty):args') alts ce
                       (\alts
                         ->  let  (subAlts,subAltSubNms)
                                                =  unzip
-                                                    [ (CAlt_Alt (map snd pats ++ ps) e, map (\(t,p) -> (cpatNmNm . cpatVarNm $ p, t)) pats)
+                                                    [ (CAlt_Alt (map snd pats ++ ps) e, map (\(t,p) -> 
+                                                                    (cpatNmNm . cpatVarNm $ p, t)) pats)
                                                     | (CAlt_Alt (CPat_Con _ _ _ pbinds : ps) e) <- alts,
                                                       let pats = [ (t,p) | (CPatBind_Bind _ _ t p) <- pbinds ]
                                                     ]
                                  subMatch      =  rceMatch (head subAltSubNms ++ args') subAlts ce
                                  altPat        =  case head alts of
-                                                    CAlt_Alt (CPat_Con n conTag tn pbinds : _) _
-                                                      -> CPat_Con n conTag tn [ CPatBind_Bind o n t (CPat_Var (cpatVarNm p) t) | (CPatBind_Bind o n t p) <- pbinds ]
-                            in   CAlt_Alt [altPat] (mkCExprLet CBindPlain emptyGam (rceRebinds (arg',ty) alts) subMatch)
+                                                    CAlt_Alt (CPat_Con n conTag tn pbinds : _) _ -> 
+                                                       CPat_Con n conTag tn 
+                                                       [ CPatBind_Bind o n t (CPat_Var (cpatVarNm p) t) 
+                                                       | (CPatBind_Bind o n t p) <- pbinds 
+                                                       ]
+                            in   CAlt_Alt [altPat] 
+                                 (mkCExprLet CBindPlain emptyGam 
+                                             (rceRebinds (arg',ty) alts) subMatch)
                       )
                  .  groupBy (\a1 a2 -> caltTag a1 == caltTag a2)
                  .  sortBy (\a1 a2 -> caltTag a1 `compare` caltTag a2)
@@ -639,10 +656,16 @@ The reintroduction is done by the |tyGam2DataTypes| which destruct the datatype 
 tyGam2DataTypes tnamesMap cnamesMap tg =
                               let  datas                       =  gamToAssocL tg
                                    ghcdata                     =  map buildDataType datas
-                                   buildDataType (dt,ti)       =  TypeDef_Data (show . fromJust "TypeDef_Data" $ gamLookup dt tnamesMap) [] (buildAlternatives $ tgiData ti)
+                                   buildDataType (dt,ti)       =  TypeDef_Data (show . fromJust "TypeDef_Data" $ 
+                                                                  gamLookup dt tnamesMap) [] (buildAlternatives $ 
+                                                                  tgiData ti)
                                    buildAlternatives structTy  =  let  vars  ::  [(HsName, [(HsName, Ty)])]
-                                                                       vars  =   assocLMapSnd (snd . tyRecExts) . snd . tyRecExts $ structTy
-                                                                       buildAlternative (cnm,fields) = ConsDef_ConsDef (show . fromJust "ConsDef_ConsDef" $ gamLookup cnm cnamesMap) [] (map (convertTy tnamesMap . snd) fields)
+                                                                       vars  =   assocLMapSnd (snd . tyRecExts) . 
+                                                                                   snd . tyRecExts $ structTy
+                                                                       buildAlternative (cnm,fields) = 
+                                                                       ConsDef_ConsDef (show . fromJust "ConsDef_ConsDef" $
+                                                                       gamLookup cnm cnamesMap) [] 
+                                                                                   (map (convertTy tnamesMap . snd) fields)
                                                                   in map buildAlternative vars
                               in  ghcdata
 \end{code}
@@ -721,7 +744,9 @@ Every other constructor identifier uses the module name in the attribute |ghcMod
 
 \begin{code}
 SEM Ty
-  | Con            loc      . conName   = let ghcModName nm mid = if @nm == hsnInt || @nm == hsnChar then "GHCziBase." else (mid ++ ".")
+  | Con            loc      . conName   = let ghcModName nm mid = 
+                                                     if @nm == hsnInt || @nm == hsnChar 
+                                                     then "GHCziBase." else (mid ++ ".")
                                               ghcQualName nm mid = hsnPrefix (ghcModName nm mid) nm
                                           in (maybe @nm (ghcQualName @nm) @lhs.ghcModuleID)
                             . pp        := ppCon @conName
@@ -820,7 +845,7 @@ And we have changed files from version 8 of EHC:
 
 \medskip
 
-Generating GHC Core out of EHCode is possible. GHC Core is not really flexible. Partly because of the expicit type arguments. Extensions to Haskell which are not implemented in GHC might be hard to express in GHC Core. The paper describing GHC Core \cite{tolmach2001ghc-core} only speaks of different back-ends, not of different front-ends. So this is not a great surprise.
+Generating GHC Core out of EHCode is possible, but GHC Core is not really flexible. Partly because of the expicit type arguments. Extensions to Haskell which are not implemented in GHC might be hard to express in GHC Core. The paper describing GHC Core \cite{tolmach2001ghc-core} only speaks of different back-ends, not of different front-ends. So this is not a great surprise.
 
 Since EHC is supposed to be a research compiler it should be easy to extend this compiler. When making GHC Core for its back-end extending might be harder than necessary. Thus using an other back-end might be better.
 
@@ -877,8 +902,9 @@ in
 
 >>> GHC Core letbinding <<<
 %module Top
-top :: GHCziBase.Int = %let %rec {f :: GHCziBase.Int -> GHCziBase.Int = \ (i :: GHCziBase.Int) -> i}
-                       %in f (GHCziBase.Izh (3 ::GHCziPrim.Intzh));
+top :: GHCziBase.Int = 
+%let %rec {f :: GHCziBase.Int -> GHCziBase.Int = \ (i :: GHCziBase.Int) -> i}
+%in f (GHCziBase.Izh (3 ::GHCziPrim.Intzh));
 \end{code}
 
 \medskip
@@ -961,10 +987,11 @@ in
 %module Top
 %data Top.Foo0  = {Top.Foo1  GHCziBase.Char };
 %data Top.Foo2  = {Top.Foo3  GHCziBase.Int };
-top :: GHCziBase.Int = %let _14_0 :: Top.Foo2 = Top.Foo3 (GHCziBase.Izh (3 ::GHCziPrim.Intzh))
-                       %in %case _14_0 %of
-                           (_bang_14_0 :: Top.Foo2)
-                           {Top.Foo3  (x :: GHCziBase.Int) -> x};
+top :: GHCziBase.Int = 
+                     %let _14_0 :: Top.Foo2 = Top.Foo3 (GHCziBase.Izh (3 ::GHCziPrim.Intzh))
+                     %in %case _14_0 %of
+                         (_bang_14_0 :: Top.Foo2)
+                         {Top.Foo3  (x :: GHCziBase.Int) -> x};
 \end{code}
 
 \medskip
@@ -1014,10 +1041,13 @@ in
 >>> GHC Core case <<<
 %module Top
 %data Top.MaybeInt0  = {Top.Just1  GHCziBase.Int ;Top.Nothing2  };
-top :: GHCziBase.Int = %let _8_0 :: Top.MaybeInt0 = Top.Just1 (GHCziBase.Izh (3 ::GHCziPrim.Intzh))
-                       %in %case _8_0 %of
-                           (_bang_8_0 :: Top.MaybeInt0)
-                           {Top.Just1  (x :: GHCziBase.Int) -> x;Top.Nothing2   -> GHCziBase.Izh (0 ::GHCziPrim.Intzh)};
+top :: GHCziBase.Int = 
+                    %let _8_0 :: Top.MaybeInt0 = Top.Just1 (GHCziBase.Izh (3 ::GHCziPrim.Intzh))
+                    %in %case _8_0 %of
+                      (_bang_8_0 :: Top.MaybeInt0)
+                      {Top.Just1  (x :: GHCziBase.Int) -> x;
+                       Top.Nothing2 -> GHCziBase.Izh (0 ::GHCziPrim.Intzh)
+                      };
 \end{code}
 
 \medskip
@@ -1065,8 +1095,9 @@ in
 >>> GHC Core recursivedata2 <<<
 %module Top
 %data Top.IntList0  = {Top.Nil1  ;Top.Cons2  GHCziBase.Int Top.IntList0 };
-top :: GHCziBase.Int = %let _8_0 :: Top.IntList0 = Top.Cons2 (GHCziBase.Izh (3 ::GHCziPrim.Intzh)) (Top.Nil1)
-                       %in %case _8_0 %of
+top :: GHCziBase.Int = 
+%let _8_0 :: Top.IntList0 = Top.Cons2 (GHCziBase.Izh (3 ::GHCziPrim.Intzh)) (Top.Nil1)
+%in %case _8_0 %of
                            (_bang_8_0 :: Top.IntList0)
                            {Top.Cons2  (x :: GHCziBase.Int)
                                        (_23_0 :: Top.IntList0) -> x
