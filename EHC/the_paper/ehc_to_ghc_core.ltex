@@ -641,29 +641,38 @@ The |tnamesMap| and |cnamesMap| are rename maps which should contain a mapping f
 
 \medskip
 
-Outputting the GHC Core code  was quit straightforward, we just created a pretty printer for our version, which is located in the file {\bf EHGhcCorePretty.cag} and made some changes in the pretty printer of the types ({\bf EHTyPretty.cag}).
+Outputting the GHC Core code  was quite straightforward, we just created a pretty printer for our version, which is located in the file {\bf EHGhcCorePretty.cag} and made some changes in the pretty printer of the types ({\bf EHTyPretty.cag}). 
 
 To make the generated output compilable, we needed to include some extra information when printing Integers and Characters, i.e. describing that they are unboxed:
 
+\medskip
 
 \begin{code}
 boxInt i =  "GHCziBase.Izh" >#< pp_parens (i >#< "::GHCziPrim.Intzh" )
 boxChar c =  "GHCziBase.Czh" >#< pp_parens (c >#< "::GHCziPrim.Charzh" )
 \end{code}
 
+\medskip
 
-We have encountered a problem with the pretty printer that is not clear yet: When the expected output generated is too big, the pretty printer wont work.
+The pretty printer will correctly output the data type located in {\bf EHGhcCoreAbsSyn.cag} with the view of GHC Core, which is quite close to normal Haskell code, only some \% are added and some type information that was discussed in the upper sections.
 
-....
+\medskip
+
+We have encountered a problem with the pretty printer that is not clear yet: When the expected generated output is too big, the pretty printer will not work.
 
 \subsubsection{Outputting Types}
 
-Some story about the code \ldots
+\medskip
+
+To output correctly the Types we just changed the {\bf EHTyPretty.cag}) in some parts:
+
+\medskip
+
+Here we used the same ppTy function:
 
 \medskip
 
 \begin{code}
-%%[8_1.ppTy -1.ppTy hs import(Data.Maybe) export(ppGhcCoreTy)
 ppTy :: Ty -> PP_Doc
 ppTy ty
   =  let  t =  wrap_TyAGItf
@@ -671,6 +680,17 @@ ppTy ty
                  (Inh_TyAGItf Nothing)
      in   pp_Syn_TyAGItf t
 
+instance PP Ty where
+  pp t = ppTy t
+\end{code}
+
+\medskip
+
+And added the ppGhcCoreTy to take the module identifier as an argument and wrap it???
+
+\medskip
+
+\begin{code}
 ppGhcCoreTy ::  String -> Ty -> PP_Doc
 ppGhcCoreTy moduleID ty
   =  let  t =  wrap_TyAGItf
@@ -678,41 +698,30 @@ ppGhcCoreTy moduleID ty
                  (Inh_TyAGItf (Just moduleID))
      in   pp_Syn_TyAGItf t
 
-instance PP Ty where
-  pp t = ppTy t
-%%]
 \end{code}
 
 \bigskip
 
-ghcModuleID\ldots
+We now state that every types can have also a GHC Module identifier?
 
 \medskip
 
 \begin{code}
-%%[1.ppAttr
-ATTR TyAGItf AllTy [ | | pp: PP_Doc ]
-%%]
-
-%%[8_1.ppAttr -1.ppAttr
 ATTR TyAGItf AllTy [ ghcModuleID: {Maybe String} | | pp: PP_Doc ]
-%%]
 \end{code}
 
 \bigskip
 
-ppTy in GHC\ldots
+We changed output result of the Types in the Constructor case???
 
 \medskip
 
 \begin{code}
-%%[8_1.pp
 SEM Ty
   | Con            loc      . conName   = let ghcModName nm mid = if @nm == hsnInt || @nm == hsnChar then "GHCziBase." else (mid ++ ".")
                                               ghcQualName nm mid = hsnPrefix (ghcModName nm mid) nm
                                           in (maybe @nm (ghcQualName @nm) @lhs.ghcModuleID)
                             . pp        := ppCon @conName
-%%]
 \end{code}
 
 \bigskip
@@ -781,8 +790,9 @@ And we have changed files from version 8 of EHC:
 
 \section{Conclusions}
 
-whas this usefull?
-is EHC nice?
+\medskip
+
+After this project we can conclude that.........
 
 \section{Examples}
 
@@ -790,9 +800,14 @@ is EHC nice?
 
 Here we show some examples, so its easier to understand the main translation. For each example we will show the code in the 3 phases, which are EH, EHCode and GHC Core.
 
-The first example is a simple representation of the Integer 3:
+\medskip
+
+The first example is a simple representation of the Integer 3;
+
+\medskip
 
 \begin{code}
+
 >>> EH int <<<
 let
 in 3
@@ -800,12 +815,234 @@ in 3
 >>> EHCode int <<<
 module int
 3
+
 >>> GHC Core int <<<
 %module Top
 top :: GHCziBase.Int = GHCziBase.Izh (3 ::GHCziPrim.Intzh);
 \end{code}
 
-.....
+\medskip
+
+The next example is a normal let binding;
+
+\medskip
+
+\begin{code}
+
+>>> EH letbinding <<<
+let f :: Int -> Int
+    f = \i -> i
+in f 3
+
+>>> EHCode letbinding <<<
+module letbinding
+let rec
+ f
+  = \i
+     -> i
+in
+ f
+  (3)
+
+>>> GHC Core letbinding <<<
+%module Top
+top :: GHCziBase.Int = %let %rec {f :: GHCziBase.Int -> GHCziBase.Int = \ (i :: GHCziBase.Int) -> i}
+                       %in f (GHCziBase.Izh (3 ::GHCziPrim.Intzh));
+\end{code}
+
+\medskip
+
+The next example is a normal data type;
+
+\medskip
+
+\begin{code}
+>>> EH datatype <<<
+let data MaybeInt = Just Int | Nothing
+in Just 3
+
+>>> EHCode datatype <<<
+module datatype
+let rec
+ Just
+  = \x1
+     -> #()
+         (0)
+         (x1)
+ Nothing
+  = #()
+     (1)
+in
+ Just
+  (3)
+
+>>> GHC Core datatype <<<
+%module Top
+%data Top.MaybeInt0  = {Top.Just1  GHCziBase.Int ;Top.Nothing2  };
+top :: Top.MaybeInt = Top.Just1 (GHCziBase.Izh (3 ::GHCziPrim.Intzh));
+\end{code}
+
+\medskip
+
+The next example shows how we dealed when a data type is redefined;
+
+\medskip
+
+\begin{code}
+>>> EH doubledata <<<
+let data Foo = Foo Char
+in let data Foo = Foo Int
+   in case Foo 3 of
+         Foo x -> x
+
+>>> EHCode doubledata <<<
+module doubledata
+let rec
+ Foo
+  = \x1
+     -> #()
+         (0)
+         (x1)
+in
+ let rec
+  Foo
+   = \x1
+      -> #()
+          (0)
+          (x1)
+ in
+  let
+   14_0
+    = Foo
+       (3)
+  in
+   let !
+    !14_0
+     = 14_0
+   in
+    case !14_0
+     of
+      (0=Foo:(0=x))
+       -> x
+      _-> undefined
+
+>>> GHC Core doubledata <<<
+%module Top
+%data Top.Foo0  = {Top.Foo1  GHCziBase.Char };
+%data Top.Foo2  = {Top.Foo3  GHCziBase.Int };
+top :: GHCziBase.Int = %let _14_0 :: Top.Foo2 = Top.Foo3 (GHCziBase.Izh (3 ::GHCziPrim.Intzh))
+                       %in %case _14_0 %of
+                           (_bang_14_0 :: Top.Foo2)
+                           {Top.Foo3  (x :: GHCziBase.Int) -> x};
+\end{code}
+
+\medskip
+
+The next example shows a normal case expression;
+
+\medskip
+
+\begin{code}
+>>> EH case <<<
+let data MaybeInt
+        = Just Int
+        | Nothing
+in case Just 3 of
+        Nothing -> 0
+        Just x  -> x
+
+>>> EHCode case <<<
+module case
+let rec
+ Just
+  = \x1
+     -> #()
+         (0)
+         (x1)
+ Nothing
+  = #()
+     (1)
+in
+ let
+  8_0
+   = Just
+      (3)
+ in
+  let !
+   !8_0
+    = 8_0
+  in
+   case !8_0
+    of
+     (0=Just:(0=x))
+      -> x
+     (1=Nothing:())
+      -> 0
+     _-> undefined
+
+>>> GHC Core case <<<
+%module Top
+%data Top.MaybeInt0  = {Top.Just1  GHCziBase.Int ;Top.Nothing2  };
+top :: GHCziBase.Int = %let _8_0 :: Top.MaybeInt0 = Top.Just1 (GHCziBase.Izh (3 ::GHCziPrim.Intzh))
+                       %in %case _8_0 %of
+                           (_bang_8_0 :: Top.MaybeInt0)
+                           {Top.Just1  (x :: GHCziBase.Int) -> x;Top.Nothing2   -> GHCziBase.Izh (0 ::GHCziPrim.Intzh)};
+\end{code}
+
+\medskip
+
+The next example shows how we dealed with recursive data types;
+
+\medskip
+
+\begin{code}
+>> EH recursivedata2 <<<
+let data IntList = Nil | Cons Int IntList
+in case Cons 3 Nil of
+        Cons x _ -> x
+
+>>> EHCode recursivedata2 <<<
+module recursivedata2
+let rec
+ Nil
+  = #()
+     (1)
+ Cons
+  = \x1
+     -> \x2
+         -> #()
+             (0)
+             (x1)
+             (x2)
+in
+ let
+  8_0
+   = Cons
+      (3)
+      (Nil)
+ in
+  let !
+   !8_0
+    = 8_0
+  in
+   case !8_0
+    of
+     (0=Cons:(0=x,1=23_0))
+      -> x
+     _-> undefined
+
+>>> GHC Core recursivedata2 <<<
+%module Top
+%data Top.IntList0  = {Top.Nil1  ;Top.Cons2  GHCziBase.Int Top.IntList0 };
+top :: GHCziBase.Int = %let _8_0 :: Top.IntList0 = Top.Cons2 (GHCziBase.Izh (3 ::GHCziPrim.Intzh)) (Top.Nil1)
+                       %in %case _8_0 %of
+                           (_bang_8_0 :: Top.IntList0)
+                           {Top.Cons2  (x :: GHCziBase.Int)
+                                       (_23_0 :: Top.IntList0) -> x
+                           };
+\end{code}
+
+\bigskip
 
 %%%% REFERENCES %%%
 \section{References}
