@@ -82,11 +82,28 @@ goto              = CmmStatement_GoTo
 
 -- procedure & arguments
 procedure n c a b  = CmmProcedure_Procedure n c a $ map body b
-ptrArg e           = CmmActual_Actual "address" e
 
-eval               = varRef "$eval"
-callEval      e    = call     "" eval [ptrArg e]
-tailcallEval  e    = tailcall "" eval [ptrArg e]
+-- calls
+ptrArg e           = CmmActual_Actual "address" e
+valArg e           = CmmActual_Actual "" e
+
+buildCall :: Bool -> CmmName -> CmmActuals -> CmmKindedNames -> CmmStatement
+buildCall tail name = fcall "" (varRef name)
+	where
+	fcall = if tail then (\a b c d -> tailcall a b c) else call
+
+buildArg :: [(HsName, Int)] -> HsName -> CmmActual
+buildArg env nm = ptrArg . maybe (varRef' nm) cafLocation $ lookup nm env
+	where
+	cafLocation offset = varRef "@CAF_Nodes" <+> int offset
+
+apply                = "$apply"
+eval                 = "$eval"
+callEval      e      = buildCall False eval [e]
+tailcallEval  e      = buildCall True  eval [e] []
+callApply     e args = buildCall False apply (ptrArg e : args)
+tailcallApply e args = buildCall True  apply (ptrArg e : args) []
+
 
 -- expressions
 int   v = CmmExpression_Int v Nothing
@@ -211,9 +228,9 @@ SEM GrModule
                                       addTl mtl tll        = maybe tll (:tll) mtl
                                       externals            = addTl @imports . addTl @exports 
                                       cafNodes             = @sectionCAFNodes :: CmmToplevel
-                                      unitTypedefs         = toplevel $ typedefs bits32 ["ptr", "tag", "int"]
+                                      unitTypedefs         = toplevel $ typedefs bits32 ["@ptr", "@val"]
                                       unitTarget           = toplevel $ target 32 LittleEndian 32 32
-				      grin_main            = buildDriver (cafOffset (HNm "main") @lhs.cafEnv)
+				      grin_main            = buildDriver (HNm "main") @lhs.cafEnv
                                       toplevelProcedures   = grin_main : map toplevel @bindL.cmmProcs
                                       buildTagConst (t, i) = toplevel . constant (Just valType) t $ int i
                                       tagConstants         = map buildTagConst $ zip @tags [1..]
@@ -223,11 +240,7 @@ SEM GrModule
 %%]
 
 %%[8.builder hs
-
-buildDriver offset 
-  = let location  = varRef "@CAF_Nodes" <+> int offset
-        grin_main = procedure "@grin_main" "" [] [ tailcallEval location ] --TODO: arg invariant?
-    in toplevel grin_main
+buildDriver nm env = toplevel $ procedure "@grin_main" "" [] [ tailcallEval (buildArg env nm) ]
 
 %%]
 
@@ -247,9 +260,119 @@ buildFormal name = ("address", False, ptrType, hsName2cmmName name)
 ATTR AllBind [ | | cmmProcs USE {++} {[]}: {[CmmProcedure]} ]
 
 SEM GrBind
-  | Bind        loc . cmmProcs = [ buildProcedure @nm @argNmL @expr.cmmBody ]
+  | Bind        loc . cmmProcs = [ buildProcedure @nm @argNmL @cmmBody ]
 
-ATTR GrExpr [ | | cmmBody USE {++} {[]}: {CmmBody} ]
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Find Last Grin Expression of a binding %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8
+ATTR AllGrExpr [ hasNext: {Bool} | | ]
+
+SEM GrBind
+  | Bind     expr . hasNext = False
+
+SEM GrExpr
+  | Seq      expr . hasNext = True
+             body . hasNext = False
+
+SEM GrExpr
+  | * - Seq Case  loc . isLastExpr = not @lhs.hasNext
+  | Seq Case      loc . isLastExpr = False
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Cmm code, Expressions %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8
+ATTR AllGrExpr [ targetNames: {CmmNames} | | buildBody USE {.} {id}: {CmmBody->CmmBody} ]
+
+SEM GrBind
+  | Bind   expr . targetNames = []
+           loc  . cmmBody     = @expr.buildBody []
+
+SEM GrExpr
+  | Seq    expr . targetNames = @pat.cmmNames
+           body . targetNames = []
+           loc  . buildBody   = @expr.buildBody . @body.buildBody
+
+  | Case   loc  . buildBody   = (body nop:)
+
+  | Call   loc  . recievers   = names2knames @lhs.targetNames
+                . callStm     = buildCall @isLastExpr (hsName2cmmName @nm) @argL.cmmActuals @recievers
+                . buildBody   = (body @callStm :)
+
+  | FFI    loc  . buildBody   = (body nop:)
+
+  | App    loc  . recievers   = names2knames @lhs.targetNames
+                . callStm     = buildCall @isLastExpr apply (buildArg @lhs.cafEnv @nm : @argL.cmmActuals) @recievers
+                . buildBody   = (body @callStm :)
+
+  | Eval   loc  . recievers   = names2knames @lhs.targetNames
+                . callStm     = buildCall @isLastExpr eval [buildArg @lhs.cafEnv @nm] @recievers
+                . buildBody   = (body @callStm :)
+
+  | Unit   loc  . returnStm   = ret "" @val.cmmReturn
+                . copyStm     = updates $ zipWith (\l e -> (varUpdate l, e)) @lhs.targetNames @val.cmmCopy
+                . unitStm     = if @isLastExpr then @returnStm else @copyStm
+                . buildBody   = (body @unitStm :)
+
+  | Store  loc  . buildBody   = (body nop:)
+
+  | Fetch  loc  . buildBody   = (body nop:)
+
+  | Update loc  . buildBody   = (body nop:)
+           
+-- Collect return arguments
+ATTR GrVal GrValL [ | | cmmReturn USE {++} {[]}: {CmmActuals} cmmCopy USE {++} {[]}: {CmmExpressions} ]
+SEM GrVal
+  | Node       loc . cmmExpr   = varRef @tag.tagName
+                   . cmmReturn = valArg @cmmExpr : @fldL.cmmReturn
+                   . cmmCopy   = @cmmExpr : @fldL.cmmCopy
+  | NodeAdapt  loc . cmmExpr   = error "no cmmExpr for GrVal_NodeAdapt"
+                   . cmmReturn = @cmmExpr
+                   . cmmCopy   = @cmmExpr
+  | Tag        loc . cmmExpr   = varRef @tag.tagName
+                   . cmmReturn = [ valArg @cmmExpr ]
+                   . cmmCopy   = [ @cmmExpr ]
+  | Empty      loc . cmmReturn = []
+                   . cmmCopy   = []
+  | LitInt     loc . cmmExpr   = int @int
+                   . cmmReturn = [ valArg @cmmExpr ]
+                   . cmmCopy   = [ @cmmExpr ]
+  | Var        loc . cmmExpr   = varRef' @nm
+                   . cmmReturn = [ ptrArg @cmmExpr ]
+                   . cmmCopy   = [ @cmmExpr ]
+
+-- Collect fucntion arguments
+ATTR GrValL [ | | cmmActuals : {CmmActuals} ]
+ATTR GrVal  [ | | cmmActual  : {CmmActual } ]
+
+SEM GrValL
+  | Cons     lhs . cmmActuals = @hd.cmmActual : @tl.cmmActuals
+  | Nil      lhs . cmmActuals = []
+
+SEM GrVal
+  | Var      loc . cmmActual = buildArg @lhs.cafEnv @nm
+  | * - Var  loc . cmmActual = error "actual requested, but no GrVal_Var" 
+
+--Collect names for a pattern in Seq
+ATTR GrPat GrPatL [ | | cmmNames USE {++} {[]}: {CmmNames} ]
+SEM GrPat
+  | Node       loc . cmmNames = "@tmp" : map hsName2cmmName @fldL
+  | NodeSplit  loc . cmmNames = error "No NodeAdapt suport in GrPat"
+  | Tag        loc . cmmNames = [ "@tmp" ]
+  | Empty      loc . cmmNames = []
+  | Var        loc . cmmNames = [ hsName2cmmName @nm ]
+%%]
+
+%%[8 hs
+-- TODO: some mapping needed to see what are pointer and what are not
+names2knames :: CmmNames -> CmmKindedNames
+names2knames = map ((,) "")
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%

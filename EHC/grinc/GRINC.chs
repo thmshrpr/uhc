@@ -9,7 +9,7 @@
 %%% Main
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%[1 module Main import(System, GetOpt, IO)
+%%[1 module Main import(System, GetOpt, IO, Control.Monad)
 %%]
 
 %%[8 import(UU.Parsing, UU.Pretty(pp), EHCommon, EHScanner, GRIParser, GrinCode)
@@ -83,10 +83,10 @@ doCompileRun :: String -> Opts -> IO ()
 doCompileRun fn opts
   = do { let input = mkTopLevelFPath "grin" fn
        ; gr <- parseGrin input opts
---       ; putStrLn (show gr)
+       ; when (optDebug opts) (putStrLn (show gr))
        ; let cmm    = grin2cmm gr
              output = fpathSetSuff "cmm" input
---       ; putStrLn (show cmm)
+       ; when (optDebug opts) (putStrLn "=============" >> putStrLn (show cmm))
        ; writeCmm cmm output opts
        }
 %%]

@@ -1,4 +1,4 @@
-% $Id: EHC.lag 199 2004-05-12 19:11:13Z andres $
+% $Id$
 
 %%[0
 %include lhs2TeX.fmt
@@ -106,6 +106,7 @@ DATA GrTag
 SET AllBind     =   GrBind GrBindL
 SET AllAdapt    =   GrAdapt GrAdaptL
 SET AllSplit    =   GrSplit GrSplitL
+SET AllGrExpr   =   GrExpr GrAlt GrAltL
 SET AllExpr     =   GrExpr GrAlt GrAltL GrPat GrPatL GrTag GrVal GrValL
 SET AllGrNT     =   GrModule AllExpr AllBind AllAdapt AllSplit
 %%]

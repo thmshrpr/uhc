@@ -30,21 +30,21 @@ instance PP CmmUnit where
 ATTR All [ | | pp USE {>-<} {empty} : PP_Doc ]
 
 SEM CmmToplevel
-  | Section         lhs . pp    = "section" >#< @name >|< pp_braces @body.pp
+  | Section         lhs . pp    = "section" >#< (show @name) >|< pp_braces @body.pp
 
 SEM CmmDatum
   | Label           loc . pp    = pp @name >|< ":"
   | Align           loc . pp    = "align" >#< pp @align >|< ";"
-  | Reserve         loc . pp    = pp @type >|< @size.pp >|< @init.pp >|< ";"
+  | Reserve         loc . pp    = pp @type >|< @size.pp >#< @init.pp >|< ";"
 
 SEM CmmSize
   | Sized           loc . pp    = pp_brackets @size.pp
   | Many            loc . pp    = pp_brackets empty
 
 SEM CmmInitString
-  | List            loc . pp    = "=" >|< pp_block "{" "}" "," @elements.pps
-  | String          loc . pp    = "=" >|< (show @string)
-  | UnicodeString   loc . pp    = "=" >|< "unicode" >#< (show @string)
+  | List            loc . pp    = pp_block "{" "}" "," @elements.pps
+  | String          loc . pp    = pp (show @string)
+  | UnicodeString   loc . pp    = "unicode" >#< (show @string)
 
 SEM CmmDeclaration
   | Import          loc . pp    = "import" >#< ppListComma (ppExternalName False) @names    >|< ";"
