@@ -32,6 +32,7 @@ SEM CExpr
            loc   . caseAlts               = maybe [Alternative_Default @body.ghcexpr] id @body.caseAlts
 
            binds . category = @categ
+           binds . tyGam    = @tyGam
   | Lam    lhs   . ghcexpr  = Expression_Lambda [Binder_Value $ ValueBinder_ValueBinder (show @arg) @ty ] @body.ghcexpr
   | Case   lhs   . ghcexpr  = error "case without a let!" -- Expression_Case @expr.ghcexpr (ValueBinder_ValueBinder "casebinder" Ty_Any) @alts.ghcalts
   | Tup    lhs   . ghcexpr  = Expression_CLit 'T'
@@ -39,7 +40,7 @@ SEM CExpr
   | Case     lhs . caseAlts = Just @alts.ghcalts
   | * - Case lhs . caseAlts = Nothing
 
-ATTR CBindL [ category: {CBindCateg} | | ghcdefg: ValueDefg ]
+ATTR CBindL [ category: {CBindCateg} tyGam: {TyGam} | | ghcdefg: ValueDefg ]
 SEM CBindL
   | Cons
          lhs.ghcdefg = case @lhs.category of
@@ -48,9 +49,11 @@ SEM CBindL
                                         in ValueDefg_RecValues (@hd.ghcdef : l)
                          CBindStrict -> ValueDefg_Value @hd.ghcdef
   | Nil  lhs.ghcdefg = ValueDefg_RecValues []
-ATTR CBind [ | | ghcdef: ValueDef ]
+ATTR CBind [ tyGam: {TyGam} | | ghcdef: ValueDef ]
 SEM CBind 
-  | Bind lhs.ghcdef = ValueDef_ValueDef (show @nm) @ty @expr.ghcexpr
+  | Bind lhs.ghcdef       = if hsnIsCon @nm then @ghccreatedef else @ghcdef
+         loc.ghcdef       = ValueDef_ValueDef (show @nm) @ty @expr.ghcexpr
+         loc.ghccreatedef = mkCreateConFunction @nm @ty @lhs.tyGam
 
 ATTR CAltL [ | | ghcalts : Alternatives ]
 SEM CAltL
@@ -74,6 +77,7 @@ SEM CPat
   | Con    lhs . cname  = show @tagNm
 
 ATTR CPatBindL CPatBind [ | | values USE {++} {[]} : ValueBinders ]
+
 %%]
 
 %%[8_1 hs import(Data.Char)
@@ -84,6 +88,57 @@ createMainFunction t e = ValueDefg_Value (ValueDef_ValueDef "top" t e)
 createApplication :: Ty -> Expression -> [Expression] -> Expression
 createApplication t f as = Expression_App f (map Argument_Value as) -- TODO: if Type is polymorthic add type arguments
 
+createTupApp :: [(String,Ty)] -> (Ty, Expression)
+createTupApp []                 = (Ty_Con (HNm "EmptyTuple"), Expression_Cons "EmptyTuple")
+createTupApp [(n,t)]            = (t, Expression_Var n)
+createTupApp [(n1,t1),(n2,t2)]  = (t, Expression_App (Expression_Cons "Tuple") [Argument_Type t1, Argument_Type t2, Argument_Value (Expression_Var n1), Argument_Value (Expression_Var n2)])
+          where
+          t = mkTyConApp (HNm "Tuple")  [t1,t2]
+createTupApp ((n,t1):rest)       = (t,Expression_App (Expression_Cons "Tuple") [Argument_Type t1, Argument_Type t, Argument_Value (Expression_Var n), Argument_Value e])
+        where
+       	(t2, e) = createTupApp rest
+       	t = mkTyConApp (HNm "Tuple") [t1,t2]
+
+convertRecordTy = fst . createTupApp . assocLMap (\n t -> ("x" ++ show n, t)) . snd . tyRecExts
+
+--TODO give the correct types to the Inl and Inr constructors
+createEitherApp :: [(HsName,Ty)] -> HsName -> Expression -> (Ty,Expression)
+createEitherApp [] _ e = error "createEitherApp: called with empty list" --(Ty_Any, e)
+createEitherApp [(n,t)] _ e = (t',e)
+	where 
+	t' = convertRecordTy t
+createEitherApp [(n1,t1),(n2,t2)] cn e | n1 == cn = (t,Expression_App (Expression_Cons "Inl")  [Argument_Type t1', Argument_Type t2', Argument_Value e])
+                                       | n2 == cn = (t,Expression_App (Expression_Cons "Inr")  [Argument_Type t1', Argument_Type t2', Argument_Value e])
+	where
+	t = mkTyConApp (HNm "Either") [t1',t2']
+	t1' = convertRecordTy t1
+	t2' = convertRecordTy t2
+createEitherApp ((n1,t1):rest) cn e | n1 == cn = (t,Expression_App (Expression_Cons "Inl")  [Argument_Type t1', Argument_Type t2', Argument_Value e])
+                                    | otherwise = (t,Expression_App (Expression_Cons "Inr")  [Argument_Type t1', Argument_Type t2', Argument_Value e2])
+	where
+	(t2,e2) = createEitherApp rest cn e
+	t = mkTyConApp (HNm "Either") [t1',t2']
+	t1' = convertRecordTy t1
+	t2' = convertRecordTy t2
+
 moduleName (h:t) = toUpper h : t
 functionName (h:t) = toLower h : t
+%%]
+
+%%[8_1.mkCreateConFunction hs import(Debug.Trace)
+mkCreateConFunction nm ty tyGam = let (Just typeinfo) = flip tyGamLookup tyGam . tyConNm . snd . tyArrowArgsRes $ ty
+                                      dataTy          = tgiData typeinfo
+                                      alternativesTy  = snd . tyRecExts $ dataTy
+                                      body = mkBody alternativesTy nm
+                                      --
+                                  in ValueDef_ValueDef ("create" ++ (show nm)) ty body
+trace' ::  Show a => a -> b -> b
+trace' t b = trace (show t) b
+
+mkBody tys nm = let (Just ty) = lookup nm tys
+                    fields = assocLMap (\n t -> ("x" ++ show n, t)) (snd $ tyRecExts ty)
+                    binders = map snd $ assocLMap (\n t -> (n,Binder_Value (ValueBinder_ValueBinder n t))) fields
+                    lambdaBody = snd $ createEitherApp tys nm (snd $ createTupApp fields)
+            in if null binders then Expression_Cons "EmptyTuple" else trace' lambdaBody $ Expression_Lambda binders lambdaBody
+                           
 %%]

@@ -39,6 +39,9 @@
 %%[9 hs export(Pred(..),predNm,predTy,tyPredNm,tyPred,tyLImplsPreds,tyArrowImplsRes,tyArrowImplsArgRes,mkTyPr)
 %%]
 
+%%[8_1 hs export(tyRecExts)
+%%]
+
 %%[9 hs export(tyRecExts,tyAppFunConNm,tyArrowArity)
 %%]
 

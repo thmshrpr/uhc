@@ -409,14 +409,13 @@ SEM DataConstr
                                                      ]
 %%]
 
--- type should be inroduced correctly
 %%[8_1.DataConstr -8.DataConstr
 SEM DataConstr
   | Constr      loc         .   tag         =   fromJust (tyRecOffset @conNm @lhs.dataAltTy)
                 lhs         .   cbindL      =   let zipNameAndType ty lf i = let list = lf (i+1)
                                                                              in (HNm ("x" ++ show i), ty):list
                                                     nms = foldr zipNameAndType (const []) @fields.tyL 1
-                                                in   [CBind_Bind @conNm tyInt
+                                                in   [CBind_Bind @conNm @dataConTy
                                                         (mkCExprLam nms
                                                           (mkCExprApp (CExpr_App CExpr_Tup (CExpr_Int @tag))
                                                             (map (CExpr_Var . fst) nms)))

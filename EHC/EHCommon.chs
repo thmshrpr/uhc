@@ -75,7 +75,7 @@
 %%[8 export(groupSortOn)
 %%]
 
-%%[8_1 export(EHCCodeType(..),ehcoptCodeJava,ehcoptCode)
+%%[8_1 export(EHCCodeType(..),ehcoptCodeJava,ehcoptCode,hsnIsCon,assocLMap)
 %%]
 
 %%[9 export(hsnOImpl,hsnCImpl)
@@ -180,6 +180,12 @@ hsnSuffix       hsn   p             =   HNm (show hsn ++ p)
 
 %%[8
 hsnUndefined                        =   HNm "undefined"
+%%]
+
+%%[8_1 import(Data.Char)
+hsnIsCon                           :: HsName -> Bool
+hsnIsCon  (HNm (c:_))              = isUpper c
+hsnIsCon  _                        = False
 %%]
 
 %%[9

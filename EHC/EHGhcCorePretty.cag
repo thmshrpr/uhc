@@ -32,7 +32,7 @@ SEM Expression
   | CLit         lhs . pp = boxChar $ pp (show @value)
   | Nested       lhs . pp = pp_parens @expr.pp
   | App          lhs . pp = @fun.pp >#< @args.pp
-  | Lambda       lhs . pp = "\\" >|< @binders.pp >#< "->" >#< @expr.pp
+  | Lambda       lhs . pp = "\\" >|< pp_block "" "" " " @binders.pps >#< "->" >#< @expr.pp
   | Let          lhs . pp = "%let" >#< @valueDefg.pp
                             >-< "%in" >#< @expr.pp
   | Case         lhs . pp = "%case" >#< @expr.pp >#< "%of"
@@ -50,6 +50,12 @@ SEM ValueDefgs
 SEM ValueDefg
   | RecValues    lhs . pp = "%rec" >#< pp_block "{" "}" ";" @values.pps
   | Value        lhs . pp = @value.pp 
+
+ATTR Binders [ | | pps : {[PP_Doc]} ]
+
+SEM Binders
+  | Cons         lhs . pps = @hd.pp : @tl.pps
+  | Nil          lhs . pps = []
 
 ATTR ValueDefs [ | | pps : {[PP_Doc]} ]
 
