@@ -42,8 +42,8 @@ ATTR AllGrNT [ maxTagSizeAll: {Int} | | maxTagSize USE {`max`} {0}: Int ]
 SEM GrAGItf
   | AGItf  module . maxTagSizeAll = @module.maxTagSize
 
--- first element in fldL is arity, which must not be added to the size.
--- Node size is arity + 1 (for tag) so result in fldL.len - 1 + 1
+-- first element in fldL is arity, which must be added to the size.
+-- Node size is arity + 2 (for tag) so result in fldL.len + 1
 -- But for now we keep the first field element
 SEM GrVal
   | Node      lhs . maxTagSize = @fldL.len + 1
@@ -82,6 +82,25 @@ SEM GrSplit
                   . isInCase = False
 %%]
 
+%%%%%%%%%%%%%%%%%%%%
+%% Collecting CAF %%
+%%%%%%%%%%%%%%%%%%%%
+
+CAF variables have the same name as the bindings.
+
+%%[8
+ATTR GrModule AllBind [ | | cafNames USE {++} {[]}: {[HsName]} ]
+
+SEM GrBind
+  | Bind        loc . cafNames = if null @argNmL then [@nm] else []
+
+
+ATTR AllGrNT [ cafEnv : {[HsName]} | | ] 
+
+SEM GrAGItf
+  | AGItf      module . cafEnv = @module.cafNames
+%%]
+
 
 %%%%%%%%%%%%%%%%%%%
 %% Vectorisation %%
@@ -110,30 +129,54 @@ isJust m = case m of
 %%]
 
 
-Substitution is not done on all places
+Substitution is not done on all places. Some variables are referenced as a location variable.
 So we retrieve the new pattern
 
 %%[8
-ATTR GrExpr [ | | noVector: {Bool} ]
+ATTR AllGrExpr [ | locations: {[HsName]} | ]
+ATTR AllGrExpr [ | | returnsLocation USE {||} {False} : {Bool} ]
+ATTR GrVal GrPat [ | | varName: {Maybe HsName} ]
+
+SEM GrVal
+  | Var      lhs . varName = Just @nm
+  | * - Var  lhs . varName = Nothing
+
+SEM GrPat
+  | Var      lhs . varName = Just @nm
+  | * - Var  lhs . varName = Nothing
+  
+
+SEM GrExpr
+  | Store                lhs  . returnsLocation  = True
+  | Unit                 lhs  . returnsLocation  = @val.varName `maybeElem` @lhs.locations || @val.varName `maybeElem` @lhs.cafEnv
+  | * - Case Store Unit  lhs  . returnsLocation  = False
+  | Seq                  loc  . currentLocations = if @expr.returnsLocation 
+                                                   then fromJust "GrExpr_Seq failed" @pat.varName : @expr.locations
+                                                   else @expr.locations
+                         body . locations        = @currentLocations
+
+SEM GrBind
+  | Bind                expr . locations         = @argNmL
+
+-- Rename \v to \(t f1 f2 fl)
 ATTR GrPat [ | | newPat: {GrPat} ]
-
-SEM GrExpr
-  | Store      lhs . noVector      = True
-  | * - Store  lhs . noVector      = False
-
-SEM GrExpr
-  | Seq     loc  . patNode      = if @expr.noVector then @pat.grTrf else @pat.newPat
-	    body . grNodeSubst  = if @expr.noVector then @lhs.grNodeSubst else @pat.grNodeSubst
-            lhs  . grTrf        = GrExpr_Seq @expr.grTrf @patNode @body.grTrf
-%%]
-
-%% Rename \v to \(t f1 f2 fl)
-%%[8
 SEM GrPat
   | Var       loc . (tn, fldnL)  = let (tn:fldnL) = newNames @nm @lhs.maxTagSizeAll
                                    in (tn, fldnL)
               lhs . newPat        = GrPat_Node (GrTag_Var @tn) @fldnL
   | * - Var   lhs . newPat        = @grTrf
+
+
+SEM GrExpr
+  | Seq     loc  . patNode      = if @pat.varName `maybeElem` @currentLocations then @pat.grTrf else @pat.newPat
+	    body . grNodeSubst  = if @pat.varName `maybeElem` @currentLocations then @lhs.grNodeSubst else @pat.grNodeSubst
+            lhs  . grTrf        = GrExpr_Seq @expr.grTrf @patNode @body.grTrf
+%%]
+
+%%[8 hs
+maybeElem :: Eq a => Maybe a -> [a] -> Bool
+maybeElem (Nothing) _  = False
+maybeElem (Just v ) ls = v `elem` ls
 %%]
 
 %% Substitute names!
