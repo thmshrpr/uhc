@@ -50,6 +50,7 @@
 \newcommand{\lam}{\texttt{\char`\\}}
 
 \newcommand{\file}[1]{\noindent {\bf #1}}
+\newcommand{\header}[1]{\bigskip \noindent {\bf #1}\\}
 
 \title{\sf EHC to GHC Core Backend \\
 \begin{tabular}{c}
@@ -193,6 +194,7 @@ On several places the GHC Core language require type information.
 \begin{itemize}
 \item In function applications All polymorphic functions and all higher kinded datatypes should get type arguments.
 \item all bindings of names to expressions should contain type information.
+\item all variables in patterns should contain type information.
 \item all literals need to be typed explicit, this is due to the fact that literals in Haskell refer to type classes. i.e. a constant 3 is of type |(Num t) => t|. Since Ghc at this level has no type classes anymore it needs to know which instance of Num it has to use.
 \end{itemize}
 
@@ -201,7 +203,7 @@ The EHCode language however does not incorporate type information. Since we gene
 \subsubsection{Datatypes}
 EHCode converts datatypes into (untyped?) records. GHC Core defines datatypes the same way as haskell datatypes. So we must have means to reintroduce them.
 
-\subsection{Evaluation forcing constructs}
+\subsubsection{Evaluation forcing constructs}
 
 The EHCode uses a strict let binding to force evaluation. Called let! (Let bang). The GhcCore uses the case expression as the only place where evaluating is forced.
 
@@ -264,7 +266,7 @@ Again this is not hard to include.
 \file{EHGenCode.cag}
 \begin{code}
 SEM CEXpr
-  | Lam         loc         .   cexpr       :=   CExpr_Lam @arg.topNm @arg.ty (rceMatch [@arg.topNm] [CAlt_Alt [@arg.cpat] @body.cexpr] cvarUndefined)
+  | Lam         loc         .   cexpr       :=   CExpr_Lam @arg.topNm @arg.ty ...
 \end{code}
 
 \subsection{Pattern variables}
@@ -314,10 +316,9 @@ SEM Expr
   | Case        loc         .   cexpr       :=   let  n = uidHNm @lUniq
                                                  in   mkCExprLet CBindPlain emptyGam [CBind_Bind n @expr.ty @expr.cexpr]
                                                         (rceMatch [(n,@expr.ty)] @alts.caltL cvarUndefined)
-%%]
 \end{code}
 
-As you can see the case alternative uses a binding to, so we have to add that one too. The changes have been simple until now. But the case is the first place the front end is actually doing something with EHCode rather than just building up the tree. It applies a pattern mattching comiling algorithm. The top level function of this algorithm is the rceMatch function.
+As you can see the case alternative uses a binding to, so we have to add that one too. The changes have been simple until now. The case is the first place the front end is actually doing something with EHCode rather than just building up the tree. It applies a pattern mattching comiling algorithm. The top level function of this algorithm is the |rceMatch| function.
 
 \subsubsection{Pattern matching compiling algorithm}
 
@@ -346,47 +347,114 @@ case x of
 
 Note that the let! statement is the forcing part of EHCode. Not the case statement. 
 
-Since the algorithm can introduce let bindings and introduces new pattern variables we need to incorperate the types and make them traverse through the algoritm.
+Since the algorithm can introduce let bindings and introduces new pattern variables we need to give the types off all identifiers and make them traverse through the algoritm.
 
-HERE WE ARE LEFT\ldots
-
-\begin{itemize}
-\item
-We add Type information in the variables of the Patterns.
+\header{rceMatch}
+|rceMatch| first make partitions of sets which patterns are just variables and partitons which don't. It makes a let binding for the default expressions (|ce|) when it is not a simple variables to prevent dulication of code. For the others it calls rceMatchVarCon directly. 
 
 \medskip
 
 \begin{code}
-DATA CPat
-  | Var         pnm             : {CPatNm}
-                ty              : Ty
-%%]
+rceMatch :: [(HsName, Ty)] -> CAltL -> CExpr -> CExpr
+rceMatch [] []    ce =  ce
+rceMatch [] alts  ce
+  =  case [ e | (CAlt_Alt [] e) <- alts ] of
+       (e:_)  -> e
+       _      -> ce
+
+rceMatch args alts ce
+  =  foldr
+        (\alts e
+           ->  case e of
+                  CExpr_Var _
+                     ->  rceMatchVarCon args alts e
+                  _  ->  let  bty = Ty_Any
+                              bnm = HNm ("_casecont_" ++ (show . cpatVarNm . caltPat . head $ alts))
+                              vc = rceMatchVarCon args alts (CExpr_Var bnm)
+                         in   mkCExprLet CBindPlain emptyGam [CBind_Bind bnm bty e] vc
+       )
+        ce
+     $ (rceSplit caltIsVar alts)
+
+-- nothing changed here
+rceSplit :: (CAlt -> Bool) -> CAltL -> [CAltL]
+rceSplit f []   = []
+rceSplit f [x]  = [[x]]
+rceSplit f (x:xs@(x':_))
+  | f x == f x'  =  let  (z:zs) = rceSplit f xs
+                    in   (x:z) : zs
+  | otherwise    =  [x] : rceSplit f xs
+
 \end{code}
 
-\end{itemize}
+\header{rceMatchVarCon}
+|rceMatchVarCon| is simply a dispatcher.
 
-\bigskip
+\medskip
 
+\begin{code}
+rceMatchVarCon :: [(HsName, Ty)] -> CAltL -> CExpr -> CExpr
+rceMatchVarCon args alts@(alt:_) ce
+  |  caltIsVar alt  = rceMatchVar args alts ce
+  |  otherwise      = rceMatchCon args alts ce
+
+\end{code}
+
+\header{rceMatchVar}
+|rceMatchVar| is used to convert a variable pattern into a let binding which body is the rest of the match.
+
+\medskip
+
+\begin{code}
+rceRebinds :: (HsName,Ty) -> CAltL -> CBindL
+rceRebinds (nm,ty) alts = [ CBind_Bind n ty (CExpr_Var nm) | (CPatNmOrig n) <- caltLPatNms alts, n /= nm ]
+
+rceMatchVar :: [(HsName, Ty)] -> CAltL -> CExpr -> CExpr
+rceMatchVar (arg:args') alts ce
+  =  let  remMatch  = rceMatch args' [CAlt_Alt remPats e | (CAlt_Alt (CPat_Var n t : remPats) e) <- alts] ce
+     in   mkCExprLet CBindPlain emptyGam (rceRebinds arg alts) remMatch
+\end{code}
+
+\header{rceMatchCon}
+|rceMatchCon| takes care of grouping of patterns which start with the same constructor and create an |let!| and a case which only will inspect the top level constructor and create the rest of the match by calling rceMatch recursively.
+
+\medskip
+
+\begin{code}
+rceMatchCon :: [(HsName, Ty)] -> CAltL -> CExpr -> CExpr
+rceMatchCon args@((nm,ty):args') alts ce
+  =  let  arg'   =  hsnPrefix "!" nm
+          alts'  =  map
+                      (\alts
+                        ->  let  (subAlts,subAltSubNms)
+                                               =  unzip
+                                                    [ (CAlt_Alt (pats ++ ps) e, map (\p -> (cpatNmNm . cpatVarNm $ p, cpatVarTy p)) pats)
+                                                    | (CAlt_Alt (CPat_Con _ _ _ pbinds : ps) e) <- alts,
+                                                      let pats = [ p | (CPatBind_Bind _ _ p) <- pbinds ]
+                                                    ]
+                                 subMatch      =  rceMatch (head subAltSubNms ++ args') subAlts ce
+                                 altPat        =  case head alts of
+                                                    CAlt_Alt (CPat_Con n t tn pbinds : _) _
+                                                      -> CPat_Con n t tn [ CPatBind_Bind o n (CPat_Var (cpatVarNm p) (cpatVarTy p)) | (CPatBind_Bind o n p) <- pbinds ]
+                            in   CAlt_Alt [altPat] (mkCExprLet CBindPlain emptyGam (rceRebinds (arg',ty) alts) subMatch)
+                      )
+                 .  groupBy (\a1 a2 -> caltTag a1 == caltTag a2)
+                 .  sortBy (\a1 a2 -> caltTag a1 `compare` caltTag a2)
+                 .  filter (not . null . caltPatL)
+                 $  alts
+     in   ceStrictIn arg' ty (CExpr_Var nm) (\n -> CExpr_Case n alts' ce)
+\end{code}
+
+\medskip
+
+We just assume here that |cpatVarTy| will succeed. but it is only defined for pattern variables. We need the types of every argument of the Pattern constructor to make nested patterns work as expected. To do this we need to at this information in the |CPatBind_Bind. We have not done this yet. |cpatVarTy| will just returns the type of a variable.
 
 \subsection{Generating EHCode}
-Changing the Abstract Syntax Tree of EHCode we had to update the code generation correctly. Below you can see the various changes:
+Changing the Abstract Syntax Tree of EH Core we had to update the code generation correctly. Below you can see the various changes:
 
 Now the CModule receives the type of the top expression;
 
 ?????
-
-\medskip
-
-
-\begin{code}
-%%[8_1.LetLamCase
-  | Let         loc         .   cexpr       :=   mkCExprLet CBindRec @lQuTyGam @decls.cbindL @body.cexpr
-  | Lam         loc         .   cexpr       :=   CExpr_Lam @arg.topNm @arg.ty (rceMatch [(@arg.topNm,@arg.ty)] [CAlt_Alt [@arg.cpat] @body.cexpr] cvarUndefined)
-  | Case        loc         .   cexpr       :=   let  n = uidHNm @lUniq
-                                                 in   mkCExprLet CBindPlain emptyGam [CBind_Bind n @expr.ty @expr.cexpr]
-                                                        (rceMatch [(n,@expr.ty)] @alts.caltL cvarUndefined)
-%%]
-\end{code}
 
 \bigskip
 
