@@ -34,7 +34,7 @@ DERIVING *     : Show, Eq
 DERIVING *     : Show
 %%]
 
-%%[8_1 hs import(EHTy, EHGam) export(cpatVarTy)
+%%[8_1 hs import(EHTy, EHGam)
 %%]
 
 %%[9 hs import(FiniteMap,EHTy) export(CBindLMap, emptyCBindLMap, Coe(..), mkCoe, coeId, coeIsId, mkAppCoe, mkLamCoe, mkLetRecCoe, mkCBindLForUIDL)
@@ -134,10 +134,6 @@ caltIsVar _                              = False
 cpatVarNm :: CPat -> CPatNm
 cpatVarNm (CPat_Var n t)      = n
 cpatVarNm (CPat_Con n _ _ _)  = n
-
-cpatVarTy :: CPat -> Ty
-cpatVarTy (CPat_Var n t) = t
-cpatVarTy (CPat_Con n _ _ _)  = error "cpatVarTy: not a variable"
 
 caltIsVar :: CAlt -> Bool
 caltIsVar (CAlt_Alt (CPat_Var _ _ : _) _)  = True

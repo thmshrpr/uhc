@@ -110,6 +110,12 @@ DATA CPat
                 tagNm           : {HsName}
                 binds           : CPatBindL
   | Undef
+
+DATA CPatBind
+  | Bind        offset          : {Int}
+                nm              : {HsName}
+                pat             : CPat
+
 %%]
 
 %%[8_1.CPat -8.CPat
@@ -121,15 +127,16 @@ DATA CPat
                 tagNm           : {HsName}
                 binds           : CPatBindL
   | Undef
-%%]
-
-%%[8
-TYPE CPatL      =   [CPat]
 
 DATA CPatBind
   | Bind        offset          : {Int}
                 nm              : {HsName}
+                ty              : Ty
                 pat             : CPat
+%%]
+
+%%[8
+TYPE CPatL      =   [CPat]
 
 TYPE CPatBindL  =   [CPatBind]
 

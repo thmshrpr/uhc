@@ -173,13 +173,18 @@ SEM PatExpr
                 loc         .   cpatBinds   =   map (\(o,(n,p)) -> CPatBind_Bind o n p) . zip [0..] . tyRowCanonOrder . reverse $ @cpbindL
                 lhs         .   cpat        =   CPat_Con @cpNm @tag @appFunNm @cpatBinds
 %%]
+%%[8_1.AppTop -8.AppTop
+  | AppTop Con Rec
+                loc         .   cpatBinds   =   map (\(o,(n,(t,p))) -> CPatBind_Bind o n t p) . zip [0..] . tyRowCanonOrder . reverse $ @cpbindL
+                lhs         .   cpat        =   CPat_Con @cpNm @tag @appFunNm @cpatBinds
+%%]
 
 %%[8.PatRecExprExt
 ATTR AllPatExpr [ | | cpbindL: {AssocL HsName CPat} ]
 
 SEM RecPatExpr
   | Empty       lhs         .   cpbindL     =   []
-  | Ext         lhs         .   cpbindL     =   (@nm,(@patExpr.cpat)) : @recPatExpr.cpbindL
+  | Ext         lhs         .   cpbindL     =   (@nm,@patExpr.cpat) : @recPatExpr.cpbindL
 
 SEM PatExpr
   | App         lhs         .   cpbindL     =   (hsnUnknown,@arg.cpat) : @func.cpbindL
@@ -187,6 +192,22 @@ SEM PatExpr
   | Rec         loc         .   cpbindL     =   @recPatExpr.cpbindL
   | Con         loc         .   cpbindL     =   []
   | * - App Con
+                lhs         .   cpbindL     =   []
+%%]
+
+%%[8_1.PatRecExprExt -8.PatRecExprExt
+ATTR AllPatExpr [ | | cpbindL: {AssocL HsName (Ty,CPat)} ]
+
+SEM RecPatExpr
+  | Empty       lhs         .   cpbindL     =   []
+  | Ext         lhs         .   cpbindL     =   (@nm,(@patExpr.ty,@patExpr.cpat)) : @recPatExpr.cpbindL
+
+SEM PatExpr
+  | App         lhs         .   cpbindL     =   (hsnUnknown,(@arg.ty,@arg.cpat)) : @func.cpbindL
+  | AppTop      loc         .   cpbindL     =   @patExpr.cpbindL
+  | Rec         loc         .   cpbindL     =   @recPatExpr.cpbindL
+  | Con         loc         .   cpbindL     =   []
+  | * - App Con -- missing: AppTop Rec
                 lhs         .   cpbindL     =   []
 %%]
 
@@ -216,8 +237,8 @@ SEM PatExpr
 
 %%[8_1.PatExprAppTop -8.PatExprAppTop
   | AppTop Rec  loc         .   cbindL      =   concat
-                                                .  map  (\(CPatBind_Bind o _ p)
-                                                            -> let  b n = [CBind_Bind n Ty_Any (CExpr_Sel (CExpr_Var @lhs.ceParentNm) @tag (CExpr_Int o))]
+                                                .  map  (\(CPatBind_Bind o _ t p)
+                                                            -> let  b n = [CBind_Bind n t (CExpr_Sel (CExpr_Var @lhs.ceParentNm) @tag (CExpr_Int o))]
                                                                in   case cpatVarNm p of
                                                                         CPatNmOrig n                          -> b n
                                                                         CPatNmUniq n | not (null @cbindLSub)  -> b n
@@ -345,14 +366,14 @@ rceMatchCon args@((nm,ty):args') alts ce
                       (\alts
                         ->  let  (subAlts,subAltSubNms)
                                                =  unzip
-                                                    [ (CAlt_Alt (pats ++ ps) e, map (\p -> (cpatNmNm . cpatVarNm $ p, cpatVarTy p)) pats)
+                                                    [ (CAlt_Alt (map snd pats ++ ps) e, map (\(t,p) -> (cpatNmNm . cpatVarNm $ p, t)) pats)
                                                     | (CAlt_Alt (CPat_Con _ _ _ pbinds : ps) e) <- alts,
-                                                      let pats = [ p | (CPatBind_Bind _ _ p) <- pbinds ]
+                                                      let pats = [ (t,p) | (CPatBind_Bind _ _ t p) <- pbinds ]
                                                     ]
                                  subMatch      =  rceMatch (head subAltSubNms ++ args') subAlts ce
                                  altPat        =  case head alts of
-                                                    CAlt_Alt (CPat_Con n t tn pbinds : _) _
-                                                      -> CPat_Con n t tn [ CPatBind_Bind o n (CPat_Var (cpatVarNm p) (cpatVarTy p)) | (CPatBind_Bind o n p) <- pbinds ]
+                                                    CAlt_Alt (CPat_Con n conTag tn pbinds : _) _
+                                                      -> CPat_Con n conTag tn [ CPatBind_Bind o n t (CPat_Var (cpatVarNm p) t) | (CPatBind_Bind o n t p) <- pbinds ]
                             in   CAlt_Alt [altPat] (mkCExprLet CBindPlain emptyGam (rceRebinds (arg',ty) alts) subMatch)
                       )
                  .  groupBy (\a1 a2 -> caltTag a1 == caltTag a2)
