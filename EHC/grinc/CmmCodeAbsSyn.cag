@@ -1,0 +1,157 @@
+% $Id$
+
+%%[0
+%include lhs2TeX.fmt
+%include afp.fmt
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Abstract syntax for C-- (portable assembly language)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% C-- structure
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+
+
+%%[8
+DATA CmmUnit
+  | Unit          statements   : CmmToplevels
+
+DATA CmmToplevel
+  | Section       name         : {String}
+                  body         : CmmSectionElements
+  | Declaration   declaration  : CmmDeclaration
+  | Procedure     procedure    : CmmProcedure
+
+-- MISSING: pragma
+DATA CmmSectionElement
+  | Declaration   declaration  : CmmDeclaration
+  | Procedure     procedure    : CmmProcedure
+  | Data          data         : CmmData
+ 
+Data CmmDatum
+  | Label         name         : {CmmName}
+  | Align         align        : {Int}
+  | Reserve       type         : {CmmType}
+                  size         : CmmSize
+                  init         : CmmInitString
+DATA CmmSize
+  | Sinlge
+  | Sized         size         : CmmExpression
+  | Many
+
+DATA CmmInitString
+  | List          elements     : CmmExpressions
+  | String        string       : String 
+  | UnicodeString string       : String
+
+DATA CmmDeclaration 
+  | Import        names        : {CmmExternalNames}
+  | Export        names        : {CmmExternalNames}
+  | Constant      type         : {CmmOptionalType}
+                  name         : {CmmName}
+		  value        : CmmExpression
+  | Typedef       type         : {CmmType}
+                  names        : {CmmNames}
+  | Var           invariant    : {Bool} 
+                  kind         : {CmmKind}
+                  type         : {CmmType}
+                  names        : {CmmHwNames}
+  | Target        targetSpec   : {CmmTargetSpec}
+  
+DATA CmmProcedure
+  | Procedure     name         : {CmmName}
+                  callConv     : {CmmCallConv}
+                  args         : CmmFormals
+                  body         : CmmBody
+
+DATA CmmBody
+  | Declaration   declaration  : CmmDeclaration
+  | StackReserve  data         : CmmData
+  | Statement     statement    : CmmStatement
+
+-- MISSING: Recoverable assignment of primitive operations
+-- MISSING: Targets, Flow, Alias informations
+-- MISSING: Continuation support
+DATA CmmStatement
+  | Nop
+  | If            condition    : CmmExpression
+                  body         : CmmBody
+  | IfElse        condition    : CmmExpression
+                  ifbody       : CmmBody
+                  elsebody     : CmmBody
+  | Switch        expr         : CmmExpression
+                  alts         : CmmAlternatives
+  | Span          key          : CmmExpression
+                  value        : CmmExpression
+		  body         : CmmBody
+  | Assign        lval         : CmmLValue
+                  expression   : CmmExpression
+  | Call          callConv     : {CmmCallConv}
+                  fun          : CmmExpression
+		  args         : CmmActuals
+                  recievers    : {CmmKindedNames}
+  | TailCall      callConv     : {CmmCallConv}
+                  fun          : CmmExpression
+		  args         : CmmActuals
+                  recievers    : {CmmKindedNames}
+  | Return        args         : CmmActuals
+  | Label         name         : {CmmName}
+  | GoTo          target       : CmmExpression
+
+
+-- TODO: Better Float representation
+-- MISSING: Assertions on MemRef
+-- MISSING: Infix operations
+DATA CmmExpression
+  | Int           val          : {Int}
+                  type         : {CmmOptionalType}
+  | Float         val          : {Double}
+                  type         : {CmmOptionalType}
+  | Char          val          : {Char}
+                  type         : {CmmOptionalType}
+  | Var           name         : {CmmName}
+  | MemRef        type         : {CmmType}
+                  location     : CmmExpression
+  | Parens        expr         : CmmExpression
+  | Not           expr         : CmmExpression
+  | Primitive     name         : {CmmName}
+                  args         : CmmActuals
+
+DATA CmmFormal
+  | Formal        kind         : {CmmKind}
+                  invariant    : {Bool}
+                  type         : {CmmType}
+                  name         : {CmmName}
+DATA CmmActual
+  | Actual        kind         : {CmmKind}
+                  val          : CmmExpression
+
+-- MISSING: Assertions on MemRef
+DATA CmmLValue
+  | Var           name         : {CmmName}
+  | MemRef        type         : {CmmType}
+                  location     : CmmExpression
+
+DATA CmmAlternative
+  | Alt           ranges       : CmmRanges
+                  body         : CmmBody
+
+DATA CmmRange
+ | Single        expr          : CmmExpression
+ | Ranged        from          : CmmExpression
+                 to            : CmmExpression
+
+TYPE CmmToplevels       = [CmmToplevel]
+TYPE CmmSectionElements = [CmmSectionElement]
+TYPE CmmData            = [CmmDatum]
+TYPE CmmExpressions     = [CmmExpression]
+TYPE CmmFormals         = [CmmFormal]
+TYPE CmmActuals         = [CmmActual]
+TYPE CmmAlternatives    = [CmmAlternative]
+TYPE CmmRanges          = [CmmRange]
+
+%%]

@@ -1,0 +1,109 @@
+#Version numbers
+EHC_VERSIONS   := 1 2 3 4 5 6 7 8 9 10
+GRI_VERSIONS   := 8 9
+GRINC_VERSIONS := 8
+
+VERSIONS       := $(EHC_VERSIONS)
+VERSION_FIRST  := $(firstword $(VERSIONS))
+VERSION_LAST   := $(word $(words $(VERSIONS)), $(VERSIONS))
+
+SHUFFLE_ORDER  := 1 < 2 < 3 < 4 < 5 < 6 < 7 < 8 < 9 < 10 < 11, 4 < 4_2
+
+# tools
+SHUFFLE := bin/shuffle
+LHS2TEX := lhs2TeX
+
+#default rule
+default: 8/grinc
+
+#help rule
+.PHONY: help
+
+help:
+	@echo "Usage: make <rule>" ;\
+	echo ;\
+	echo "Availible rules:" ;\
+	echo ;\
+	echo "<n>/grinc    : make GRIN compiler (back end) version <n> (where <n> in {$(GRINC_VERSIONS)})" ;\
+	echo ;\
+	echo "shuffle      : make the suffle tool in bin/shuffle"
+
+##########################
+### shuffle
+##########################
+
+shuffle: $(SHUFFLE)
+
+$(SHUFFLE): shuffle/Shuffle.hs $(wildcard lib/*.hs)
+	$(GHC) --make -package uust -package data -ilib $< -o $@
+	strip $@
+
+shuffle/Shuffle.hs: shuffle/Shuffle.ag
+	cd $(dir $<) && $(AGC) -csdfr --module=Main $(notdir $<)
+
+##########################
+### unsuffle source tree
+##########################
+
+#every version should have its own sources here?
+
+SOURCES_HS  := $(foreach dir, . lib ,$(wildcard $dir/*.hs))
+SOURCES_AG  := 
+
+SOURCES_CHS := $(foreach dir, . gri grinc ,$(wildcard $dir/*.chs))
+SOURCES_CAG := $(foreach dir, . gri grinc ,$(wildcard $dir/*.cag))
+
+# Not used but good to know:
+ALL_SOURCES := Makefile.col $(SOURCES_HS) $(SOURCES_AG) $(SOURCES_CHS) $(SOURCES_CAG)
+
+#all target files to create
+ALL_TARGETS = $(addprefix $(1)/, Makefile $(SOURCES_HS) $(SOURCES_AG) $(SOURCES_CHS:.chs=.hs) $(SOURCES_CAG:.cag=.ag))
+
+V     = $(firstword $(subst /, ,$@))
+BUILD = $(MAKE) -C $V $(notdir $@)
+	
+# well we want to keep our files!
+.PRECIOUS: $(foreach V,$(VERSIONS), $V/%.ag $V/%.hs $V/Makefile)
+
+8/Makefile: Makefile.col
+	mkdir -p 8
+	$(SHUFFLE) --gen=$V -a --lhs2tex=no -b $(notdir) --order="$(SHUFFLE_ORDER)" $< > $@
+
+8/%.ag: %.cag
+	mkdir -p $(dir $@)
+	$(SHUFFLE) --gen=$V --ag --order="$(SHUFFLE_ORDER)" $< | $(LHS2TEX) --newcode > $@
+
+8/%.hs: %.chs
+	mkdir -p $(dir $@)
+	$(SHUFFLE) --gen=$V --hs --order="$(SHUFFLE_ORDER)" $< | $(LHS2TEX) --newcode > $@
+
+8/%.hs: %.hs
+	mkdir -p $(dir $@)
+	cp $< $@
+
+8/%.ag: %.ag
+	mkdir -p $(dir $@)
+	cp $< $@
+
+#Implicit target rules are easy, but hard to trace errors with
+
+10/%: $(call ALL_TARGETS,10)
+	$(BUILD)
+9/%:  $(call ALL_TARGETS,9)
+	$(BUILD)
+8/%:  $(call ALL_TARGETS,8)
+	$(BUILD)
+7/%:  $(call ALL_TARGETS,7)
+	$(BUILD)
+6/%:  $(call ALL_TARGETS,6)
+	$(BUILD)
+5/%:  $(call ALL_TARGETS,5)
+	$(BUILD)
+4/%:  $(call ALL_TARGETS,4)
+	$(BUILD)
+3/%:  $(call ALL_TARGETS,3)
+	$(BUILD)
+2/%:  $(call ALL_TARGETS,2)
+	$(BUILD)
+1/%:  $(call ALL_TARGETS,1)
+	$(BUILD)

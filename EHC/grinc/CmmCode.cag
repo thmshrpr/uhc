@@ -1,0 +1,42 @@
+% $Id$
+
+%%[0
+%include lhs2TeX.fmt
+%include afp.fmt
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Haskell importable interface to C--
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8 hs import (GRINCCommon)
+%%]
+
+%%[8 import(CmmCodeAbsSyn)
+DERIVING * : Show, Eq
+%%]
+
+%%[8 hs
+type CmmName          = String
+type CmmNames         = [CmmName]
+type CmmExternalName  = (CmmName, Maybe String)
+type CmmExternalNames = [CmmExternalName]
+type CmmHwName        = (CmmName, Maybe String)
+type CmmHwNames       = [CmmHwName]
+data CmmType          = CmmBits Int
+                      | CmmName String
+                      deriving Show, Eq                          
+type CmmOptionalType  = Maybe CmmType
+type CmmKind          = String
+data CmmTargetSpec    = TargetSpec 
+                          Int            -- memsize
+                          CmmByteOrder   -- byteorder
+                          Int            -- pointersize
+                          Int            -- wordsize
+                        deriving Show, Eq                          
+data CmmByteOrder     = LittleEndian | BigEndian
+                        deriving Show, Eq                          
+type CmmCallConv      = String                        
+type CmmKindedName    = (CmmKind, CmmName)
+type CmmKindedNames   = [CmmKindedName]
+%%]

@@ -1,0 +1,38 @@
+%%[0
+# Shuffled makefile
+# This makefile is unshuffled and then executed on the unsuffled sources
+%%]
+
+%%[8
+
+# tools
+GHC := ghc
+AGC := uuagc
+LHS2TEX := lhs2TeX
+
+default: grinc
+
+help:
+	@echo "Usage: make <rule>" ;\
+	echo ;\
+	echo "Availible rules:" ;\
+	echo ;\
+	echo "<n>/grinc    : make GRIN compiler (back end) version <n> (where <n> in {$(GRINC_VERSIONS)})" ;\
+	echo "grincs       : make all back end compiler (grinc) versions" ;\
+
+##########################
+### GRINC
+##########################
+
+GRINC_SOURCE     := grinc/GRINC.hs grinc/GRINCCommon.hs EHCommon.hs EHScanner.hs GrinCode.hs gri/GRIParser.hs 
+
+grc: $(GRINC_SOURCE) Makefile
+	$(GHC) --make -package uust -package data -ilib -igrinc -igri $< -o $@
+	strip $@
+
+GrinCode.hs: GrinCode.ag Makefile
+	$(AGC) -dr $<
+
+%.hs: %.ag Makefile
+	cd $(dir $<) &&	$(AGC) -dcfspr $(notdir $<)
+%%]
