@@ -1,0 +1,11 @@
+#!/bin/bash
+
+test -n "${1}" || { cat "$0"; exit 1; }
+base=${1%.cmm}
+dir="`dirname "$0"`"
+
+
+qc-- -S  ${base}.cmm &&
+grep -vF '.Lexit_' ${base}.s > ${base}.new.s &&
+qc-- -globals ${dir}/startup.cmm ${base}.new.s -o ${base}
+

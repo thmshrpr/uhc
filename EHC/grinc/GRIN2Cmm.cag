@@ -634,30 +634,34 @@ SEM GrExpr
 
 %%]
 %%[8.MO hs
-buildStore nms [p] = let grow              = 4 * max 4 (length nms)
-                         alloc             = [ (varUpdate p, varRef "@hp") 
-                                             , (varUpdate "@hp", varRef "@hp" <+> int grow)
-                                             ]
-                         assign e (i,tail) = let hd = (memUpdate valType (varRef p) i, e)
-                                             in (i+4, hd:tail)
-                         assigns           = snd (foldr assign (0,[]) nms)
-                         storeStm          = updates (alloc ++ assigns)
-                     in (body storeStm:)
+buildStore nms [p] = let grow          = 4 * max 4 (length nms)
+                         alloc         = [ (varUpdate p, varRef "@hp") 
+                                         , (varUpdate "@hp", varRef "@hp" <+> int grow)
+                                         ]
+                         assign e tf i = let hd = (memUpdate valType (varRef p) i, e)
+			                     tl = tf (i+4)
+                                         in hd:tl
+                         assigns       = foldr assign (const []) nms 0
+                         allocStm      = body $ updates alloc
+                         storeStm      = body $ updates assigns
+                     in (allocStm:) . (storeStm:)
 
 -- TODO: fix Fetch
 -- just load as much as possible
-buildFetch  p nms = let assign n (i,tail) = let hd = (varUpdate n, fetch valType (varRef' p) i)
-                                            in (i+4, hd:tail)
-                        assigns           = snd (foldr assign (0,[]) nms)
-                        fetchStm          = updates assigns
+buildFetch  p nms = let assign n tf i = let hd = (varUpdate n, fetch valType (varRef' p) i)
+                                            tl = tf (i+4)
+                                        in hd:tl
+                        assigns       = foldr assign (const []) nms 0
+                        fetchStm      = updates assigns
                     in (body fetchStm:)
 
 -- TODO: fix Update
 -- just store the values (do not take space as a problem)
-buildUpdate p nms = let assign e (i,tail) = let hd = (memUpdate valType (varRef' p) i, e)
-                                            in (i+4, hd:tail)
-                        assigns           = snd (foldr assign (0,[]) nms)
-                        updateStm         = updates assigns
+buildUpdate p nms = let assign e tf i = let hd = (memUpdate valType (varRef' p) i, e)
+                                            tl = tf (i+4)
+                                        in hd:tl
+                        assigns       = foldr assign (const []) nms 0
+                        updateStm     = updates assigns
                     in (body updateStm:)
 %%]
 
@@ -689,7 +693,8 @@ SEM GrAGItf
 
 SEM GrModule
   | Mod       loc . sectionCAFNodes = let data2section d    = CmmToplevel_Section "data" [CmmSectionElement_Data d]
-                                          cmmCAFNode (n,_)  = reserve valType 4 $ expInit [varRef $ cafNode4name n, int 0]
+                                          zeros             = replicate 3 (int 0)
+                                          cmmCAFNode (n,_)  = reserve valType 4 $ expInit (varRef (cafNode4name n) : zeros)
                                       in  data2section (CmmDatum_Label "@CAF_Nodes" : map cmmCAFNode @lhs.cafEnv)
 %%]
 
