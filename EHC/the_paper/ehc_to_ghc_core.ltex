@@ -183,9 +183,9 @@ We use the following notational conventions for syntax:
 
 Ty refers in our implementation to the datatype defined in {\bf EHTyAbsSyn.cag}.
 
-\subsection{EHCode vs GHC-Core}
+\subsection{EHCode vs GHC Core}
 
-There are several essential differences between Ghc Core and EHCode.
+There are several essential differences between GHC Core and EHCode.
 
 \subsubsection{Types}
 On several places the GHC Core language require type information.
@@ -193,13 +193,13 @@ On several places the GHC Core language require type information.
 \begin{itemize}
 \item In function applications All polymorphic functions and all higher kinded datatypes should get type arguments.
 \item all bindings of names to expressions should contain type information.
-\item all literals needs to be typed explicit, this is due to the fact that literals in haskell refer to type classes. i.e. a constant 3 is of type |(Num t) => t|. Since Ghc at this level has no type classes anymore it needs to know which instance of Num it has to use.
+\item all literals need to be typed explicit, this is due to the fact that literals in Haskell refer to type classes. i.e. a constant 3 is of type |(Num t) => t|. Since Ghc at this level has no type classes anymore it needs to know which instance of Num it has to use.
 \end{itemize}
 
-The EHCode language however does not incorperate type information. Since we generate GHC Core out of EHCode we have to incorperate it into EHCode.
+The EHCode language however does not incorporate type information. Since we generate GHC Core out of EHCode we have to incorporate it into EHCode.
 
 \subsubsection{Datatypes}
-EHCode convert datatypes into (untyped?) records. GHC Core defines datatypes the same way as haskell datatypes. So we must have means to re\"introduce them.
+EHCode converts datatypes into (untyped?) records. GHC Core defines datatypes the same way as haskell datatypes. So we must have means to reintroduce them.
 
 \subsection{Evaluation forcing constructs}
 
@@ -211,13 +211,13 @@ Compilerdriver, prettyprinter, Makefile \ldots
 
 \section{Add type information to bindings}
 
-In the beginning we were using directly the EH language. This language had all the information we needed. But of course a lot of analysis and desugaring in the front end of EHC is done on EH when translating into EHC Core so the EH language is for the front-end only. We need a few stages 
+In the beginning we were using directly the EH language. This language had all the information we needed. But of course a lot of analysis and desugaring in the front end of EHC is done on EH when translating into EHCode so the EH language is for the front-end only. We need a few stages 
 
-We are going to explain what we have changed in EHCode abstract syntex. Then we will show the changes when we generate the EHCode, which is done in {\bf EHGenCode.cag}.
+We are going to explain what we have changed in EHCode abstract syntax. Then we will show the changes when we generate the EHCode, which is done in {\bf EHGenCode.cag}.
 
 \subsection{Top Module}
 
-To make a correct GhcModule out of EH code we bind the toplevel EH expression to en exported top level function named \emph{top}. Since every binding needs a type we have to add the type of the expression that corresponds to the top binding. So we introduce a ty in CModule.
+To make a correct GhcModule out of EHCode we bind the toplevel EH expression to an exported top level function named \emph{top}. Since every binding needs a type we have to add the type of the expression that corresponds to the top binding. So we introduce a ty in CModule.
 
 \medskip
 
@@ -368,8 +368,8 @@ DATA CPat
 \bigskip
 
 
-\subsection{Generating EH Core Code}
-Changing the Abstract Syntax Tree of EH Core we had to update the code generation correctly. Below you can see the various changes:
+\subsection{Generating EHCode}
+Changing the Abstract Syntax Tree of EHCode we had to update the code generation correctly. Below you can see the various changes:
 
 Now the CModule receives the type of the top expression;
 
@@ -750,16 +750,16 @@ And we have changed files from version 8 of EHC:
                      Added compile rule for GhcCore backend;
 \item
 {\bf EHCodeAbsSyn.cag}: 
-                     Made some changes on EH Code Abstract Syntax Tree;
+                     Made some changes on EHCode Abstract Syntax Tree;
 \item
 {\bf EHCode.cag}: 
-                     Changed Haskell functions related to EH Code Abstract Syntax Tree;
+                     Changed Haskell functions related to EHCode Abstract Syntax Tree;
 \item
 {\bf EHCommon.chs}: 
                      Added auxiliar function;
 \item
 {\bf EHGenCode.cag}: 
-                     Changed functions related to the translation of EH language to EH Code;
+                     Changed functions related to the translation of EH language to EHCode;
 \item
 {\bf EHMainAG.cag}:  
                      Added import rules;

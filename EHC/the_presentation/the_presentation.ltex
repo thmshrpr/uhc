@@ -79,7 +79,7 @@
 %%%%%% Document Info 
 
 \title{EHC to GHC Core Backend}
-\author{presentation by Christof Douma \& Rodrigo Baptista}
+\author{Presentation by Christof Douma \& Rodrigo Baptista}
 
 % Formating of special haskell constructs
 %format x1
@@ -131,41 +131,72 @@ http://www.cs.uu.nl/groups/ST/Eifl/EHCToGhcCore
 \begin{Slide}[Introduction]
 \item What are we going to talk about?
 \begin{itemize}
-	\item EHC Code vs GHC Core
-	\item Incorporating the BackEnd in EHC
-	\item Re-introducing Data Types in GHC Core
+	\item EHCode vs GHC Core
+	\item Incorporating the Backend in EHC
+	\item Reintroducing Datatypes in GHC Core
 	\item Examples
 	\item Conclusions
 \end{itemize}
 
 \end{Slide}
 
-%%%%%%%%%%%%% EHC Code vs GHC Core %%%%%%%%%%%%%
-\begin{Slide}[EHC Code vs GHC Core]
-\item
-\end{Slide}
-
-%%%%%%%%%%%%% Incorporating the BackEnd in EHC %%%%%%%%%%%%%
-\begin{Slide}[Incorportating the BackEnd in EHC]
-\item
-\end{Slide}
-
-\begin{Slide}
-\item
+%%%%%%%%%%%%% EHCode vs GHC Core %%%%%%%%%%%%%
+\begin{Slide}[EHCode vs GHC Core]
+\item What are the main differences?
+\begin{itemize}
+	\item Types
+	\item Datatypes
+	\item Strict Let Binding
+\end{itemize}
 \end{Slide}
 
 \begin{Slide}
-\item
+\item Types
+\begin{itemize}
+	\item GHC Core Language requires type information in several places:
+	\subitem Function aplications;
+	\subitem Binding names to expressions;
+	\subitem Pattern variables;
+	\subitem All literals need to be typed explicit;
+	\item EHCode language does not incorporate type information 
+	\subitem So we need to incorporate types into EHCode
+\end{itemize}
 \end{Slide}
 
-%%%%%%%%%%%%% Re-introducing Data Types in GHC Core %%%%%%%%%%%%%
-\begin{Slide}[Re-introducing Data Types in GHC Core]
+\begin{Slide}
+\item Datatypes
+\begin{itemize}
+	\item EHCode converts Datatypes into records
+	\item GHC Core defines Datatypes the same way as Haskell Datatypes
+	\subitem We need to reintroduce them in GHC Core
+\end{itemize}
+\item Strict Let Binding
+\begin{itemize}
+	\item EHCode uses a strict let binding (let!) to force evaluation
+	\item GHC Core forces evaluation only in case expressions
+\end{itemize}
+\end{Slide}
+
+%%%%%%%%%%%%% Incorporating the Backend in EHC %%%%%%%%%%%%%
+\begin{Slide}[Incorportating the Backend in EHC]
+\item The Main change in EHCode is to include type information to bindings specifically in:
+\begin{itemize}
+	\item Top Module
+	\item Lambda Abstractions
+	\item Pattern variables
+	\item Let Bindings
+	\item ...
+\end{itemize}
+\end{Slide}
+
+%%%%%%%%%%%%% Reintroducing Data Types in GHC Core %%%%%%%%%%%%%
+\begin{Slide}[Reintroducing Data Types in GHC Core]
 \item
 \end{Slide}
 
 %%%%%%%%%%%%% Examples %%%%%%%%%%%%%%%
 \begin{Slide}[Examples]
-\item
+\item 
 \end{Slide}
 
 %%%%%%%%%%%%% Conclusions %%%%%%%%%%%%%%
