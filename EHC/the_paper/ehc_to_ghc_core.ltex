@@ -597,6 +597,71 @@ ceStrictIn nm t e mkC = CExpr_Let CBindStrict emptyGam [CBind_Bind nm t e] (mkC 
 
 \bigskip
 
+\section{Outputting GHC Core Code}
+
+
+
+\subsection{Outputting Types}
+
+...........
+
+\medskip
+
+\begin{code}
+%%[8_1.ppTy -1.ppTy hs import(Data.Maybe) export(ppGhcCoreTy)
+ppTy :: Ty -> PP_Doc
+ppTy ty
+  =  let  t =  wrap_TyAGItf
+                 (sem_TyAGItf (TyAGItf_AGItf ty))
+                 (Inh_TyAGItf Nothing)
+     in   pp_Syn_TyAGItf t
+
+ppGhcCoreTy ::  String -> Ty -> PP_Doc
+ppGhcCoreTy moduleID ty
+  =  let  t =  wrap_TyAGItf
+                 (sem_TyAGItf (TyAGItf_AGItf ty))
+                 (Inh_TyAGItf (Just moduleID))
+     in   pp_Syn_TyAGItf t
+
+instance PP Ty where
+  pp t = ppTy t
+%%]
+\end{code}
+
+\bigskip
+
+ghcModuleID....
+
+\medskip
+
+\begin{code}
+%%[1.ppAttr
+ATTR TyAGItf AllTy [ | | pp: PP_Doc ]
+%%]
+
+%%[8_1.ppAttr -1.ppAttr
+ATTR TyAGItf AllTy [ ghcModuleID: {Maybe String} | | pp: PP_Doc ]
+%%]
+\end{code}
+
+\bigskip
+
+ppTy in GHC.....
+
+\medskip
+
+\begin{code}
+%%[8_1.pp
+SEM Ty
+  | Con            loc      . conName   = let ghcModName nm mid = if @nm == hsnInt || @nm == hsnChar then "GHCziBase." else (mid ++ ".")
+                                              ghcQualName nm mid = hsnPrefix (ghcModName nm mid) nm
+                                          in (maybe @nm (ghcQualName @nm) @lhs.ghcModuleID)
+                            . pp        := ppCon @conName
+%%]
+\end{code}
+
+\bigskip
+
 \section{Overview to the added/created files}
 
 This is an overview of what we have specifically done in the files point of view. We have created version 8\_1 of EHC adding some necessary files:
@@ -607,7 +672,7 @@ This is an overview of what we have specifically done in the files point of view
                      It contains the Data type of the Abstract Syntax Tree used to represent GHC Core language;
 \item
 {\bf EHGhcCoreMain.cag}:  
-                     It contains the operational semantics and auxiliar functions;
+                     It contains the operational semantics and auxiliar functions applied to the GHC Core AST;
 \item
 {\bf EHGhcCore.cag}: 
                      It contains the Haskell importable interface to GhcCore backend;
@@ -663,6 +728,45 @@ hsnIsCon  _                        = False
 \bigskip
 
 \section{Compiling the Backend}
+
+......
+
+
+\begin{code}
+%%[8_1.outputPass -8.outputPass
+crCompileCUPass2HS :: HsName -> CompileRun -> IO CompileRun
+crCompileCUPass2HS modNm cr
+  =  do  {  let  cu     = crCU modNm cr
+                 p1ob   = fromJust (cuMbOut (crCU modNm cr))
+                 fp     = cuFilePath cu
+                 opts   = crOpts cr
+                 codePP = ppCModule (cmodule_Syn_AGItf p1ob)
+         ;  case ehcoptCodeType opts of
+               EHCCoreCode -> do
+                      {  writeFile (fpathToStr (fpathSetSuff "code" fp))
+                            (disp codePP 120 "")
+                      }
+              JavaCode    -> do
+                      {  let (jBase,jPP) = cexprJavaSrc (cmodule_Syn_AGItf p1ob)
+                             jFP = fpathSetBase jBase fp
+                      ;  writeFile (fpathToStr (fpathSetSuff "java" jFP))
+                            (disp jPP 120 "")
+                      }
+               GHCCoreCode -> do
+                      {  let cmod   = cmodule_Syn_AGItf p1ob
+                             ghcmod = genGhcCore cmod
+                             hcrPP  = ppGhcModule ghcmod
+                      ;  writeFile (fpathToStr (fpathSetSuff "hcr" fp))
+                            (disp hcrPP 120 "")
+                      ;  putStrLn "*** GHC Core AST:"
+                      ;  putStrLn (show ghcmod)
+                      }
+         ;  return cr
+        }
+%%]
+\end{code}
+
+
 \section{Examples}
 
 %%%% REFERENCES %%%

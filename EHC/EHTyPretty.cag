@@ -47,7 +47,7 @@ ppGhcCoreTy moduleID ty
      in   pp_Syn_TyAGItf t
 
 instance PP Ty where
-  pp t = ppTy t -- TODO: TyPretty should never call pp directly on Ty
+  pp t = ppTy t
 %%]
 
 
