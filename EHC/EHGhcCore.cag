@@ -7,8 +7,9 @@
 %%% Haskell importable interface to GhcCore
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%[8 hs 
+%%[8 hs
 module EHGhcCore where
+import EHTy
 
 type MIdent = String
 type VIdent = String

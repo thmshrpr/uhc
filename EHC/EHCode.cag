@@ -31,6 +31,9 @@
 DERIVING *     : Show, Eq
 %%]
 
+%%[8_1 hs import(EHTy) export(cpatVarTy)
+%%]
+
 %%[9 hs import(FiniteMap,EHTy) export(CBindLMap, emptyCBindLMap, Coe(..), mkCoe, coeId, coeIsId, mkAppCoe, mkLamCoe, mkLetRecCoe, mkCBindLForUIDL)
 %%]
 
@@ -100,20 +103,36 @@ mkCExprApp f as = foldl (\f a -> CExpr_App f a) f as
 %%% Destruction
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%[8 hs
+%%[8.cpatVarNm hs
 cpatVarNm :: CPat -> CPatNm
 cpatVarNm (CPat_Var n)        = n
 cpatVarNm (CPat_Con n _ _ _)  = n
 
+caltIsVar :: CAlt -> Bool
+caltIsVar (CAlt_Alt (CPat_Var _ : _) _)  = True
+caltIsVar _                              = False
+%%]
+
+%%[8_1.cpatVarNm -8.cpatVarNm hs
+cpatVarNm :: CPat -> CPatNm
+cpatVarNm (CPat_Var n t)      = n
+cpatVarNm (CPat_Con n _ _ _)  = n
+
+cpatVarTy :: CPat -> Ty
+cpatVarTy (CPat_Var n t) = t
+cpatVarTy (CPat_Con n _ _ _)  = error "cpatVarTy: not a variable"
+
+caltIsVar :: CAlt -> Bool
+caltIsVar (CAlt_Alt (CPat_Var _ _ : _) _)  = True
+caltIsVar _                                = False
+%%]
+
+%%[8 hs
 cpatConTag :: CPat -> Int
 cpatConTag (CPat_Con _ t _ _)  = t
 
 caltTag :: CAlt -> Int
 caltTag (CAlt_Alt (p : _) _) = cpatConTag p
-
-caltIsVar :: CAlt -> Bool
-caltIsVar (CAlt_Alt (CPat_Var _ : _) _)  = True
-caltIsVar _                              = False
 
 caltPatL :: CAlt -> CPatL
 caltPatL (CAlt_Alt p _) = p

@@ -23,7 +23,7 @@ DATA ConsDef
 	| ConsDef 
 		name :  {DCon}
 		typebinders: TypeBinders
-		ty: AtomicType
+		ty: Ty
 DATA ValueDefg
 	| RecValues 
 		values: ValueDefs
@@ -33,7 +33,7 @@ DATA ValueDefg
 DATA ValueDef
 	| ValueDef 
 		name: {VIdent}
-		type: Type
+		type: Ty
 		expr: Expression
 
 
@@ -42,8 +42,10 @@ DATA Expression
 		name: {VIdent}
 	| Cons
 		name: {DCon}
-	| Lit
+	| ILit
 		value: {Int}
+	| CLit
+		value: {Char}
 	| Nested
 		expr: Expression
 	| App
@@ -55,10 +57,23 @@ DATA Expression
 	| Let
 		valueDefg: ValueDefg
 		expr: Expression
+        | Case
+               expr: Expression
+               vbind: ValueBinder
+               alts: Alternatives
+
+DATA Alternative
+        | Alternative
+		name :  {DCon}
+		typebinders: TypeBinders
+		valuebinders: ValueBinders
+                expr: Expression
+        | Default
+		expr: Expression
 
 DATA Argument
 	| Type
-		type: AtomicType
+		type: Ty
 	| Value
 		value: Expression
 DATA Binder
@@ -69,50 +84,16 @@ DATA Binder
 DATA ValueBinder
 	| ValueBinder
 		var : {VIdent}
-		type : Type
+		type : Ty
 DATA TypeBinder
 	| TypeBinder
 		var : {TVar}
-		kind : Kind
+		--kind : Kind
 
-DATA Type
-	| BasicType
-		type: BasicType
-	| ForallType
-		binders: TypeBinders
-		type: Type
-	| Arrow
-		type1: BasicType
-		type2: Type
-DATA BasicType
-	| Atom
-		type: AtomicType
-	| App
-		fun: BasicType
-		arg: AtomicType
-DATA AtomicType
-	| TypeVar
-		var: {TVar}
-	| TypeCons
-		cons: {DIdent}
-	| Nested
-		type: Type
-
-DATA Kind
-	| Atom
-		kind: AtomicKind
-	| Arrow
-		kind1: AtomicKind
-		kind2: Kind
-DATA AtomicKind
-	| Lifted
-	| Unlifted
-	| Open
-	| Nested
-		kind: Kind
-
+TYPE Alternatives = [ Alternative ]
 TYPE Arguments = [ Argument ]
 TYPE TypeBinders = [ TypeBinder ]
+TYPE ValueBinders = [ ValueBinder ]
 TYPE Binders = [ Binder ]
 TYPE ValueDefgs = [ ValueDefg ]  
 TYPE ValueDefs = [ ValueDef ]  
@@ -121,9 +102,9 @@ TYPE ConsDefs = [ ConsDef ]
 
 DATA MaybeType
 	| Just 
-		type : Type
+		type : Ty
 	| Nothing
 
-SET AllGhcCore = GhcModule TypeDef ConsDef ValueDefg ValueDef Expression Argument Binder ValueBinder TypeBinder Type BasicType AtomicType Kind AtomicKind Arguments TypeBinders Binders ValueDefgs ValueDefs TypeDefs ConsDefs MaybeType
+SET AllGhcCore = GhcModule TypeDef ConsDef ValueDefg ValueDef Expression Argument Binder ValueBinder TypeBinder Arguments TypeBinders ValueBinders Binders ValueDefgs ValueDefs TypeDefs ConsDefs MaybeType Alternative Alternatives
 %%]
 

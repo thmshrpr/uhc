@@ -19,6 +19,7 @@ DATA CodeAGItf
 
 DATA CModule
   | Mod         baseName        : {String}
+                ty              : Ty
                 expr            : CExpr
 %%]
 
@@ -75,6 +76,9 @@ DATA CAlt
 
 TYPE CAltL      =   [CAlt]
 
+%%]
+
+%%[8.CPat
 DATA CPat
   | Var         pnm             : {CPatNm}
   | Con         pnm             : {CPatNm}
@@ -82,26 +86,26 @@ DATA CPat
                 tagNm           : {HsName}
                 binds           : CPatBindL
   | Undef
-
-TYPE CPatL      =   [CPat]
-
-%%]
-%%[8.CPatBind
-DATA CPatBind
-  | Bind        offset          : {Int}
-                nm              : {HsName}
-                pat             : CPat
 %%]
 
-%%[8_1.CPatBind -8.CPatBind
-DATA CPatBind
-  | Bind        offset          : {Int}
-                nm              : {HsName}
+%%[8_1.CPat -8.CPat
+DATA CPat
+  | Var         pnm             : {CPatNm}
                 ty              : Ty
-                pat             : CPat
+  | Con         pnm             : {CPatNm}
+                tag             : {Int}
+                tagNm           : {HsName}
+                binds           : CPatBindL
+  | Undef
 %%]
 
 %%[8
+TYPE CPatL      =   [CPat]
+
+DATA CPatBind
+  | Bind        offset          : {Int}
+                nm              : {HsName}
+                pat             : CPat
 
 TYPE CPatBindL  =   [CPatBind]
 

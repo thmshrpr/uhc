@@ -17,42 +17,62 @@ ATTR CModule CodeAGItf [ | | ghcmodule : GhcModule ]
 ATTR CExpr  [ | | ghcexpr : Expression ]
 
 SEM CModule
-  | Mod lhs.ghcmodule = GhcModule_Module "Main" [] [] [createFunction "main" (convertType Ty_Any) @expr.ghcexpr ] 
+  | Mod lhs.ghcmodule = GhcModule_Module "Main" [] [] [createFunction "main" @ty @expr.ghcexpr ] 
 
 SEM CExpr
-  | Int    lhs.ghcexpr     = undefined
-  | Char   lhs.ghcexpr     = undefined
-  | Var    lhs.ghcexr      = Expression_Var (show @nm)
-  | App    lhs.ghcexpr     = createApplication Ty_Any @func.ghcexpr [@arg.ghcexpr]
-  | Let    lhs.ghcexpr     = Expression_Let @binds.ghcdefg @body.ghcexpr
-           binds.category  = @categ
-  | Lam    lhs.ghcexpr     = Expression_Lambda [Binder_Value $ ValueBinder_ValueBinder (show @arg) (convertType Ty_Any) ] @body.ghcexpr
-  | Case   lhs.ghcexpr = undefined
-  | Tup    lhs.ghcexpr = undefined
-  | Sel    lhs.ghcexpr = undefined
+  | Int    lhs   . ghcexpr  = Expression_ILit @int
+  | Char   lhs   . ghcexpr  = Expression_CLit @char
+  | Var    lhs   . ghcexpr  = Expression_Var (show @nm)
+  | App    lhs   . ghcexpr  = createApplication Ty_Any @func.ghcexpr [@arg.ghcexpr]
+  | Let    lhs   . ghcexpr  = Expression_Let @binds.ghcdefg @body.ghcexpr
+           binds . category = @categ
+  | Lam    lhs   . ghcexpr  = Expression_Lambda [Binder_Value $ ValueBinder_ValueBinder (show @arg) Ty_Any ] @body.ghcexpr
+  | Case   lhs   . ghcexpr  = Expression_Case @expr.ghcexpr (ValueBinder_ValueBinder "casebinder" Ty_Any) @alts.ghcalts
+  | Tup    lhs   . ghcexpr  = Expression_CLit 'T'
+  | Sel    lhs   . ghcexpr  = error "Sel rule ni"
 
 ATTR CBindL [ category: {CBindCateg} | | ghcdefg: ValueDefg ]
 SEM CBindL
   | Cons
-         lhs.ghcdefg = case category of
+         lhs.ghcdefg = case @lhs.category of
                          CBindPlain  -> ValueDefg_Value @hd.ghcdef
                          CBindRec    -> let ValueDefg_RecValues l = @tl.ghcdefg 
                                         in ValueDefg_RecValues (@hd.ghcdef : l)
-                         CBindStrict -> ValueDefg_Value @hd.ghcdef
+                         CBindStrict -> ValueDefg_Value @hd.ghcdef -- TODO: make a case out of it
   | Nil  lhs.ghcdefg = ValueDefg_RecValues []
 ATTR CBind [ | | ghcdef: ValueDef ]
 SEM CBind 
-  | Bind lhs.ghcdef = ValueDef_ValueDef (show @nm) (convertType Ty_Any) @expr.ghcexpr
+  | Bind lhs.ghcdef = ValueDef_ValueDef (show @nm) @ty @expr.ghcexpr
 
+ATTR CAltL [ | | ghcalts : Alternatives ]
+SEM CAltL
+  | Cons  lhs . ghcalts = @hd.ghcalt : @tl.ghcalts
+  | Nil   lhs . ghcalts = []
+
+ATTR CAlt [ | | ghcalt : Alternative ]
+SEM CAlt
+  | Alt   lhs . ghcalt = Alternative_Alternative @pats.cname [] @pats.values @expr.ghcexpr
+
+ATTR CPat CPatL [  | | cname: {DCon} values USE {++} {[]} : ValueBinders ]
+SEM CPatL
+  | Cons   lhs . cname = @hd.cname
+  | Nil    lhs . cname = ""
+
+SEM CPat
+  | Var    lhs . cname = error "EHGhcCoreMain: Var pattern found"
+           lhs . values = [ ValueBinder_ValueBinder (show @pnm) @ty ]
+  | Undef  lhs . cname = error "EHGhcCoreMain: Undef in pattern found while requesting cname"
+           lhs . values = error "EHGhcCoreMain: Undef in pattern found while requesting values"
+  | Con    lhs . cname  = show @tagNm
+
+ATTR CPatBindL CPatBind [ | | values USE {++} {[]} : ValueBinders ]
 %%]
 
 %%[8_1 hs
 
-createFunction :: VIdent -> Type -> Expression  -> ValueDefg
+createFunction :: VIdent -> Ty -> Expression  -> ValueDefg
 createFunction f t e = ValueDefg_Value (ValueDef_ValueDef f t e)
 
 createApplication :: Ty -> Expression -> [Expression] -> Expression
 createApplication t f as = Expression_App f (map Argument_Value as) -- TODO: if Type is polymorthic add type arguments
-
-convertType = const $Type_BasicType (BasicType_Atom (AtomicType_TypeVar "a")) -- error "convert Type not implemented"
 %%]

@@ -5,7 +5,7 @@
 %include afp.fmt
 %%]
 
-%%[8_1 hs import(UU.Pretty,EHGhcCore) export(ppGhcModule)
+%%[8_1 hs import(UU.Pretty,EHGhcCore,EHTy,EHTyPretty) export(ppGhcModule)
 ppGhcModule :: GhcModule -> PP_Doc
 ppGhcModule  = sem_GhcModule
 
@@ -19,20 +19,24 @@ SEM GhcModule
   | Module	lhs . pp = "%module" >#< @name >-< @tdefs.pp >-< @lvdefs.pp >-< @vdefs.pp >-< ""
 
 SEM ValueDef
-  | ValueDef    lhs . pp = @name >#< "::" >#< @type.pp >#< "=" >#< @expr.pp
+  | ValueDef    lhs . pp = @name >#< "::" >#< (pp @type) >#< "=" >#< @expr.pp
 
 SEM Expression
   | Var          lhs . pp = pp @name
   | Cons         lhs . pp = pp @name
-  | Lit          lhs . pp = pp @value
+  | ILit         lhs . pp = pp @value
+  | CLit         lhs . pp = pp @value
   | Nested       lhs . pp = pp_parens @expr.pp
   | App          lhs . pp = @fun.pp >#< @args.pp
   | Lambda       lhs . pp = "\\" >|< @binders.pp >#< "->" >#< @expr.pp
   | Let          lhs . pp = "%let" >#< @valueDefg.pp
                             >-< "%in" >#< @expr.pp
+  | Case         lhs . pp = "%case" >#< @expr.pp >#< "%of"
+                            >-< @vbind.pp 
+                            >-< pp_block "{" "}" ";" @alts.pps
 SEM Argument
   | Value        lhs . pp = pp_parens @value.pp
-  | Type         lhs . pp = "@" >#< pp_parens @type.pp
+  | Type         lhs . pp = "@" >#< pp_parens (pp @type)
 
 SEM ValueDefg
   | RecValues    lhs . pp = "%rec" >#< pp_block "{" "}" ";" @values.pps
@@ -45,9 +49,17 @@ SEM ValueDefs
   | Nil          lhs . pps = []
 
 SEM Binder
-  | Type         lhs . pp = "@" >#< @type.pp
+  | Type         lhs . pp = "@" >#< (pp @type)
 
 SEM ValueBinder
-  | ValueBinder  lhs . pp = pp_parens $ @var >#< "::" >#< @type.pp
+  | ValueBinder  lhs . pp = pp_parens $ @var >#< "::" >#< (pp @type)
 
+ATTR Alternatives [ | | pps : {[PP_Doc]} ]
+SEM Alternatives
+  | Cons         lhs . pps = @hd.pp : @tl.pps
+  | Nil          lhs . pps = []
+
+SEM Alternative
+  | Alternative lhs . pp = @name >#< @typebinders.pp >#< @valuebinders.pp >#< "->" >#< @expr.pp
+  | Default     lhs . pp = "%_" >#< "->" >#< @expr.pp
 %%]
