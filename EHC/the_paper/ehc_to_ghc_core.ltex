@@ -209,7 +209,7 @@ On several places the GHC Core language require type information.
 The EHCode language however does not incorporate type information. Since we generate GHC Core out of EHCode we have to incorporate it into EHCode.
 
 \subsubsection{Datatypes}
-EHCode converts datatypes into (untyped?) records. GHC Core defines datatypes the same way as haskell datatypes. So we must have means to reintroduce them.
+EHCode converts datatypes into untyped records (see section \ref{examples} for an example). GHC Core defines datatypes the same way as haskell datatypes. So we must have means to reintroduce them.
 
 \subsubsection{Evaluation forcing constructs}
 
@@ -549,7 +549,7 @@ GHC Core needs the datatype the same way as Haskell defines them. So we will hav
 
 \section{Translating EHCode to GhcCore}
 
-Now we have introduced type information into EHCode the translations to GhcCore is for most language constructs straightforward. There are two exceptions to that.
+Now we have introduced type information into EHCode the translations to GhcCore is for most language constructs straightforward. There are three exceptions to that.
 
 \begin{enumerate}
 	\item let! and case constructs
@@ -557,7 +557,7 @@ Now we have introduced type information into EHCode the translations to GhcCore 
 	\item type arguments for polymorphic functions and constructors.
 \end{enumerate}
 
-We will only show these aspects of the translation process. The source file is {\bf EHGhcCoreMain.cag}.
+We will only show these aspects of the translation process. The source file of the translation is {\bf EHGhcCoreMain.cag}.
 
 \subsection{let! and case}
 
@@ -816,11 +816,13 @@ And we have changed files from version 8 of EHC:
 
 \bigskip
 
-\section{Conclusions}
+\section{Conclusion}
 
 \medskip
 
-After this project we can conclude that.........
+Generating GHC Core out of EHCode is possible. GHC Core is not really flexible. Partly because of the expicit type arguments. Extensions to Haskell which are not implemented in GHC might be hard to express in GHC Core. The paper describing GHC Core \cite{tolmach2001ghc-core} only speaks of different back-ends, not of different front-ends. So this is not a great surprise.
+
+Since EHC is supposed to be a research compiler it should be easy to extend this compiler. When making GHC Core for its back-end extending might be harder than necessary. Thus using an other back-end might be better.
 
 \section{Examples}
 \label{examples}
