@@ -37,7 +37,8 @@ DATA ValueDef
 		type: Type
 		expr: Expression
 
-DATA AtomicExpr
+
+DATA Expression
 	| Var
 		name: {VIdent}
 	| Cons
@@ -46,12 +47,10 @@ DATA AtomicExpr
 		value: {Int}
 	| Nested
 		expr: Expression
-
-DATA Expression
 	| Atomic
-		atom: AtomicExpr
+		atom: Expression
 	| App
-		fun: AtomicExpr
+		fun: Expression
 		arg: Argument
 	| Lambda
 		binders: Binders
@@ -59,11 +58,12 @@ DATA Expression
 	| Let
 		valueDefs: ValueDefgs
 		exp: Expression
+
 DATA Argument
-	| TypeArgument
+	| Type
 		type: AtomicType
-	| ValueArgument
-		value: AtomicExpr
+	| Value
+		value: Expression
 DATA Binder
 	| TypeBinder 
 		type: TypeBinder
