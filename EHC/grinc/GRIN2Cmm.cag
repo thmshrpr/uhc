@@ -49,6 +49,16 @@ instance Section CmmProcedure where
 instance Section CmmDeclaration where
   section = CmmSectionElement_Declaration 
 
+-- Body
+class Body a where
+  body :: a -> CmmBodyElement
+
+instance Body CmmStatement where
+  body = CmmBodyElement_Statement 
+
+instance Body CmmDeclaration where
+  body = CmmBodyElement_Declaration 
+
 -- declarations
 
 typedefs  = CmmDeclaration_Typedef
@@ -65,10 +75,18 @@ ite c t (Nothing) = CmmStatement_If c t
 switch            = CmmStatement_Switch
 assign            = CmmStatement_Assign
 call              = CmmStatement_Call
-talcall           = CmmStatement_TailCall
+tailcall          = CmmStatement_TailCall
 ret               = CmmStatement_Return
 label             = CmmStatement_Label
 goto              = CmmStatement_GoTo
+
+-- procedure & arguments
+procedure n c a b  = CmmProcedure_Procedure n c a $ map body b
+ptrArg e           = CmmActual_Actual "address" e
+
+eval               = varRef "$eval"
+callEval      e    = call     "" eval [ptrArg e]
+tailcallEval  e    = tailcall "" eval [ptrArg e]
 
 -- expressions
 int   v = CmmExpression_Int v Nothing
@@ -131,7 +149,10 @@ Naming convention:
 %%[8.names hs
 -- convert GRIN to C-- names
 hsName2cmmName :: HsName -> CmmName
-hsName2cmmName hsn = '$' : concatMap escapeChar (show hsn)
+hsName2cmmName = cmmName . show 
+
+cmmName :: String -> CmmName
+cmmName s = '$' : concatMap escapeChar s
 	where
 	escapeChar c | isAlphaNum c || c `elem` "_$" = [c]
                      | c == '@'                      = ['@','@']
@@ -152,12 +173,16 @@ varUpdate' = varUpdate . hsName2cmmName
 
 %%[8
 ATTR GrModule [ | | imports: {Maybe CmmToplevel} ]
+ATTR AllGrNT [ | | importedNames USE {++} {[]}: {CmmExternalNames} ]
 
 SEM GrModule
-  | Mod            loc . importedNames = []
+  | Mod            loc . importedNames = nub @bindL.importedNames
                    loc . imports       = if null @importedNames
                                          then Nothing
                                          else Just $ CmmToplevel_Declaration (imports @importedNames)
+SEM GrExpr
+  | FFI           loc .  importedNames = [(cmmName @nm, Just @nm)]
+
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%
@@ -168,7 +193,7 @@ SEM GrModule
 ATTR GrModule [ | | exports: {Maybe CmmToplevel} ]
 
 SEM GrModule
-  | Mod            loc . exportedNames = ("main", (Just "grin_main")) : []
+  | Mod            loc . exportedNames = ("@grin_main", (Just "grin_main")) : []
                    loc . exports       = if null @exportedNames
                                            then Nothing
                                            else Just $ CmmToplevel_Declaration (exports @exportedNames)
@@ -188,12 +213,22 @@ SEM GrModule
                                       cafNodes             = @sectionCAFNodes :: CmmToplevel
                                       unitTypedefs         = toplevel $ typedefs bits32 ["ptr", "tag", "int"]
                                       unitTarget           = toplevel $ target 32 LittleEndian 32 32
-                                      toplevelProcedures   = map toplevel @bindL.cmmProcs
+				      grin_main            = buildDriver (cafOffset (HNm "main") @lhs.cafEnv)
+                                      toplevelProcedures   = grin_main : map toplevel @bindL.cmmProcs
                                       buildTagConst (t, i) = toplevel . constant (Just valType) t $ int i
                                       tagConstants         = map buildTagConst $ zip @tags [1..]
                                   in CmmUnit_Unit 
                                        $ unitTarget : unitTypedefs : 
                                          (externals $ tagConstants ++ cafNodes : toplevelProcedures)
+%%]
+
+%%[8.builder hs
+
+buildDriver offset 
+  = let location  = varRef "@CAF_Nodes" <+> int offset
+        grin_main = procedure "@grin_main" "" [] [ tailcallEval location ] --TODO: arg invariant?
+    in toplevel grin_main
+
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -202,7 +237,7 @@ SEM GrModule
 
 %%[8 hs
 buildProcedure :: HsName -> [HsName] -> CmmBody -> CmmProcedure
-buildProcedure name args body = CmmProcedure_Procedure (hsName2cmmName name) "C--" (map buildFormal args) body
+buildProcedure name args bodyElems = CmmProcedure_Procedure (hsName2cmmName name) "C--" (map buildFormal args) bodyElems
 
 buildFormal :: HsName -> CmmFormal
 buildFormal name = ("address", False, ptrType, hsName2cmmName name)
@@ -283,4 +318,7 @@ SEM GrModule
 --       see also: Collecting Tags
 cafNode4name :: HsName -> CmmName
 cafNode4name hn = "@0F" ++ hsName2cmmName hn
+
+cafOffset :: HsName -> [(HsName, Int)] -> Int
+cafOffset nm env = maybe (error $ "no CAF found named '" ++ show nm ++ "'") id $ lookup nm env
 %%]

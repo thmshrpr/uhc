@@ -86,6 +86,7 @@ doCompileRun fn opts
 --       ; putStrLn (show gr)
        ; let cmm    = grin2cmm gr
              output = fpathSetSuff "cmm" input
+--       ; putStrLn (show cmm)
        ; writeCmm cmm output opts
        }
 %%]

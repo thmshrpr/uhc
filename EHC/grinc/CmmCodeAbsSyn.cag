@@ -161,10 +161,11 @@ SET AllCmmExpressions     = CmmExpression CmmExpressions
 SET AllCmmActuals         = CmmActual CmmActuals
 SET AllCmmRanges          = CmmRange CmmRanges
 SET AllCmmLValues         = CmmLValue CmmLValues
+SET AllBody               = CmmBodyElement CmmBody
 
 SET AllNT                 = AllAlternatives AllData AllToplevels AllCmmSectionElements
                             AllCmmExpressions AllCmmActuals AllCmmRanges AllCmmLValues
-                            CmmSize CmmInitString CmmDeclaration CmmProcedure
-                            CmmBody CmmStatement
+                            AllBody CmmSize CmmInitString CmmDeclaration CmmProcedure
+                            CmmStatement
 SET All                   = AllNT CmmUnit
 %%]
