@@ -19,6 +19,7 @@
 
 %%%% Nice Haskell %%%%
 %format $ = "\;\$\;"
+%format forall (a)  = "\forall{" a "}"
 
 %%%% Nice GHC Core %%%%
 %format % = "\%"
@@ -216,7 +217,20 @@ The EHCode uses a strict let binding to force evaluation. Called let! (Let bang)
 
 \section{Hook into the compiler}
 
-Compilerdriver, Makefile \ldots
+
+To get a new output chain in the compiler not much has to be changed. The files to look in is are { \bf EHC.chs } and { \bf EHCommon.chs}. The latter contains the definitions of the 'option datatype' and command line switch definitions and help messages (see variable |cmdLineOpts|). 
+
+If the option is added (in our case a new option to the @-c@ switch) the compiler driver must be extended. This is done in { \bf EHC.chs }. The shuffle part @outputPass@ contains the compiler output pass. Overriding this to allow output is not hard since two examples already are availible (java output and code output).
+
+\subsection{Makefile}
+
+The Makefile however is a different story. It is not documented, and hard to understand without good knowledge of make. Which we have not.
+
+To make the AG files compile some @DPDS_*@ variables should be added. Which have the form of @target dependency1 ... dependencyN@.
+
+The second problem is that an AG file not always should output the datatypes. These should be defined in the @EHC_LAG_FOR_HS_*@ variables, which are used in the file {\bf mk/ehfiles.mk}. So here we also have to add these variable lines.
+
+We have noted that not all dependencies are correct at the moment, which is a shame. But since we had very limited time we just continued working at the intresting parts.
 
 \section{Add type information to EHCode}
 
@@ -615,9 +629,9 @@ Currently the compiler generates an error when this situation occurs.
 \subsection{Reintroducing data definitions}
 \label{reintroduce_datatypes}
 
-GHC Core require datatype declarions. We are going to use the datatype information stored in let expression to reintroduce datatype declarations. But first we have to overcome another problem. in EH it is allowed to define datatypes in every let binding, but GHC Core allows it only at the toplevel. To prevent nameclashes we append a unique number to all datatype and constructor names.
+GHC Core require datatype declarions. We are going to use the datatype information stored in let expression to reintroduce datatype declarations. But first we have to overcome another problem. in EH it is allowed to define datatypes in every let binding, but GHC Core allows it only at the toplevel. To prevent nameclashes we append a unique number to all datatype and constructor names. An other options would be number every let unique however we chose to number the constructor and datatype names. See section \ref{examples} for an example of a redefined datatype.
 
-the reintroduction is done by the |tyGam2DataTypes| which destruct the datatype environment and builds a list of GHC Core datatypes.
+The reintroduction is done by the |tyGam2DataTypes| which destruct the datatype environment and builds a list of GHC Core datatypes.
 
 \medskip
 
@@ -637,13 +651,25 @@ tyGam2DataTypes tnamesMap cnamesMap tg =
 
 The |tnamesMap| and |cnamesMap| are rename maps which should contain a mapping for all datatype and constructor names. Note that this translation is incorrect with respect to the higher kinded datatypes. Those types should get the correct number of type arguments.
 
+Figure \ref{overview2} gives an overview of the translation of a datatype definition leaving out the renaming.
+
+The |convertTy| in this code is a renaming function of the datatype names which occur in the types.
+
+
+\begin{figure}
+\caption{translation of datatype definition}
+\label{overview2}
+\includegraphics[scale=1.5,angle=-90]{overview2}
+\end{figure}
+
+
 \subsection{Outputting GHC Core Code}
 
 \medskip
 
 Outputting the GHC Core code  was quite straightforward, we just created a pretty printer for our version, which is located in the file {\bf EHGhcCorePretty.cag} and made some changes in the pretty printer of the types ({\bf EHTyPretty.cag}). 
 
-To make the generated output compilable, we needed to include some extra information when printing Integers and Characters, i.e. describing that they are unboxed:
+To make the generated output compilable, we needed to include some extra information when printing Integers and Characters, i.e. describing that they where boxed direcly.
 
 \medskip
 
@@ -664,33 +690,18 @@ We have encountered a problem with the pretty printer that is not clear yet: Whe
 
 \medskip
 
-To output correctly the Types we just changed the {\bf EHTyPretty.cag}) in some parts:
+To output correctly the Types we just changed the {\bf EHTyPretty.cag} in some parts:
 
 \medskip
 
-Here we used the same ppTy function:
-
-\medskip
-
-\begin{code}
-ppTy :: Ty -> PP_Doc
-ppTy ty
-  =  let  t =  wrap_TyAGItf
-                 (sem_TyAGItf (TyAGItf_AGItf ty))
-                 (Inh_TyAGItf Nothing)
-     in   pp_Syn_TyAGItf t
-
-instance PP Ty where
-  pp t = ppTy t
-\end{code}
-
-\medskip
-
-And added the ppGhcCoreTy to take the module identifier as an argument and wrap it???
+We use an inherited attribute to signal the GHC Core output of types.  We added
+the ppGhcCoreTy to take the module identifier and give it to the type prittyprinter to use in GHC Core output.
 
 \medskip
 
 \begin{code}
+ATTR TyAGItf AllTy [ ghcModuleID: {Maybe String} | | pp: PP_Doc ]
+
 ppGhcCoreTy ::  String -> Ty -> PP_Doc
 ppGhcCoreTy moduleID ty
   =  let  t =  wrap_TyAGItf
@@ -702,17 +713,9 @@ ppGhcCoreTy moduleID ty
 
 \bigskip
 
-We now state that every types can have also a GHC Module identifier?
+Every type or constructor identifier must have a GHC Module identifier. It must be a fully qualified name. So we output this. If the constructor is a buildin type it needs the GHHziBase modulename. The zi is an encoding for the '.' (dot).
 
-\medskip
-
-\begin{code}
-ATTR TyAGItf AllTy [ ghcModuleID: {Maybe String} | | pp: PP_Doc ]
-\end{code}
-
-\bigskip
-
-We changed output result of the Types in the Constructor case???
+Every other constructor identifier uses the module name in the attribute |ghcModuleID|.
 
 \medskip
 
@@ -726,17 +729,42 @@ SEM Ty
 
 \bigskip
 
-\section{Type aguments}
+\section{Future work: Type aguments}
 
-See Figure \ref{overview2} for overview.... 
+GHC Core allows types as arguments of polymorphic functions in the style of Typed lambda calculus. Suppose we have the following useless EH program:
 
-\begin{figure}
-\caption{Overview of ......}
-\label{overview2}
-\includegraphics[scale=1.5,angle=-90]{overview2}
-\end{figure}
+\medskip
 
-\bigskip
+\begin{code}
+let  skipInt :: forall a . Int -> a -> a
+     skipInt i x = x
+     twice x = skipInt x skipInt
+in   ...
+\end{code}
+
+\medskip
+
+In GHC Core this would be expressed as:
+
+\medskip
+
+\begin{code}
+%let  skipInt :: %forall a . Int -> a -> a = 
+          \@a (x::a) -> a
+      twice :: %forall a . Int -> Int -> a -> a =
+          \@t (x::Int) -> skipInt @(Int -> t -> t) x (skipInt @t)
+%in   ...
+\end{code}
+
+\medskip
+
+Note that the type arguments are always the first argument. This not clear from the definition of the grammer of GHC Core as given in \cite{tolmach2001ghc-core} (see also section \ref{GhcCore}). Type arguments are always passed when a polymorphic identifier is used. Haskell allows only monomorphic arguments so this is ok.
+
+The correct introduction of the type arguments need even more type information. Every application should include the types of both function and application. The function expression can be used to get the number of type arguments and the types of the arguments are filled in in the correct positions.
+
+But what to do with polymorphic arguments. These are not allowed and should get their type arguments to make them monomporph. As show in the last |skipInt| in the example above.
+
+Unfornuatly our time did not permit to investigate this deeper, let alone implement this.
 
 \section{Overview to the added/created files}
 
@@ -795,6 +823,7 @@ And we have changed files from version 8 of EHC:
 After this project we can conclude that.........
 
 \section{Examples}
+\label{examples}
 
 \medskip
 
@@ -1049,96 +1078,5 @@ top :: GHCziBase.Int = %let _8_0 :: Top.IntList0 = Top.Cons2 (GHCziBase.Izh (3 :
 \bibliographystyle{../uhcbook}
 %\bibliographystyle{plain}
 \bibliography{references}
-
-------- 8< ------ SNIP ------- 8< ------
-......
-
-We have added a simple haskell function to verify if a HsName is a Constructor.
-
-\medskip
-
-\begin{code}
-%%[8_1 import(Data.Char)
-hsnIsCon                           :: HsName -> Bool
-hsnIsCon  (HNm (c:_))              = isUpper c
-hsnIsCon  _                        = False
-%%]
-\end{code}
-
-\bigskip
-
-
-
-\begin{code}
-%%[8_1.outputPass -8.outputPass
-crCompileCUPass2HS :: HsName -> CompileRun -> IO CompileRun
-crCompileCUPass2HS modNm cr
-  =  do  {  let  cu     = crCU modNm cr
-                 p1ob   = fromJust (cuMbOut (crCU modNm cr))
-                 fp     = cuFilePath cu
-                 opts   = crOpts cr
-                 codePP = ppCModule (cmodule_Syn_AGItf p1ob)
-         ;  case ehcoptCodeType opts of
-               EHCCoreCode -> do
-                      {  writeFile (fpathToStr (fpathSetSuff "code" fp))
-                            (disp codePP 120 "")
-                      }
-              JavaCode    -> do
-                      {  let (jBase,jPP) = cexprJavaSrc (cmodule_Syn_AGItf p1ob)
-                             jFP = fpathSetBase jBase fp
-                      ;  writeFile (fpathToStr (fpathSetSuff "java" jFP))
-                            (disp jPP 120 "")
-                      }
-               GHCCoreCode -> do
-                      {  let cmod   = cmodule_Syn_AGItf p1ob
-                             ghcmod = genGhcCore cmod
-                             hcrPP  = ppGhcModule ghcmod
-                      ;  writeFile (fpathToStr (fpathSetSuff "hcr" fp))
-                            (disp hcrPP 120 "")
-                      ;  putStrLn "*** GHC Core AST:"
-                      ;  putStrLn (show ghcmod)
-                      }
-         ;  return cr
-        }
-%%]
-\end{code}
-
-\bigskip
-
-
-\begin{code}
-%%[EHCCodeOpts.8.1
--- functions to keep the version .8 parts working
-ehcoptCode     o = case ehcoptCodeType o of { EHCCoreCode -> True; _ -> False }
-ehcoptCodeJava o = case ehcoptCodeType o of { JavaCode    -> True; _ -> False }
-
-data EHCCodeType = EHCCoreCode | JavaCode | GHCCoreCode
-%%]
-
-%%[EHCOpts.8.1
-                                ,  ehcoptCodeType       ::  EHCCodeType
-                                ,  ehcoptSearchPath     ::  [String]
-                                ,  ehcoptVerbosity      ::  Verbosity
-%%]
-
-%%[defaultEHCOpts.8.1
-                                ,  ehcoptCodeType       =   GHCCoreCode
-                                ,  ehcoptSearchPath     =   []
-                                ,  ehcoptVerbosity      =   VerboseQuiet
-%%]
-
-%%[cmdLineOptsA.8.1
-     ,  Option "c"  ["code"]   (OptArg oCode "ghc-core")
-          "dump code (java -> .java, ghc-core -> .hcr) on file, default=ghc-core (-> .hcr)"
-%%]
-
-%%[cmdLineOptsB.8.1
-         oCode       ms  o =  case ms of
-                                Just "java"      -> o { ehcoptCodeType = JavaCode    }
-                                Just "ghc-core"  -> o { ehcoptCodeType = GHCCoreCode }
-                                _                -> o { ehcoptCodeType = EHCCoreCode }
-%%]
-\end{code}
-
 
 \end{document}

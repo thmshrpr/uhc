@@ -482,7 +482,7 @@ cmdLineOpts
 
 %%[cmdLineOptsA.8.1
      ,  Option "c"  ["code"]   (OptArg oCode "ghc-core")
-          "dump code (java -> .java, ghc-core -> .hcr) on file, default=ghc-core (-> .hcr)"
+          "dump code (java -> .java, code -> .code, ghc-core -> .hcr) on file, default=ghc-core (-> .hcr)"
 %%]
 
 %%[cmdLineOptsB.1
