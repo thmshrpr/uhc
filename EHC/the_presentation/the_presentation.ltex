@@ -131,7 +131,8 @@ http://www.cs.uu.nl/groups/ST/Eifl/EHCToGhcCore
 	\item EHCode vs GHC Core
 	\item Incorporating the Backend in EHC
 	\item Reintroducing Datatypes in GHC Core
-	\item Examples
+	\item Generating GHC Core
+	\item Type Arguments
 	\item Conclusions
 \end{itemize}
 
