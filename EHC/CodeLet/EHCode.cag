@@ -82,13 +82,23 @@ cpatNmEither o u pnm = case pnm of {CPatNmOrig n -> o n; CPatNmUniq n -> u n}
 %%% Construction
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%[8 hs
+%%[8.Let hs
 mkCExprLet :: CBindCateg -> CBindL -> CExpr -> CExpr
 mkCExprLet c bs e = if null bs then e else CExpr_Let c bs e
 
 mkCExprLetRec :: CBindL -> CExpr -> CExpr
 mkCExprLetRec = mkCExprLet CBindRec
+%%]
 
+%%[8_1.Let -8.Let hs
+mkCExprLet :: CBindCateg -> CBindL -> CType -> CExpr -> CExpr
+mkCExprLet c bs ts e = if null bs then e else CExpr_Let c bs ts e
+
+mkCExprLetRec :: CBindL -> CTypeL -> CExpr -> CExpr
+mkCExprLetRec = mkCExprLet CBindRec
+%%]
+
+%%[8 hs
 mkCExprLam :: [HsName] -> CExpr -> CExpr
 mkCExprLam as e = foldr (\n e -> CExpr_Lam n e) e as
 
@@ -127,8 +137,8 @@ caltLPatNms = nub . sort . map (cpatVarNm . caltPat)
 cvarUndefined :: CExpr
 cvarUndefined = CExpr_Var hsnUndefined
 
-ceStrictIn :: HsName -> Ty -> CExpr -> (CExpr -> CExpr) -> CExpr
-ceStrictIn nm t e mkC = CExpr_Let CBindStrict [CBind_Bind nm t e] (mkC (CExpr_Var nm))
+ceStrictIn :: HsName -> CExpr -> Ty -> (CExpr -> CExpr) -> CExpr
+ceStrictIn nm e t mkC = CExpr_Let CBindStrict [CBind_Bind nm e] [CType_Type nm t] (mkC (CExpr_Var nm))
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

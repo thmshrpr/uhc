@@ -24,9 +24,22 @@ DATA CModule
 
 %%[8
 DATA CExpr
+%%]
+
+%%[8.Let
   | Let         categ           : {CBindCateg}
                 binds           : CBindL
                 body            : CExpr
+%%]
+
+%%[8_1.Let -8.Let
+  | Let         categ           : {CBindCateg}
+                binds           : CBindL
+                types           : CTypeL
+                body            : CExpr
+%%]
+
+%%[8
   | App         func            : CExpr
                 arg             : CExpr
   | Lam         arg             : {HsName}
@@ -53,20 +66,19 @@ DATA CExpr
                 body            : CExpr
 %%]
 
-%%[8.Bind
-DATA CBind
-  | Bind        nm              : {HsName}
-                expr            : CExpr
-%%]
+%%[8_1
+DATA CType
+  | Type        nm              : {HsName}
+                type            : Ty
 
-%%[8_1.Bind -8.Bind
-DATA CBind
-  | Bind        nm              : {HsName}
-                ty              : Ty
-                expr            : CExpr
+TYPE CTypeL     = [CType]
 %%]
 
 %%[8
+DATA CBind
+  | Bind        nm              : {HsName}
+                expr            : CExpr
+
 TYPE CBindL     =   [CBind]
 
 DATA CAlt
@@ -85,23 +97,10 @@ DATA CPat
 
 TYPE CPatL      =   [CPat]
 
-%%]
-%%[8.CPatBind
 DATA CPatBind
   | Bind        offset          : {Int}
                 nm              : {HsName}
                 pat             : CPat
-%%]
-
-%%[8_1.CPatBind -8.CPatBind
-DATA CPatBind
-  | Bind        offset          : {Int}
-                nm              : {HsName}
-                ty              : Ty
-                pat             : CPat
-%%]
-
-%%[8
 
 TYPE CPatBindL  =   [CPatBind]
 

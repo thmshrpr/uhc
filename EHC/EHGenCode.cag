@@ -34,9 +34,20 @@ SEM Expr
   | Rec         loc         .   cexpr       =   foldl CExpr_App CExpr_Tup (map snd . tyRowCanonOrder $ @recExpr.cexprL)
   | Sel         loc         .   offset      =   maybe (-1) id (tyRecOffset @lbl @expr.ty)
                             .   cexpr       =   CExpr_Sel @expr.cexpr ctagNone (CExpr_Int @offset)
+%%]
+
+%%[8.Case
   | Case        loc         .   cexpr       =   let  n = uidHNm @lUniq
                                                 in   mkCExprLet CBindPlain [CBind_Bind n @expr.cexpr]
                                                         (rceMatch [n] @alts.caltL cvarUndefined)
+%%]
+%%[8_1.Case -8.Case
+  | Case        loc         .   cexpr       =   let  n = uidHNm @lUniq
+                                                in   mkCExprLet CBindPlain [CBind_Bind n @expr.ty @expr.cexpr]
+                                                        (rceMatch [n] @alts.caltL cvarUndefined)
+%%]
+
+%%[8
 
 ATTR RecExpr [ | | cexprL: {AssocL HsName CExpr} ]
 
@@ -89,9 +100,15 @@ SEM Expr
 ATTR Decls Decl AllDataConstr [ | | cbindL USE {++} {[]}: CBindL ]
 
 SEM Decl
-  | Val         lhs         .   cbindL      =   [CBind_Bind @patExpr.topNm @expr.cexpr] ++ @patExpr.cbindL
   | TySig       lhs         .   cbindL      =   []
+%%]
+%%[8.ValAndFFI
+  | Val         lhs         .   cbindL      =   [CBind_Bind @patExpr.topNm @expr.cexpr] ++ @patExpr.cbindL
   | FFI         lhs         .   cbindL      =   [CBind_Bind @nm (CExpr_Var (HNm @impEnt))]
+%%]
+%%[8_1.ValAndFFI -8.ValAndFFI
+  | Val         lhs         .   cbindL      =   [CBind_Bind @patExpr.topNm @expr.ty @expr.cexpr] ++ @patExpr.cbindL
+  | FFI         lhs         .   cbindL      =   [CBind_Bind @nm @sigTy (CExpr_Var (HNm @impEnt))]
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -131,20 +148,46 @@ SEM PatExpr
                                                 in   tgiData . fromJust . tyGamLookup n $ @lhs.tyGam
                             .   tag         =   fromJust (tyRecOffset @appFunNm @finResTyData)
   | Rec         loc         .   tag         =   ctagNone
-  | AppTop Con Rec
-                loc         .   cpatBinds   =   map (\(o,(n,p)) -> CPatBind_Bind o n p) . zip [0..] . tyRowCanonOrder . reverse $ @cpbindL
-                lhs         .   cpat        =   CPat_Con @cpNm @tag @appFunNm @cpatBinds
   | CConst IConst
                 lhs         .   cpat        =   CPat_Undef
 
+%%]
+%%[8.AppTop
+  | AppTop Con Rec
+                loc         .   cpatBinds   =   map (\(o,(n,p)) -> CPatBind_Bind o n p) . zip [0..] . tyRowCanonOrder . reverse $ @cpbindL
+                lhs         .   cpat        =   CPat_Con @cpNm @tag @appFunNm @cpatBinds
+%%]
+%%[8_1.AppTop -8.AppTop
+  | AppTop Con Rec
+                loc         .   cpatBinds   =   map (\(o,(n,(p,t))) -> CPatBind_Bind o n t p) . zip [0..] . tyRowCanonOrder . reverse $ @cpbindL
+                lhs         .   cpat        =   CPat_Con @cpNm @tag @appFunNm @cpatBinds
+%%]
+
+%%[8.PatRecExprExt
 ATTR AllPatExpr [ | | cpbindL: {AssocL HsName CPat} ]
 
 SEM RecPatExpr
   | Empty       lhs         .   cpbindL     =   []
-  | Ext         lhs         .   cpbindL     =   (@nm,@patExpr.cpat) : @recPatExpr.cpbindL
+  | Ext         lhs         .   cpbindL     =   (@nm,(@patExpr.cpat) : @recPatExpr.cpbindL
 
 SEM PatExpr
   | App         lhs         .   cpbindL     =   (hsnUnknown,@arg.cpat) : @func.cpbindL
+  | AppTop      loc         .   cpbindL     =   @patExpr.cpbindL
+  | Rec         loc         .   cpbindL     =   @recPatExpr.cpbindL
+  | Con         loc         .   cpbindL     =   []
+  | * - App Con
+                lhs         .   cpbindL     =   []
+%%]
+
+%%[8_1.PatRecExprExt -8.PatRecExprExt
+ATTR AllPatExpr [ | | cpbindL: {AssocL HsName (CPat,Ty)} ]
+
+SEM RecPatExpr
+  | Empty       lhs         .   cpbindL     =   []
+  | Ext         lhs         .   cpbindL     =   (@nm,(@patExpr.cpat,@patExpr.ty)) : @recPatExpr.cpbindL
+
+SEM PatExpr
+  | App         lhs         .   cpbindL     =   (hsnUnknown,(@arg.cpat, @arg.ty)) : @func.cpbindL
   | AppTop      loc         .   cpbindL     =   @patExpr.cpbindL
   | Rec         loc         .   cpbindL     =   @recPatExpr.cpbindL
   | Con         loc         .   cpbindL     =   []
@@ -161,6 +204,8 @@ ATTR AllPatExpr [ | | cbindL USE {++} {[]}: CBindL ]
 ATTR AllPatExpr [ ceParentNm: HsName | | ]
 
 SEM PatExpr
+%%]
+%%[8.PatExprAppTop
   | AppTop Rec  loc         .   cbindL      =   concat
                                                 .  map  (\(CPatBind_Bind o _ p)
                                                             -> let  b n = [CBind_Bind n (CExpr_Sel (CExpr_Var @lhs.ceParentNm) @tag (CExpr_Int o))]
@@ -171,6 +216,21 @@ SEM PatExpr
                                                         )
                                                 $  @cpatBinds
                 lhs         .   cbindL      =   @cbindL ++ @cbindLSub
+%%]
+%%[8_1.PatExprAppTop -8.PatExprAppTop
+  | AppTop Rec  loc         .   cbindL      =   concat
+                                                .  map  (\(CPatBind_Bind o _ t p)
+                                                            -> let  b n = [CBind_Bind n t (CExpr_Sel (CExpr_Var @lhs.ceParentNm) @tag (CExpr_Int o))]
+-- TODO: This t is the type of p and not of this CExpr_Sel thing (what is it doing actually)
+                                                               in   case cpatVarNm p of
+                                                                        CPatNmOrig n                          -> b n
+                                                                        CPatNmUniq n | not (null @cbindLSub)  -> b n
+                                                                        _                                     -> []
+                                                        )
+                                                $  @cpatBinds
+                lhs         .   cbindL      =   @cbindL ++ @cbindLSub
+%%]
+%%[8
   | AppTop      loc         .   cbindLSub   =   @patExpr.cbindL
   | Rec         loc         .   cbindLSub   =   @recPatExpr.cbindL
   | App         arg         .   ceParentNm  =   cpatNmNm (cpatVarNm @arg.cpat)
