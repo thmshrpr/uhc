@@ -10,6 +10,11 @@ GHC := ghc
 AGC := uuagc
 LHS2TEX := lhs2TeX
 
+AGCC = cd $(dir $1) && $(AGC) $2 $(notdir $<)
+AGC_FLAGS_DATA := -dr
+AGC_FLAGS_CODE := -cfspr
+AGC_FLAGS_FULL := $(AGC_FLAGS_DATA) $(AGC_FLAGS_CODE)
+
 default: grinc
 
 help:
@@ -26,21 +31,26 @@ help:
 ### GRINC
 ##########################
 
-GRINC_SOURCE     := grinc/GRINC.hs grinc/GRINCCommon.hs EHCommon.hs EHScanner.hs GrinCode.hs gri/GRIParser.hs grinc/CmmCode.hs grinc/CmmCodePretty.hs
+GRINC_SOURCE     := grinc/GRINC.hs grinc/GRINCCommon.hs EHCommon.hs EHScanner.hs GrinCode.hs gri/GRIParser.hs grinc/GRIN2Cmm.hs grinc/CmmCode.hs grinc/CmmCodePretty.hs
 
 grc: $(GRINC_SOURCE) Makefile
 	$(GHC) --make -package uust -package data -ilib -igrinc -igri $< -o $@
 	strip $@
 
-grinc/CmmCodePretty.hs: grinc/CmmCodePretty.ag Makefile
-	cd $(dir $<) &&	$(AGC) -cfspr $(notdir $<)
+grinc/GRIN2Cmm.hs: grinc/GRIN2Cmm.ag GrinCodeAbsSyn.ag GrinCode.hs grinc/CmmCode.ag Makefile
+	$(call AGCC,$<,$(AGC_FLAGS_CODE) -P ../)
+
+grinc/CmmCodePretty.hs: grinc/CmmCodePretty.ag grinc/CmmCodeAbsSyn.ag Makefile
+	$(call AGCC,$<,$(AGC_FLAGS_CODE))
 
 grinc/CmmCode.hs: grinc/CmmCode.ag Makefile
-	cd $(dir $<) &&	$(AGC) -dr $(notdir $<)
+	$(call AGCC,$<,$(AGC_FLAGS_DATA))
 
 GrinCode.hs: GrinCode.ag Makefile
-	cd $(dir $<) &&	$(AGC) -dr $(notdir $<)
+	$(call AGCC,$<,$(AGC_FLAGS_DATA))
+
+GrinCode.ag: GrinCodeAbsSyn.ag
 
 %.hs: %.ag Makefile
-	cd $(dir $<) &&	$(AGC) -dcfspr $(notdir $<)
+	$(call AGCC,$<,$(AGC_FLAGS_FULL))
 %%]

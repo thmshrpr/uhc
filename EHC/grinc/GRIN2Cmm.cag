@@ -1,0 +1,92 @@
+% $Id$
+
+%%[0
+%include lhs2TeX.fmt
+%include afp.fmt
+%%]
+
+%%[8 import(GrinCodeAbsSyn)
+%%]
+
+%%[8 hs import(EHCommon,GrinCode,CmmCode) export(grin2cmm,CmmUnit(..))
+grin2cmm :: GrModule -> CmmUnit
+grin2cmm gr = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf gr))
+                                   (Inh_GrAGItf {})
+              in cmmUnit_Syn_GrAGItf t
+
+hsName2cmmName :: HsName -> CmmName
+hsName2cmmName hsn = show hsn
+
+cmmPtrType = CmmName "ptr"
+%%]
+
+%%[8.wrapper
+WRAPPER GrAGItf
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Collecting Imports  %%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8
+ATTR GrModule [ | | imports: {Maybe CmmToplevel} ]
+
+SEM GrModule
+  | Mod            loc . importedNames = []
+                   loc . imports       = if null @importedNames
+                                         then Nothing
+                                         else Just $ CmmToplevel_Declaration 
+                                                       (CmmDeclaration_Import @importedNames)
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Collecting Exports  %%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8
+ATTR GrModule [ | | exports: {Maybe CmmToplevel} ]
+
+SEM GrModule
+  | Mod            loc . exportedNames = []
+                   loc . exports       = if null @exportedNames
+                                           then Nothing
+                                           else Just $ CmmToplevel_Declaration 
+                                                         (CmmDeclaration_Export @exportedNames)
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%  Cmm code, top level %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8
+ATTR GrAGItf GrModule [ | | cmmUnit : CmmUnit ]
+
+SEM GrModule
+  | Mod          loc . cmmUnit  = let addTl mtl tll = maybe tll (:tll) mtl
+                                  in CmmUnit_Unit (addTl @imports . addTl @exports 
+                                       $ procedures4TopLevel @bindL.cmmProcs)
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Cmm code, procedures %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8 hs
+procedures4TopLevel procs = map CmmToplevel_Procedure procs
+procedures4Section  procs = map CmmSectionElement_Procedure procs
+
+buildProcedure :: HsName -> [HsName] -> CmmBody -> CmmProcedure
+buildProcedure name args body = CmmProcedure_Procedure (hsName2cmmName name) "C--" (map buildFormal args) body
+
+buildFormal :: HsName -> CmmFormal
+buildFormal name = ("address", False, cmmPtrType, hsName2cmmName name)
+%%]
+
+%%[8
+ATTR AllBind [ | | cmmProcs USE {++} {[]}: {[CmmProcedure]} ]
+
+SEM GrBind
+  | Bind        loc.cmmProcs = [ buildProcedure @nm @argNmL @expr.cmmBody ]
+
+ATTR GrExpr [ | | cmmBody USE {++} {[]}: {CmmBody} ]
+%%]

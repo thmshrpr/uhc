@@ -12,10 +12,10 @@
 %%[1 module Main import(System, GetOpt, IO)
 %%]
 
-%%[8 import(UU.Parsing, UU.Pretty, EHCommon, EHScanner, GRIParser, GrinCode)
+%%[8 import(UU.Parsing, UU.Pretty(pp), EHCommon, EHScanner, GRIParser, GrinCode)
 %%]
 
-%%[8 import (FPath,GRINCCommon, CmmCodePretty)
+%%[8 import (FPath,GRINCCommon, GRIN2Cmm, CmmCodePretty)
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -46,26 +46,45 @@ main
 %%% Compiler driver
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+%%[8.utils
+openFPath :: FPath -> IOMode -> IO (String, Handle)
+openFPath fp mode | fpathIsEmpty fp = case mode of 
+                                        ReadMode      -> return ("<stdin>" ,stdin )
+                                        WriteMode     -> return ("<stdout>",stdout)
+                                        AppendMode    -> return ("<stdout>",stdout)
+                                        ReadWriteMode -> error "cannot use stdin/stdout with random access"
+                  | otherwise       = do
+                                        let fNm = fpathToStr fp
+                                        h <- openFile fNm mode
+                                        return (fNm,h)
+%%]
+
 %%[8
 parseGrin :: FPath -> Opts -> IO GrModule
 parseGrin fp opts
-  = do {  let fNm    = fpathToStr fp
-       ;  (fn,fh) <-  if fpathIsEmpty fp
-                      then  return ("<stdin>",stdin)
-                      else  do  {  h <- openFile fNm ReadMode
-                                ;  return (fNm,h)
-                                }
-       ;  tokens <- scanHandle scanOpts fn fh
-       ;  gr <- parseIO (pModule) tokens
-       ;  return gr
+  = do { (fn,fh) <- openFPath fp ReadMode
+       ; tokens  <- scanHandle scanOpts fn fh
+       ; gr      <- parseIO (pModule) tokens
+       ; return gr
+       }
+%%]
+
+%%[8
+writeCmm :: CmmUnit -> FPath -> Opts -> IO ()
+writeCmm cmm fp opts
+  = do {  (fn, fh) <- openFPath fp WriteMode
+       ;  hPutStrLn fh (show.pp $ cmm)
+       ;  hClose fh
        }
 %%]
 
 %%[8
 doCompileRun :: String -> Opts -> IO ()
 doCompileRun fn opts
-  = do { let fp = mkTopLevelFPath "grin" fn
-       ; gr <- parseGrin fp opts
-       ; putStrLn "input parsed..."
+  = do { let input = mkTopLevelFPath "grin" fn
+       ; gr <- parseGrin input opts
+       ; let cmm    = grin2cmm gr
+             output = fpathSetSuff "cmm" input
+       ; writeCmm cmm output opts
        }
 %%]
