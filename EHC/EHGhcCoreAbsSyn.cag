@@ -1,4 +1,3 @@
-
 %%[0
 %include lhs2TeX.fmt
 %include afp.fmt
@@ -47,17 +46,15 @@ DATA Expression
 		value: {Int}
 	| Nested
 		expr: Expression
-	| Atomic
-		atom: Expression
 	| App
 		fun: Expression
-		arg: Argument
+		args: Arguments
 	| Lambda
 		binders: Binders
-		exp: Expression
+		expr: Expression
 	| Let
-		valueDefs: ValueDefgs
-		exp: Expression
+		valueDefg: ValueDefg
+		expr: Expression
 
 DATA Argument
 	| Type
@@ -65,9 +62,9 @@ DATA Argument
 	| Value
 		value: Expression
 DATA Binder
-	| TypeBinder 
+	| Type
 		type: TypeBinder
-	| ValueBinder
+	| Value
 		value: ValueBinder
 DATA ValueBinder
 	| ValueBinder
@@ -114,6 +111,7 @@ DATA AtomicKind
 	| Nested
 		kind: Kind
 
+TYPE Arguments = [ Argument ]
 TYPE TypeBinders = [ TypeBinder ]
 TYPE Binders = [ Binder ]
 TYPE ValueDefgs = [ ValueDefg ]  
@@ -126,6 +124,6 @@ DATA MaybeType
 		type : Type
 	| Nothing
 
-SET AllGhcCore = GhcModule TypeDef ConsDef ValueDefg ValueDef Expression Argument Binder ValueBinder TypeBinder Type BasicType AtomicType Kind AtomicKind TypeBinders Binders ValueDefgs ValueDefs TypeDefs ConsDefs MaybeType
+SET AllGhcCore = GhcModule TypeDef ConsDef ValueDefg ValueDef Expression Argument Binder ValueBinder TypeBinder Type BasicType AtomicType Kind AtomicKind Arguments TypeBinders Binders ValueDefgs ValueDefs TypeDefs ConsDefs MaybeType
 %%]
 

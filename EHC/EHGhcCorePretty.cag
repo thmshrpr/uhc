@@ -8,12 +8,42 @@
 %%[8_1 hs import(UU.Pretty,EHGhcCore) export(ppGhcModule)
 ppGhcModule :: GhcModule -> PP_Doc
 ppGhcModule  = sem_GhcModule
-
 %%]
 
 % pretty printer of the AbsSyn
 %%[8_1 import(EHGhcCoreAbsSyn)
 ATTR AllGhcCore [ | | pp USE {>-<} {empty} : PP_Doc ]
+
 SEM GhcModule
-  | Module	lhs . pp = "%module" >#< @name >-< @tdefs.pp >-< @lvdefs.pp >-< @vdefs.pp
+  | Module	lhs . pp = "%module" >#< @name >-< @tdefs.pp >-< @lvdefs.pp >-< @vdefs.pp >-< ""
+
+SEM ValueDef
+  | ValueDef    lhs . pp = @name >#< "::" >#< @type.pp >#< "=" >#< @expr.pp
+
+SEM Expression
+  | Var          lhs . pp = pp @name
+  | Cons         lhs . pp = pp @name
+  | Lit          lhs . pp = pp @value
+  | Nested       lhs . pp = pp_parens @expr.pp
+  | App          lhs . pp = @fun.pp >#< @args.pp
+  | Lambda       lhs . pp = "\\" >|< @binders.pp >#< "->" >#< @expr.pp
+  | Let          lhs . pp = "%let" >#< @valueDefg.pp
+                            >-< "%in" >#< @expr.pp
+SEM Argument
+  | Value        lhs . pp = pp_parens @value.pp
+  | Type         lhs . pp = "@" >#< pp_parens @type.pp
+
+SEM ValueDefg
+  | RecValues    lhs . pp = "%rec" >#< "{" >#< @values.pp >#< "}"
+  | Value        lhs . pp = @value.pp 
+
+SEM ValueDefs
+  | Cons         lhs . pp = @hd.pp >#< ";" >-< @tl.pp -- TODO: ';' must be a seperator, not a suffix!
+
+SEM Binder
+  | Type         lhs . pp = "@" >#< @type.pp
+
+SEM ValueBinder
+  | ValueBinder  lhs . pp = pp_parens $ @var >#< "::" >#< @type.pp
+
 %%]

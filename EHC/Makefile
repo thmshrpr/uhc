@@ -128,7 +128,15 @@ LHS2TEX_POLY_3			= \
 LHS2TEX_CODE			= \
 	$(LHS2TEX) --newcode $(1) > $(2)
 
-default:
+default: 8_1/ehc
+
+%.hcr : ghctests/%.eh 8_1/ehc 
+	@echo ">>>> $@ <<<<"
+	8_1/ehc $<
+	@echo ">>> OUTPUT $@ <<<"
+	@cat "ghctests/$@"
+ 
+help:
 	@echo "make <n>/ehc     : make compiler version <n>" ; \
 	echo  "make ehcs        : make all compiler versions (where <n> in {$(VERSIONS)})" ; \
 	echo  "make afp         : make afp.pdf, by running latex once" ; \

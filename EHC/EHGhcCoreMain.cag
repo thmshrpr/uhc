@@ -16,18 +16,20 @@ SEM Expr
   | CConst lhs.ghcexpr = undefined
   | Con    lhs.ghcexpr = undefined
   | Var    lhs.ghcexpr = Expression_Var (show @nm)
-  | App    lhs.ghcexpr = createApplication @func.ty @func.ghcexpr @arg.ghcexpr
-  | Let    lhs.ghcexpr = Expression_Let @decls.ghcdefgs @body.ghcexpr
-  | Lam    lhs.ghcexpr = Expression_Lambda [Binder_ValueBinder $ ValueBinder_ValueBinder @arg.name (convertType @body.ty) ] @body.ghcexpr
+  | App    lhs.ghcexpr = createApplication @func.ty @func.ghcexpr [@arg.ghcexpr] -- TODO: use AppTop to make better applications
+  | Let    lhs.ghcexpr = Expression_Let @decls.ghcdefg @body.ghcexpr
+  | Lam    lhs.ghcexpr = Expression_Lambda [Binder_Value $ ValueBinder_ValueBinder @arg.name (convertType @body.ty) ] @body.ghcexpr
   | Parens lhs.ghcexpr = Expression_Nested @expr.ghcexpr
   | Case   lhs.ghcexpr = undefined
   | Rec    lhs.ghcexpr = undefined
   | Sel    lhs.ghcexpr = undefined
 
-ATTR Decl Decls [ | | ghcdefgs USE {++} {[]}: ValueDefgs ]
+ATTR Decl Decls [ | | ghcdefg: ValueDefg ]
 SEM Decl 
-  | Val lhs.ghcdefgs = [ ValueDefg_Value (ValueDef_ValueDef @patExpr.name (convertType @expr.ty) @expr.ghcexpr) ] 
-  
+  | Val lhs.ghcdefg = ValueDefg_Value (ValueDef_ValueDef @patExpr.name (convertType @expr.ty) @expr.ghcexpr)
+
+SEM Decls
+  | Cons lhs.ghcdefg = @hd.ghcdefg -- TODO: Unroll Let expressions to fit in GhcCore let expressions (fold over a list)
 
 SEM PatExpr [ | | name : VIdent ]
   | Var  lhs.name = show @nm
@@ -46,8 +48,8 @@ SEM PatExpr [ | | name : VIdent ]
 createFunction :: VIdent -> Type -> Expression  -> ValueDefg
 createFunction f t e = ValueDefg_Value (ValueDef_ValueDef f t e)
 
-createApplication :: Ty -> Expression -> Expression -> Expression
-createApplication t f a = Expression_App f (Argument_Value a) -- TODO: if Type is polymorthic add type arguments
+createApplication :: Ty -> Expression -> [Expression] -> Expression
+createApplication t f as = Expression_App f (map Argument_Value as) -- TODO: if Type is polymorthic add type arguments
 
 convertType = const $Type_BasicType (BasicType_Atom (AtomicType_TypeVar "a")) -- error "convert Type not implemented"
 %%]
