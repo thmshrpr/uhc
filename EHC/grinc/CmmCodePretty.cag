@@ -50,7 +50,7 @@ SEM CmmDeclaration
   | Import          loc . pp    = "import" >#< ppListComma (ppExternalName False) @names    >|< ";"
   | Export          loc . pp    = "export" >#< ppListComma (ppExternalName True ) @names    >|< ";"
   | Constant        loc . pp    = "const" >#< pp @type >#< pp @name >#< "=" >#< @value.pp >|< ";"
-  | Typedef         loc . pp    = "typdef" >#< pp @type >#< "=" >#< ppListComma pp @names >|< ";"
+  | Typedef         loc . pp    = "typedef" >#< pp @type >#< ppListComma pp @names >|< ";"
   | Var             loc . pp    = if @invariant then pp "invariant" else empty 
                                   >#< ppKind @kind >#< pp @type >#< ppListComma ppHwName @names >|< ";"
   | Target          loc . pp    = pp @targetSpec >|< ";"

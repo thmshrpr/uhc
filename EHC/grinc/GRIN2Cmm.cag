@@ -15,7 +15,7 @@ grin2cmm gr = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf gr))
               in cmmUnit_Syn_GrAGItf t
 
 hsName2cmmName :: HsName -> CmmName
-hsName2cmmName hsn = show hsn
+hsName2cmmName hsn = map (\c -> if c == '~' then '@' else c) $ show hsn
 
 cmmPtrType = CmmName "ptr"
 %%]
@@ -23,6 +23,22 @@ cmmPtrType = CmmName "ptr"
 %%[8.wrapper
 WRAPPER GrAGItf
 %%]
+
+
+%%[8.Header hs
+
+-- common types
+bits n = CmmBits n
+bits8  = bits 8
+bits16 = bits 16
+bits32 = bits 32
+
+target   = CmmDeclaration_Target (TargetSpec 32 LittleEndian 32 32)
+typedefs = CmmDeclaration_Typedef bits32 ["ptr", "tag", "int"]
+
+%%]
+
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%
 %% Collecting Imports  %%
@@ -47,7 +63,7 @@ SEM GrModule
 ATTR GrModule [ | | exports: {Maybe CmmToplevel} ]
 
 SEM GrModule
-  | Mod            loc . exportedNames = []
+  | Mod            loc . exportedNames = ("main", (Just "grin_main")) : []
                    loc . exports       = if null @exportedNames
                                            then Nothing
                                            else Just $ CmmToplevel_Declaration 
@@ -63,8 +79,8 @@ ATTR GrAGItf GrModule [ | | cmmUnit : CmmUnit ]
 
 SEM GrModule
   | Mod          loc . cmmUnit  = let addTl mtl tll = maybe tll (:tll) mtl
-                                  in CmmUnit_Unit (addTl @imports . addTl @exports 
-                                       $ procedures4TopLevel @bindL.cmmProcs)
+                                  in CmmUnit_Unit (CmmToplevel_Declaration target : CmmToplevel_Declaration typedefs : (addTl @imports . addTl @exports
+                                       $  procedures4TopLevel @bindL.cmmProcs))
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%
