@@ -126,6 +126,6 @@ DATA MaybeType
 		type : Type
 	| Nothing
 
-SET AllGhcCore = GhcModule TypeDef ConsDef ValueDefg ValueDef AtomicExpr Expression Argument Binder ValueBinder TypeBinder Type BasicType AtomicType Kind AtomicKind TypeBinders Binders ValueDefgs ValueDefs TypeDefs ConsDefs MaybeType
+SET AllGhcCore = GhcModule TypeDef ConsDef ValueDefg ValueDef Expression Argument Binder ValueBinder TypeBinder Type BasicType AtomicType Kind AtomicKind TypeBinders Binders ValueDefgs ValueDefs TypeDefs ConsDefs MaybeType
 %%]
 

@@ -129,7 +129,10 @@ doCompileRun filename opts
                             (disp jPP 120 "")
                       }
                GHCCoreCode -> do
-                      {  let hcrPP = ppGhcModule (ghcmodule_Syn_AGItf wrRes)
+                      {  let ghcmod = (ghcmodule_Syn_AGItf wrRes) 
+                             hcrPP = ppGhcModule ghcmod
+                      ;  putStr (show ghcmod)
+                      ;  putStr "\n"
                       ;  writeFile (fpathToStr (fpathSetSuff "hcr" fp))
                             (disp hcrPP 120 "")
                       }

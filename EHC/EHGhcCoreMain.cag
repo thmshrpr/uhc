@@ -6,8 +6,48 @@
 %%[8_1
 
 ATTR AGItf [ | | ghcmodule : GhcModule ]
+ATTR Expr  [ | | ghcexpr : Expression ]
 
 SEM AGItf
-  | AGItf lhs.ghcmodule = GhcModule_Module "hello" [] [] [] 
+  | AGItf lhs.ghcmodule = GhcModule_Module "Main" [] [] [createFunction "main" (convertType @expr.ty) @expr.ghcexpr ] 
+
+SEM Expr
+  | IConst lhs.ghcexpr = undefined
+  | CConst lhs.ghcexpr = undefined
+  | Con    lhs.ghcexpr = undefined
+  | Var    lhs.ghcexpr = Expression_Var (show @nm)
+  | App    lhs.ghcexpr = createApplication @func.ty @func.ghcexpr @arg.ghcexpr
+  | Let    lhs.ghcexpr = Expression_Let @decls.ghcdefgs @body.ghcexpr
+  | Lam    lhs.ghcexpr = Expression_Lambda [Binder_ValueBinder $ ValueBinder_ValueBinder @arg.name (convertType @body.ty) ] @body.ghcexpr
+  | Parens lhs.ghcexpr = Expression_Nested @expr.ghcexpr
+  | Case   lhs.ghcexpr = undefined
+  | Rec    lhs.ghcexpr = undefined
+  | Sel    lhs.ghcexpr = undefined
+
+ATTR Decl Decls [ | | ghcdefgs USE {++} {[]}: ValueDefgs ]
+SEM Decl 
+  | Val lhs.ghcdefgs = [ ValueDefg_Value (ValueDef_ValueDef @patExpr.name (convertType @expr.ty) @expr.ghcexpr) ] 
+  
+
+SEM PatExpr [ | | name : VIdent ]
+  | Var  lhs.name = show @nm
+  | IConst lhs.name = undefined
+  | CConst lhs.name = undefined
+  | Con  lhs.name = undefined
+  | VarAs  lhs.name = undefined
+  | App  lhs.name = undefined
+  | AppTop  lhs.name = undefined
+  | Parens  lhs.name = @patExpr.name
+  | Rec  lhs.name = undefined
 
 %%] 
+
+%%[8_1 hs
+createFunction :: VIdent -> Type -> Expression  -> ValueDefg
+createFunction f t e = ValueDefg_Value (ValueDef_ValueDef f t e)
+
+createApplication :: Ty -> Expression -> Expression -> Expression
+createApplication t f a = Expression_App f (Argument_Value a) -- TODO: if Type is polymorthic add type arguments
+
+convertType = const $Type_BasicType (BasicType_Atom (AtomicType_TypeVar "a")) -- error "convert Type not implemented"
+%%]
