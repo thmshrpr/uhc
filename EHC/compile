@@ -1,6 +1,0 @@
-#!/bin/sh
-SOURCE="$1"
-shift
-8_1/ehc "$SOURCE" &&
-rm -f ghctests/Main.o ghctests/Main.hi &&
-ghc ghctests/"$SOURCE" ghctests/Main.hs "$@"

@@ -130,6 +130,9 @@ LHS2TEX_CODE			= \
 
 default: 8_1/ehc
 
+%.run : 8_1/ehc 
+	$(MAKE) -C ghctests $@
+
 %.hcr : 8_1/ehc 
 	$(MAKE) -C ghctests $@
 	@echo ">>> OUTPUT $@ <<<"
@@ -400,6 +403,7 @@ clean:
 	$(WWW_SRC_ZIP) $(WWW_SRC_TGZ) $(WWW_DOC_PDF) \
 	tmp-* \
 	*.log *.lof *.ilg *.out *.toc *.ind *.idx *.aux
+	$(MAKE) -C ghctests clean
 
 clean-test:
 	rm -rf test/*.reg* test/*.exp*

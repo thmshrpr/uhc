@@ -88,7 +88,7 @@ doCompileRun filename opts
          }
 %%]
 
-%%[8.doCompile -1.doCompile
+%%[88.doCompile -1.doCompile
 doCompileRun :: String -> EHCOpts -> IO ()
 doCompileRun filename opts
 %%@doCompileA.1
@@ -107,36 +107,6 @@ doCompileRun filename opts
                             (disp jPP 120 "")
                       }
             else  return ()
-         }
-%%]
-
-%%[8_1.doCompile -8.doCompile
-doCompileRun :: String -> EHCOpts -> IO ()
-doCompileRun filename opts
-%%@doCompileA.1
-%%@doCompileB.8
-%%@doCompileC.8
-%%@doCompileD.1
-         ;  case ehcoptCodeType opts of
-               EHCCoreCode -> do
-                      {  writeFile (fpathToStr (fpathSetSuff "code" fp))
-                            (disp codePP 120 "")
-                      }
-               JavaCode    -> do
-                      {  let (jBase,jPP) = cexprJavaSrc (cmodule_Syn_AGItf wrRes)
-                             jFP = fpathSetBase jBase fp
-                      ;  writeFile (fpathToStr (fpathSetSuff "java" jFP))
-                            (disp jPP 120 "")
-                      }
-               GHCCoreCode -> do
-                      {  let cmod   = cmodule_Syn_AGItf wrRes
-                             ghcmod = genGhcCore cmod
-                             hcrPP  = ppGhcModule ghcmod
-                      ;  writeFile (fpathToStr (fpathSetSuff "hcr" fp))
-                            (disp hcrPP 120 "")
-                      ;  putStrLn "*** GHC Core AST:"
-                      ;  putStrLn (show ghcmod)
-                      }
          }
 %%]
 
@@ -350,7 +320,9 @@ crCompileCUPass1HS modNm cr
               _           ->  return ()
        ; return (cr {crState = CRSErrInfoL "Type checking" False (allErrL_Syn_AGItf p1ob)})
        }
+%%]
 
+%%[8.outputPass
 crCompileCUPass2HS :: HsName -> CompileRun -> IO CompileRun
 crCompileCUPass2HS modNm cr
   =  do  {  let  cu     = crCU modNm cr
@@ -369,7 +341,41 @@ crCompileCUPass2HS modNm cr
             else  return ()
          ;  return cr
          }
+%%]
 
+%%[8_1.outputPass -8.outputPass
+crCompileCUPass2HS :: HsName -> CompileRun -> IO CompileRun
+crCompileCUPass2HS modNm cr
+  =  do  {  let  cu     = crCU modNm cr
+                 p1ob   = fromJust (cuMbOut (crCU modNm cr))
+                 fp     = cuFilePath cu
+                 opts   = crOpts cr
+                 codePP = ppCModule (cmodule_Syn_AGItf p1ob)
+         ;  case ehcoptCodeType opts of
+               EHCCoreCode -> do
+                      {  writeFile (fpathToStr (fpathSetSuff "code" fp))
+                            (disp codePP 120 "")
+                      }
+               JavaCode    -> do
+                      {  let (jBase,jPP) = cexprJavaSrc (cmodule_Syn_AGItf p1ob)
+                             jFP = fpathSetBase jBase fp
+                      ;  writeFile (fpathToStr (fpathSetSuff "java" jFP))
+                            (disp jPP 120 "")
+                      }
+               GHCCoreCode -> do
+                      {  let cmod   = cmodule_Syn_AGItf p1ob
+                             ghcmod = genGhcCore cmod
+                             hcrPP  = ppGhcModule ghcmod
+                      ;  writeFile (fpathToStr (fpathSetSuff "hcr" fp))
+                            (disp hcrPP 120 "")
+                      ;  putStrLn "*** GHC Core AST:"
+                      ;  putStrLn (show ghcmod)
+                      }
+         ;  return cr
+         }
+%%]
+
+%%[8
 crStepUID :: CompileRun -> IO CompileRun
 crStepUID cr
   = let (h,n) = mkNewLevUID (crNextUID cr)

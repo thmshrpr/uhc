@@ -16,6 +16,11 @@ default:
 %.hcr : %.eh ${EHC} Makefile
 	${EHC} ${EHC_FLAGS} $<
 
+%.run : %.hcr Makefile
+	rm -f Main.o Main.hi
+	${GHC} $< Main.hs -o $(@:.run=)
+	./$(@:.run=)
+
 % : %.hcr Makefile
 	rm -f Main.o Main.hi
 	${GHC} $< Main.hs -o $@
