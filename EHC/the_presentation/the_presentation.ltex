@@ -1,0 +1,264 @@
+%%%%% THis document is expected to be preprocessed by lhs2TeX
+
+\documentclass[a4]{seminar}
+%include lhs2TeX.fmt
+%include lhs2TeX.sty
+
+\usepackage{pstcol}
+\usepackage{graphicx}
+\usepackage{semcolor}           % Seminar colored slides
+\usepackage{semhelv}            % Seminar helvetica fonts
+% \usepackage{semlayer}           % Seminar overlays
+\usepackage{slidesec}           % Seminar sections and list of slides
+\usepackage{pifont}		% Ding simbols
+\usepackage{fancyhdr}           % Better headers
+\usepackage{ifthen}		% Allow conditional choices
+
+\input{seminar.bug}             % Fixing bugs
+\input{seminar.bg2}             % Fixing even more bugs
+
+%%%%%% Page Layout
+%%% Footers
+\def\Footers{
+	\fancyfoot[L]{\tiny\thedate}
+	\fancyfoot[C]{\tiny \thetitle}
+	\fancyfoot[R]{\tiny Page \theslide}
+}
+
+%%% Two page layouts (one for the section slide, and one for the normal slides)
+\newcommand{\NormalHeaders}{
+	\fancyhead[C]{\large\textbf{\theslideheading}}
+	\Footers
+}
+\newcommand{\NoHeaders}{
+	\fancyhf{} % Clear all fields
+	\Footers
+}
+
+%%% Setup the borders
+\renewcommand{\headrulewidth}{2.2mm}
+\renewcommand{\footrulewidth}{1.1mm}
+\slideframe{none}
+
+% To avoid that the headers be too close of the top of the page
+\renewcommand{\slidetopmargin}{2cm}
+\renewcommand{\slideleftmargin}{3cm}
+
+% To center horizontally the headers and footers (see seminar.bug)
+\renewcommand{\headwidth}{\textwidth}
+
+% Do not center slides vertical 
+\centerslidestrue
+
+%%%%%% Some Environments
+%%% ArrowList
+\definecolor{DarkRed}   {rgb}{0.9,0.3,0.3}
+\definecolor{DarkBlue}   {rgb}{0.3,0.3,0.9}
+\newenvironment{List}
+	{\begin{list}{\color{DarkBlue}\ding{228}}{}}
+	{\end{list}}
+
+%%% Slide (with optional section title)
+\newenvironment{Slide}[1][]
+	{
+		\ifthenelse{\equal{#1}{}}
+			{}
+			{\NoHeaders}
+		\begin{slide}
+		\ifthenelse{\equal{#1}{}}
+			{}
+			{\slideheading{#1}\bigskip}
+		\begin{List}
+	}
+	{
+		\end{List}
+		\end{slide}
+		\NormalHeaders
+	}
+
+%%%%%% Document Info 
+
+\title{EHC to GHC Core Backend}
+\author{presentation by Christof Douma \& Rodrigo Baptista}
+
+% Formating of special haskell constructs
+%format x1
+%format x2
+%format y1
+%format y2
+%format i1
+%format i2
+%format b1
+%format b2
+%format fb1
+%format fb2
+%format bs1
+%format bs2
+
+%format gen (a)     = a "^{\circ}"
+%format forall (a)  = "\forall{" a "}."
+%format :*:         = " :\!\!*\!\!:"
+%format a'          = "\ensuremath{\overline{a}}"
+%format .           = "\cdot"
+%format rho         = "\varrho"
+
+%% Bugfix:
+%format genA        =  "a^{\circ}"
+
+\begin{document} 
+\pagestyle{fancy}
+
+%%%%%%%%%%%%% title slide %%%%%%%%%%%%%
+\centerslidestrue
+\fancyhf{}
+\begin{slide}
+\addtocounter{slide}{-1}
+\maketitle
+\bigskip
+\begin{center}
+http://www.cs.uu.nl/groups/ST/Eifl/EHCToGhcCore
+\end{center}
+\end{slide} 
+\NormalHeaders
+%\centerslidesfalse
+
+%%%%%%%%%%%%% Project Overview %%%%%%%%%%%%%
+\begin{Slide}[Project Overview]
+\item
+\input{overview1.latex}
+\end{Slide} 
+
+\begin{Slide}[Introduction]
+\item What are we going to talk about?
+\begin{itemize}
+	\item EHC Code vs GHC Core
+	\item Incorporating the BackEnd in EHC
+	\item Re-introducing Data Types in GHC Core
+	\item Examples
+	\item Conclusions
+\end{itemize}
+
+\end{Slide}
+
+%%%%%%%%%%%%% EHC Code vs GHC Core %%%%%%%%%%%%%
+\begin{Slide}[EHC Code vs GHC Core]
+\item
+\end{Slide}
+
+%%%%%%%%%%%%% Incorporating the BackEnd in EHC %%%%%%%%%%%%%
+\begin{Slide}[Incorportating the BackEnd in EHC]
+\item
+\end{Slide}
+
+\begin{Slide}
+\item
+\end{Slide}
+
+\begin{Slide}
+\item
+\end{Slide}
+
+%%%%%%%%%%%%% Re-introducing Data Types in GHC Core %%%%%%%%%%%%%
+\begin{Slide}[Re-introducing Data Types in GHC Core]
+\item
+\end{Slide}
+
+%%%%%%%%%%%%% Examples %%%%%%%%%%%%%%%
+\begin{Slide}[Examples]
+\item
+\end{Slide}
+
+%%%%%%%%%%%%% Conclusions %%%%%%%%%%%%%%
+\begin{Slide}[Conclusions]
+\item
+\end{Slide}
+
+\begin{Slide}
+\item Generate bidirectional maps for \emph{arbitrary} method types:
+\begin{code}
+bimapOp      :: forall(a genA) EP a genA -> EP (Op a) (Op genA)
+bimapOp epA  = bimap{Op a}sub([a := epA])
+\end{code}
+\item |bimap| is a meta-function, evaluated at compile time, that returns a Haskell expression.
+\item We define |bimap| by induction to the structure of the type expression:
+\begin{code}
+bimap{a} sub(rho)     = rho(a)
+bimap{(->)} sub(rho)  = bimapArrow
+bimap{T} sub(rho)     = bimapT
+bimap{t u} sub(rho)   = (bimap{t} sub(rho)) (bimap{u} sub(rho))
+\end{code}
+\end{Slide}
+\begin{Slide}
+\item An example. The |Both| type:
+\begin{code}
+type Both a -> a
+
+   bimapBoth epA
+=  bimap{a -> a} sub(rho = [a := epA])
+=  (bimap{(->) a} sub(rho)) (bimap{a} sub(rho))
+=  (bimap{(->)} sub(rho) (bimap{a} sub(rho))) (bimap{a} sub(rho))
+=  bimapArrow epA epA
+=  EP  {  to     = \f -> to epA . f . from epA
+       ,  from  = \f -> from epA . f. to epA }
+\end{code}
+
+\end{Slide}
+
+\begin{Slide}
+\item What if there is a data type involved:
+\begin{code}
+type ReadBin a = Bin -> (a, Bin)
+
+   bitmapReadBin ep
+=  bimap{Bin -> (a,Bin)} sub(rho = [a:= ep])
+=  bimapArrow (bimap{Bin} sub(rho)) (bimap{(a, Bin)} sub(rho))
+\end{code}
+\item We need |bimapBin| and |bimapPair|.
+\item |Bin| is not parameterised, so nothing to do:
+\begin{code}
+bimapBin  :: EP Bin Bin
+bimapBin  = idEP
+
+idEP      :: forall(a) EP a a
+idEP      = EP{to = \x -> x, from = \x -> x}
+\end{code}
+\end{Slide}
+\begin{Slide}
+\item A pair is parameterised over two types:
+%format genB = "b^{\circ}"
+%format genX = "x^{\circ}"
+%format genY = "y^{\circ}"
+\begin{code}
+bimapPair :: forall(a genA b genB) EP a genA -> EP b genB -> EP (a,b) (genA, genB)
+bimapPair epA epB  = 
+	EP  {  to    = \ (gen(x),gen(y)) ->(to epA genX, to epB genY)
+	    ,  from  = \ (x,y) -> (from epA x, from epB y)}
+\end{code}
+\item |bimapT| can be defined by induction on the structure of the type of |T|
+\item the type of |bimapT| has a kind indexed type |Bimap{k} T T|:
+%format genT = "t^{\circ}"
+%format k1
+%format k2
+\begin{code}
+Bimap{*} t genT = EP t genT
+Bimap{k1 -> k2} t genT =
+	forall(a genA) Bimap{k1} a genA -> Bimap{k2} (t a) (genT genA)
+\end{code}
+\end{Slide}
+\begin{Slide}[Implementation]
+\item The implementation is a source to source translation
+\item Generate |gen(T)| for data type |T|
+\item Generate an embedding projection pair that convert between T and gen(T)
+\item Create a simple class declaration for C without the generic default methods
+\item Create for each generic method |op :: Op a| a bidirectional map
+\item Instance declaration for |C 1|, |C (a + b)| and |C (a * b)| by selecting the eponymous equations from the class declaration
+\item Extend the instance declaration by adding the definitions of the generic methods
+\end{Slide}
+
+\begin{Slide}[Further points]
+\item Constructor information for |Show| and |Read| classes
+\item Efficienty: inlining tries to remove the generic form of the datatypes so the do not exist at runtime
+\item Higher order kinded types
+\end{Slide}
+
+\end{document}

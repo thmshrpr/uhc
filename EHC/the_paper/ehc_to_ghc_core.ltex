@@ -864,6 +864,8 @@ data EHCCodeType = EHCCoreCode | JavaCode | GHCCoreCode
 %%]
 \end{code}
 
+\section{Conclusions}
+
 \section{Examples}
 
 %%%% REFERENCES %%%
