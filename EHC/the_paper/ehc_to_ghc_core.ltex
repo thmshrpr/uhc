@@ -14,9 +14,14 @@
 %format SEM = "\mathbf{SEM}"
 %format lhs = "\mathbf{lhs}"
 %format . = "."
+%format @ = "\;\at"
 %format $ = "\$"
 
 \usepackage{a4wide}
+\usepackage{natbib}
+\bibpunct{(}{)}{;}{a}{}{,}
+
+
 %\usepackage{graphics}
 %\usepackage{graphicx}
 %\usepackage{color}
@@ -35,9 +40,15 @@
 %\usepackage{hyperref}
 
 
-\def\Ipe#1{\def\IPEfile{#1}\input{#1}}
+\newcommand{\derives}{\mbox{$\rightarrow$}}
+\newcommand{\orderives}{\mbox{$\mid$}}
+\newcommand{\many}[1]{\{ {#1} \}}
+\newcommand{\oneormore}[1]{\{ {#1} \}$^{+}$}
+\newcommand{\optional}[1]{[ {#1} ]}
 
-\newtheorem{exercicio}{}[section]
+\newcommand{\at}{\texttt{@@}}
+\newcommand{\att}{@@}
+\newcommand{\lam}{\texttt{\char`\\}}
 
 \title{\sf EHC to GHC Core Backend \\
 \begin{tabular}{c}
@@ -79,34 +90,96 @@ This report is pointed to students or people that are interested to extend this 
 
 \section{The Grammar of GHC Core}
 
-The Grammar is represented in ----Andrew Tolmach. An External Representation for the GHC Core Language (Draft for GHC5.02). http://www.haskell.org/ghc/documentation.html, 2001---- but we simplified it because version 8 of EHC limits some implementation parts of the Grammar.Below you can see the representation of our grammar version:
+Below a bit simplified grammar definition of GHC Core. The complete description of the external core language is Grammar is represented in \cite{tolmach2001ghc-core} from which we copied and modified the definition below. We tried to define a Abstract Syntax data defintion which is close to the GHC Core Concrete syntax. It should be easy to understand the data type for GHC Core used in EHC. The main difference is the merge of Atomic expressions into Expressions. The datatype is defined in {\bf EHGhcCoreAbsSyn.cag}.
 
-\(
-\begin{array}{l}
-\begin{array}[t]{lclccl}
-& & GhcModule  & module   & \rightarrow  & mident \\ tdefs \\ vdefs
-& & Typedef.   & tdef     & \rightarrow  & dident \\ tbinders \\ cdefs
-& &            &          &  ||           & dident \\ tbinders \\ maybetype?
-& & ...
-\end{array} \\
-\end{array}
-\)
+We use the following notational conventions for syntax:
 
+\begin{tabular}{ll}
+{\it [ pat ]} & optional \\
+{\it \{ pat \}} & zero or more repetitions \\
+{\it \{ pat \}$^{+}$} & one or more repetitions \\
+{\it pat$_1$ \orderives\ pat$_2$} & choice \\
+@fibonacci@ & terminal syntax in typewriter font \\
+\end{tabular}
 
-\bigskip
+{\it
+\begin{tabular}{lrclr}
+{\rm Module} &	 module &	 \derives &	 
+	\multicolumn{2}{l}{@%module@ mident \many{tdef @;@} \many{\optional{@%local@} vdefg @;@}} \\
+\\
+{\rm Type defn.} &	 tdef &	 \derives &	@%data@ qtycon \many{tbind} @=@ @{@ cdef \many{@;@ cdef} @}@ & {\rm algebraic type}\\
+\\
+{\rm Constr. defn.} &	cdef &	 \derives &	 qdcon \many{\verb|@@| tbind} \many{aty} \\
+\\
+{\rm Value defn.}  &	vdefg &	 \derives &	 @%rec@ @{@ vdef \many{@;@ vdef} @}@ &			 {\rm recursive} \\
+      		   &	&	 \orderives &	 vdef &	 						 {\rm non-recursive} \\
+		   &    vdef  &  \derives & qvar @::@ ty @=@ exp & \\
+\\
+{\rm Atomic expr.} &     aexp &  \derives &	 qvar &	 						{\rm variable} \\
+		 &	&	 \orderives &	 qdcon &	 					{\rm data constructor}\\ 
+		 &	&	 \orderives &	 lit &	 						{\rm literal} \\
+		 &	&	 \orderives &	 @(@ exp @)@ &						{\rm nested expr.}\\
+\\
+{\rm Expression} &	exp   &  \derives    &   aexp & 						{\rm atomic expresion}\\
+	         &	&	\orderives  &    aexp \oneormore{arg} & 				{\rm application}\\
+		 &	&	 \orderives &	 @\@ \oneormore{binder} @->@ exp &		 	{\rm abstraction}\\
+		 &	&	 \orderives &	 @%let@ vdefg @%in@ exp &	 			{\rm local definition}\\
+		 &	&	 \orderives &	 @%case@ exp @%of@ vbind @{@ alt \many{@;@ alt} @}@ &	{\rm case expression}\\
+\\
+{\rm Argument}   &	arg & 	\derives &	 \at\ aty &						{\rm type argument}\\
+		 &	&	 \orderives &	 aexp &							{\rm value argument} \\
+\\
+{\rm Case alt.} &	alt &	 \derives &	qdcon  \many {\verb|@@| tbind} \many{vbind} @->@ exp &{\rm constructor alternative}\\
+		&	&	 \orderives &	 lit @->@ exp &	 			{\rm literal alternative} \\
+		&	&	 \orderives &	 @%_@ @->@ exp & 				{\rm default alternative} \\
+\\
+{\rm Binder}	 & 	binder & \derives & \at\ tbind	&					{\rm type binder}\\
+		 & 		& \orderives & 	vbind	&						{\rm value binder}\\
+\\
+{\rm Type binder} &	tbind & \derives   & tyvar & {\rm implicitly of kind @*@} \\
+\\
+{\rm Value binder} & 	vbind & \derives &   @(@ var @::@ ty @)@ \\
+\\
+{\rm Literal} &	 lit &	 \derives &	 @(@ [@-@] \oneormore{digit} @::@ ty @)@ & {\rm integer} \\
+	    &	&	 \orderives &	 @(@ [@-@] \oneormore{digit} @.@ \oneormore{digit} @::@ ty @)@ & {\rm rational} \\
+	    &	&	 \orderives &	 @(@ @'@ char @'@ @::@ ty @)@ & {\rm character} \\
+	    &	&	 \orderives &	 @(@ @"@ \many{char} @"@ @::@ ty @)@ & {\rm string} \\
+\\
+{\rm Character}  & char & \derives & \multicolumn{2}{l}{any printable ASCII character}\\
+		&	& \orderives & @\x@ hex hex  & {\rm ASCII code escape} \\
+		&  hex   & \derives & @0@ \orderives  \ldots \orderives  @9@ \orderives  @a@ \orderives  \ldots \orderives  @f@ \\
+\end{tabular}
 
+\begin{tabular}{lrclr}
+{\rm Identifier}	&	mident & \derives &uname &	{\rm module} \\
+	&	tycon &	 \derives &	 uname &	 	{\rm type constr.}  \\
+	&	qtycon & \derives &	 mident @.@  tycon &	{\rm qualified type constr.} \\
+	&	tyvar &	 \derives &	 lname &		{\rm type variable} \\
+	&	dcon &	 \derives &	 uname &	 	{\rm data constr.} \\
+	&	qdcon &	 \derives &	 mident @.@  dcon & 	{\rm qualified data constr.} \\
+	&	var &	 \derives &	 lname &		{\rm variable} \\
+	&	qvar &	 \derives &	 [ mident @.@ ] var &	{\rm optionally qualified variable} \\
+\\
+{\rm Name} 	&	lname  &  \derives & 	 lower \many{namechar} \\
+ 	&       uname &  \derives & 	 upper \many{namechar} & \\
+	&	namechar & \derives &	 lower \orderives\  upper \orderives\  digit \orderives\  @'@ \\
+	&	lower &  \derives &      @a@ \orderives\  @b@ \orderives\  \ldots \orderives\  @z@ \orderives\  @_@ \\
+	&	upper &  \derives &      @A@ \orderives\  @B@ \orderives\  \ldots \orderives\  @Z@ \\
+	& 	digit &  \derives & 	 @0@ \orderives\  @1@ \orderives\  \ldots \orderives\  @9@ \\
+\\
+\end{tabular}
+}
 
 \section{The Source Language}
 
-The source language of the backend is EHC Core,although in the beginning we were trying to use directly EH source language but then we realized that it wasnt correct, because between EH language and EH Core, it is made many useful transformations and optimizations. 
-
+The source language of the backend is EHC Core, although in the beginning we were using directly the EH language. This language had all the information we needed But of course a lot of analysis and desugaring in the front end of EHC is done on EH when translating into EHC Core. 
 The Abstract Syntax Tree of EH Core is specified in {\bf EHCodeAbsSyn.cag}, now we are going to explain what we have changed in the tree, then we will show the changes when we generate the EH Core,which is implied in {\bf EHGenCode.cag}, and after in the related Haskell functions specified in the {\bf EHCode.cag}.
 
 \bigskip
 
-
 \subsection{The Abstract Syntax Tree}
-....... in four parts:
+
+On several places the GHC Core language require type information. Notable ...
 
 \begin{itemize}
 \item
@@ -592,6 +665,10 @@ hsnIsCon  _                        = False
 \section{Compiling the Backend}
 \section{Examples}
 
+%%%% REFERENCES %%%
+\section{References}
+\bibliographystyle{../uhcbook}
+%\bibliographystyle{plain}
+\bibliography{references}
+
 \end{document}
-
-

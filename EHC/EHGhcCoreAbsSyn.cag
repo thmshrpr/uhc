@@ -15,10 +15,6 @@ DATA TypeDef
 		name : {DIdent}
 		binders : TypeBinders
 		cdefs : ConsDefs
-	| Newtype
-		name : {DIdent}
-		binders : TypeBinders
-		mt : MaybeType
 DATA ConsDef
 	| ConsDef 
 		name :  {DCon}

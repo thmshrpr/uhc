@@ -33,7 +33,6 @@ SEM TypeDefs
 
 SEM TypeDef
   | Data      lhs . pp  = "%data" >#< addModuleName @lhs.moduleName @name >#< @binders.pp >#< "=" >#< pp_block "{" "}" ";" @cdefs.pps
-  | Newtype   lhs . pp  = pp "<NOT IMPLEMENTED: TypeDef_Newtype>" 
 
 ATTR ConsDefs [ | | pps : {[PP_Doc]} ]
 SEM ConsDefs
