@@ -3,48 +3,43 @@
 %include afp.fmt
 %%]
 
+%%[8_1 hs import(EHCode, EHCommon, EHTy, EHGhcCore) export(genGhcCore)
+genGhcCore :: CModule -> GhcModule
+genGhcCore m = sem_CodeAGItf_AGItf (sem_CModule m) 
+%%]
+
+%%[8_1.WRAPPER import(EHCodeAbsSyn)
+WRAPPER CodeAGItf
+%%]
+
 %%[8_1
+ATTR CModule CodeAGItf [ | | ghcmodule : GhcModule ]
+ATTR CExpr  [ | | ghcexpr : Expression ]
 
-ATTR AGItf [ | | ghcmodule : GhcModule ]
-ATTR Expr  [ | | ghcexpr : Expression ]
+SEM CModule
+  | Mod lhs.ghcmodule = GhcModule_Module "Main" [] [] [createFunction "main" (convertType Ty_Any) @expr.ghcexpr ] 
 
-SEM AGItf
-  | AGItf lhs.ghcmodule = GhcModule_Module "Main" [] [] [createFunction "main" (convertType @expr.ty) @expr.ghcexpr ] 
-
-SEM Expr
-  | IConst lhs.ghcexpr = undefined
-  | CConst lhs.ghcexpr = undefined
-  | Con    lhs.ghcexpr = undefined
+SEM CExpr
+  | Int    lhs.ghcexpr = undefined
+  | Char   lhs.ghcexpr = undefined
   | Var    lhs.ghcexpr = Expression_Var (show @nm)
-  | App    lhs.ghcexpr = createApplication @func.ty @func.ghcexpr [@arg.ghcexpr] -- TODO: use AppTop to make better applications
-  | Let    lhs.ghcexpr = Expression_Let @decls.ghcdefg @body.ghcexpr
-  | Lam    lhs.ghcexpr = Expression_Lambda [Binder_Value $ ValueBinder_ValueBinder @arg.name (convertType @body.ty) ] @body.ghcexpr
-  | Parens lhs.ghcexpr = Expression_Nested @expr.ghcexpr
+  | App    lhs.ghcexpr = createApplication Ty_Any @func.ghcexpr [@arg.ghcexpr]
+  | Let    lhs.ghcexpr = Expression_Let @binds.ghcdefg @body.ghcexpr
+  | Lam    lhs.ghcexpr = Expression_Lambda [Binder_Value $ ValueBinder_ValueBinder (show @arg) (convertType Ty_Any) ] @body.ghcexpr
   | Case   lhs.ghcexpr = undefined
-  | Rec    lhs.ghcexpr = undefined
+  | Tup    lhs.ghcexpr = undefined
   | Sel    lhs.ghcexpr = undefined
 
-ATTR Decl Decls [ | | ghcdefg: ValueDefg ]
-SEM Decl 
-  | Val lhs.ghcdefg = ValueDefg_Value (ValueDef_ValueDef @patExpr.name (convertType @expr.ty) @expr.ghcexpr)
+ATTR CBind CBindL [ | | ghcdefg: ValueDefg ]
+SEM CBindL
+  | Cons lhs.ghcdefg = @hd.ghcdefg -- TODO: make lets work with this (use tail also)
+SEM CBind 
+  | Bind lhs.ghcdefg = ValueDefg_Value (ValueDef_ValueDef (show @nm) (convertType Ty_Any) @expr.ghcexpr)
 
-SEM Decls
-  | Cons lhs.ghcdefg = @hd.ghcdefg -- TODO: Unroll Let expressions to fit in GhcCore let expressions (fold over a list)
-
-SEM PatExpr [ | | name : VIdent ]
-  | Var  lhs.name = show @nm
-  | IConst lhs.name = undefined
-  | CConst lhs.name = undefined
-  | Con  lhs.name = undefined
-  | VarAs  lhs.name = undefined
-  | App  lhs.name = undefined
-  | AppTop  lhs.name = undefined
-  | Parens  lhs.name = @patExpr.name
-  | Rec  lhs.name = undefined
-
-%%] 
+%%]
 
 %%[8_1 hs
+
 createFunction :: VIdent -> Type -> Expression  -> ValueDefg
 createFunction f t e = ValueDefg_Value (ValueDef_ValueDef f t e)
 

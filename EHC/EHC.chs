@@ -15,7 +15,7 @@
 %%[8 import (EHCodeJava,EHCodePretty,EHScanner,EHError,EHErrorPretty,FPath,FiniteMap,Maybe,Directory)
 %%]
 
-%%[8_1 import (EHGhcCorePretty)
+%%[8_1 import (EHGhcCoreMain,EHGhcCorePretty)
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -129,8 +129,9 @@ doCompileRun filename opts
                             (disp jPP 120 "")
                       }
                GHCCoreCode -> do
-                      {  let ghcmod = (ghcmodule_Syn_AGItf wrRes) 
-                             hcrPP = ppGhcModule ghcmod
+                      {  let cmod   = cmodule_Syn_AGItf wrRes
+                             ghcmod = genGhcCore cmod
+                             hcrPP  = ppGhcModule ghcmod
                       ;  putStr (show ghcmod)
                       ;  putStr "\n"
                       ;  writeFile (fpathToStr (fpathSetSuff "hcr" fp))

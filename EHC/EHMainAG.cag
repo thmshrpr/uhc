@@ -48,9 +48,6 @@ WRAPPER AGItf
 %%[8 import(EHGenCode)
 %%]
 
-%%[8_1 import(EHGhcCoreMain)
-%%]
-
 %%[9 import(EHResolvePred,EHInferClass)
 %%]
 

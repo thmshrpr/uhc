@@ -53,7 +53,7 @@ ALL_AFP_SRC			:= $(AFP_LHS) $(AFP_RULES)
 
 EHC_LAG_FOR_HS_TY	:= $(addsuffix .lag,EHTyQuantify EHTyPretty EHTyInstantiate )
 EHC_LAG_FOR_HS_CODE	:= $(addsuffix .lag,EHCodeJava EHCodePretty EHCodeSubst)
-EHC_LAG_FOR_HS_GHC_CORE := $(addsuffix .lag,EHGhcCorePretty)
+EHC_LAG_FOR_HS_GHC_CORE := $(addsuffix .lag,EHGhcCoreMain EHGhcCorePretty)
 EHC_LAG_FOR_HS		:= $(addsuffix .lag,EHMainAG EHTy EHCode EHGhcCore EHError EHErrorPretty) $(EHC_LAG_FOR_HS_TY) $(EHC_LAG_FOR_HS_CODE) $(EHC_LAG_FOR_HS_GHC_CORE)
 
 DPDS_MAIN			:= EHMainAG.ag EHInfer.ag EHInferExpr.ag \
@@ -61,8 +61,7 @@ DPDS_MAIN			:= EHMainAG.ag EHInfer.ag EHInferExpr.ag \
 						EHInferCaseExpr.ag EHPretty.ag EHPrettyAST.ag EHAbsSyn.ag \
 						EHUniq.ag EHExtraChecks.ag EHGatherError.ag \
 						EHGenCode.ag \
-						EHResolvePred.ag EHInferClass.ag \
-						EHGhcCoreMain.ag
+						EHResolvePred.ag EHInferClass.ag
 DPDS_TY				:= EHTy.ag EHTyAbsSyn.ag
 DPDS_TY_PRETTY		:= EHTyPretty.ag EHTyCommonAG.ag EHTyAbsSyn.ag
 DPDS_TY_QUANT		:= EHTyQuantify.ag EHTyCommonAG.ag EHTyAbsSyn.ag
@@ -73,8 +72,9 @@ DPDS_CODE			:= EHCode.ag EHCodeAbsSyn.ag
 DPDS_CODE_JAVA		:= EHCodeJava.ag EHCodeAbsSyn.ag
 DPDS_CODE_PRETTY	:= EHCodePretty.ag EHCodeAbsSyn.ag
 DPDS_GHC_CORE		:= EHGhcCore.ag EHGhcCoreAbsSyn.ag
+DPDS_GHC_CORE_GEN	:= EHGhcCoreMain.ag EHCodeAbsSyn.ag
 DPDS_GHC_CORE_PRETTY	:= EHGhcCorePretty.ag EHGhcCoreAbsSyn.ag
-DPDS_ALL			:= $(sort $(DPDS_MAIN) $(DPDS_CODE) $(DPDS_CODE_JAVA) $(DPDS_CODE_PRETTY) $(DPDS_TY) $(DPDS_TY_PRETTY) $(DPDS_TY_QUANT) $(DPDS_MAIN) $(DPDS_TY_INST) $(DPDS_ERR) $(DPDS_ERR_PRETTY) $(DPDS_GHC_CORE) $(DPDS_GHC_CORE_PRETTY))
+DPDS_ALL			:= $(sort $(DPDS_MAIN) $(DPDS_CODE) $(DPDS_CODE_JAVA) $(DPDS_CODE_PRETTY) $(DPDS_TY) $(DPDS_TY_PRETTY) $(DPDS_TY_QUANT) $(DPDS_MAIN) $(DPDS_TY_INST) $(DPDS_ERR) $(DPDS_ERR_PRETTY) $(DPDS_GHC_CORE) $(DPDS_GHC_CORE_GEN) $(DPDS_GHC_CORE_PRETTY) )
 DPDS_ALL_MIN_TARG	:= $(filter-out $(EHC_LAG_FOR_HS:.lag=.ag),$(DPDS_ALL))
 
 EHC					:= ehc
@@ -472,6 +472,7 @@ MK_EHC_MKF			= \
 	  $(call MK_EHC_MKF_FOR,$(DPDS_CODE_PRETTY),-cfspr) ; \
 	  $(call MK_EHC_MKF_FOR,$(DPDS_CODE_JAVA),-cfspr) ; \
 	  $(call MK_EHC_MKF_FOR,$(DPDS_GHC_CORE),-dr) ; \
+	  $(call MK_EHC_MKF_FOR,$(DPDS_GHC_CORE_GEN),-cfspr) ; \
 	  $(call MK_EHC_MKF_FOR,$(DPDS_GHC_CORE_PRETTY),-cfspr) ; \
 	) > Makefile
 
