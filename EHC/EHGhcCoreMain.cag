@@ -6,23 +6,38 @@
 %%[8_1 hs import(EHCode, EHCommon, EHTy, EHGhcCore, EHGam) export(genGhcCore)
 genGhcCore :: CModule -> GhcModule
 genGhcCore m = sem_CodeAGItf_AGItf (sem_CModule m) 
+
+fromJust :: String -> Maybe a -> a
+fromJust s m = case m of 
+                 Just a -> a
+                 Nothing -> error $ "fromJust (Nothing): " ++ s
 %%]
 
 %%[8_1.WRAPPER import(EHCodeAbsSyn)
 WRAPPER CodeAGItf
 %%]
 
+
 %%[8_1
 ATTR CModule CodeAGItf [ | | ghcmodule : GhcModule ]
-ATTR CExpr  [ | | ghcexpr : Expression caseAlts: {Maybe Alternatives} datatypes USE {++} {[]}: TypeDefs ]
+
+ATTR AllCodeNT [ newConstructorNames: {Gam HsName HsName} newTypeNames: {Gam HsName HsName} | unique : {Int} | ]
+SEM CodeAGItf
+  | AGItf module.unique = 0
+          module.newConstructorNames = emptyGam
+          module.newTypeNames = assocLToGam [(HNm "Int", HNm "Int"), (HNm "Char", HNm "Char")]
+          -- module.newConstructorNames = assocLToGam [( HNm "Var", HNm "Var"),( HNm "Rec", HNm "Rec"),( HNm "Ext", HNm "Ext"), (HNm "Int", HNm "Int"), (HNm "Char", HNm "Char")]
+
+ATTR CExpr  [ topLevel : {Bool} | | ghcexpr : Expression caseAlts: {Maybe Alternatives} datatypes USE {++} {[]}: TypeDefs ]
 
 SEM CModule
   | Mod lhs.ghcmodule = GhcModule_Module "Top"  @expr.datatypes [] [createMainFunction @ty @expr.ghcexpr]
+        expr.topLevel = False -- We do not keep top level data bindings the same - some tricks are needed to prevent name clashes.
 
 SEM CExpr
   | Int    lhs   . ghcexpr  = Expression_ILit @int
   | Char   lhs   . ghcexpr  = Expression_CLit @char
-  | Var    lhs   . ghcexpr  = (if hsnIsCon @nm then Expression_Cons else Expression_Var) (convertName @nm)
+  | Var    lhs   . ghcexpr  = if hsnIsCon @nm then (Expression_Cons . convertName . fromJust "CExpr_Var" $ gamLookup @nm @lhs.newConstructorNames) else (Expression_Var $ convertName @nm)
   | App    lhs   . ghcexpr  = createApplication Ty_Any @func.ghcexpr [@arg.ghcexpr]
   | Let    lhs   . ghcexpr  = case @binds.ghcdefg of
                                 ValueDefg_RecValues [] -> @body.ghcexpr
@@ -35,12 +50,24 @@ SEM CExpr
            loc   . caseAlts               = maybe [Alternative_Default @body.ghcexpr] id @body.caseAlts
            binds . category = @categ
            binds . tyGam    = @tyGam
-  | Lam    lhs   . ghcexpr  = Expression_Lambda [Binder_Value $ ValueBinder_ValueBinder (convertName @arg) @ty ] @body.ghcexpr
-  | Case   lhs   . ghcexpr  = error "case without a let!" -- Expression_Case @expr.ghcexpr (ValueBinder_ValueBinder "_casebinder_" Ty_Any) @alts.ghcalts
-  | Tup    lhs   . ghcexpr  = error "Tup rule ni" -- Expression_CLit 'T'
-  | Sel    lhs   . ghcexpr  = error "Sel rule ni"
+           loc   . (unique', tnamesMap) = foldl (\(u,l) (n,_) -> (u+1, (n,if @lhs.topLevel then n else hsnSuffix n (show u)):l)) (@lhs.unique,[]) (gamToAssocL @tyGam)
+           loc   . newTypeNames = gamPushGam (assocLToGam @tnamesMap) @lhs.newTypeNames
+
+           loc   . (unique, cnamesMap) = let datas = gamToAssocL @tyGam
+                                             buildDataMap (u,l) (_,ti) = let (u', sl) = foldl buildConstructorMap (u,[]) (snd . tyRecExts . tgiData $ ti)
+                                                                         in (u',sl ++ l)
+                                             buildConstructorMap (u,l) (cn, _) = (u+1, (cn, if @lhs.topLevel then cn else hsnSuffix cn (show u)):l)
+                                          in foldl buildDataMap (@unique',[]) datas
+           loc   . newConstructorNames = gamPushGam (assocLToGam @cnamesMap) @lhs.newConstructorNames
+
+
+  | Lam    lhs   . ghcexpr  = Expression_Lambda [Binder_Value $ ValueBinder_ValueBinder (convertName @arg) (convertTy @lhs.newTypeNames @ty) ] @body.ghcexpr
+  | Case   lhs   . ghcexpr  = error "case without a let!"
+  | Tup    lhs   . ghcexpr  = error "Tup rule not implemented"
+  | Sel    lhs   . ghcexpr  = error "Sel rule not implemented"
   | Case     lhs . caseAlts = Just @alts.ghcalts
   | * - Case lhs . caseAlts = Nothing
+  | *      loc . topLevel = False
 
 ATTR CBindL [ category: {CBindCateg} tyGam: {TyGam} | | ghcdefg: ValueDefg ]
 SEM CBindL
@@ -54,9 +81,10 @@ SEM CBindL
 ATTR CBind [ tyGam: {TyGam} | | ghcdef: ValueDef  isDataBinding: {Bool}]
 SEM CBind 
   | Bind lhs.ghcdef        = if @isDataBinding then @ghccreatedef else @ghcdef
-         loc.ghcdef        = ValueDef_ValueDef (convertName @nm) @ty @expr.ghcexpr
+         loc.ghcdef        = ValueDef_ValueDef (convertName @nm) (convertTy @lhs.newTypeNames @ty) @expr.ghcexpr
             .ghccreatedef  = ValueDef_ValueDef "" Ty_Any (Expression_ILit 1) -- TODO: filter out nonsense
             .isDataBinding = hsnIsCon @nm
+         expr.topLevel = False
 
 ATTR CAltL [ | | ghcalts : Alternatives ]
 SEM CAltL
@@ -66,6 +94,7 @@ SEM CAltL
 ATTR CAlt [ | | ghcalt : Alternative ]
 SEM CAlt
   | Alt   lhs . ghcalt = Alternative_Alternative @pats.cname [] @pats.values @expr.ghcexpr
+          expr . topLevel = False
 
 ATTR CPat CPatL [  | | cname: {DCon} values USE {++} {[]} : ValueBinders ]
 SEM CPatL
@@ -74,10 +103,10 @@ SEM CPatL
 
 SEM CPat
   | Var    lhs . cname = error "EHGhcCoreMain: Var pattern found"
-           lhs . values = [ ValueBinder_ValueBinder (convertName . cpatNmNm $ @pnm) @ty ]
+           lhs . values = [ ValueBinder_ValueBinder (convertName . cpatNmNm $ @pnm) (convertTy @lhs.newTypeNames @ty) ]
   | Undef  lhs . cname = error "EHGhcCoreMain: Undef in pattern found while requesting cname"
            lhs . values = error "EHGhcCoreMain: Undef in pattern found while requesting values"
-  | Con    lhs . cname  = convertName @tagNm
+  | Con    lhs . cname  = convertName . fromJust "CPat_Con" $ gamLookup @tagNm @lhs.newConstructorNames
 
 ATTR CPatBindL CPatBind [ | | values USE {++} {[]} : ValueBinders ]
 
@@ -102,18 +131,25 @@ convertName nm                          = show nm
 %%[8_1 
 
 SEM CExpr
-  | Let lhs . datatypes = tyGam2DataTypes @tyGam
+  | Let lhs . datatypes = tyGam2DataTypes @newTypeNames @newConstructorNames @tyGam ++ @body.datatypes
 %%]
 
 %%[8_1 hs
-tyGam2DataTypes tg = let datas = gamToAssocL tg
-                         ghcdata = map buildDataType datas
-                         -- TODO: use type bindings for higher kinds
-                         buildDataType (dt,ti) = TypeDef_Data (show dt) [] (buildAlternatives $ tgiData ti)
-                         buildAlternatives structTy = let -- [(ConstrName,[(field,type)])]
-                                                          vars :: [(HsName, [(HsName, Ty)])]
-                                                          vars = assocLMapSnd (snd . tyRecExts) . snd . tyRecExts $ structTy
-                                                          buildAlternative (cnm,fields) = ConsDef_ConsDef (show cnm) [] (map snd fields) 
-                                                      in map buildAlternative vars
-                     in ghcdata
+tyGam2DataTypes tnamesMap cnamesMap tg = 
+                              let datas = gamToAssocL tg
+                                  ghcdata = map buildDataType datas
+                                  -- TODO: use type bindings for higher kinds
+                                  buildDataType (dt,ti) = TypeDef_Data (show . fromJust "TypeDef_Data" $ gamLookup dt tnamesMap) [] (buildAlternatives $ tgiData ti)
+                                  buildAlternatives structTy = let -- [(ConstrName,[(field,type)])]
+                                                                   vars :: [(HsName, [(HsName, Ty)])]
+                                                                   vars = assocLMapSnd (snd . tyRecExts) . snd . tyRecExts $ structTy
+                                                                   buildAlternative (cnm,fields) = ConsDef_ConsDef (show . fromJust "ConsDef_ConsDef" $ gamLookup cnm cnamesMap) [] (map (convertTy tnamesMap . snd) fields) 
+                                                               in map buildAlternative vars
+                              in ghcdata
+
+convertTy namesMap ty = case ty of
+                            Ty_Con n -> Ty_Con (fromJust ("convertTy " ++ show n) $ gamLookup n namesMap)
+                            Ty_App f a -> Ty_App (convertTy namesMap f) (convertTy namesMap a)
+                            Ty_Quant q v t -> Ty_Quant q v (convertTy namesMap t)
+                            Ty_Ext t n et -> Ty_Ext (convertTy namesMap t) n (convertTy namesMap et)
 %%]
