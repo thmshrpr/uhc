@@ -241,7 +241,6 @@ Generating this information from EH is simple.
 \begin{code}
 SEM AGItf
   | AGItf       lhs         .   cmodule     =   CModule_Mod @lhs.baseName @expr.ty @expr.cexpr
-%%]
 \end{code}
 
 \subsection{Lambda Abstractions}
@@ -447,170 +446,11 @@ rceMatchCon args@((nm,ty):args') alts ce
 
 \medskip
 
-We just assume here that |cpatVarTy| will succeed. but it is only defined for pattern variables. We need the types of every argument of the Pattern constructor to make nested patterns work as expected. To do this we need to at this information in the |CPatBind_Bind. We have not done this yet. |cpatVarTy| will just returns the type of a variable.
+We just assume here that |cpatVarTy| will succeed. but it is only defined for pattern variables. We need the types of every argument of the Pattern constructor to make nested patterns work as expected. To do this we need to at this information in the |CPatBind_Bind|. We have not done this yet. |cpatVarTy| will just returns the type of a variable.
 
-\subsection{Generating EHCode}
-Changing the Abstract Syntax Tree of EH Core we had to update the code generation correctly. Below you can see the various changes:
+\section{Reintroducing data definitions}
 
-Now the CModule receives the type of the top expression;
-
-?????
-
-\bigskip
-
-To create a correct Bind list in the Values we have added the type of the expression. GHC Core provides Foreign Function Interface but we did not introduced yet, we just included a type in the Foreign Function Interface but it is not working properly.
-
-\medskip
-
-\begin{code}
-%%[8.ValAndFFI
-  | Val         lhs         .   cbindL      =   [CBind_Bind @patExpr.topNm @expr.cexpr] ++ @patExpr.cbindL
-  | FFI         lhs         .   cbindL      =   [CBind_Bind @nm (CExpr_Var (HNm @impEnt))]
-%%]
-%%[8_1.ValAndFFI -8.ValAndFFI
-  | Val         lhs         .   cbindL      =   [CBind_Bind @patExpr.topNm @expr.ty @expr.cexpr] ++ @patExpr.cbindL
-  | FFI         lhs         .   cbindL      =   [CBind_Bind @nm @sigTy (CExpr_Var (HNm @impEnt))]
-%%]
-\end{code}
-
-\bigskip
-
-We have updated the Pattern variables including the type information;
-
-\medskip
-
-
-\begin{code}
-%%[8.PatVar
-  | Var         lhs         .   cpat        =   CPat_Var @cpNm
-%%]
-
-%%[8_1.PatVar -8.PatVar
-  | Var         lhs         .   cpat        =   CPat_Var @cpNm @ty
-%%]
-\end{code}
-
-\bigskip
-
-??????????
-
-\medskip
-
-
-\begin{code}
-%%[8.PatExprAppTop
-  | AppTop Rec  loc         .   cbindL      =   concat
-                                                .  map  (\(CPatBind_Bind o _ p)
-                                                            -> let  b n = [CBind_Bind n (CExpr_Sel (CExpr_Var @lhs.ceParentN
-m) @tag (CExpr_Int o))]
-                                                               in   case cpatVarNm p of
-                                                                        CPatNmOrig n                          -> b n
-                                                                        CPatNmUniq n | not (null @cbindLSub)  -> b n
-                                                                        _                                     -> []
-                                                        )
-                                                $  @cpatBinds
-                lhs         .   cbindL      =   @cbindL ++ @cbindLSub
-%%]
-
-%%[8_1.PatExprAppTop -8.PatExprAppTop
-  | AppTop Rec  loc         .   cbindL      =   concat
-                                                .  map  (\(CPatBind_Bind o _ p)
-                                                            -> let  b n = [CBind_Bind n Ty_Any (CExpr_Sel (CExpr_Var @lhs.ce
-ParentNm) @tag (CExpr_Int o))]
-                                                               in   case cpatVarNm p of
-                                                                        CPatNmOrig n                          -> b n
-                                                                        CPatNmUniq n | not (null @cbindLSub)  -> b n
-                                                                        _                                     -> []
-                                                        )
-                                                $  @cpatBinds
-                lhs         .   cbindL      =   @cbindL ++ @cbindLSub
-%%]
-\end{code}
-
-\bigskip
-
-????????
-
-\medskip
-
-\begin{code}
-%%[8_1.reorderCase -8.reorderCase hs
-rceSplit :: (CAlt -> Bool) -> CAltL -> [CAltL]
-rceSplit f []   = []
-rceSplit f [x]  = [[x]]
-rceSplit f (x:xs@(x':_))
-  | f x == f x'  =  let  (z:zs) = rceSplit f xs
-                    in   (x:z) : zs
-  | otherwise    =  [x] : rceSplit f xs
-
-rceAltsForCon :: CAltL -> HsName -> CAltL
-rceAltsForCon alts conNm
-  = [a | a@(CAlt_Alt (CPat_Con _ _ nm _ : _) _) <- alts, nm == conNm]
-
-rceRebinds :: (HsName,Ty) -> CAltL -> CBindL
-rceRebinds (nm,ty) alts = [ CBind_Bind n ty (CExpr_Var nm) | (CPatNmOrig n) <- caltLPatNms alts, n /= nm ]
-
-rceMatchVar :: [(HsName, Ty)] -> CAltL -> CExpr -> CExpr
-rceMatchVar (arg:args') alts ce
-  =  let  remMatch  = rceMatch args' [CAlt_Alt remPats e | (CAlt_Alt (CPat_Var n t : remPats) e) <- alts] ce
-     in   mkCExprLet CBindPlain emptyGam (rceRebinds arg alts) remMatch
-
-rceMatchCon :: [(HsName, Ty)] -> CAltL -> CExpr -> CExpr
-rceMatchCon args@((nm,ty):args') alts ce
-  =  let  arg'   =  hsnPrefix "!" nm
-          alts'  =  map
-                      (\alts
-                        ->  let  (subAlts,subAltSubNms)
-                                               =  unzip
-                                                    [ (CAlt_Alt (pats ++ ps) e, map (\p -> (cpatNmNm . cpatVarNm $ p, cpatVarTy p)) pats)
-                                                    | (CAlt_Alt (CPat_Con _ _ _ pbinds : ps) e) <- alts,
-                                                      let pats = [ p | (CPatBind_Bind _ _ p) <- pbinds ]
-                                                    ]
-                                 subMatch      =  rceMatch (head subAltSubNms ++ args') subAlts ce
-                                 altPat        =  case head alts of
-                                                    CAlt_Alt (CPat_Con n t tn pbinds : _) _
-                                                      -> CPat_Con n t tn [ CPatBind_Bind o n (CPat_Var (cpatVarNm p) (cpatVarTy p)) | (CPatBind_Bind o n p) <- pbinds ]
-                            in   CAlt_Alt [altPat] (mkCExprLet CBindPlain emptyGam (rceRebinds (arg',ty) alts) subMatch)
-                      )
-                 .  groupBy (\a1 a2 -> caltTag a1 == caltTag a2)
-                 .  sortBy (\a1 a2 -> caltTag a1 `compare` caltTag a2)
-                 .  filter (not . null . caltPatL)
-                 $  alts
-     in   ceStrictIn arg' ty (CExpr_Var nm) (\n -> CExpr_Case n alts' ce)
-
-rceMatchVarCon :: [(HsName, Ty)] -> CAltL -> CExpr -> CExpr
-rceMatchVarCon args alts@(alt:_) ce
-  |  caltIsVar alt  = rceMatchVar args alts ce
-  |  otherwise      = rceMatchCon args alts ce
-
-rceMatch :: [(HsName, Ty)] -> CAltL -> CExpr -> CExpr
-rceMatch [] []    ce =  ce
-rceMatch [] alts  ce
-  =  case [ e | (CAlt_Alt [] e) <- alts ] of
-       (e:_)  -> e
-       _      -> ce
--- TODO: create a correct type in bty for the new let binding!
-rceMatch args alts ce
-  =  foldr
-        (\alts e
-           ->  case e of
-                  CExpr_Var _
-                     ->  rceMatchVarCon args alts e
-                  _  ->  let  bty = Ty_Any
-                              bnm = HNm ("_casecont_" ++ (show . cpatVarNm . caltPat . head $ alts))
-                              vc = rceMatchVarCon args alts (CExpr_Var bnm)
-                         in   mkCExprLet CBindPlain emptyGam [CBind_Bind bnm bty e] vc
-       )
-        ce
-     $ (rceSplit caltIsVar alts)
-%%]
-\end{code}
-
-\bigskip
-
-changed data constructor.......
-
-\medskip
+HERE WE ARE LEFT \ldots
 
 \begin{code}
 %%[8.DataConstr
@@ -638,77 +478,6 @@ SEM DataConstr
                                                      ]
 %%]
 \end{code}
-
-\bigskip
-
-\subsection{Haskell Functions}
-
-Constructors functions
-
-\medskip
-
-
-\begin{code}
-%%[8.mkLamLet hs
-mkCExprLet :: CBindCateg -> CBindL -> CExpr -> CExpr
-mkCExprLet c bs e = if null bs then e else CExpr_Let c bs e
-
-mkCExprLetRec :: CBindL -> CExpr -> CExpr
-mkCExprLetRec = mkCExprLet CBindRec
-
-mkCExprLam :: [HsName] -> CExpr -> CExpr
-mkCExprLam as e = foldr (\n e -> CExpr_Lam n e) e as
-%%]
-
-%%[8_1.mkLamLet -8.mkLamLet hs
-mkCExprLet :: CBindCateg -> TyGam -> CBindL -> CExpr -> CExpr
-mkCExprLet c tg bs e = if null bs then e else CExpr_Let c tg bs e
-
-mkCExprLetRec :: TyGam -> CBindL -> CExpr -> CExpr
-mkCExprLetRec = mkCExprLet CBindRec
-
-mkCExprLam :: [(HsName, Ty)] -> CExpr -> CExpr
-mkCExprLam as e = foldr (\(n,t) e -> CExpr_Lam n t e) e as
-%%]
-\end{code}
-
-\bigskip
-
-
-Destruction functions
-
-\medskip
-
-\begin{code}
-%%[8.cpatVarNm hs
-cpatVarNm :: CPat -> CPatNm
-cpatVarNm (CPat_Var n)        = n
-cpatVarNm (CPat_Con n _ _ _)  = n
-
-caltIsVar :: CAlt -> Bool
-caltIsVar (CAlt_Alt (CPat_Var _ : _) _)  = True
-caltIsVar _                              = False
-%%]
-
-%%[8_1.cpatVarNm -8.cpatVarNm hs
-cpatVarNm :: CPat -> CPatNm
-cpatVarNm (CPat_Var n t)      = n
-cpatVarNm (CPat_Con n _ _ _)  = n
-
-cpatVarTy :: CPat -> Ty
-cpatVarTy (CPat_Var n t) = t
-cpatVarTy (CPat_Con n _ _ _)  = error "cpatVarTy: not a variable"
-
-caltIsVar :: CAlt -> Bool
-caltIsVar (CAlt_Alt (CPat_Var _ _ : _) _)  = True
-caltIsVar _                                = False
-%%]
-\end{code}
-
-\bigskip
-
-
-Strict
 
 \medskip
 
