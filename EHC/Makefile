@@ -52,8 +52,9 @@ AFP_PGF_TEX			:= afp-pgf.tex
 ALL_AFP_SRC			:= $(AFP_LHS) $(AFP_RULES)
 
 EHC_LAG_FOR_HS_TY	:= $(addsuffix .lag,EHTyQuantify EHTyPretty EHTyInstantiate )
-EHC_LAG_FOR_HS_CODE	:= $(addsuffix .lag,EHCodeJava EHCodePretty EHCodeSubst EHGhcCoreMain)
-EHC_LAG_FOR_HS		:= $(addsuffix .lag,EHMainAG EHTy EHCode EHError EHErrorPretty) $(EHC_LAG_FOR_HS_TY) $(EHC_LAG_FOR_HS_CODE)
+EHC_LAG_FOR_HS_CODE	:= $(addsuffix .lag,EHCodeJava EHCodePretty EHCodeSubst)
+EHC_LAG_FOR_HS_GHC_CORE := $(addsuffix .lag,EHGhcCorePretty)
+EHC_LAG_FOR_HS		:= $(addsuffix .lag,EHMainAG EHTy EHCode EHGhcCore EHError EHErrorPretty) $(EHC_LAG_FOR_HS_TY) $(EHC_LAG_FOR_HS_CODE) $(EHC_LAG_FOR_HS_GHC_CORE)
 
 DPDS_MAIN			:= EHMainAG.ag EHInfer.ag EHInferExpr.ag \
 						EHInferPatExpr.ag EHInferTyExpr.ag EHInferKiExpr.ag EHInferData.ag \
@@ -71,8 +72,9 @@ DPDS_ERR_PRETTY		:= EHErrorPretty.ag EHErrorAbsSyn.ag
 DPDS_CODE			:= EHCode.ag EHCodeAbsSyn.ag
 DPDS_CODE_JAVA		:= EHCodeJava.ag EHCodeAbsSyn.ag
 DPDS_CODE_PRETTY	:= EHCodePretty.ag EHCodeAbsSyn.ag
-DPDS_CODE_GHC		:= EHGhcCoreMain.ag EHGhcCoreAbsSyn.ag
-DPDS_ALL			:= $(sort $(DPDS_MAIN) $(DPDS_CODE_GHC) $(DPDS_CODE) $(DPDS_CODE_JAVA) $(DPDS_CODE_PRETTY) $(DPDS_TY) $(DPDS_TY_PRETTY) $(DPDS_TY_QUANT) $(DPDS_MAIN) $(DPDS_TY_INST) $(DPDS_ERR) $(DPDS_ERR_PRETTY))
+DPDS_GHC_CORE		:= EHGhcCore.ag EHGhcCoreAbsSyn.ag
+DPDS_GHC_CORE_PRETTY	:= EHGhcCorePretty.ag EHGhcCoreAbsSyn.ag
+DPDS_ALL			:= $(sort $(DPDS_MAIN) $(DPDS_CODE) $(DPDS_CODE_JAVA) $(DPDS_CODE_PRETTY) $(DPDS_TY) $(DPDS_TY_PRETTY) $(DPDS_TY_QUANT) $(DPDS_MAIN) $(DPDS_TY_INST) $(DPDS_ERR) $(DPDS_ERR_PRETTY) $(DPDS_GHC_CORE) $(DPDS_GHC_CORE_PRETTY))
 DPDS_ALL_MIN_TARG	:= $(filter-out $(EHC_LAG_FOR_HS:.lag=.ag),$(DPDS_ALL))
 
 EHC					:= ehc
@@ -170,6 +172,7 @@ doc: $(SHUFFLE_DOC_PDF)
 	$(call LHS2TEX_CODE,$<,$@)
 
 %.hs:%.ag
+	@echo base rule
 	cd `dirname $<` ; $(AGC) -dcfspr `basename $< .ag`
 
 #VPREFIX				:=
@@ -458,9 +461,10 @@ MK_EHC_MKF			= \
 	  $(call MK_EHC_MKF_FOR,$(DPDS_ERR),-dr) ; \
 	  $(call MK_EHC_MKF_FOR,$(DPDS_ERR_PRETTY),-cfspr) ; \
 	  $(call MK_EHC_MKF_FOR,$(DPDS_CODE),-dr) ; \
-	  $(call MK_EHC_MKF_FOR,$(DPDS_CODE_GHC),-dr) ; \
 	  $(call MK_EHC_MKF_FOR,$(DPDS_CODE_PRETTY),-cfspr) ; \
 	  $(call MK_EHC_MKF_FOR,$(DPDS_CODE_JAVA),-cfspr) ; \
+	  $(call MK_EHC_MKF_FOR,$(DPDS_GHC_CORE),-dr) ; \
+	  $(call MK_EHC_MKF_FOR,$(DPDS_GHC_CORE_PRETTY),-cfspr) ; \
 	) > Makefile
 
 dist: $(DIST_ZIP) 

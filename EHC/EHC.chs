@@ -15,6 +15,9 @@
 %%[8 import (EHCodeJava,EHCodePretty,EHScanner,EHError,EHErrorPretty,FPath,FiniteMap,Maybe,Directory)
 %%]
 
+%%[8_1 import (EHGhcCorePretty)
+%%]
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Main, compiling
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

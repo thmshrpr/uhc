@@ -1,0 +1,25 @@
+%%[0
+%include lhs2TeX.fmt
+%include afp.fmt
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Haskell importable interface to GhcCore
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8 hs 
+module EHGhcCore where
+
+type MIdent = String
+type VIdent = String
+type DIdent = String
+type DCon = String
+type TVar = String
+
+%%]
+
+%%[8 import(EHGhcCoreAbsSyn)
+DERIVING *     : Show, Eq
+%%]
+
+

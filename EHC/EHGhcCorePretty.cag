@@ -1,0 +1,19 @@
+ $Id: EHC.lag 199 2004-05-12 19:11:13Z andres $
+
+%%[0
+%include lhs2TeX.fmt
+%include afp.fmt
+%%]
+
+%%[8_1 hs import(UU.Pretty,EHGhcCore) export(ppGhcModule)
+ppGhcModule :: GhcModule -> PP_Doc
+ppGhcModule  = sem_GhcModule
+
+%%]
+
+% pretty printer of the AbsSyn
+%%[8_1 import(EHGhcCoreAbsSyn)
+ATTR AllGhcCore [ | | pp USE {>-<} {empty} : PP_Doc ]
+SEM GhcModule
+  | Module	lhs . pp = "%module" >#< @name >-< @tdefs.pp >-< @lvdefs.pp >-< @vdefs.pp
+%%]

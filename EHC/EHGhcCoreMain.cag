@@ -1,0 +1,13 @@
+%%[0
+%include lhs2TeX.fmt
+%include afp.fmt
+%%]
+
+%%[8_1
+
+ATTR AGItf [ | | ghcmodule : GhcModule ]
+
+SEM AGItf
+  | AGItf lhs.ghcmodule = GhcModule_Module "hello" [] [] [] 
+
+%%] 

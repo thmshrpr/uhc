@@ -71,7 +71,7 @@ DATA Binder
 		value: ValueBinder
 DATA ValueBinder
 	| ValueBinder
-		var : {VIndent}
+		var : {VIdent}
 		type : Type
 DATA TypeBinder
 	| TypeBinder
@@ -118,9 +118,14 @@ TYPE TypeBinders = [ TypeBinder ]
 TYPE Binders = [ Binder ]
 TYPE ValueDefgs = [ ValueDefg ]  
 TYPE ValueDefs = [ ValueDef ]  
+TYPE TypeDefs = [ TypeDef ]
+TYPE ConsDefs = [ ConsDef ]
 
 DATA MaybeType
 	| Just 
 		type : Type
 	| Nothing
+
+SET AllGhcCore = GhcModule TypeDef ConsDef ValueDefg ValueDef AtomicExpr Expression Argument Binder ValueBinder TypeBinder Type BasicType AtomicType Kind AtomicKind TypeBinders Binders ValueDefgs ValueDefs TypeDefs ConsDefs MaybeType
 %%]
+

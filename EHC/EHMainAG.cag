@@ -21,6 +21,10 @@
 %%[8 hs import(EHCode)
 %%]
 
+%%[8_1 hs import(EHGhcCore)
+%%]
+
+
 %%[9 hs import(Set,FiniteMap,EHPred,EHCodePretty,EHCodeSubst)
 %%]
 
