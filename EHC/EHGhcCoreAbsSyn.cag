@@ -1,3 +1,10 @@
+
+%%[0
+%include lhs2TeX.fmt
+%include afp.fmt
+%%]
+
+%%[8_1
 DATA GhcModule
 	| Module
 		name : {MIdent}
@@ -116,3 +123,4 @@ DATA MaybeType
 	| Just 
 		type : Type
 	| Nothing
+%%]
