@@ -8,7 +8,7 @@ default: ehc_to_ghc_core.pdf
 %.ps: %.dvi
 	dvips -f $< > $@
 
-%.pdf: %.tex references.bib
+%.pdf: %.tex references.bib overview1.pdf
 	pdflatex $< 
 	bibtex $(<:.tex=)
 	rm -f $(<:.tex=.ind)

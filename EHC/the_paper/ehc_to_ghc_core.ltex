@@ -12,6 +12,7 @@
 %format DATA = "\mathbf{DATA}"
 %format SEM = "\mathbf{SEM}"
 %format lhs = "\mathbf{lhs}"
+%format loc = "\mathbf{loc}"
 %format . = "."
 %format @ = "\;\at"
 %format $ = "\;\$\;"
@@ -49,7 +50,7 @@
 \newcommand{\att}{@@}
 \newcommand{\lam}{\texttt{\char`\\}}
 
-\newcommand{\file}[1]{\noindent {\bf #1}}
+\newcommand{\file}[1]{\noindent {\bf\emph{#1}}}
 \newcommand{\header}[1]{\bigskip \noindent {\bf #1}\\}
 
 \title{\sf EHC to GHC Core Backend \\
@@ -213,7 +214,7 @@ Compilerdriver, Makefile \ldots
 
 \section{Add type information to bindings}
 
-In the beginning we were using directly the EH language. This language had all the information we needed. But of course a lot of analysis and desugaring in the front end of EHC is done on EH when translating into EHCode so the EH language is for the front-end only. We need a few stages 
+In the beginning we were using directly the EH language. This language had all the information we needed. But of course a lot of analysis and desugaring in the front end of EHC is done on EH when translating into EHCode so the EH language is for the front-end only.
 
 We are going to explain what we have changed in EHCode abstract syntax. Then we will show the changes when we generate the EHCode, which is done in {\bf EHGenCode.cag}.
 
@@ -249,7 +250,7 @@ In Lambda Abstractions we add a Type for binding of argument variables.
 
 \medskip
 
-\file{EHAbsSyn.cag}
+\file{EHCodeAbsSyn.cag}
 \begin{code}
 DATA CExpr
   |  Lam         arg             :  {HsName}
@@ -270,15 +271,16 @@ SEM CEXpr
 
 \subsection{Pattern variables}
 
-For the pattern variables we also include it in the same way.
+For the pattern variables we include type info in the same way. 
 
 \medskip
 
-\file{EHAbsSyn.cag}
+\file{EHCodeAbsSyn.cag}
 \begin{code}
-DATA CPat
-  | Var         pnm             : {CPatNm}
-                ty              : Ty
+DATA  CPat
+  |  Var         pnm             :  {CPatNm}
+                 ty              :  Ty
+
 \end{code}
 
 \file{EHGenCode.cag}
@@ -293,6 +295,7 @@ We add Type information in the binds so we could know the type of the expression
 
 \medskip
 
+\file{EHCodeAbsSyn.cag}
 \begin{code}
 DATA CBind
   | Bind        nm              : {HsName}
@@ -302,10 +305,11 @@ DATA CBind
 
 \medskip
 
-GHC Core provides Foreign Function Interface but we did not introduce that yet, we just included a type in the Foreign Function Interface but do nothing with it.
+GHC Core provides Foreign Function Interface but we did not introduce that yet, we just included a type in the Foreign Function Interface and use it as a normal binding.
 
 \medskip
 
+\file{EHGenCode.cag}
 \begin{code}
 SEM Decl
   | Val         lhs         .   cbindL      =   [CBind_Bind @patExpr.topNm @expr.ty @expr.cexpr] ++ @patExpr.cbindL
@@ -317,7 +321,7 @@ SEM Expr
                                                         (rceMatch [(n,@expr.ty)] @alts.caltL cvarUndefined)
 \end{code}
 
-As you can see the case alternative uses a binding to, so we have to add that one too. The changes have been simple until now. The case is the first place the front end is actually doing something with EHCode rather than just building up the tree. It applies a pattern mattching comiling algorithm. The top level function of this algorithm is the |rceMatch| function.
+As you can see the case alternative uses a binding, so we have to add that one too. The changes have been simple until now. The case is the first place the front end is actually doing something with EHCode rather than just building up the tree. It applies a pattern mattching comiling algorithm. The top level function of this algorithm is the |rceMatch| function. The changes needed to its implementation are far from trivial.
 
 \subsubsection{Pattern matching compiling algorithm}
 
@@ -346,13 +350,61 @@ case x of
 
 Note that the let! statement is the forcing part of EHCode. Not the case statement. 
 
-Since the algorithm can introduce let bindings and introduces new pattern variables we need to give the types off all identifiers and make them traverse through the algoritm.
+Since the algorithm can introduce let bindings and introduces new pattern variables we need to give the types of all identifiers and make them traverse through the algoritm. We have to introduce the type in the Constructor arguments since such an argument might change into a variable (see example above).
 
-\header{rceMatch}
-|rceMatch| first make partitions of sets which patterns are just variables and partitons which don't. It makes a let binding for the default expressions (|ce|) when it is not a simple variables to prevent dulication of code. For the others it calls rceMatchVarCon directly. 
+\header{More typeinfo}
+A constructor in a pattern stores it arguments in a CPatBind datatype, so we extend that datatype.
 
 \medskip
 
+\file{EHCodeAbsSyn.cag}
+\begin{code}
+DATA  CPatBind
+  |  Bind        offset          :  {Int}
+                 nm              :  {HsName}
+                 ty              :  Ty
+                 pat             :  CPat
+\end{code}
+
+\medskip
+ 
+The attribute |cbindL| is a associative list from argument name to its pattern. The argument name is the name of a label in a record. in case of a normal application the name is undefined. There is no reason to use an associative list for this since no lookup is done. However the datatype is availible and is nothing more than a list of tuples which is exacly what was needed here.
+
+To get the type info out of EH language we change this attribute to include also the type info. The change is straitforward, we save types of record fields and of arguments of applications.
+
+Finally  this list is used to create the pattern bindings.
+
+\medskip
+
+\file{EHGenCode.cag}
+\begin{code}
+ATTR AllPatExpr [ | | cpbindL: {AssocL HsName (Ty,CPat)} ]
+
+SEM RecPatExpr
+  | Empty       lhs         .   cpbindL     =   []
+  | Ext         lhs         .   cpbindL     =   (@nm,(@patExpr.ty,@patExpr.cpat)) : @recPatExpr.cpbindL
+
+SEM PatExpr
+  | App         lhs         .   cpbindL     =   (hsnUnknown,(@arg.ty,@arg.cpat)) : @func.cpbindL
+  | AppTop      loc         .   cpbindL     =   @patExpr.cpbindL
+  | Rec         loc         .   cpbindL     =   @recPatExpr.cpbindL
+  | Con         loc         .   cpbindL     =   []
+  | * - App Con 
+                lhs         .   cpbindL     =   []
+
+  | AppTop Con Rec
+                loc         .   cpatBinds   =   map (\(o,(n,(t,p))) -> CPatBind_Bind o n t p) . zip [0..] . tyRowCanonOrder . reverse $ @cpbindL
+                lhs         .   cpat        =   CPat_Con @cpNm @tag @appFunNm @cpatBinds
+\end{code}
+
+\medskip
+
+\header{rceMatch}
+|rceMatch| first make partitions of patterns which are just variables and patterns which are not. It makes a let binding for the default expressions (|ce|) when it is not a simple variables to prevent duplication of code. For the others it calls rceMatchVarCon directly.
+
+\medskip
+
+\file{EHGenCode.cag}
 \begin{code}
 rceMatch :: [(HsName, Ty)] -> CAltL -> CExpr -> CExpr
 rceMatch [] []    ce =  ce
@@ -387,10 +439,11 @@ rceSplit f (x:xs@(x':_))
 \end{code}
 
 \header{rceMatchVarCon}
-|rceMatchVarCon| is simply a dispatcher.
+|rceMatchVarCon| is simply a dispatcher to match a variable or a constructor.
 
 \medskip
 
+\file{EHGenCode.cag}
 \begin{code}
 rceMatchVarCon :: [(HsName, Ty)] -> CAltL -> CExpr -> CExpr
 rceMatchVarCon args alts@(alt:_) ce
@@ -400,10 +453,11 @@ rceMatchVarCon args alts@(alt:_) ce
 \end{code}
 
 \header{rceMatchVar}
-|rceMatchVar| is used to convert a variable pattern into a let binding which body is the rest of the match.
+Matching on a single variable is superfluous. |rceMatchVar| converts such a pattern into a let binding with the body of this |let| the rest of the match. 
 
 \medskip
 
+\file{EHGenCode.cag}
 \begin{code}
 rceRebinds :: (HsName,Ty) -> CAltL -> CBindL
 rceRebinds (nm,ty) alts = [ CBind_Bind n ty (CExpr_Var nm) | (CPatNmOrig n) <- caltLPatNms alts, n /= nm ]
@@ -415,10 +469,14 @@ rceMatchVar (arg:args') alts ce
 \end{code}
 
 \header{rceMatchCon}
-|rceMatchCon| takes care of grouping of patterns which start with the same constructor and create an |let!| and a case which only will inspect the top level constructor and create the rest of the match by calling rceMatch recursively.
+
+|rceMatchCon| takes care of grouping of patterns which start with the same constructor and create an |let!| and a case which only will inspect the top level constructor and create the rest of the match by calling rceMatch recursively. So it flattens the pattern match into a case with distict constuctor tags which binds variables only.
+
+The information in the |CPatBind_Bind| is extracted to be used in a let bound variabe or in a pattern variable.
 
 \medskip
 
+\file{EHGenCode.cag}
 \begin{code}
 rceMatchCon :: [(HsName, Ty)] -> CAltL -> CExpr -> CExpr
 rceMatchCon args@((nm,ty):args') alts ce
@@ -427,14 +485,14 @@ rceMatchCon args@((nm,ty):args') alts ce
                       (\alts
                         ->  let  (subAlts,subAltSubNms)
                                                =  unzip
-                                                    [ (CAlt_Alt (pats ++ ps) e, map (\p -> (cpatNmNm . cpatVarNm $ p, cpatVarTy p)) pats)
+                                                    [ (CAlt_Alt (map snd pats ++ ps) e, map (\(t,p) -> (cpatNmNm . cpatVarNm $ p, t)) pats)
                                                     | (CAlt_Alt (CPat_Con _ _ _ pbinds : ps) e) <- alts,
-                                                      let pats = [ p | (CPatBind_Bind _ _ p) <- pbinds ]
+                                                      let pats = [ (t,p) | (CPatBind_Bind _ _ t p) <- pbinds ]
                                                     ]
                                  subMatch      =  rceMatch (head subAltSubNms ++ args') subAlts ce
                                  altPat        =  case head alts of
-                                                    CAlt_Alt (CPat_Con n t tn pbinds : _) _
-                                                      -> CPat_Con n t tn [ CPatBind_Bind o n (CPat_Var (cpatVarNm p) (cpatVarTy p)) | (CPatBind_Bind o n p) <- pbinds ]
+                                                    CAlt_Alt (CPat_Con n conTag tn pbinds : _) _
+                                                      -> CPat_Con n conTag tn [ CPatBind_Bind o n t (CPat_Var (cpatVarNm p) t) | (CPatBind_Bind o n t p) <- pbinds ]
                             in   CAlt_Alt [altPat] (mkCExprLet CBindPlain emptyGam (rceRebinds (arg',ty) alts) subMatch)
                       )
                  .  groupBy (\a1 a2 -> caltTag a1 == caltTag a2)
@@ -446,14 +504,11 @@ rceMatchCon args@((nm,ty):args') alts ce
 
 \medskip
 
-We just assume here that |cpatVarTy| will succeed. but it is only defined for pattern variables. We need the types of every argument of the Pattern constructor to make nested patterns work as expected. To do this we need to at this information in the |CPatBind_Bind|. We have not done this yet. |cpatVarTy| will just returns the type of a variable.
-
 \section{Translating EHCode to GhcCore}
 
 \subsection{Reintroducing data definitions}
 
-HERE WE ARE LEFT \ldots
-write about renaming\ldots
+HERE WE ARE LEFT \ldots write about renaming\ldots
 
 \medskip
 
