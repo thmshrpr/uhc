@@ -11,7 +11,7 @@ Some transformations are needed to allow easy code generation for GRIN
 %include afp.fmt
 %%]
 
-%%[8 import(GrinCodeAbsSyn)
+%%[8 import(../GrinCodeAbsSyn)
 %%]
 
 %%[8.wrapper
@@ -82,25 +82,6 @@ SEM GrSplit
                   . isInCase = False
 %%]
 
-%%%%%%%%%%%%%%%%%%%%
-%% Collecting CAF %%
-%%%%%%%%%%%%%%%%%%%%
-
-CAF variables have the same name as the bindings.
-
-%%[8
-ATTR GrModule AllBind [ | | cafNames USE {++} {[]}: {[HsName]} ]
-
-SEM GrBind
-  | Bind        loc . cafNames = if null @argNmL then [@nm] else []
-
-
-ATTR AllGrNT [ cafEnv : {[HsName]} | | ] 
-
-SEM GrAGItf
-  | AGItf      module . cafEnv = @module.cafNames
-%%]
-
 
 %%%%%%%%%%%%%%%%%%%
 %% Vectorisation %%
@@ -129,8 +110,27 @@ isJust m = case m of
 %%]
 
 
-Substitution is not done on all places. Some variables are referenced as a location variable.
-So we retrieve the new pattern
+CAF variables have the same name as the bindings. These variables are locations
+and must not change in the vectorisation transformation.  Every binding has as
+arguments a set of locations. 
+
+These two together are the initial location variables of the body of a binding.
+
+%%[8
+ATTR AllBind [ allCafNames : {[HsName]} | | cafNames USE {++} {[]}: {[HsName]} ]
+
+SEM GrBind
+  | Bind        loc . cafNames = if null @argNmL then [@nm] else []
+
+SEM GrModule
+  | Mod      bindL . allCafNames = @bindL.cafNames
+
+SEM GrBind
+  | Bind                expr . locations         = @argNmL ++ @lhs.allCafNames
+%%]
+
+Vectorisation is not done on all places. Location variables are pointers and
+should be left alone.
 
 %%[8
 ATTR AllGrExpr [ | locations: {[HsName]} | ]
@@ -148,17 +148,15 @@ SEM GrPat
 
 SEM GrExpr
   | Store                lhs  . returnsLocation  = True
-  | Unit                 lhs  . returnsLocation  = @val.varName `maybeElem` @lhs.locations || @val.varName `maybeElem` @lhs.cafEnv
+  | Unit                 lhs  . returnsLocation  = @val.varName `maybeElem` @lhs.locations
   | * - Case Store Unit  lhs  . returnsLocation  = False
-  | Seq                  loc  . currentLocations = if @expr.returnsLocation 
+  | Seq                  body . locations        = if @expr.returnsLocation 
                                                    then fromJust "GrExpr_Seq failed" @pat.varName : @expr.locations
                                                    else @expr.locations
-                         body . locations        = @currentLocations
+%%]
 
-SEM GrBind
-  | Bind                expr . locations         = @argNmL
-
--- Rename \v to \(t f1 f2 fl)
+Rename all non location patterns \v to \(t f1 f2 fl)
+%%[8
 ATTR GrPat [ | | newPat: {GrPat} ]
 SEM GrPat
   | Var       loc . (tn, fldnL)  = let (tn:fldnL) = newNames @nm @lhs.maxTagSizeAll
@@ -168,8 +166,8 @@ SEM GrPat
 
 
 SEM GrExpr
-  | Seq     loc  . patNode      = if @pat.varName `maybeElem` @currentLocations then @pat.grTrf else @pat.newPat
-	    body . grNodeSubst  = if @pat.varName `maybeElem` @currentLocations then @lhs.grNodeSubst else @pat.grNodeSubst
+  | Seq     loc  . patNode      = if @expr.returnsLocation then @pat.grTrf else @pat.newPat
+	    body . grNodeSubst  = if @expr.returnsLocation then @lhs.grNodeSubst else @pat.grNodeSubst
             lhs  . grTrf        = GrExpr_Seq @expr.grTrf @patNode @body.grTrf
 %%]
 
@@ -179,9 +177,10 @@ maybeElem (Nothing) _  = False
 maybeElem (Just v ) ls = v `elem` ls
 %%]
 
-%% Substitute names!
-%% Substitution in a case will be different (see below)
-%% We here already change the value of the case to represent only the tag
+Substitute variable uses.
+
+In a case we transform from the maximal node size of the scrutinized value to
+the maximal node size in each alternative. (see below)
 
 %%[8
 ATTR AllGrNT [ grNodeSubst : {FiniteMap HsName GrVal} | |                                        ]
@@ -191,7 +190,6 @@ ATTR GrPat   [                                        | | grNodeSubst : {FiniteM
 SEM GrAGItf
   | AGItf    module . grNodeSubst = emptyFM
 
--- TODO: this breaks the arity in first field!
 SEM GrPat
   | Var      lhs . grNodeSubst = addToFM @lhs.grNodeSubst @nm (GrVal_Node (GrTag_Var @tn) (map GrVal_Var @fldnL))
 
@@ -219,17 +217,13 @@ SEM GrPat
 
 -- return the fields of pattern and value to the Alternative node
 
-ATTR AllAlt [ varFieldL: {[GrVal]} | | ]
+ATTR AllAlt [ varNode: {GrVal} varName: {Maybe HsName} | | ]
 
-ATTR GrVal [ | | varFieldL: {[GrVal]} ]
+ATTR GrVal [ | | varNode: {GrVal} ]
 
 SEM GrVal
-  | Node          lhs  . varFieldL   = @fldL.grTrf
-  | Var           lhs  . varFieldL   = let fldL = case @node of 
-                                                    (GrVal_Node _ l) -> l
-                                                    otherwise        -> error $ "Not a node in case: " ++(show @node)
-                                       in if @lhs.isInCase then fldL else undefined
-  | * - Node Var  lhs  . varFieldL   = undefined
+  | Node Var      lhs  . varNode = if @lhs.isInCase then @node else undefined
+  | * - Node Var  lhs  . varNode = undefined
 
 ATTR GrPat [ | | patFieldL: {[HsName]} ]
 
@@ -241,8 +235,11 @@ SEM GrPat
 
 -- add the substitutions for the case alternatives
 SEM GrAlt
-  | Alt           expr . grNodeSubst = let mappings = listToFM $ zipWith (\o n -> (o, n)) @pat.patFieldL @lhs.varFieldL
-                                       in @lhs.grNodeSubst `plusFM` mappings
+  | Alt           expr . grNodeSubst = let (GrVal_Node t l) = @lhs.varNode -- if failed: no node in a case
+                                           mappings         = listToFM $ zipWith (\o n -> (o, n)) @pat.patFieldL l
+                                           newNode          = GrVal_Node t (zipWith const l @pat.patFieldL)
+                                           addVectorMap  fm = maybe fm (\n -> addToFM fm n newNode) @lhs.varName
+                                       in addVectorMap $ @lhs.grNodeSubst `plusFM` mappings
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%

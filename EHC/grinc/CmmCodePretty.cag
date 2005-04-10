@@ -9,7 +9,7 @@
 %%% C-- pretty printer
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%[8 hs import(UU.Pretty,GRINCCommon,CmmCode) export(ppCmmUnit)
+%%[8 hs import(Data.Char,UU.Pretty,GRINCCommon,CmmCode) export(ppCmmUnit)
 %%]
 
 %%[8.WRAPPER import(CmmCodeAbsSyn)
@@ -30,7 +30,7 @@ instance PP CmmUnit where
 ATTR All [ | | pp USE {>-<} {empty} : PP_Doc ]
 
 SEM CmmToplevel
-  | Section         lhs . pp    = "section" >#< (show @name) >|< pp_braces @body.pp
+  | Section         lhs . pp    = "section" >#< (ppString @name) >|< pp_braces @body.pp
 
 SEM CmmDatum
   | Label           loc . pp    = pp @name >|< ":"
@@ -43,8 +43,8 @@ SEM CmmSize
 
 SEM CmmInitString
   | List            loc . pp    = pp_block "{" "}" "," @elements.pps
-  | String          loc . pp    = pp (show @string)
-  | UnicodeString   loc . pp    = "unicode" >#< (show @string)
+  | String          loc . pp    = ppString @string
+  | UnicodeString   loc . pp    = "unicode" >#< ppString @string
 
 SEM CmmDeclaration
   | Import          loc . pp    = "import" >#< ppListComma (ppExternalName False) @names    >|< ";"
@@ -119,7 +119,7 @@ ppListComma f = ppList (\e -> f e >|< ",")
 	ppList f = foldr (\e p -> f e >|< p) empty
 
 ppKind :: CmmKind -> PP_Doc
-ppKind kind = if null kind then empty else pp (show kind)
+ppKind kind = if null kind then empty else pp (ppString kind)
 
 ppReciever :: CmmKindedName -> PP_Doc
 ppReciever (kind, name) = (if null kind then empty else ppKind kind) >#< pp name
@@ -131,19 +131,19 @@ ppFormal (kind, invariant, ty, name) = ppKind kind
                                          >#< pp name
 
 ppExternalName :: Bool -> CmmExternalName -> PP_Doc
-ppExternalName export  (internal, Just external) | export    = pp   internal >#< "as" >#< show external
-                                                 | otherwise = show external >#< "as" >#< pp   internal
+ppExternalName export  (internal, Just external) | export    = pp       internal >#< "as" >#< ppString external
+                                                 | otherwise = ppString external >#< "as" >#< pp       internal
 ppExternalName _       (internal, Nothing      )             = pp   internal
 
 ppHwName :: CmmHwName -> PP_Doc
-ppHwName (name, Just hwRegister) = pp name >#< "=" >#< show hwRegister
+ppHwName (name, Just hwRegister) = pp name >#< "=" >#< ppString hwRegister
 ppHwName (name, Nothing        ) = pp name
 
 ppCallConv :: CmmCallConv -> PP_Doc
 ppCallConv conv = case conv of
                     ""    -> empty
                     "C--" -> empty
-                    _     -> "foreign" >#< show conv
+                    _     -> "foreign" >#< ppString conv
 
 ppTypeAnn :: CmmOptionalType -> PP_Doc
 ppTypeAnn = maybe empty (\t -> "::" >#< pp t)
@@ -168,4 +168,18 @@ instance PP CmmTargetSpec where
     where byteorderString = case byteorder of 
                               LittleEndian -> "little"
                               BigEndian    -> "big"
+
+ppString :: String -> PP_Doc
+ppString = pp_doubleQuotes . pp . concatMap escapeChar
+
+escapeChar :: Char -> String
+escapeChar c | isPrint c = [c]
+             | otherwise = '\\':'x':(int2hex $ ord c)
+
+int2hex :: Int -> String
+int2hex i | i == 0    = "0"
+          | otherwise = let int2hexR i | i == 0    = ""
+                                       | otherwise = intToDigit rem : int2hexR val
+                                           where (val,rem) = i `divMod` 16
+                        in  reverse (int2hexR i) 
 %%]

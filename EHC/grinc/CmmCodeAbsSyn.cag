@@ -22,7 +22,7 @@ DATA CmmUnit
 
 DATA CmmToplevel
   | Section       name         : {String}
-                  body         : CmmSectionElements
+                  body         : CmmSection
   | Declaration   declaration  : CmmDeclaration
   | Procedure     procedure    : CmmProcedure
 
@@ -39,7 +39,7 @@ DATA CmmDatum
                   size         : CmmSize
                   init         : CmmInitString
 DATA CmmSize
-  | Sinlge
+  | Single
   | Sized         size         : CmmExpression
   | Many
 
@@ -64,8 +64,8 @@ DATA CmmDeclaration
   | Target        targetSpec   : {CmmTargetSpec}
   
 DATA CmmProcedure
-  | Procedure     name         : {CmmName}
-                  callConv     : {CmmCallConv}
+  | Procedure     callConv     : {CmmCallConv}
+                  name         : {CmmName}
                   args         : {CmmFormals}
                   body         : CmmBody
 
@@ -142,7 +142,7 @@ DATA CmmRange
                  to            : CmmExpression
 
 TYPE CmmToplevels       = [CmmToplevel]
-TYPE CmmSectionElements = [CmmSectionElement]
+TYPE CmmSection         = [CmmSectionElement]
 TYPE CmmData            = [CmmDatum]
 TYPE CmmExpressions     = [CmmExpression]
 TYPE CmmActuals         = [CmmActual]
@@ -156,14 +156,14 @@ TYPE CmmBody            = [CmmBodyElement]
 SET AllAlternatives       = CmmAlternative CmmAlternatives
 SET AllData               = CmmDatum CmmData
 SET AllToplevels          = CmmToplevel CmmToplevels
-SET AllCmmSectionElements = CmmSectionElement CmmSectionElements
+SET AllCmmSection         = CmmSectionElement CmmSection
 SET AllCmmExpressions     = CmmExpression CmmExpressions
 SET AllCmmActuals         = CmmActual CmmActuals
 SET AllCmmRanges          = CmmRange CmmRanges
 SET AllCmmLValues         = CmmLValue CmmLValues
 SET AllBody               = CmmBodyElement CmmBody
 
-SET AllNT                 = AllAlternatives AllData AllToplevels AllCmmSectionElements
+SET AllNT                 = AllAlternatives AllData AllToplevels AllCmmSection
                             AllCmmExpressions AllCmmActuals AllCmmRanges AllCmmLValues
                             AllBody CmmSize CmmInitString CmmDeclaration CmmProcedure
                             CmmStatement
