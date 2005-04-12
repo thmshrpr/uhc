@@ -34,7 +34,7 @@ printInt (bits32 n) {
 }
 
 foreign "C" main(bits32 argc, "address" bits32 argv) {
-	bits32 tag, r;
+	bits32 tag, a, b, c;
 	bits32 heapsize;
 	bits32 env_var;
 	
@@ -57,9 +57,13 @@ foreign "C" main(bits32 argc, "address" bits32 argv) {
 	bits32[argument_array] = argv;
 
 	//call main function
-	tag, r = grin_main();
+	tag, a , b, c = grin_main();
+	printInt(tag);
+	printInt(a);
+	printInt(b);
+	printInt(c);
 
-	foreign "C" return (r);
+	foreign "C" return (0);
 }
 
 /*

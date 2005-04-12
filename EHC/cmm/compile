@@ -1,0 +1,14 @@
+#!/bin/bash
+
+# compile via grin.lua script 
+# grin.lua expect to compile grin files via ../8/grc
+
+#qc--.opt or just qc--
+cmmc=qc--.opt
+which "${cmmc}" >& /dev/null || cmmc=qc--
+
+in=../${1}
+out=../${1%.*}
+
+cd cmm
+${cmmc} -globals -keep .cmm grin.lua startup.cmm ${in} -o ${out}
