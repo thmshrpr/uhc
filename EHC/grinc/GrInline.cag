@@ -1,0 +1,26 @@
+% $Id$
+
+We will inline apply and eval functions (based on flow analysis)
+
+%%[0
+%include lhs2TeX.fmt
+%include afp.fmt
+%%]
+
+%%[8 import(../GrinCodeAbsSyn)
+%%]
+
+%%[8.wrapper
+WRAPPER GrAGItf
+%%]
+
+%%[8 hs import(EHCommon, FiniteMap, GrinCode) export(lowerGrin)
+inlineApply :: GrModule -> GrModule
+inlineApply grmod = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod)) Inh_GrAGItf
+                    in grTrf_Syn_GrAGItf t
+%%]
+
+%%[8
+ATTR GrAGItf [ | | grTrf: GrModule ]
+ATTR AllGrNT [ | | grTrf: SELF ]
+%%]

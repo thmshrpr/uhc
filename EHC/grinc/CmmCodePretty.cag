@@ -32,6 +32,9 @@ ATTR All [ | | pp USE {>-<} {empty} : PP_Doc ]
 SEM CmmToplevel
   | Section         lhs . pp    = "section" >#< (ppString @name) >|< pp_braces @body.pp
 
+SEM CmmSectionElement
+  | Span            loc . pp    = "span" >#< @key.pp >#< @value.pp >-< pp_braces @body.pp
+
 SEM CmmDatum
   | Label           loc . pp    = pp @name >|< ":"
   | Align           loc . pp    = "align" >#< pp @align >|< ";"

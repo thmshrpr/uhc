@@ -57,16 +57,39 @@ SEM GrTag
 %%%%%%%%%%%%%%%%%%%%%%
 
 Tags will become constants in C--. Here they are collected to give each tag an
-unique number.
+unique number. We need to know which tag layout should be used.
+
+TODO: TagLayout info is bogus!
+
+%%[8 hs
+data TagLayout = SmallLayout | BigLayout
+	deriving (Eq,Show)
+type TagEnv    = [(CmmName, TagLayout)]
+%%]
 
 %%[8.tagConstants
-ATTR AllGrNT [ | | tags USE {++} {[]}: {[CmmName]} ]
+ATTR AllGrNT [ | | tags USE {++} {[]}: {TagEnv} ]
+ATTR GrTag [ nodeSize: {Int} | | ]
+
+SEM GrVal
+  | *         loc . nodeSize = 0
+
+SEM GrPat
+  | NodeSplit loc . nodeSize = error "NodeSplit not supported"
+  | Tag       loc . nodeSize = 0 -- skip case patterns
+  | Node      loc . nodeSize = 1 + length @fldL
 
 SEM GrModule
   | Mod  loc . tags    = nub @bindL.tags
 
 SEM GrTag
-  | Lit  loc . tags    = maybe [] (\e -> [e]) @tagName
+  | Lit  loc . tagLayout = if @lhs.nodeSize > 4 then error "tags do not fit" else Just SmallLayout
+             . tagInfo   = do 
+                           { n <- @tagName
+                           ; l <- @tagLayout
+                           ; return [(n,l)]
+                           }
+             . tags      = maybe [] id @tagInfo
 %%]
 
 
@@ -152,8 +175,7 @@ Merge everyting together into a C-- compilation unit
 ATTR GrAGItf GrModule [ | | cmmUnit : CmmUnit ]
 
 SEM GrModule
-  | Mod          loc . cmmUnit  = trace (show @bindL.returnSizes) $
-                                  let addTl mtl             = maybe emptyBuilder id mtl
+  | Mod          loc . cmmUnit  = let addTl mtl             = maybe emptyBuilder id mtl
                                       externals             = addTl @imports ~> addTl @exports 
                                       cafNodes              = @sectionCAFNodes :: CmmToplevelBuilder
                                       unitTypedefs          = typedefs bits32 ["@ptr", "@val"]
@@ -161,7 +183,7 @@ SEM GrModule
 				      heapPointer           = globalVarDecl False "address" bits32 [("@hp", Nothing)]
 				      grin_main             = buildDriver "$main" @lhs.cafEnv
                                       tagConstants          = fst $ foldr buildTagConst (emptyBuilder,0) @tags
-                                      buildTagConst n (r,i) = (constant (Just valType) n (int i) ~> r, i+1)
+                                      buildTagConst (n,_) (r,i) = (constant (Just valType) n (int i) ~> r, i+1)
                                   in CmmUnit_Unit (  build $ unitTarget ~> unitTypedefs ~> heapPointer
                                                   ~> externals ~> tagConstants ~> cafNodes ~> @strings
                                                   ~> grin_main ~> @bindL.cmmProcs
@@ -186,7 +208,6 @@ ATTR AllBind [ | | cmmProcs USE {~>} {emptyBuilder}: {CmmToplevelBuilder} ]
 
 SEM GrBind
   | Bind        loc . cmmProcs = buildProcedure @nm @argNmL @cmmBody
-                lhs . cmmProcs = if @nm == HNm "apply" then emptyBuilder else @cmmProcs
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -244,7 +265,7 @@ SEM GrAGItf
   | AGItf       loc . returnSizeEnv = []
 %%]
 
-%%[8 hs import(Debug.Trace)
+%%[8 hs
 padWith :: (Int -> a) -> [a] -> Int -> [a]
 padWith padFunction real size = take size real ++ map padFunction [length real + 1..size]
 
@@ -445,6 +466,15 @@ names2knames can use this info.
 
 Apply and Eval calls are handled exactly the same currently.
 
+Note: this is a copy paste - after inlining of app is done this is not needed anymore
+%%[8 hs
+newNames :: HsName -> Int -> [HsName]
+newNames base count | count == 0 = []
+                    | otherwise  = suffix "_Tag" : map (\n -> suffix $ "_Field" ++ show n) [1..(count-1)]
+	where
+	suffix = hsnSuffix base
+%%]
+
 %%[8.Call
 SEM GrExpr
   | Call   loc  . realRecievers = nreg2knames @lhs.targetNames
@@ -455,7 +485,9 @@ SEM GrExpr
   | App    loc  . realRecievers = nreg2knames @lhs.targetNames
                 . argsReturned  = fromJust $ lookup apply @lhs.returnSizeEnv
                 . recievers     = padWith mkTempVar @realRecievers @argsReturned
-                . cmmBody       = call @isLastExpr apply (arg' @lhs.cafEnv @nm : @argL.cmmFunctionArgs) @recievers
+                . evalReturnCount = fromJust $ lookup eval @lhs.returnSizeEnv
+                . appArgs       = map (valArg. cmmVar') (newNames @nm @evalReturnCount)
+                . cmmBody       = call @isLastExpr apply (@appArgs ++ @argL.cmmFunctionArgs) @recievers
 
   | Eval   loc  . realRecievers = nreg2knames @lhs.targetNames
                 . argsReturned  = fromJust $ lookup eval @lhs.returnSizeEnv
