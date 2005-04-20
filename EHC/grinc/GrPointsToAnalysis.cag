@@ -1,0 +1,30 @@
+% $Id$
+
+%%[0
+%include lhs2TeX.fmt
+%include afp.fmt
+%%]
+
+%%[8 import(../GrinCodeAbsSyn)
+%%]
+
+%%[8.wrapper
+WRAPPER GrAGItf
+%%]
+
+%%[8 hs import(EHCommon, FiniteMap, GrinCode,HeapPointsToFixpoint) export(addPointsToInfo)
+addPointsToInfo :: GrModule -> GrModule
+addPointsToInfo grmod = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod)) Inh_GrAGItf
+                    in grTrf_Syn_GrAGItf t
+%%]
+
+%%[8
+ATTR GrAGItf [ | | grTrf: GrModule ]
+ATTR AllGrNT [ pointsTo: AbstractEnv | absEnv: AbstractEnv absHeap: AbstractHeap | grTrf: SELF ]
+
+GrAGItf
+  | AGItf mod . pointsTo = fst (heapPointsTo @mod.absEnv @mod.absHeap @deps)
+              . absEnv   = []
+              . absHeap  = []
+          loc . deps     = error "no dependency generation yet"
+%%]

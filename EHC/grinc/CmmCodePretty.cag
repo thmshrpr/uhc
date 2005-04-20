@@ -33,7 +33,7 @@ SEM CmmToplevel
   | Section         lhs . pp    = "section" >#< (ppString @name) >|< pp_braces @body.pp
 
 SEM CmmSectionElement
-  | Span            loc . pp    = "span" >#< @key.pp >#< @value.pp >-< pp_braces @body.pp
+  | Span            loc . pp    = "span" >#< @key.pp >#< @value.pp >|< pp_braces @body.pp
 
 SEM CmmDatum
   | Label           loc . pp    = pp @name >|< ":"
@@ -45,7 +45,7 @@ SEM CmmSize
   | Many            loc . pp    = pp_brackets empty
 
 SEM CmmInitString
-  | List            loc . pp    = pp_block "{" "}" "," @elements.pps
+  | List            loc . pp    = pp_block "{ " " }" ", " @elements.pps
   | String          loc . pp    = ppString @string
   | UnicodeString   loc . pp    = "unicode" >#< ppString @string
 
@@ -54,12 +54,12 @@ SEM CmmDeclaration
   | Export          loc . pp    = "export" >#< ppListComma (ppExternalName True ) @names    >|< ";"
   | Constant        loc . pp    = "const" >#< pp @type >#< pp @name >#< "=" >#< @value.pp >|< ";"
   | Typedef         loc . pp    = "typedef" >#< pp @type >#< ppListComma pp @names >|< ";"
-  | Var             loc . pp    = if @invariant then pp "invariant" else empty 
-                                  >#< ppKind @kind >#< pp @type >#< ppListComma ppHwName @names >|< ";"
+  | Var             loc . pp    = if @invariant then pp "invariant " else empty 
+                                  >|< ppKind @kind >|< pp @type >#< ppListComma ppHwName @names >|< ";"
   | Target          loc . pp    = pp @targetSpec >|< ";"
 
 SEM CmmProcedure
-  | Procedure       loc . pp    = ppCallConv @callConv >#< pp @name >|< pp_parens (ppListComma ppFormal @args) >-< pp_braces @body.pp
+  | Procedure       loc . pp    = ppCallConv @callConv >|< pp @name >|< pp_parens (ppListComma ppFormal @args) >-< pp_braces @body.pp
 
 SEM CmmStatement
   | Nop             loc . pp    = pp ";"
@@ -69,17 +69,17 @@ SEM CmmStatement
   | Span            loc . pp    = "span" >#< @key.pp >#< @value.pp >-< pp_braces @body.pp
   | Assign          loc . pp    = @lvals.pp >#< "=" >#< ppListComma id @expressions.pps              >|< ";"
   | Call            loc . ppLHS = ppListComma ppReciever @recievers
-                    loc . ppRHS = ppCallConv @callConv >#< @fun.pp >|< pp_parens @args.pp            >|< ";"
+                    loc . ppRHS = ppCallConv @callConv >|< @fun.pp >|< pp_parens @args.pp            >|< ";"
                     loc . pp    = if null @recievers then @ppRHS else @ppLHS >#< "=" >#< @ppRHS
-  | TailCall        loc . pp    = ppCallConv @callConv >#< "jump" >#< @fun.pp >|< pp_parens @args.pp >|< ";"
-  | Return          loc . pp    = ppCallConv @callConv >#< "return" >#< pp_parens @args.pp           >|< ";"
+  | TailCall        loc . pp    = ppCallConv @callConv >|< "jump" >#< @fun.pp >|< pp_parens @args.pp >|< ";"
+  | Return          loc . pp    = ppCallConv @callConv >|< "return" >#< pp_parens @args.pp           >|< ";"
   | Label           loc . pp    = pp @name >|< ":"
   | GoTo            loc . pp    = "goto" >#< pp @target                                              >|< ";"
 
 SEM CmmExpression
-  | Int             loc . pp    = pp   @val >#< ppTypeAnn @type
-  | Float           loc . pp    = error "CmmExpression_Float: no pp" -- pp   @val >#< ppTypeAnn @type
-  | Char            loc . pp    = show @val >#< ppTypeAnn @type
+  | Int             loc . pp    = pp   @val >|< ppTypeAnn @type
+  | Float           loc . pp    = error "CmmExpression_Float: no pp" -- pp   @val >|< ppTypeAnn @type
+  | Char            loc . pp    = show @val >|< ppTypeAnn @type
   | Var             loc . pp    = pp @name
   | MemRef          loc . pp    = pp @type >#< pp_brackets @location.pp
   | Parens          loc . pp    = pp_parens @expr.pp
@@ -94,7 +94,7 @@ SEM CmmActuals
   | Cons            loc . pp    = @hd.pp >|< "," >|< @tl.pp
 
 SEM CmmActual
-  | Actual          loc . pp    = ppKind @kind >#< @val.pp
+  | Actual          loc . pp    = ppKind @kind >|< @val.pp
 
 SEM CmmLValues
   | Cons            loc . pp    = @hd.pp >|< "," >|< @tl.pp
@@ -122,15 +122,15 @@ ppListComma f = ppList (\e -> f e >|< ",")
 	ppList f = foldr (\e p -> f e >|< p) empty
 
 ppKind :: CmmKind -> PP_Doc
-ppKind kind = if null kind then empty else pp (ppString kind)
+ppKind kind = if null kind then empty else pp (ppString kind) >#< empty
 
 ppReciever :: CmmKindedName -> PP_Doc
-ppReciever (kind, name) = (if null kind then empty else ppKind kind) >#< pp name
+ppReciever (kind, name) = (if null kind then empty else ppKind kind) >|< pp name
 
 ppFormal :: CmmFormal -> PP_Doc
 ppFormal (kind, invariant, ty, name) = ppKind kind 
-                                         >#< if invariant then pp "invariant" else empty
-                                         >#< pp ty
+                                         >|< if invariant then pp "invariant " else empty
+                                         >|< pp ty
                                          >#< pp name
 
 ppExternalName :: Bool -> CmmExternalName -> PP_Doc
@@ -146,10 +146,10 @@ ppCallConv :: CmmCallConv -> PP_Doc
 ppCallConv conv = case conv of
                     ""    -> empty
                     "C--" -> empty
-                    _     -> "foreign" >#< ppString conv
+                    _     -> "foreign" >#< ppString conv >#< empty
 
 ppTypeAnn :: CmmOptionalType -> PP_Doc
-ppTypeAnn = maybe empty (\t -> "::" >#< pp t)
+ppTypeAnn = maybe empty (\t -> " ::" >#< pp t)
 
 instance PP CmmType where
   pp (CmmBits i) = "bits" >|< (show i)

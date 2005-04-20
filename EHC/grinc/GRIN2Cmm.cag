@@ -97,7 +97,7 @@ SEM GrTag
 %% Primitives %%
 %%%%%%%%%%%%%%%%
 
-buildin primitives (like plus and compare on integers)
+builtin primitives (like plus and compare on integers)
 
 %%[8 hs
 -- primitivesTable: list of (name, (required imports, CAFnames -> arguments -> result variables -> primitve))
