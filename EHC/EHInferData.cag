@@ -13,8 +13,8 @@
 SEM Decl
   | Data        tyVars      .   tyGam               =   gamPushNew @lhs.patTyGam
                 loc         .   (lTyGam,gTyGam)     =   gamPop @tyVars.tyGam
-                lhs         .   patTyGam            =   gamAdd @tyNm (TyGamInfo (Ty_Con @tyNm)) @lhs.patTyGam
-                constrs     .   tyGam               =   @lTyGam `gamPushGam` @lhs.tyGam
+                lhs         .   patTyGam            =   gamAdd @lhs.patTyGam @tyNm (TyGamInfo (Ty_Con @tyNm))
+                constrs     .   tyGam               =   @lhs.tyGam `gamPushGam` @lTyGam
                 lhs         .   tyGam               =   @lhs.tyGam
 %%]
 
@@ -22,22 +22,22 @@ SEM Decl
 SEM Decl
   | Data        loc         .   dataTgi             =   mkTGI (Ty_Con @tyNm) (tyEnsureNonAny @lUniq @knKi)
                 lhs         .   patTyGam            :=  if @hasKiSig  then @lhs.patTyGam
-                                                                      else gamAdd @tyNm @dataTgi @lhs.patTyGam
+                                                                      else gamAdd @lhs.patTyGam @tyNm @dataTgi
                 loc         .   fo                  =   fitsIn  strongFIOpts emptyFE @lUniq2
                                                                 (@lhs.patKiCnstr |=> (@tyVars.kiL `mkTyArrow` kiStar))
                                                                 (@lhs.patKiCnstr |=> (tgiKi @dataTgi))
                             .   dataKi              =   foTy @fo
                 lhs         .   patKiCnstr          =   foCnstr @fo |=> @lhs.patKiCnstr
-                constrs     .   tyGam               :=  tyGamInst1Exists @lUniq3 (@lhs.kiCnstr |=> @lTyGam)
-                                                        `gamPushGam` @lhs.tyGam
+                constrs     .   tyGam               :=  @lhs.tyGam `gamPushGam`
+                                                          tyGamInst1Exists @lUniq3 (@lhs.kiCnstr |=> @lTyGam)
 %%]
 
 %%[8
+%%]
 SEM Decl
   | Data        loc         .   updTGI              =   \tgi -> tgi {tgiData = tgiData @dataTgi, tgiDataTagMp = tgiDataTagMp @dataTgi}
                 lhs         .   patTyGam            :=  if @hasKiSig  then gamUpd @tyNm (\_ t -> @updTGI t) @lhs.patTyGam
-                                                                      else gamAdd @tyNm @dataTgi @lhs.patTyGam
-%%]
+                                                                      else gamAdd @lhs.patTyGam @tyNm @dataTgi
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Kind inferencing for data
@@ -62,6 +62,15 @@ SEM DataConstrEq
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Gathering tag info for data
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8
+SEM Decl
+  | Data        lhs         .   gathDataGam         =   gamAdd @lhs.gathDataGam @tyNm . mkDGI $ @constrs.dataTagMp
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Type of data constructors
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -71,17 +80,17 @@ ATTR AllDataConstr [ dataTy: Ty | patValGam: ValGam | ]
 SEM DataConstr
   | Constr      loc         .   dataConTy           =   @fields.tyL `mkTyArrow` @lhs.dataTy
                             .   dataConProdTy       =   mkTyProdApp @fields.tyL
-                            .   dataUnConTy         =   [@lhs.dataTy] `mkTyArrow` @dataConProdTy
                             .   dataQuUnConTy       =   let  fvD = ftv @lhs.dataTy
-                                                             fvU = ftv @dataUnConTy
-                                                        in   mkTyQu TyQu_Forall fvD . mkTyQu TyQu_Exists (fvU \\ fvD) $ @dataUnConTy
-                lhs         .   patValGam           =   gamAdd @conNm (ValGamInfo @dataConTy)
-                                                          (gamAdd (hsnUn @conNm) (ValGamInfo @dataQuUnConTy)
-                                                             @lhs.patValGam)
+                                                             fvU = ftv @dataConProdTy
+                                                        in   mkTyQu TyQu_Forall fvD ([@lhs.dataTy] `mkTyArrow` mkTyQu TyQu_Exists (fvU \\ fvD) @dataConProdTy)
+                lhs         .   patValGam           =   gamAdd
+                                                          (gamAdd @lhs.patValGam (hsnUn @conNm) (ValGamInfo @dataQuUnConTy))
+                                                          @conNm (ValGamInfo @dataConTy)
 
 SEM Decl
   | Data        loc         .   dataTy              =   @tyNm `mkTyConApp` @tyVars.tyL
 %%]
+                            .   dataUnConTy         =   [@lhs.dataTy] `mkTyArrow` @dataConProdTy
                             .   dataQuUnConTy       =   let  fvD = ftv @lhs.dataTy
                                                              fvU = ftv @dataUnConTy
                                                         in   mkTyQu TyQu_Forall fvD . mkTyQu TyQu_Exists (fvU \\ fvD) $ @dataUnConTy
@@ -100,11 +109,12 @@ SEM Decl
 %%]
 
 %%[8
+%%]
 SEM Decl
   | Data        loc         .   dataTgi             :=  mkTGIData  (Ty_Con @tyNm) (tyEnsureNonAny @lUniq @knKi)
                                                                    @dataAltTy @constrs.dataTagMp
-%%]
 
+!!!!! Fix following w.r.t. dataUnConTy
 %%[11
 SEM DataConstr
   | Constr      loc         .   dataConTy           :=  @eqs.eqTyCnstr |=> (@fields.tyL `mkTyArrow` @lhs.dataTy)
@@ -127,6 +137,17 @@ SEM DataConstrEq
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Ty name
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8
+ATTR AllDataConstr [ tyNm: HsName | | ]
+
+SEM Decl
+  | Data        constrs     .   tyNm                =   @tyNm
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Map for tag + arity
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -136,7 +157,7 @@ ATTR AllDataConstr [ | | dataTagMp USE {`plusFM`} {emptyFM}: DataTagMp ]
 SEM DataConstr
   | Constr      loc         .   tag                 =   tyRecOffset @conNm @lhs.dataAltTy
                             .   arity               =   length @fields.tyL
-                            .   ctag                =   CTag @tag @arity @conNm
+                            .   ctag                =   CTag @lhs.tyNm @conNm @tag @arity
                 lhs         .   dataTagMp           =   @conNm `unitFM` @ctag
 %%]
 

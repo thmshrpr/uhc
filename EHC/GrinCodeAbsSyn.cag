@@ -20,6 +20,9 @@ DATA GrAGItf
 DATA GrModule
   | Mod         baseName        : {HsName}
                 bindL           : GrBindL
+                ctagsMp         : {CTagsMp}
+                evalTagMp       : {EvApTagMp}
+                applyTagMp      : {EvApTagMp}
 
 DATA GrBind
   | Bind        nm              : {HsName}

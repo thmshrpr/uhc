@@ -107,6 +107,9 @@ tvCategPrefix :: TyVarCateg -> String
 tvCategPrefix TyVarCateg_Fixed = "c"
 tvCategPrefix TyVarCateg_Plain = "v"
 %%]
+%%[6_4 hs
+tvCategPrefix TyVarCateg_Exist = "C"
+%%]
 
 %%[3
 ATTR AllTy [ | tnUniq: {Int} ^^ tnMap: TVarNameMap | ]
@@ -209,7 +212,7 @@ SEM Ty
 SEM Impls
   | Tail Cons       loc     .   ppIv    =   maybe (mkDefaultTvNm "i" @iv) id (lookup @iv @lhs.tnMap)
   | Tail            lhs     .   pp      =   @ppIv
-  | Cons            loc     .   ppPv    =   maybe (mkDefaultTvNm "p" @pv) id (lookup @iv @lhs.tnMap)
+  | Cons            loc     .   ppPv    =   maybe (mkDefaultTvNm "p" (poiId @pv)) id (lookup @iv @lhs.tnMap)
                     lhs     .   pp      =   @ppIv >|< "=" >|< @pr.pp >|< "/" >|< @ppPv >|< "," >|< @tl.pp
   | Nil             lhs     .   pp      =   pp "_"
 %%]

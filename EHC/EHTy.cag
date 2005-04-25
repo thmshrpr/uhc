@@ -30,6 +30,12 @@
 %%[4 hs import(Maybe) export(tyVar) 
 %%]
 
+%%[4 hs export(tvCatIsFixed) 
+%%]
+
+%%[4 hs import(FiniteMap) export(TvCatMp) 
+%%]
+
 %%[4_2 hs export(tyIsQu,tyIsVar,tyMbVar) 
 %%]
 
@@ -40,6 +46,9 @@
 %%]
 
 %%[6 hs export(kiStar) 
+%%]
+
+%%[6_4 hs export(tvIsEx) 
 %%]
 
 %%[7 hs import(List) export(rowExtCmp,rowLabCmp,tyRowCanonOrder,kiRow,tyRowEmpty,tyRecEmpty,tySumEmpty,tyRowExtr,tyRecExtr,mkTyRow,mkTyRec,mkTySum,mkTyRecExt,tyRowExts) 
@@ -54,13 +63,13 @@
 %%[8 hs export(tyRecOffset) 
 %%]
 
-%%[9 hs export(Pred(..),predNm,predTy,tyPredNm,tyPredMatchNm,predMatchNm,tyPred,tyLImplsPreds,tyArrowImplsRes,tyArrowImplsArgRes,mkTyPr,tyPrArrowArgsRes)
+%%[9 hs export(Pred(..),predNm,predTy,tyPredNm,tyPredMatchNm,predMatchNm,tyPred,tyLImplsPreds,tyArrowImplsRes,tyArrowImplsArgRes,mkTyImpls,mkTyPr,tyPrArrowArgsRes)
 %%]
 
 %%[9 hs export(tyRecExts,tyRecRow,tyArrowArity,tyQuant)
 %%]
 
-%%[9 hs export(tyImpls,Impls(..),ImplsVarId,mkImplsVar,implsPredsTail,implsUIDs,implsPredsMbTail,tyIsImplsTail,tyImplsPreds)
+%%[9 hs export(tyImpls,Impls(..),ImplsVarId,mkImplsVar,implsPredsTail,implsPrIds,implsPredsMbTail,tyIsImplsTail,tyImplsPreds)
 %%]
 
 %%[9 hs export(TyCtxt(..))
@@ -69,7 +78,10 @@
 %%[9_1 hs export(TyPlusId)
 %%]
 
-%%[9 hs export(PredOccId,PredOcc(..))
+%%[9 hs export(PredOcc(..),poId)
+%%]
+
+%%[99 hs export(PredAsArgLocs)
 %%]
 
 %%[10 hs export(tyExtsOffset)
@@ -107,6 +119,25 @@ type TyPlusId      = UID
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Tyvar category
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[4 hs
+tvCatIsFixed :: TyVarCateg -> Bool
+tvCatIsFixed TyVarCateg_Plain  = False
+tvCatIsFixed _                 = True
+%%]
+
+%%[4 hs
+type TvCatMp = FiniteMap TyVarId TyVarCateg
+%%]
+
+%%[6_4 hs
+tvIsEx :: TvCatMp -> TyVarId -> Bool
+tvIsEx fvM tv = maybe False (== TyVarCateg_Exist) (lookupFM fvM tv)
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Hardness of type
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -123,16 +154,24 @@ instance Show TyHardness where
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%[9 hs
-type PredOccId
-  =  UID
-
 data PredOcc
   =  PredOcc
        { poPr               :: Pred
-       , poId               :: PredOccId
+       , poPrId             :: PredOccId
        }
-  deriving Show
+  deriving (Show,Eq)
+
+poId :: PredOcc -> UID
+poId = poiId . poPrId
 %%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Description of predicate locations in lambda (after quantification)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[9 hs
+%%]
+type PredAsArgLocs = [Maybe PredOcc]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Properties of quantifier
@@ -298,7 +337,7 @@ mkTyFreshProd = mkTyFreshProdFrom uidStart
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%% Construction for preds/impls
+%%% Construction of implicitly parameterized (or predicated) type
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%[9 hs
@@ -307,8 +346,20 @@ mkImplsVar v = Ty_Impls (Impls_Tail v)
 %%]
 
 %%[9 hs
-mkTyPr :: [Pred] -> Ty -> Ty
-mkTyPr prL t = map Ty_Pred prL `mkTyArrow` t
+mkTyImpls :: [Pred] -> Ty -> Ty
+mkTyImpls prL t = map Ty_Pred prL `mkTyArrow` t
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Construction of pred type
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[9 hs
+mkTyPr :: Pred -> Ty
+mkTyPr p
+  =  case p of
+	   Pred_Pred t  -> t
+	   _            -> Ty_Pred p
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -380,6 +431,16 @@ tyAppFunArgs
            =  case t of
                 Ty_App f a  -> extr (a:as) f
                 _           -> (t,as)
+%%]
+
+%%[6.unMkTy.tyAppFunArgs -1.unMkTy.tyAppFunArgs hs
+tyAppFunArgs
+  =  extr []
+  where  extr as t
+           =  case t of
+                Ty_Quant _ _ t  -> tyAppFunArgs t
+                Ty_App f a      -> extr (a:as) f
+                _               -> (t,as)
 %%]
 
 %%[1.unMkTy.funs hs
@@ -559,6 +620,7 @@ tyPred :: Ty -> Pred
 tyPred t
   =  case t of
        Ty_Pred pt  -> pt
+       _           -> Pred_Pred t
 
 predNm :: Pred -> HsName
 predNm = tyAppFunConNm . predTy
@@ -589,8 +651,8 @@ predTy :: Pred -> Ty
 predTy p
   =  case p of
        Pred_Class t    -> t
+       Pred_Pred  t    -> t
 %%]
-       Pred_Arrow a r  -> Ty_Con hsnPrArrow
 %%[10 hs
        Pred_Lacks t _  -> t
 %%]
@@ -620,8 +682,8 @@ tyIsImplsTail :: Ty -> Bool
 tyIsImplsTail (Ty_Impls (Impls_Tail _))  = True
 tyIsImplsTail _                          = False
 
-implsUIDs :: Impls -> [UID]
-implsUIDs = map poId . fst . implsPredsTail
+implsPrIds :: Impls -> [PredOccId]
+implsPrIds = map poPrId . fst . implsPredsTail
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

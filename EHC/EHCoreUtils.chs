@@ -1,4 +1,4 @@
-% $Id: EHC.lag 199 2004-05-12 19:11:13Z andres $
+% $Id$
 
 %%[0
 %include lhs2TeX.fmt
@@ -12,8 +12,9 @@
 %%[8 import(FiniteMap,EHCommon,EHTy,EHCore,EHGam) export(RCEEnv(..),emptyRCEEnv)
 %%]
 
-%%[8 export(mkCExprStrictSatCase,mkCExprSelCase,mkCExprDelCase)
+%%[8 export(mkCExprStrictSatCase,mkCExprSelCase)
 %%]
+,mkCExprDelCase
 
 %%[8 import(List) export(FieldUpdateL,fuMkCExpr)
 %%]
@@ -23,7 +24,7 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%[8
-data RCEEnv = RCEEnv {rceValGam :: ValGam, rceTyGam :: TyGam}
+data RCEEnv = RCEEnv {rceValGam :: ValGam, rceDataGam :: DataGam}
 
 emptyRCEEnv :: RCEEnv
 emptyRCEEnv = RCEEnv emptyGam emptyGam
@@ -31,11 +32,11 @@ emptyRCEEnv = RCEEnv emptyGam emptyGam
 rceEnvDataAlts :: RCEEnv -> CTag -> [CTag]
 rceEnvDataAlts env t
   =  case t of
-       CTag _ _ conNm
-          ->  case valGamLookup conNm . rceValGam $ env of
+       CTag _ conNm _ _
+          ->  case valGamLookup (rceValGam env) conNm of
                 Just vgi
                    ->  let  tyNm = tyAppFunConNm . snd . tyArrowArgsRes . vgiTy $ vgi
-                       in   maybe [] (assocLElts . fmToList . tgiDataTagMp) . tyGamLookup tyNm . rceTyGam $ env
+                       in   maybe [] (eltsFM . dgiDataTagMp) . gamLookup (rceDataGam env) $ tyNm
                 _  ->  []
        _  ->  []
 %%]
@@ -50,7 +51,7 @@ caltLSaturate env alts ce
   =  let  altTags = [ t | (CAlt_Alt (CPat_Con _ t _ _ : _) _) <- alts ]
           absentTagArities = filter (\t -> t `notElem` altTags) . rceEnvDataAlts env . head $ altTags
           absentAlts
-                 =  [ CAlt_Alt [mkP ct a] ce | ct@(CTag _ a _) <- absentTagArities ]
+                 =  [ CAlt_Alt [mkP ct a] ce | ct@(CTag _ _ _ a) <- absentTagArities ]
                  where  mkB o = CPatBind_Bind hsnUnknown (CExpr_Int o) (cpatNmNm cpatNmNone) (CPat_Var cpatNmNone)
                         mkP ct a = CPat_Con cpatNmNone ct CPatRest_Empty [mkB o | o <- [0..a-1]]
      in   sortOn caltTag (alts ++ absentAlts)
@@ -102,7 +103,7 @@ mkCExprSelCase env ne e ct n lbl off
                         [CPatBind_Bind lbl off n (CPat_Var (CPatNmOrig n))]]
                     (CExpr_Var n)
      in   mkCExprStrictSatCase env ne e [alt] cvarUndefined
-
+%%]
 mkCExprDelCase :: RCEEnv -> CExpr -> CTag -> AssocL HsName CExpr -> CExpr
 mkCExprDelCase env e ct lblOffL
   =  let  (ne:nr:_) = hsnLclSupplyL
@@ -111,7 +112,6 @@ mkCExprDelCase env e ct lblOffL
                         [CPatBind_Bind l o hsnWild (CPat_Var (CPatNmOrig hsnWild)) | (l,o) <- lblOffL]]
                     (CExpr_Var nr)
      in   mkCExprStrictSatCase env ne e [alt] cvarUndefined
-%%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Reorder record Field Update (to sorted on label, upd's first, then ext's)

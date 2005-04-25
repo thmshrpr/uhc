@@ -27,13 +27,16 @@
 %%[7.mkProdApp.exp -1.mkProdApp.exp
 %%]
 
+%%[1 export(assocLKeys)
+%%]
+
 %%[1 export(ParNeed(..), ParNeedL, parNeedApp, ppParNeed)
 %%]
 
 %%[2 export(UID, mkNewLevUID, mkNewLevUID2, mkNewLevUID3, mkNewLevUID4, mkNewLevUID5, uidNext, mkNewUID, mkNewUIDL, uidStart)
 %%]
 
-%%[2 export(assocLMapSnd)
+%%[2 export(assocLMapElt,assocLMapKey)
 %%]
 
 %%[2 import(List) export(unionL)
@@ -49,9 +52,6 @@
 %%]
 
 %%[4 export(FIMode(..),fimOpp,fimSwapCoCo)
-%%]
-
-%%[4 export(assocLKeys)
 %%]
 
 %%[6 export(hsnStar)
@@ -72,7 +72,7 @@
 %%[8 import (FPath,IO,Char) export(putPPLn,putWidthPPLn,putPPFile,Verbosity(..),putCompileMsg)
 %%]
 
-%%[8 export(hsnPrefix,hsnSuffix)
+%%[8 export(hsnPrefix,hsnSuffix,hsnConcat)
 %%]
 
 %%[8 export(hsnUndefined,hsnPrimAddInt,hsnMain)
@@ -87,13 +87,37 @@
 %%[8 import (FiniteMap) export(showPP,ppPair,ppFM)
 %%]
 
-%%[8 export(mkNewLevUIDL)
+%%[8 export(mkNewLevUIDL,mkInfNewLevUIDL)
 %%]
 
-%%[8 export(hsnLclSupplyL)
+%%[8 export(hsnUniqSupplyL,hsnLclSupplyL)
+%%]
+
+%%[8 export(CTag(..))
+%%]
+
+%%[8 export(CTagsMp)
+%%]
+
+%%[9 export(groupSortByOn)
 %%]
 
 %%[9 export(hsnOImpl,hsnCImpl,hsnPrArrow,hsnIsPrArrow,hsnIsUnknown)
+%%]
+
+%%[9 export(ppListV,ppAssocLV)
+%%]
+
+%%[9 hs export(PredOccId(..),mkPrId,poiHNm)
+%%]
+
+%%[9 hs export(PrfCtxtId)
+%%]
+
+%%[9 hs export(snd3,thd)
+%%]
+
+%%[10 export(hsnDynVar)
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -185,6 +209,9 @@ hsnPrefix   p   hsn                 =   HNm (p ++ show hsn)
 
 hsnSuffix                           ::  HsName -> String -> HsName
 hsnSuffix       hsn   p             =   HNm (show hsn ++ p)
+
+hsnConcat                           ::  HsName -> HsName -> HsName
+hsnConcat       h1    h2            =   HNm (show h1 ++ show h2)
 %%]
 
 %%[8
@@ -194,8 +221,8 @@ hsnPrimAddInt						=	HNm "primAddInt"
 %%]
 
 %%[9
-hsnOImpl                            =   HNm "(#"
-hsnCImpl                            =   HNm "#)"
+hsnOImpl                            =   HNm "(!"
+hsnCImpl                            =   HNm "!)"
 hsnPrArrow                          =   HNm "=>"
 
 hsnIsPrArrow                        ::  HsName -> Bool
@@ -203,11 +230,18 @@ hsnIsPrArrow    hsn                 =   hsn == hsnPrArrow
 hsnIsUnknown                        =   (==hsnUnknown)
 %%]
 
+%%[10
+hsnDynVar                           =   HNm "?"
+%%]
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%% Name supply, no uniqueness required
+%%% Name supply, with/without uniqueness required
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%[8 hs
+hsnUniqSupplyL :: UID -> [HsName]
+hsnUniqSupplyL = map uidHNm . iterate uidNext
+
 hsnLclSupplyL :: [HsName]
 hsnLclSupplyL = map (\i -> HNm ("_" ++ show i)) [1..]
 %%]
@@ -249,17 +283,25 @@ uidStart = UID [0]
 mkNewUID :: UID -> (UID,UID)
 mkNewUID   uid = (uidNext uid,uid)
 
+mkInfNewUIDL' :: (UID -> (UID,UID)) -> UID -> [UID]
+mkInfNewUIDL' mk uid
+  =  let  l = iterate (\(nxt,uid) -> mk nxt) . mkNewUID $ uid
+     in   map snd l
+
 mkNewUIDL' :: (UID -> (UID,UID)) -> Int -> UID -> [UID] -- assume sz > 0
 mkNewUIDL' mk sz uid
-  =  let  l = take sz . iterate (\(nxt,uid) -> mk nxt) . mkNewUID $ uid
-     in   map snd l
+  =  take sz (mkInfNewUIDL' mk uid)
 
 mkNewUIDL :: Int -> UID -> [UID] -- assume sz > 0
 mkNewUIDL = mkNewUIDL' mkNewUID
 
 instance PP UID where
-  pp uid = text (show uid)
+  pp = text . show
 %%]
+mkNewUIDL' :: (UID -> (UID,UID)) -> Int -> UID -> [UID] -- assume sz > 0
+mkNewUIDL' mk sz uid
+  =  let  l = take sz . iterate (\(nxt,uid) -> mk nxt) . mkNewUID $ uid
+     in   map snd l
 
 %%[7
 uidHNm :: UID -> HsName
@@ -267,8 +309,36 @@ uidHNm = HNm . show
 %%]
 
 %%[8
+mkInfNewLevUIDL :: UID -> [UID]
+mkInfNewLevUIDL = mkInfNewUIDL' mkNewLevUID
+
 mkNewLevUIDL :: Int -> UID -> [UID]
 mkNewLevUIDL = mkNewUIDL' mkNewLevUID
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Proof context id
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[9 hs
+type PrfCtxtId = UID
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Pred occurrence id
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[9 hs
+data PredOccId =  PredOccId {poiCxId :: PrfCtxtId, poiId :: UID} deriving (Show,Eq,Ord)
+
+mkPrId :: PrfCtxtId -> UID -> PredOccId
+mkPrId ci u = PredOccId ci u
+
+poiHNm :: PredOccId -> HsName
+poiHNm = uidHNm . poiId
+
+instance PP PredOccId where
+  pp poi = "Cx:" >|< pp (poiCxId poi) >|< "/Pr:" >|< pp (poiId poi)
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -387,14 +457,6 @@ ppListSepFill o c s pps
         l (p:ps)  = fill ((o >|< pp p) : map (s >|<) ps) >|< c
 %%]
 
-%%[8
-instance PP a => PP (Maybe a) where
-  pp m = maybe (pp "?") pp m
-
-instance PP Bool where
-  pp b = pp (show b)
-%%]
-
 %%[7
 ppFld :: String -> HsName -> HsName -> PP_Doc -> PP_Doc
 ppFld sep positionalNm nm f
@@ -410,6 +472,19 @@ mkExtAppPP (funNm,funNmPP,funPPL) (argNm,argNmPP,argPPL,argPP)
      else (funNmPP,funPPL ++ [argPP])
 %%]
 
+%%[4
+instance PP a => PP (Maybe a) where
+  pp m = maybe (pp "?") pp m
+
+instance PP Bool where
+  pp b = pp (show b)
+%%]
+
+%%[9
+instance (PP a, PP b) => PP (a,b) where
+  pp (a,b) = ppListSep "(" ")" "," [pp a,pp b]
+%%]
+
 %%[8
 ppPair :: (PP a, PP b) => (a,b) -> PP_Doc
 ppPair (x,y) = pp_parens (pp x >|< "," >|< pp y)
@@ -423,6 +498,11 @@ showPP x = disp (pp x) 100 ""
 %%[8
 ppFM :: (PP k,PP v) => FiniteMap k v -> PP_Doc
 ppFM = ppAssocL . fmToList
+%%]
+
+%%[9
+ppListV :: PP a => [a] -> PP_Doc
+ppListV = vlist . map pp
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -480,11 +560,37 @@ ppParNeed locNeed globNeed p
 data CoContraVariance =  CoVariant | ContraVariant | CoContraVariant deriving (Show,Eq)
 %%]
 
+%%[4
+instance PP CoContraVariance where
+  pp CoVariant        = pp "CC+"
+  pp ContraVariant    = pp "CC-"
+  pp CoContraVariant  = pp "CCo"
+%%]
+
 %%[4.cocoOpp
 cocoOpp :: CoContraVariance -> CoContraVariance
 cocoOpp  CoVariant      =   ContraVariant
 cocoOpp  ContraVariant  =   CoVariant
 cocoOpp  _              =   CoContraVariant
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Tags (of data)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8 hs
+data CTag
+  = CTagRec
+  | CTag {ctagTyNm :: HsName, ctagNm :: HsName, ctagTag :: Int, ctagArity :: Int}
+  deriving (Show,Eq,Ord)
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Misc info passed to backend
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8 hs
+type CTagsMp = AssocL HsName (AssocL HsName CTag)
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -501,19 +607,28 @@ ppAssocL al = ppListSepFill "[ " " ]" ", " (map (\(k,v) -> pp k >|< ":" >|< pp v
 %%]
 
 %%[9.ppAssocL -1.ppAssocL
+ppAssocL' :: (PP k, PP v) => ([PP_Doc] -> PP_Doc) -> AssocL k v -> PP_Doc
+ppAssocL' ppL al = ppL (map (\(k,v) -> pp k >|< ":" >|< pp v) al)
+
 ppAssocL :: (PP k, PP v) => AssocL k v -> PP_Doc
-ppAssocL al = pp_block "[" "]" "," (map (\(k,v) -> pp k >|< ":" >|< pp v) al)
+ppAssocL = ppAssocL' (pp_block "[" "]" ",")
+
+ppAssocLV :: (PP k, PP v) => AssocL k v -> PP_Doc
+ppAssocLV = ppAssocL' vlist
 %%]
 
 %%[2
 assocLMap :: (k -> v -> (k',v')) -> AssocL k v -> AssocL k' v'
 assocLMap f = map (uncurry f)
 
-assocLMapSnd :: (v -> v') -> AssocL k v -> AssocL k v'
-assocLMapSnd f = assocLMap (\k v -> (k,f v))
+assocLMapElt :: (v -> v') -> AssocL k v -> AssocL k v'
+assocLMapElt f = assocLMap (\k v -> (k,f v))
+
+assocLMapKey :: (k -> k') -> AssocL k v -> AssocL k' v
+assocLMapKey f = assocLMap (\k v -> (f k,v))
 %%]
 
-%%[4
+%%[1
 assocLKeys :: AssocL k v -> [k]
 assocLKeys = map fst
 %%]
@@ -609,9 +724,25 @@ groupSortOn :: Ord b => (a -> b) -> [a] -> [[a]]
 groupSortOn sel = groupOn sel . sortOn sel
 %%]
 
+%%[9
+groupByOn :: (b -> b -> Bool) -> (a -> b) -> [a] -> [[a]]
+groupByOn eq sel = groupBy (\e1 e2 -> sel e1 `eq` sel e2)
+
+groupSortByOn :: (b -> b -> Ordering) -> (a -> b) -> [a] -> [[a]]
+groupSortByOn cmp sel = groupByOn (\e1 e2 -> cmp e1 e2 == EQ) sel . sortByOn cmp sel
+%%]
+
 %%[8
 strBlankPad :: Int -> String -> String
 strBlankPad n s = s ++ replicate (n - length s) ' '
+%%]
+
+%%[9
+snd3 :: (a,b,c) -> b
+snd3 (a,b,c) = b
+
+thd :: (a,b,c) -> c
+thd (a,b,c) = c
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

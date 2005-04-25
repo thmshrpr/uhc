@@ -17,6 +17,7 @@ SEM AGItf
                                                     (foldr (\(c,b) e -> mkCExprLet c b e)
                                                         (mkCExprLet CBindPlain [CBind_Bind hsnMain @expr.letCBody] (CExpr_Var hsnMain))
                                                         @expr.letCBindL)
+                                                    [ (tn,fmToList m) | (tn,dgi) <- gamToAssocL @expr.gathDataGam, let m = dgiDataTagMp dgi ]
 %%]
 
 %%[9
@@ -54,6 +55,24 @@ SEM Expr
 
 %%[9
 SEM Expr
+  | Var Con     loc         .   cexprBase   :=  CExpr_Var @nm
+  | IConst      loc         .   cexprBase   :=  CExpr_Int @int
+  | CConst      loc         .   cexprBase   :=  CExpr_Char @char
+  | Var Con IConst CConst
+                loc         .   cexpr       :=  foAppCoe @fo @lhs.finTyCnstr @lhs.cSubst @cexprBase
+  | Let         loc         .   letCBindL   :=  [(CBindFFI,@decls.ffiCBindL)
+                                                ,(CBindRec,@decls.cbindL ++ (@cSubst `cSubstApp` (@prfIntroCBindL ++ @bodyPrfIntroCBindL)))
+                                                ]
+  | App AppImpl
+                loc         .   cexpr       :=  CExpr_App
+                                                    (coeWipeWeave @lhs.finTyCnstr @lhs.cSubst @appImplsCoeL []
+                                                      `coeEvalOn` @func.cexpr)
+                                                    @arg.cexpr
+  | Lam LamImpl loc         .   cexpr       :=  coeWipeWeave @lhs.finTyCnstr @lhs.cSubst @lamBodyCoeL @lamArgCoeL `coeEvalOn` @body.appFunCExpr
+  | AppTop      loc         .   cexpr       :=  coeWipeWeave @lhs.finTyCnstr @lhs.cSubst [] @lamArgCoeL `coeEvalOn` @expr.cexpr
+  | TypeAs      loc         .   cexpr       :=  foAppCoe @fo @lhs.finTyCnstr @lhs.cSubst @expr.cexpr
+%%]
+SEM Expr
   | Var Con     loc         .   cexpr       :=  foAppCoe @fo @lhs.finTyCnstr @lhs.cSubst (CExpr_Var @nm)
   | IConst      loc         .   cexpr       :=  foAppCoe @fo @lhs.finTyCnstr @lhs.cSubst (CExpr_Int @int)
   | CConst      loc         .   cexpr       :=  foAppCoe @fo @lhs.finTyCnstr @lhs.cSubst (CExpr_Char @char)
@@ -70,7 +89,40 @@ SEM Expr
   | Lam LamImpl loc         .   cexpr       :=  coeWipeWeave @lhs.finTyCnstr @cSubst @lamBodyCoeL @lamArgCoeL `coeEvalOn` @body.appFunCExpr
   | AppTop      loc         .   cexpr       :=  coeWipeWeave @lhs.finTyCnstr @cSubst [] @lamArgCoeL `coeEvalOn` @expr.cexpr
   | TypeAs      loc         .   cexpr       :=  foAppCoe @fo @lhs.finTyCnstr @lhs.cSubst @expr.cexpr
+
+%%[10
+SEM Expr
+  | DynVar      loc         .   cexpr       =   cvarUndefined
 %%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Expr (tgam version)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[9
+%%]
+ATTR Expr [ | | c2expr: CExpr ]
+
+SEM Expr
+  | Var Con     loc         .   c2exprBase  :=  CExpr_Var @nm
+  | IConst      loc         .   c2exprBase  :=  CExpr_Int @int
+  | CConst      loc         .   c2exprBase  :=  CExpr_Char @char
+  | Var Con IConst CConst
+                loc         .   c2expr      :=  foAppCoe @fo @lhs.fin2TyCnstr emptyCSubst @c2exprBase
+  | Let         loc         .   let2CBindL  :=  [(CBindFFI,@decls.ffiCBindL)
+                                                ,(CBindRec,@decls.c2bindL ++ @prfIntroCBindL ++ @bodyPrfIntroCBindL)
+                                                ]
+                            .   c2expr      =   foldr (\(c,b) e -> mkCExprLet c b e) @body.c2expr @let2CBindL
+  | App AppImpl
+                loc         .   c2expr      :=  CExpr_App
+                                                    (coeWipeWeave @lhs.fin2TyCnstr emptyCSubst @app2ImplsCoeL []
+                                                      `coeEvalOn` @func.c2expr)
+                                                    @arg.c2expr
+  | Lam LamImpl loc         .   c2expr      :=  coeWipeWeave @lhs.fin2TyCnstr emptyCSubst @lam2BodyCoeL @lam2ArgCoeL `coeEvalOn` @body.app2FunCExpr
+  | AppTop      loc         .   c2expr      :=  coeWipeWeave @lhs.fin2TyCnstr emptyCSubst [] @lam2ArgCoeL `coeEvalOn` @expr.c2expr
+  | TypeAs      loc         .   c2expr      :=  foAppCoe @fo @lhs.fin2TyCnstr emptyCSubst @expr.c2expr
+  | Undefined Rec Case Parens Sel
+                loc         .   c2expr      =   cvarUndefined
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Records, construction
@@ -141,7 +193,7 @@ SEM RecExpr
 
 %%[10
 SEM RecExpr
-  | Ext Upd     loc         .   offset          :=  @lhs.cSubst `cAppSubst` CExpr_Hole @prUid
+  | Ext Upd     loc         .   offset          :=  @lhs.cSubst `cSubstApp` mkCExprPrHole @prUid
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -157,7 +209,7 @@ SEM Expr
 
 %%[10
 SEM Expr
-  | Sel         loc         .   offset          :=  @lhs.cSubst `cAppSubst` CExpr_Hole @prUid
+  | Sel         loc         .   offset          :=  @lhs.cSubst `cSubstApp` mkCExprPrHole @prUid
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -175,10 +227,9 @@ SEM PatExpr
                                                     CPat_Con _ t r ps  -> CPat_Con @cpNm t r ps
                                                     _                  -> @patExpr.cpat
   | AppTop Con  loc         .   finResTy    =   @lhs.finTyCnstr |=> @knResTy
-                            .   finResTGI   =   let  (c,_)  = tyAppFunArgs @finResTy
-                                                     n      = tyConNm c
-                                                in   fromJust . tyGamLookup n $ @lhs.tyGam
-                            .   tag         =   fromJust . lookupFM (tgiDataTagMp @finResTGI) $ @appFunNm
+                            .   tag         =   let  (c,_)  = tyAppFunArgs @finResTy
+                                                     dgi    = fromJust . gamLookup @lhs.dataGam . tyConNm $ c
+                                                in   fromJust . lookupFM (dgiDataTagMp dgi) $ @appFunNm
                             .   rest        =   CPatRest_Empty
   | Rec         loc         .   tag         =   CTagRec
                             .   rest        =   @recPatExpr.patCRest
@@ -194,6 +245,10 @@ SEM PatExpr
   | CConst IConst
                 lhs         .   cpat        =   CPat_Undef
 %%]
+                            .   finResTGI   =   let  (c,_)  = tyAppFunArgs @finResTy
+                                                     n      = tyConNm c
+                                                in   fromJust . tyGamLookup @lhs.tyGam $ n
+                            .   tag         =   fromJust . lookupFM (tgiDataTagMp @finResTGI) $ @appFunNm
 
 %%[8 hs
 type FieldSplitL = AssocL HsName (CExpr,CPat)
@@ -260,7 +315,7 @@ SEM RecPatExpr
 
 %%[10
 SEM RecPatExpr
-  | Ext         loc         .   offset      :=  @lhs.cSubst `cAppSubst` CExpr_Hole @prUid
+  | Ext         loc         .   offset      :=  @lhs.cSubst `cSubstApp` mkCExprPrHole @prUid
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -272,7 +327,7 @@ ATTR Expr [ | | appArgCoeL: {[Coe]} ^^ appFunCExpr: CExpr ]
 
 SEM Expr
   | App AppImpl
-                lhs         .   appArgCoeL      =   @func.appArgCoeL ++ @appImplsCoeL ++ [mkAppCoe emptyCBindLMap [@arg.cexpr]]
+                lhs         .   appArgCoeL      =   @func.appArgCoeL ++ @appImplsCoeL ++ [mkAppCoe [@arg.cexpr]]
                             .   appFunCExpr     =   @func.appFunCExpr
   | AppTop      lhs         .   (appArgCoeL,appFunCExpr)
                                                 =   if null @lamArgCoeL
@@ -282,6 +337,26 @@ SEM Expr
                 lhs         .   appArgCoeL      =   []
                             .   appFunCExpr     =   @cexpr
 %%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Gathering coercions/cexpr for app args for optimization by weaving above apptop (tgam version)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[9
+%%]
+ATTR Expr [ | | app2ArgCoeL: {[Coe]} ^^ app2FunCExpr: CExpr ]
+
+SEM Expr
+  | App AppImpl
+                lhs         .   app2ArgCoeL     =   @func.app2ArgCoeL ++ @app2ImplsCoeL ++ [mkAppCoe [@arg.c2expr]]
+                            .   app2FunCExpr    =   @func.app2FunCExpr
+  | AppTop      lhs         .   (app2ArgCoeL,app2FunCExpr)
+                                                =   if null @lam2ArgCoeL
+                                                    then (@expr.app2ArgCoeL,@expr.app2FunCExpr)
+                                                    else ([],@c2expr)
+  | * - App AppImpl AppTop
+                lhs         .   app2ArgCoeL     =   []
+                            .   app2FunCExpr    =   @c2expr
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Decl
@@ -297,6 +372,18 @@ SEM Decl
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Decl (tgam version)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8
+%%]
+ATTR Decls Decl AllDataConstr [ | | c2bindL USE {++} {[]}: CBindL ]
+
+SEM Decl
+  | Val         lhs         .   c2bindL         =   [CBind_Bind @patExpr.topNm @expr.c2expr] ++ @patExpr.cbindL
+  | TySig       lhs         .   c2bindL         =   []
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Let bindings + body separately
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -309,6 +396,20 @@ SEM Expr
   | * - Let     lhs         .   letCBody        =   @cexpr
                             .   letCBindL       =   []
 %%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Let bindings + body separately
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8
+%%]
+ATTR Expr [ | | let2CBindL: {[(CBindCateg,CBindL)]} ^^ let2CBody: CExpr ]
+
+SEM Expr
+  | Let         lhs         .   let2CBody       =   @body.let2CBody
+                            .   let2CBindL      =   @let2CBindL ++ @body.let2CBindL
+  | * - Let     lhs         .   let2CBody       =   @c2expr
+                            .   let2CBindL      =   []
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Class
@@ -355,6 +456,27 @@ SEM Decl
                                                      mkSet d n v = CExpr_TupUpd d CTagRec n (cdictOffset n @recTy) v
                                                      dDflt
                                                         = mkCExprStrictIn nStrictDflt (CExpr_App (CExpr_Var nDflt) (CExpr_Var nR))
+                                                            (\d -> mkSetFlds d (zipWith CBind_Bind @supClsNmL @supPrfEvidL))
+                                                     mkSetFlds d bs = foldr (\(CBind_Bind n v) d -> mkSet d n v) d bs
+                                                     dD = mkCExprLam @ctxtArgNmL
+                                                                (mkCExprLetRec
+                                                                    ([CBind_Bind nR
+                                                                        (mkCExprStrictIn nStrictR dDflt (\d -> mkSetFlds d @decls.cbindL))]
+                                                                     ++ (@cSubst `cSubstApp` (@supPrfIntroCBindL ++ @prfIntroCBindL)))
+                                                                    (CExpr_Var nR)
+                                                                )
+                                                in   [CBind_Bind @dictNm (@cSubst `cSubstApp` dD)]
+  | InstanceIntro
+                lhs         .   cbindL      =   [CBind_Bind @dictNm @expr.cexpr]
+%%]
+SEM Decl
+  | Instance    lhs         .   cbindL      =   let  nDflt = rulNmEvid . pigiRule $ @pigi
+                                                     nStrictDflt = hsnSuffix nDflt "!"
+                                                     nR = hsnPrefix "_res_" @dictNm
+                                                     nStrictR = hsnSuffix nR "!"
+                                                     mkSet d n v = CExpr_TupUpd d CTagRec n (cdictOffset n @recTy) v
+                                                     dDflt
+                                                        = mkCExprStrictIn nStrictDflt (CExpr_App (CExpr_Var nDflt) (CExpr_Var nR))
                                                             (\d -> mkSetFlds d (zipWith CBind_Bind @supClsNmL @supEvidL))
                                                      mkSetFlds d bs = foldr (\(CBind_Bind n v) d -> mkSet d n v) d bs
                                                      dD = mkCExprLam @ctxtArgNmL
@@ -364,10 +486,9 @@ SEM Decl
                                                                      ++ mkCBindLForUIDL (@prfCBindLMap `plusFM` @supPrfCBindLMap) (const True))
                                                                     (CExpr_Var nR)
                                                                 )
-                                                in   [CBind_Bind @dictNm (@cSubst `cAppSubst` dD)]
+                                                in   [CBind_Bind @dictNm (@cSubst `cSubstApp` dD)]
   | InstanceIntro
                 lhs         .   cbindL      =   [CBind_Bind @dictNm @expr.cexpr]
-%%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Case
@@ -469,7 +590,7 @@ rceMkAltAndSubAlts env (arg:args) ce alts@(alt:_)
 rceMatchCon :: RCEEnv -> [HsName] -> CAltL -> CExpr -> CExpr
 rceMatchCon env (arg:args) alts ce
   =  let  arg'   =  hsnSuffix arg "!"
-          alts'  =  map (rceMkAltAndSubAlts env (arg':args) ce) . groupSortOn caltTag
+          alts'  =  map (rceMkAltAndSubAlts env (arg':args) ce) . groupSortOn (ctagTag . caltTag)
                  .  filter (not . null . caltPatL) $ alts
      in   mkCExprStrictSatCase env arg' (CExpr_Var arg) alts' ce
 
@@ -522,12 +643,12 @@ SEM DataConstr
 %%[8
 SEM Expr
   | Lam Case Sel
-                loc         .   rceEnv      =   RCEEnv @lhs.valGam @lhs.tyGam
+                loc         .   rceEnv      =   RCEEnv @lhs.valGam @lhs.dataGam
 %%]
 
 %%[8
 SEM PatExpr
   | AppTop Rec
-                loc         .   rceEnv      =   RCEEnv @lhs.valGam @lhs.tyGam
+                loc         .   rceEnv      =   RCEEnv @lhs.valGam @lhs.dataGam
 %%]
 
