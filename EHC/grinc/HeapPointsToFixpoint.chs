@@ -27,6 +27,9 @@ Now we retrieve the equations and initial environment and heap:
 On every iteration we merge the changeSet with the BaseSet and define the new
 changeSet based on the previous values.
 
+Note: we can implement the heap and environment as an array. With constant
+lookup times.
+
 %%[8 import(Data.Maybe, Data.List, Data.Monoid, EHCommon(HsName))
 %%]
 
@@ -40,7 +43,7 @@ data AbstractValue
 type AbstractNode = (HsName, [AbstractValue]) -- Of course a Nodes can no occur inside a AbstractNode
 type Location = Int
 
-type Variable = Int
+type Variable = HsName
 
 instance Monoid AbstractValue where
 	mempty  = AV_Nothing
@@ -73,7 +76,7 @@ data AbstractHeapElement = AbstractHeapElement
     , ahMod       :: !AbstractHeapModifier
     }
 type AbstractHeapModifier = (AbstractNodeModifier, Maybe Variable)
-type AbstractNodeModifier = (HsName, [Maybe Variable])
+type AbstractNodeModifier = (HsName, [Maybe Variable]) --(tag, [fields])
 
 updateHeapElement :: AbstractHeapElement -> AbstractEnv -> AbstractHeapElement
 updateHeapElement he env = let newBaseSet   = ahBaseSet he `mappend` ahChangeSet he
@@ -95,6 +98,7 @@ data AbstractEnvModifier
   | EnvUnion ![Variable]
   | EnvEval Variable
   | EnvSelect Variable HsName Int
+  | EnvTag HsName [Maybe Variable] (Maybe Variable)
 
 updateEnvElement :: AbstractEnvElement -> AbstractEnv -> AbstractHeap -> AbstractEnvElement
 updateEnvElement ee env heap = let newBaseSet   = aeBaseSet ee `mappend` aeChangeSet ee
@@ -106,6 +110,7 @@ updateEnvElement ee env heap = let newBaseSet   = aeBaseSet ee `mappend` aeChang
 heapChangeSet :: AbstractHeapModifier -> AbstractEnv -> AbstractValue
 heapChangeSet ((tag, deps), resultDep) env = AV_Nodes [(tag, getLocations deps)] `mappend` (maybe AV_Nothing (aeChangeSet . lookupEnv env) resultDep)
 	where
+	getLocations :: [Maybe Variable] -> [AbstractValue]
 	getLocations  = map (maybe AV_Basic (aeChangeSet . lookupEnv env))
 %%]
 
@@ -116,6 +121,7 @@ envChangeSet am env heap = case am of
                              EnvUnion vs     -> mconcat $ map (aeChangeSet . lookupEnv env) vs
                              EnvEval  v      -> evalChangeSet (aeChangeSet $ lookupEnv env v)
                              EnvSelect v n i -> selectChangeSet (aeChangeSet $ lookupEnv env v) n i
+                             EnvTag    t f r -> tagChangeSet t f r
 	where
 	evalChangeSet :: AbstractValue -> AbstractValue
 	evalChangeSet av = case av of
@@ -129,16 +135,26 @@ envChangeSet am env heap = case am of
 	                              AV_Nodes   ns -> lookup' ns nm !! idx
 	                              AV_Error _    -> av
 	                              otherwise     -> AV_Error "Variable passed to eval is not a node"
+	tagChangeSet :: HsName -> [Maybe Variable] -> (Maybe Variable) -> AbstractValue
+	tagChangeSet t flds r = let toAbstract f (c, l) = let nothingVal = (c, AV_Basic:l) 
+                                                              justFunc v = let changeSet = aeChangeSet (lookupEnv env v)
+                                                                           in (c || isChanged changeSet, changeSet:l)
+                                                          in maybe nothingVal justFunc f
+                                    (varsChanged, vars) = foldr toAbstract (False, []) flds
+                                    resVarNode          = r >>= return . lookupEnv env >>= return . aeChangeSet
+                                    changed             = (maybe False isChanged resVarNode) || varsChanged
+                                    newNodes            = AV_Nodes [(t, vars)]
+                                in if changed then maybe newNodes (mappend newNodes) resVarNode else AV_Nothing
 %%]
 
 %%[8 export(lookupEnv)
-lookupEnv :: AbstractEnv -> Int -> AbstractEnvElement
+lookupEnv :: AbstractEnv -> Variable -> AbstractEnvElement
 lookupEnv env idx = case l of
                       []  -> error "Environment incomplete"
                       h:_ -> h
 	where l = dropWhile ((idx /=) . aeLabel) env
 
-lookupHeap :: AbstractHeap -> Int -> AbstractHeapElement
+lookupHeap :: AbstractHeap -> Location -> AbstractHeapElement
 lookupHeap heap idx = case l of
                         []  -> error "Heap incomplete"
                         h:_ -> h

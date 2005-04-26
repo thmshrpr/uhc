@@ -1,0 +1,27 @@
+% $Id$
+%%[0
+%include lhs2TeX.fmt 
+%include afp.fmt
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Find Last Grin Expression of a binding %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+To keep track of whether the expression should return a value or should copy it
+to target names.
+
+%%[8
+ATTR AllGrExpr [ hasNext: {Bool} | | ]
+
+SEM GrBind
+  | Bind     expr . hasNext = False
+
+SEM GrExpr
+  | Seq      expr . hasNext = True
+             body . hasNext = False
+
+SEM GrExpr
+  | * - Seq Case  loc . isLastExpr = not @lhs.hasNext
+  | Seq Case      loc . isLastExpr = False
+%%]

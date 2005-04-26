@@ -31,10 +31,10 @@ help:
 ### GRINC
 ##########################
 
-GRINC_SOURCE     := grinc/GRINC.hs grinc/GRINCCommon.hs EHCommon.hs EHScanner.hs GrinCode.hs gri/GRIParser.hs grinc/GRIN2Cmm.hs grinc/CmmCode.hs grinc/CmmCodePretty.hs grinc/LowerGrin.hs
+GRINC_SOURCE     := grinc/GRINC.hs grinc/GRINCCommon.hs EHCommon.hs EHScanner.hs GrinCode.hs GrinCodePretty.hs gri/GRIParser.hs grinc/GRIN2Cmm.hs grinc/CmmCode.hs grinc/CmmCodePretty.hs grinc/LowerGrin.hs
 
 grc: $(GRINC_SOURCE) Makefile
-	$(GHC) --make -package uust -package data -ilib -igrinc -igri $< -o $@
+	$(GHC) --make -package uust -package data -ilib -igrinc -igri -i. $< -o $@
 	strip $@
 
 grinc/GRIN2Cmm.hs: grinc/GRIN2Cmm.ag GrinCodeAbsSyn.ag GrinCode.hs grinc/CmmBuilding.hs Makefile
@@ -49,8 +49,14 @@ grinc/CmmCode.hs: grinc/CmmCode.ag Makefile
 grinc/LowerGrin.hs: grinc/LowerGrin.ag GrinCodeAbsSyn.ag GrinCode.hs Makefile
 	$(call AGCC,$<,$(AGC_FLAGS_CODE))
 
+GrinCodePretty.hs: GrinCodePretty.ag GrinCode.hs GrinCode.ag Makefile
+	$(call AGCC,$<,$(AGC_FLAGS_CODE))
+
 GrinCode.hs: GrinCode.ag Makefile
 	$(call AGCC,$<,$(AGC_FLAGS_DATA))
+
+grinc/GrPointsToAnalysis.hs: grinc/GrPointsToAnalysis.ag GrinCode.hs GrinCode.ag Makefile
+	$(call AGCC,$<,$(AGC_FLAGS_CODE))
 
 # standard build
 %.hs: %.ag Makefile

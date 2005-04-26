@@ -112,6 +112,6 @@ SET AllAdapt    =   GrAdapt GrAdaptL
 SET AllSplit    =   GrSplit GrSplitL
 SET AllAlt      =   GrAlt GrAltL
 SET AllGrExpr   =   GrExpr AllAlt
-SET AllExpr     =   GrExpr GrAlt GrAltL GrPat GrPatL GrTag GrVal GrValL
+SET AllExpr     =   AllGrExpr GrPat GrPatL GrTag GrVal GrValL
 SET AllGrNT     =   GrModule AllExpr AllBind AllAdapt AllSplit
 %%]
