@@ -40,6 +40,8 @@ data AbstractValue
   | AV_Locations ![Location]
   | AV_Nodes ![AbstractNode]
   | AV_Error !String
+	deriving (Show, Eq)
+
 type AbstractNode = (HsName, [AbstractValue]) -- Of course a Nodes can no occur inside a AbstractNode
 type Location = Int
 
@@ -75,6 +77,7 @@ data AbstractHeapElement = AbstractHeapElement
     , ahChangeSet :: !AbstractValue
     , ahMod       :: !AbstractHeapModifier
     }
+	deriving (Show, Eq)
 type AbstractHeapModifier = (AbstractNodeModifier, Maybe Variable)
 type AbstractNodeModifier = (HsName, [Maybe Variable]) --(tag, [fields])
 
@@ -92,6 +95,7 @@ data AbstractEnvElement = AbstractEnvElement
     , aeChangeSet :: !AbstractValue
     , aeMod       :: !AbstractEnvModifier
     }
+	deriving (Show, Eq)
 
 data AbstractEnvModifier
   = EnvNoChange
@@ -99,6 +103,7 @@ data AbstractEnvModifier
   | EnvEval Variable
   | EnvSelect Variable HsName Int
   | EnvTag HsName [Maybe Variable] (Maybe Variable)
+	deriving (Show, Eq)
 
 updateEnvElement :: AbstractEnvElement -> AbstractEnv -> AbstractHeap -> AbstractEnvElement
 updateEnvElement ee env heap = let newBaseSet   = aeBaseSet ee `mappend` aeChangeSet ee

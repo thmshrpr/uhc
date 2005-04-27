@@ -5,7 +5,7 @@
 %include afp.fmt
 %%]
 
-%%[8 import("EHCommon hiding ((<+>))", Data.Char, Data.List(nubBy), GrinCode, CmmCode) export(module CmmCode)
+%%[8 import("EHCommon(HsName)", Data.Char, Data.List(nubBy), GrinCode, CmmCode) export(module CmmCode)
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%

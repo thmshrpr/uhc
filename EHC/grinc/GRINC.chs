@@ -15,7 +15,7 @@
 %%[8 import(UU.Parsing, UU.Pretty(pp), EHCommon, EHScanner, GRIParser, GrinCode, GrinCodePretty)
 %%]
 
-%%[8 import (FPath,GRINCCommon, LowerGrin, GRIN2Cmm, CmmCodePretty)
+%%[8 import (FPath,GRINCCommon, GrPointsToAnalysis, LowerGrin, GRIN2Cmm, CmmCodePretty)
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -82,9 +82,14 @@ writeCmm cmm fp opts
 doCompileRun :: String -> Opts -> IO ()
 doCompileRun fn opts
   = do { let input = mkTopLevelFPath "grin" fn
-       ; gr' <- parseGrin input opts
-       ; let gr = lowerGrin gr'
-       ; when (optDebug opts) (putStrLn (show.ppGrModule Nothing $ gr))
+       ; putStrLn "parsing grin"
+       ; gr <- parseGrin input opts
+       ; putStrLn "point to analysis"
+       ; gr <- return $ addPointsToInfo gr
+       ; putStrLn "lowering grin"
+       ; gr <- return (lowerGrin gr)
+       ; putStrLn (show gr)
+       ; putStrLn "translating to C--"
        ; let cmm    = grin2cmm gr
              output = fpathSetSuff "cmm" input
        ; when (optDebug opts) (putStrLn "=============" >> putStrLn (show cmm))

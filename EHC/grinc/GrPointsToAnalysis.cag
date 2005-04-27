@@ -8,12 +8,15 @@
 %%[8 import(../GrinCodeAbsSyn)
 %%]
 
+%%[8 hs import(Debug.Trace)
+%%]
+
 %%[8.wrapper
 WRAPPER GrAGItf
 %%]
 
-%%[8 hs import(EHCommon, FiniteMap, GrinCode,HeapPointsToFixpoint) export(addPointsToInfo)
-asddPointsToInfo :: GrModule -> GrModule
+%%[8 hs import(EHCommon, Data.FiniteMap, Data.Maybe, GrinCode,HeapPointsToFixpoint) export(addPointsToInfo)
+addPointsToInfo :: GrModule -> GrModule
 addPointsToInfo grmod = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod)) Inh_GrAGItf
                     in grTrf_Syn_GrAGItf t
 %%]
@@ -21,56 +24,33 @@ addPointsToInfo grmod = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod))
 -- Todo: Use arrays in stead of lookup lists
 %%[8
 ATTR GrAGItf [ | | grTrf: GrModule ]
-ATTR AllGrNT [ pointsTo: AbstractEnv | absEnv: AbstractEnv absHeap: AbstractHeap | grTrf: SELF ]
+ATTR AllGrNT [ pointsTo: AbstractEnv | | grTrf: SELF ]
+
+ATTR AllGrNT [ | | absEnv USE {.} {id}: {AbstractEnv -> AbstractEnv} absHeap USE {.} {id}: {AbstractHeap -> AbstractHeap} ]
 
 SEM GrAGItf
-  | AGItf  module . pointsTo = fst (heapPointsTo @module.absEnv @module.absHeap @deps)
-                  . absEnv   = []
-                  . absHeap  = []
-           loc    . deps     = error "no dependency generation yet"
-%%]
+  | AGItf  module . pointsTo = fst (heapPointsTo (trace (show @absEnv) @absEnv) (trace (show @absHeap) @absHeap) @deps)
+           loc    . deps     = const [] --error "no dependency generation yet"
+                  . absEnv   = @module.absEnv  []
+                  . absHeap  = @module.absHeap []
 
-%%%%%%%%%%%%%%%%%%%%%%%%
-%% Target Information %%
-%%%%%%%%%%%%%%%%%%%%%%%%
+SEM GrModule
+  | Mod   lhs . grTrf = trace (show @lhs.pointsTo) @grTrf
 
-%%[8.targetInformation
-ATTR GrPat [ | | names USE {++} {[]}: {[HsName]} ]
-SEM GrPat
-  | Var        lhs . names = [@nm]
-  | Empty      lhs . names = []
-  | Tag        lhs . names = []
-  | NodeSplit  lhs . names = error "GrPointsToAnalysis.names: no NodeSplit support"
-
-ATTR GrPat [ | | tag: {Maybe GrTag} ]
-SEM GrPat
-  | Empty LitInt Var  lhs . tag = Nothing
-  | Tag Node          lhs . tag = Just @tag.copy
-  | NodeSplit         loc . tag = error "no node split support"
-
-ATTR AllGrExpr [ targetNames: {[HsName]} selectionTag: {Maybe GrTag} | | ]
 SEM GrBind
-  | Bind  expr . targetNames = [hsnPrefix "@" @nm] -- result variable for this function
-               . selectionTag = Nothing
-SEM GrExpr
-  | Seq        expr . targetNames   =  @pat.names
-                    . selectionTag  =  @pat.tag
-               body . targetNames   =  @lhs.targetNames
-                    . selectionTag  =  @lhs.selectionTag
-
-ATTR AllAlt [ scrutinizer: {HsName} | | ]
-SEM GrExpr
-  | Case altL . scrutinizer = @val.caseNm
-
-SEM GrVal [ | | caseNm : {HsName} ]
-  | Var      lhs . caseNm = @nm
-  | * - Var  lhs . caseNm = error "no value variable"
+  | Bind  loc . prune   = (@nm == HNm "eval") || (@nm == HNm "apply")
+              . absHeap = if @prune then id else @expr.absHeap
+              . absEnv  = if @prune then id else @expr.absEnv
 %%]
+
+%%%%%%%%%%%%%%%%%%%
+%% Tag2ResultVar %%
+%%%%%%%%%%%%%%%%%%%
 
 %%[8.tag2resultVar
 ATTR AllGrNT [ tag2resultVar: {AssocL HsName HsName} | | ]
 SEM GrModule
-  | Mod     loc . tag2resultVar = [ (n, hsnPrefix "@" f) | ((n,_), EvApTagVar f) <- @evalTagMp ]
+  | Mod     loc . tag2resultVar = [ (n, hsnPrefix "@" f) | ((GrTag_Lit _ _ n,_), EvApTagVar f) <- @evalTagMp ]
 
 SEM GrAGItf
   | AGItf   loc . tag2resultVar = []
@@ -92,104 +72,258 @@ SEM GrAGItf
   | AGItf  module . heapLocations = 0
 %%]
 
+%%%%%%%%%%%%%
+%% TagName %%
+%%%%%%%%%%%%%
+
+%We use the name @UNBOXED for unboxed nodes.
+%Any other node should have a named tag.
+
+%%[8.tagName 
+SEM GrTag [ | | tagName: {HsName} ]
+  | Lit     lhs . tagName = @nm
+  | Unboxed lhs . tagName = (HNm "@UNBOXED")
+  | Var     lhs . tagName = error "Tag variables are not allowed in GRIN Points-To Analysis"
+%%]
+
+
+A grin node is either a single variable or a complete node (with a known tag)
+
+%%[8.nodeInfo hs
+type NodeInfo a = Either HsName (HsName, [a])
+%%]
+
+%%%%%%%%%%%%%%%%
+%% value Info %%
+%%%%%%%%%%%%%%%%
+
+A grin value is either a single variable or a complete node (known tag)
+
+%%[8.valInfo
+SEM GrVal [ | | valInfo : {NodeInfo (Maybe HsName)}]
+  | Node      lhs . valInfo = Right (@tag.tagName, @fldL.depVars)
+  | Tag       lhs . valInfo = Right (@tag.tagName, [])
+  | Var       lhs . valInfo = Left @nm
+  | Empty     lhs . valInfo = error "no empty value expected!"
+  | LitInt    lhs . valInfo = error "no literal value expected!"
+  | NodeAdapt lhs . valInfo = error "no support for NodeAdapt"
+%%]
+
+%%[8.depVars
+SEM GrVal  [ | | depVar:  {Maybe HsName} ]
+  | Var      lhs . depVar = Just @nm
+  | * - Var  lhs . depVar = Nothing
+SEM GrValL [ | | depVars: {[Maybe HsName]}  ]
+  | Cons     lhs . depVars = @hd.depVar : @tl.depVars
+  | Nil      lhs . depVars = []
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Pattern Information %%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+
+A grin pattern is either a single variable or a compete node pattern (known tag)
+
+%%[8.patInfo
+SEM GrPat [ | | patInfo: {NodeInfo HsName} ]
+  | Node       lhs . patInfo = Right (@tag.tagName, @fldL)
+  | Tag        lhs . patInfo = Right (@tag.tagName, [])
+  | Var        lhs . patInfo = Left  @nm
+  | Empty      lhs . patInfo = error "empty pattern no expected!"
+  | LitInt     lhs . patInfo = error "literal int in pattern? I did not know that..."
+  | NodeSplit  lhs . patInfo = error "no support for NodeSplit"
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%
+%% Target Information %%
+%%%%%%%%%%%%%%%%%%%%%%%%
+
+The target info is basicly the pattern information. However, for the last
+expression in a binding it is the result variable of that binding.
+
+%%[8.targetInformation
+ATTR AllGrExpr [ targetInfo: {NodeInfo HsName} | | ]
+
+SEM GrBind
+  | Bind  expr . targetInfo = Left (hsnPrefix "@" @nm) -- result variable for this function
+
+SEM GrExpr
+  | Seq   expr . targetInfo = @pat.patInfo
+          body . targetInfo = @lhs.targetInfo
+%%]
+
+4 possibilities of source and target info
+
+%%[8.genInfo hs
+genInfo :: NodeInfo a 
+        -> NodeInfo b
+        -> (HsName->HsName->c)
+        -> (HsName->HsName->[b]->c)
+        -> (HsName->[a]->HsName->c)
+        -> (HsName->[a]->HsName->[b]->c)
+        -> c
+genInfo sourceInfo targetInfo llf lrf rlf rrf =
+  case (sourceInfo, targetInfo) of
+    (Left  sn      , Left  tn       ) -> llf sn     tn
+    (Left  sn      , Right (tt, tns)) -> lrf sn     tt  tns
+    (Right (st,sns), Left  tn       ) -> rlf st sns tn
+    (Right (st,sns), Right (tt, tns)) -> rrf st sns tt  tns
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8.rotzooi
+ATTR AllAlt [ scrutinizer: {HsName} | | ]
+SEM GrExpr
+  | Case altL . scrutinizer = @val.caseNm
+
+SEM GrVal [ | | caseNm : {HsName} ]
+  | Var      lhs . caseNm = @nm
+  | * - Var  lhs . caseNm = error "no value variable"
+%%]
+
+
+
+
 %%%%%%%%%%
 %% Unit %%
 %%%%%%%%%%
 
+unit node;           -> \n              => n:
+                                             absVal = Nothing
+                                             envMod = Union [node]
+unit (Tag e1 .. en); -> \n              => n:
+                                             absVal = Tag[(absVal e1), .., (absVal en)]  |_| resultVar(Tag)
+                                             envMod = Tag[(depVar e1), .., (depVar en)]
+unit node;           -> \(Tag e1 .. en) => e1: 
+                                             absVal = Nothing
+                                             envMod = node ! Tag ! 1
+                                           en: 
+                                             absVal = Nothing
+                                             envMod = node ! Tag ! n
+unit (Tag d1 .. dn); -> \(Tag e1 .. en) => e1:
+                                             absVal = (absVal d1)
+                                             envMod = Union (depVar d1)
+                                           en:
+                                             absVal = (absVal dn)
+                                             envMod = Union (depVar dn)
+
 %%[8.unit
 SEM GrExpr
-  | Unit   loc . sf   = \v -> makeEnvElem v @val.absVal @val.envMod
-               . mf   = error "no multiple target values expected after a unit"
-               . env  = (makeEq @lhs.targetNames sf mf :) 
-               . heap = id
+  | Unit   loc . absHeap    = id
+               . fVar2Var   = \s t         -> (makeEnvElem t AV_Nothing (EnvUnion [s]) :)
+               . fNode2Var  = \tag names t -> let absVals   = map sn2av names
+                                                  resultVar = lookup tag @lhs.tag2resultVar
+                                                  env       = makeEnvElem t 
+                                                                          (AV_Nodes [(tag, absVals)])
+                                                                          (EnvTag tag names resultVar)
+                                              in (env :)
+               . fVar2Node  = buildSelectElems
+               . fNode2Node = \st snms tt tnms -> let sn2mod = maybe EnvNoChange (\x -> EnvUnion [x]) 
+                                                      toEnvElem sn tn = makeEnvElem tn (sn2av sn) (sn2mod sn)
+                                                  in (zipWith toEnvElem snms tnms ++) -- note: st == tt
+               . absEnv  = genInfo @val.valInfo @lhs.targetInfo @fVar2Var @fVar2Node @fNode2Var @fNode2Node
 %%]
 
-%%[8.envMod
-ATTR GrVal [ | |  varName: {Maybe HsName} ]
-ATTR GrValL [ | | varNames : {[Maybe HsName]}  ]
-SEM GrVal
-  | Var      lhs . varName = Just @nm
-  | * - Var  lhs . varName = Nothing
-SEM GrValL
-  | Cons     lhs . varNames = @hd.varName : @tl.varNames
-  | Nil      lhs . varNames = []
+%%[8.selectVar hs
+sn2av :: Maybe HsName -> AbstractValue
+sn2av = maybe AV_Basic (const AV_Nothing)
 
-ATTR GrVal  [ | | envMod   : AbstractEnvModifier ]
-SEM GrVal
-  | Node   loc . tagNm  = getNameFromTag @tag.copy
-               . envMod = EnvTag @tagNm @fldL.varNames (lookup @tagNm @lhs.tag2resultVar)
-  | Tag    loc . envMod = EnvNoChange
-  | Empty  loc . envMod = error "no empty value expected!" -- EnvNoChange
-  | LitInt loc . envMod = error "no literal value expected!"
-  | Var    loc . envMod = EnvUnion [@nm]
-  | NodeAdapt loc .envMod = error "no support for NodeAdapt"
-
-ATTR GrVal [ | | absVal: AbstractValue ]
-SEM GrVal
-  | Node   loc . absVal = let (EnvTag nm vars) = @envMod
-                              toAbsVal         = maybe AV_Basic (const AV_Nothing)
-                          in AV_Nodes [(nm, map toAbsVal vars)]
-  | Tag    loc . absVal  = AV_Nodes [(getNameFromTag @tag.copy, [])]
-  | Empty  loc . absVal  = AV_Basic
-  | LitInt loc . absVal  = AV_Basic
-  | Var    loc . absVal  = AV_Nothing
-  | NodeAdapt loc .absVal = error "no support for NodeAdapt"
+buildSelectElems selectVar tag nms
+  = let step (i, f) v     = (i+1, f . (makeEnvElem v AV_Nothing (EnvSelect selectVar tag i) :))
+        (count, envElems) = foldl step (0, id) nms
+    in envElems
 %%]
+
 
 %%%%%%%%%%%
 %% Store %%
 %%%%%%%%%%%
 
+store (Tag e1 .. en); -> \n              => n:
+                                              absVal = newLocation
+                                              envMod = NoChange
+                                            newLocation:
+                                              absVal  = Tag[(absVal e1), .., (absVal en)] 
+                                              heapMod = Tag[(depVar e1), .., (depVar en)] |_| resultVar(Tag)
+
 %%[8.store
 SEM GrExpr
-  | Store  loc . location      = @lhs.heapLocations
-               . sf            = \v -> makeEnvElem v (AV_Locations [@location]) EnvNoChange
-               . mf            = error "multiple target values after a store"
-               . env           = (makeEq @lhs.targetNames @sf @mf :)
-               . heap          = let (EnvTag nm  flds rv) = @val.envMod
-                                 in (makeHeapElem @location @val.absVal ((nm, flds), rv) :)
-           lhs . heapLocations = @lhs.heapLocations + 1
-
+  | Store  loc . location   = @lhs.heapLocations
+               . heapLocations = @lhs.heapLocations + 1
+               . fNode2Var  = \tag names t -> let absVals   = map sn2av names
+                                                  resultVar = lookup tag @lhs.tag2resultVar
+                                                  env       = makeEnvElem t (AV_Locations [@location]) EnvNoChange
+                                                  heap      = makeHeapElem @location
+                                                                           (AV_Nodes [(tag, absVals)])
+                                                                           ((tag, names), resultVar)
+                                                 in ( (env:), (heap:) )
+               . fVar2Var   = error "Single variable in a store not allowed!"
+               . fVar2Node  = error "No location variable afer a store!"
+               . fNode2Node = error "No location variable afer a store! (And always store a node!)"
+               . (absEnv, absHeap) = genInfo @val.valInfo @lhs.targetInfo @fVar2Var @fVar2Node @fNode2Var @fNode2Node
 %%]
 
 %%%%%%%%%%
 %% Eval %%
 %%%%%%%%%%
 
+eval(l); -> \n              => n:
+                                 absVal = Nothing
+                                 envMod = Eval l
+
+eval(l); -> \(Tag e1 .. en) => @eval@l:
+                                 absVal = Nothing
+                                 envMod = Eval l
+                               e1: 
+                                 absVal = Nothing
+                                 envMod = @eval@l ! Tag ! 1
+                               en: 
+                                 absVal = Nothing
+                                 envMod = @eval@l ! Tag ! n
 %%[8.eval
 SEM GrExpr
-  | Eval   loc . heap = id
-               . sf   = \v -> makeEnvElem v AV_Nothing EnvEval @nm
-               . mf   = error "not implemented yet"                  -- nothing to get
-               . env  = (makeEq @lhs.targetNames @sf @mf :)
+  | Eval   loc . absHeap = id
+               . absEnv = case @lhs.targetInfo of
+                            Left  n           -> (makeEnvElem n AV_Nothing (EnvEval @nm) :)
+                            Right (tag,names) -> let tmpVar     = hsnPrefix "@eval@" @nm
+                                                     tmpEnvElem = (makeEnvElem tmpVar AV_Nothing (EnvEval @nm) :)
+                                                 in  tmpEnvElem . buildSelectElems tmpVar tag names
 %%]
 
 %%%%%%%%%%
 %% Call %%
 %%%%%%%%%%
 
+foo a1 .. an; -> \n             => n:
+                                     absVal = Nothing
+                                     envMod = Union [@foo]
+
+foo a1 ..an; -> \(Tag e1 .. en) => e1: 
+                                     absVal = Nothing
+                                     envMod = @foo ! Tag ! 1
+                                   en: 
+                                     absVal = Nothing
+                                     envMod = @foo ! Tag ! n
 %%[8.call
 SEM GrExpr
-  | Call  loc . heap = id
-              . sf   = \v -> fromJust (lookup @nm @lhs.tag2resultVar)
-              . mf   = error "not implemented yet"
-              . env  = (makeEq @lhs.targetNames @sf @mf :)
+  | Call  loc . absHeap   = id
+              . resultVar = hsnPrefix "@" @nm
+              . absEnv = case @lhs.targetInfo of
+                            Left  n           -> (makeEnvElem n AV_Nothing (EnvUnion [@nm]) :)
+                            Right (tag,names) -> buildSelectElems @resultVar tag names
 %%]
 
+%%%%%%%%%%
+%% Case %%
+%%%%%%%%%%
+
+%%[8.case
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%[8 hs
--- stupid function, better in AG
-getNameFromTag tag = case tag of
-                    GrTag_Lit     _ _ nm -> nm
-                    GrTag_Unboxed        -> (HsName "@UNBOXED")
-
-makeEq :: [HsName] -> (HsName -> a) -> ([HsName] -> a) -> a
-makeEq tns sf mf = case tns of
-                 []  -> error "no target variables. No empty node pattern expected outside eval"
-                 [r] -> sf r
-                 _   -> mf tns
-
-
 makeEnvElem  v initial eq = AbstractEnvElement  { aeLabel = v, aeBaseSet = AV_Nothing, aeChangeSet = initial, aeMod = eq}
 makeHeapElem l initial eq = AbstractHeapElement { ahLabel = l, ahBaseSet = AV_Nothing, ahChangeSet = initial, ahMod = eq}
 %%]
