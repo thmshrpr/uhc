@@ -77,7 +77,14 @@ data AbstractHeapElement = AbstractHeapElement
     , ahChangeSet :: !AbstractValue
     , ahMod       :: !AbstractHeapModifier
     }
-	deriving (Show, Eq)
+	deriving (Eq)
+
+instance Show AbstractHeapElement where
+	show (AbstractHeapElement l b c m) =  "{" ++ show l ++ "}\n  " 
+	                                   ++ "base   = " ++ show b ++ "\n  "
+	                                   ++ "change = " ++ show c ++ "\n  "
+	                                   ++ "mod    = " ++ show m ++ "\n"
+
 type AbstractHeapModifier = (AbstractNodeModifier, Maybe Variable)
 type AbstractNodeModifier = (HsName, [Maybe Variable]) --(tag, [fields])
 
@@ -95,7 +102,13 @@ data AbstractEnvElement = AbstractEnvElement
     , aeChangeSet :: !AbstractValue
     , aeMod       :: !AbstractEnvModifier
     }
-	deriving (Show, Eq)
+	deriving (Eq)
+
+instance Show AbstractEnvElement where
+	show (AbstractEnvElement l b c m) =  "{" ++ show l ++ "}\n  " 
+	                                   ++ "base   = " ++ show b ++ "\n  "
+	                                   ++ "change = " ++ show c ++ "\n  "
+	                                   ++ "mod    = " ++ show m ++ "\n"
 
 data AbstractEnvModifier
   = EnvNoChange

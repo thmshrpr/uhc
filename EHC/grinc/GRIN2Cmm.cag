@@ -590,8 +590,9 @@ ATTR GrModule AllBind [ | | cafNames USE {++} {[]}: {[CmmName]} ]
 
 SEM GrBind
   | Bind        loc . cafNames = if null @argNmL then [cmmName' @nm] else []
+%%]
 
-
+%%[8
 ATTR AllGrNT [ cafEnv : {CAFEnv} | | ] 
 
 SEM GrAGItf

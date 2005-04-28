@@ -8,7 +8,7 @@
 %%[8 import(../GrinCodeAbsSyn)
 %%]
 
-%%[8 hs import(Debug.Trace)
+%%[8 hs import(Data.List(transpose), EHCommon(HsName), Debug.Trace) 
 %%]
 
 %%[8.wrapper
@@ -29,18 +29,18 @@ ATTR AllGrNT [ pointsTo: AbstractEnv | | grTrf: SELF ]
 ATTR AllGrNT [ | | absEnv USE {.} {id}: {AbstractEnv -> AbstractEnv} absHeap USE {.} {id}: {AbstractHeap -> AbstractHeap} ]
 
 SEM GrAGItf
-  | AGItf  module . pointsTo = fst (heapPointsTo (trace (show @absEnv) @absEnv) (trace (show @absHeap) @absHeap) @deps)
+  | AGItf  module . pointsTo = fst (heapPointsTo (trace ("env: " ++ show @absEnv) @absEnv) (trace ("heap: " ++ show @absHeap) @absHeap) @deps)
            loc    . deps     = const [] --error "no dependency generation yet"
-                  . absEnv   = @module.absEnv  []
-                  . absHeap  = @module.absHeap []
+                  . absEnv   = @module.absEnv  @absEnvCAF
+                  . absHeap  = @module.absHeap @absHeapCAF
 
 SEM GrModule
   | Mod   lhs . grTrf = trace (show @lhs.pointsTo) @grTrf
 
 SEM GrBind
   | Bind  loc . prune   = (@nm == HNm "eval") || (@nm == HNm "apply")
-              . absHeap = if @prune then id else @expr.absHeap
-              . absEnv  = if @prune then id else @expr.absEnv
+          lhs . absHeap = if @prune then id else @expr.absHeap
+              . absEnv  = if @prune then id else @loc.absEnvBind . @expr.absEnv
 %%]
 
 %%%%%%%%%%%%%%%%%%%
@@ -62,14 +62,14 @@ SEM GrVal
   | NodeAdapt loc . copy = error "No Node adapt"
 %%]
 
-%%%%%%%%%%%%%%%%%%%%%%
-%% Unique locations %%
-%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%
+%% Unique Pointers %%
+%%%%%%%%%%%%%%%%%%%%%
 
-%%[8.heapLocations
-ATTR AllGrNT [ | heapLocations: Int | ]
+%%[8.heapPointer
+ATTR AllGrNT [ | heapPointer: Int | ]
 SEM GrAGItf
-  | AGItf  module . heapLocations = 0
+  | AGItf  module . heapPointer = @afterCAFPointer
 %%]
 
 %%%%%%%%%%%%%
@@ -145,7 +145,8 @@ expression in a binding it is the result variable of that binding.
 ATTR AllGrExpr [ targetInfo: {NodeInfo HsName} | | ]
 
 SEM GrBind
-  | Bind  expr . targetInfo = Left (hsnPrefix "@" @nm) -- result variable for this function
+  | Bind  loc  . resultVar  = hsnPrefix "@" @nm
+          expr . targetInfo = Left @resultVar -- result variable for this function
 
 SEM GrExpr
   | Seq   expr . targetInfo = @pat.patInfo
@@ -208,10 +209,12 @@ unit (Tag d1 .. dn); -> \(Tag e1 .. en) => e1:
                                              absVal = (absVal dn)
                                              envMod = Union (depVar dn)
 
+note: The resultVar will always be Nothing.
+      A node not in the heap representing a function is strange at least...
+
 %%[8.unit
 SEM GrExpr
-  | Unit   loc . absHeap    = id
-               . fVar2Var   = \s t         -> (makeEnvElem t AV_Nothing (EnvUnion [s]) :)
+  | Unit   loc . fVar2Var   = \s t         -> (makeEnvElem t AV_Nothing (EnvUnion [s]) :)
                . fNode2Var  = \tag names t -> let absVals   = map sn2av names
                                                   resultVar = lookup tag @lhs.tag2resultVar
                                                   env       = makeEnvElem t 
@@ -249,19 +252,26 @@ store (Tag e1 .. en); -> \n              => n:
 
 %%[8.store
 SEM GrExpr
-  | Store  loc . location   = @lhs.heapLocations
-               . heapLocations = @lhs.heapLocations + 1
-               . fNode2Var  = \tag names t -> let absVals   = map sn2av names
-                                                  resultVar = lookup tag @lhs.tag2resultVar
-                                                  env       = makeEnvElem t (AV_Locations [@location]) EnvNoChange
-                                                  heap      = makeHeapElem @location
-                                                                           (AV_Nodes [(tag, absVals)])
-                                                                           ((tag, names), resultVar)
-                                                 in ( (env:), (heap:) )
-               . fVar2Var   = error "Single variable in a store not allowed!"
-               . fVar2Node  = error "No location variable afer a store!"
-               . fNode2Node = error "No location variable afer a store! (And always store a node!)"
-               . (absEnv, absHeap) = genInfo @val.valInfo @lhs.targetInfo @fVar2Var @fVar2Node @fNode2Var @fNode2Node
+  | Store  loc . (heapPointer, absEnv, absHeap) = makeStore @lhs.tag2resultVar 
+                                                            @lhs.heapPointer
+                                                            @val.valInfo
+                                                            @lhs.targetInfo
+%%]
+
+%%[8.store hs
+makeStore tag2resultVar heapPointer valInfo targetInfo
+	= let fNode2Var  tag names t = let absVals   = map sn2av names
+	                                   resultVar = lookup tag tag2resultVar
+	                                   env       = makeEnvElem t (AV_Locations [heapPointer]) EnvNoChange
+	                                   heap      = makeHeapElem heapPointer
+	                                                            (AV_Nodes [(tag, absVals)])
+	                                                            ((tag, names), resultVar)
+	                               in ( (env:), (heap:) )
+	      fVar2Var   = error "Single variable in a store not allowed!"
+	      fVar2Node  = error "No location variable afer a store!"
+	      fNode2Node = error "No location variable afer a store! (And always store a node!)"
+	      (absEnv, absHeap) = genInfo valInfo targetInfo fVar2Var fVar2Node fNode2Var fNode2Node
+	  in (heapPointer + 1, absEnv, absHeap)
 %%]
 
 %%%%%%%%%%
@@ -283,8 +293,7 @@ eval(l); -> \(Tag e1 .. en) => @eval@l:
                                  envMod = @eval@l ! Tag ! n
 %%[8.eval
 SEM GrExpr
-  | Eval   loc . absHeap = id
-               . absEnv = case @lhs.targetInfo of
+  | Eval   loc . absEnv = case @lhs.targetInfo of
                             Left  n           -> (makeEnvElem n AV_Nothing (EnvEval @nm) :)
                             Right (tag,names) -> let tmpVar     = hsnPrefix "@eval@" @nm
                                                      tmpEnvElem = (makeEnvElem tmpVar AV_Nothing (EnvEval @nm) :)
@@ -307,8 +316,7 @@ foo a1 ..an; -> \(Tag e1 .. en) => e1:
                                      envMod = @foo ! Tag ! n
 %%[8.call
 SEM GrExpr
-  | Call  loc . absHeap   = id
-              . resultVar = hsnPrefix "@" @nm
+  | Call  loc . resultVar = hsnPrefix "@" @nm
               . absEnv = case @lhs.targetInfo of
                             Left  n           -> (makeEnvElem n AV_Nothing (EnvUnion [@nm]) :)
                             Right (tag,names) -> buildSelectElems @resultVar tag names
@@ -318,12 +326,88 @@ SEM GrExpr
 %% Case %%
 %%%%%%%%%%
 
+case node of (T e1 .. en)             => e1: 
+                                           absVal = Nothing
+                                           envMod = node ! Tag ! 1
+                                         en: 
+                                           absVal = Nothing
+                                           envMod = node ! Tag ! n
+case (Tag d1 .. dn) of (Tag e1 .. en) => e1:
+                                           absVal = (absVal d1)
+                                           envMod = Union (depVar d1)
+                                         en:
+                                           absVal = (absVal dn)
+                                           envMod = Union (depVar dn)
+
 %%[8.case
+ATTR AllAlt [ valInfo: {NodeInfo (Maybe HsName)} | | ]
+
+SEM GrAlt
+  | Alt  loc . fVar2Node  = buildSelectElems
+             . fNode2Node = \st snms tt tnms -> let sn2mod = maybe EnvNoChange (\x -> EnvUnion [x]) 
+                                                    toEnvElem sn tn = makeEnvElem tn (sn2av sn) (sn2mod sn)
+                                                in (zipWith toEnvElem snms tnms ++) -- note: st == tt
+             . fVar2Var   = error "no variable in alternative pattern expected!"
+             . fNode2Var  = error "no variable in alternative pattern expected!"
+             . absEnv     = genInfo @lhs.valInfo @lhs.targetInfo @fVar2Var @fVar2Node @fNode2Var @fNode2Node
+         lhs . absEnv     = @absEnv . @expr.absEnv
+
 %%]
+
+%%%%%%%%%%%%%
+%% Actuals %%
+%%%%%%%%%%%%%
+
+%%[8.actuals
+ATTR AllGrNT [ | actualsEnv USE {.} {id} : {[(HsName, [HsName])] -> [(HsName, [HsName])]} | ]
+ATTR AllBind [ allActuals: {[(HsName, [HsName])]} | | ]
+
+SEM GrExpr
+  | Store Unit  loc . fGenActuals = \tag mns n -> let args      = map fromJust mns
+                                                      resultVar = lookup tag @lhs.tag2resultVar
+                                                      actuals r = ((r,args) :)
+                                                  in maybe id actuals resultVar
+                    . actualsEnv  = case (@val.valInfo, @lhs.targetInfo) of
+                                      (Right (st,snms), Left tn) -> @fGenActuals st snms tn
+                                      otherwise                  -> id
+
+SEM GrAGItf
+  | AGItf    module . actualsEnv  = id
+
+SEM GrModule
+  | Mod       bindL . allActuals  = @bindL.actualsEnv []
+
+SEM GrBind
+  | Bind      loc   . bindActuals = transpose [ actuals | (resVar, actuals) <- @lhs.allActuals, resVar == @resultVar ]
+                    . absEnvBind  = let envElem formal actuals = makeEnvElem formal AV_Nothing (EnvUnion actuals)
+                                    in (zipWith envElem @argNmL @bindActuals ++)
+%%]
+
+%%%%%%%%%
+%% CAF %%
+%%%%%%%%%
+
+for each CAF there exist a variable. Which looks like a store to that variable
+
+%%[8.CAF import(GrCAFNames)
+SEM GrAGItf
+  | AGItf   loc . mergeCAF = \n (p, e, h) -> let tag          = fromJust . revLookup @tag2resultVar
+                                                 (p', e', h') = makeStore @tag2resultVar p (Right (tag n, [])) (Left n)
+                                             in (p', e' e, h' h)
+                . (afterCAFPointer, absEnvCAF, absHeapCAF)  = foldr @mergeCAF
+                                                                    (0, [], [])
+                                                                    @module.cafNames
+%%]
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%[8 hs
+revLookup :: (Eq b) => [(a,b)] -> b -> Maybe a
+revLookup l e = lookup e (map swap l)
+	where swap = uncurry (flip (,))
+
+
 makeEnvElem  v initial eq = AbstractEnvElement  { aeLabel = v, aeBaseSet = AV_Nothing, aeChangeSet = initial, aeMod = eq}
 makeHeapElem l initial eq = AbstractHeapElement { ahLabel = l, ahBaseSet = AV_Nothing, ahChangeSet = initial, ahMod = eq}
 %%]

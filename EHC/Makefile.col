@@ -69,7 +69,7 @@ GrinCode.hs: GrinCode.ag GrinCodeAbsSyn.ag
 
 grinc/CmmBuilding.hs: grinc/CmmCode.hs
 
-grinc/GrPointsToAnalysis.hs: grinc/GrPointsToAnalysis.ag grinc/HeapPointsToFixpoint.hs GrinCode.hs GrinCode.ag
+grinc/GrPointsToAnalysis.hs: grinc/GrPointsToAnalysis.ag grinc/GrCAFNames.ag grinc/HeapPointsToFixpoint.hs GrinCode.hs GrinCode.ag
 
 
 grinc/HeapPointsToFixpoint.hs: EHCommon.hs

@@ -1,0 +1,21 @@
+% $Id$
+
+%%[0
+%include lhs2TeX.fmt
+%include afp.fmt
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Collecting CAF Names %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+A CAF is a GRIN function which takes no parametes. every CAF has a variable
+named the same as GRIN function that maps to a FNode. Which, if evaluated,
+calls the corresponding GRIN function.
+
+%%[8
+ATTR GrModule AllBind [ | | cafNames USE {++} {[]}: {[HsName]}    ]
+
+SEM GrBind
+  | Bind        loc . cafName  = if null @argNmL then [@nm] else []
+%%]
