@@ -29,10 +29,11 @@ ATTR AllGrNT [ pointsTo: AbstractEnv | | grTrf: SELF ]
 ATTR AllGrNT [ | | absEnv USE {.} {id}: {AbstractEnv -> AbstractEnv} absHeap USE {.} {id}: {AbstractHeap -> AbstractHeap} ]
 
 SEM GrAGItf
-  | AGItf  module . pointsTo = fst (heapPointsTo (trace ("env: " ++ show @absEnv) @absEnv) (trace ("heap: " ++ show @absHeap) @absHeap) @deps)
+  | AGItf  module . pointsTo = fst (heapPointsTo @absEnv @absHeap @deps)
            loc    . deps     = const [] --error "no dependency generation yet"
                   . absEnv   = @module.absEnv  @absEnvCAF
                   . absHeap  = @module.absHeap @absHeapCAF
+           lhs    . grTrf    = trace ("env: " ++ show @absEnv) (trace ("heap: " ++ show @absHeap) @module.grTrf)
 
 SEM GrModule
   | Mod   lhs . grTrf = trace (show @lhs.pointsTo) @grTrf
@@ -48,9 +49,9 @@ SEM GrBind
 %%%%%%%%%%%%%%%%%%%
 
 %%[8.tag2resultVar
-ATTR AllGrNT [ tag2resultVar: {AssocL HsName HsName} | | ]
+ATTR AllGrNT [ tag2resultVar: {AssocL GrTag HsName} | | ]
 SEM GrModule
-  | Mod     loc . tag2resultVar = [ (n, hsnPrefix "@" f) | ((GrTag_Lit _ _ n,_), EvApTagVar f) <- @evalTagMp ]
+  | Mod     loc . tag2resultVar = [ (t, hsnPrefix "@" f) | ((t,_), EvApTagVar f) <- @evalTagMp ]
 
 SEM GrAGItf
   | AGItf   loc . tag2resultVar = []
@@ -80,9 +81,7 @@ SEM GrAGItf
 %Any other node should have a named tag.
 
 %%[8.tagName 
-SEM GrTag [ | | tagName: {HsName} ]
-  | Lit     lhs . tagName = @nm
-  | Unboxed lhs . tagName = (HNm "@UNBOXED")
+SEM GrTag [ | | tagName: SELF ]
   | Var     lhs . tagName = error "Tag variables are not allowed in GRIN Points-To Analysis"
 %%]
 
@@ -90,7 +89,7 @@ SEM GrTag [ | | tagName: {HsName} ]
 A grin node is either a single variable or a complete node (with a known tag)
 
 %%[8.nodeInfo hs
-type NodeInfo a = Either HsName (HsName, [a])
+type NodeInfo a = Either HsName (GrTag, [a])
 %%]
 
 %%%%%%%%%%%%%%%%
@@ -159,9 +158,9 @@ SEM GrExpr
 genInfo :: NodeInfo a 
         -> NodeInfo b
         -> (HsName->HsName->c)
-        -> (HsName->HsName->[b]->c)
-        -> (HsName->[a]->HsName->c)
-        -> (HsName->[a]->HsName->[b]->c)
+        -> (HsName->GrTag->[b]->c)
+        -> (GrTag->[a]->HsName->c)
+        -> (GrTag->[a]->GrTag->[b]->c)
         -> c
 genInfo sourceInfo targetInfo llf lrf rlf rrf =
   case (sourceInfo, targetInfo) of
@@ -349,7 +348,7 @@ SEM GrAlt
                                                 in (zipWith toEnvElem snms tnms ++) -- note: st == tt
              . fVar2Var   = error "no variable in alternative pattern expected!"
              . fNode2Var  = error "no variable in alternative pattern expected!"
-             . absEnv     = genInfo @lhs.valInfo @lhs.targetInfo @fVar2Var @fVar2Node @fNode2Var @fNode2Node
+             . absEnv     = genInfo @lhs.valInfo @pat.patInfo @fVar2Var @fVar2Node @fNode2Var @fNode2Node
          lhs . absEnv     = @absEnv . @expr.absEnv
 
 %%]
@@ -363,7 +362,7 @@ ATTR AllGrNT [ | actualsEnv USE {.} {id} : {[(HsName, [HsName])] -> [(HsName, [H
 ATTR AllBind [ allActuals: {[(HsName, [HsName])]} | | ]
 
 SEM GrExpr
-  | Store Unit  loc . fGenActuals = \tag mns n -> let args      = map fromJust mns
+  | Store Unit  loc . fGenActuals = \tag mns n -> let args      = [ arg | Just arg <- mns ]
                                                       resultVar = lookup tag @lhs.tag2resultVar
                                                       actuals r = ((r,args) :)
                                                   in maybe id actuals resultVar
@@ -389,21 +388,24 @@ SEM GrBind
 
 for each CAF there exist a variable. Which looks like a store to that variable
 
+store (FCAF); \-> bla
+
+
 %%[8.CAF import(GrCAFNames)
 SEM GrAGItf
-  | AGItf   loc . mergeCAF = \n (p, e, h) -> let tag          = fromJust . revLookup @tag2resultVar
+  | AGItf   loc . mergeCAF = \n (p, e, h) -> let tag        n = fromJust $ revLookup @tag2resultVar (hsnPrefix "@" n)
                                                  (p', e', h') = makeStore @tag2resultVar p (Right (tag n, [])) (Left n)
                                              in (p', e' e, h' h)
                 . (afterCAFPointer, absEnvCAF, absHeapCAF)  = foldr @mergeCAF
                                                                     (0, [], [])
-                                                                    @module.cafNames
+                                                                    (trace ("CAF: " ++ show @module.cafNames) @module.cafNames)
 %%]
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%[8 hs
-revLookup :: (Eq b) => [(a,b)] -> b -> Maybe a
+--revLookup :: (Eq b) => [(a,b)] -> b -> Maybe a
 revLookup l e = lookup e (map swap l)
 	where swap = uncurry (flip (,))
 

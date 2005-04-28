@@ -30,7 +30,7 @@ changeSet based on the previous values.
 Note: we can implement the heap and environment as an array. With constant
 lookup times.
 
-%%[8 import(Data.Maybe, Data.List, Data.Monoid, EHCommon(HsName))
+%%[8 import(Data.Maybe, Data.List, Data.Monoid, EHCommon(HsName), GrinCode(GrTag))
 %%]
 
 %%[8.AbstractValue export(AbstractValue(..), AbstractNode, Location, Variable)
@@ -42,7 +42,7 @@ data AbstractValue
   | AV_Error !String
 	deriving (Show, Eq)
 
-type AbstractNode = (HsName, [AbstractValue]) -- Of course a Nodes can no occur inside a AbstractNode
+type AbstractNode = (GrTag, [AbstractValue]) -- Of course a Nodes can no occur inside a AbstractNode
 type Location = Int
 
 type Variable = HsName
@@ -86,7 +86,7 @@ instance Show AbstractHeapElement where
 	                                   ++ "mod    = " ++ show m ++ "\n"
 
 type AbstractHeapModifier = (AbstractNodeModifier, Maybe Variable)
-type AbstractNodeModifier = (HsName, [Maybe Variable]) --(tag, [fields])
+type AbstractNodeModifier = (GrTag, [Maybe Variable]) --(tag, [fields])
 
 updateHeapElement :: AbstractHeapElement -> AbstractEnv -> AbstractHeapElement
 updateHeapElement he env = let newBaseSet   = ahBaseSet he `mappend` ahChangeSet he
@@ -114,8 +114,8 @@ data AbstractEnvModifier
   = EnvNoChange
   | EnvUnion ![Variable]
   | EnvEval Variable
-  | EnvSelect Variable HsName Int
-  | EnvTag HsName [Maybe Variable] (Maybe Variable)
+  | EnvSelect Variable GrTag Int
+  | EnvTag GrTag [Maybe Variable] (Maybe Variable)
 	deriving (Show, Eq)
 
 updateEnvElement :: AbstractEnvElement -> AbstractEnv -> AbstractHeap -> AbstractEnvElement
@@ -147,13 +147,13 @@ envChangeSet am env heap = case am of
 	                     AV_Locations ls -> foldl' (\r -> mappend r . ahChangeSet . lookupHeap heap) mempty ls
 	                     AV_Error _      -> av
 	                     otherwise       -> AV_Error "Variable passed to eval is not a location"
-	selectChangeSet :: AbstractValue -> HsName -> Int -> AbstractValue
+	selectChangeSet :: AbstractValue -> GrTag -> Int -> AbstractValue
 	selectChangeSet av nm idx = case av of
 	                              AV_Nothing    -> av
 	                              AV_Nodes   ns -> lookup' ns nm !! idx
 	                              AV_Error _    -> av
 	                              otherwise     -> AV_Error "Variable passed to eval is not a node"
-	tagChangeSet :: HsName -> [Maybe Variable] -> (Maybe Variable) -> AbstractValue
+	tagChangeSet :: GrTag -> [Maybe Variable] -> (Maybe Variable) -> AbstractValue
 	tagChangeSet t flds r = let toAbstract f (c, l) = let nothingVal = (c, AV_Basic:l) 
                                                               justFunc v = let changeSet = aeChangeSet (lookupEnv env v)
                                                                            in (c || isChanged changeSet, changeSet:l)

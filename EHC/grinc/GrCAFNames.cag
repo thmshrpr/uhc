@@ -17,5 +17,5 @@ calls the corresponding GRIN function.
 ATTR GrModule AllBind [ | | cafNames USE {++} {[]}: {[HsName]}    ]
 
 SEM GrBind
-  | Bind        loc . cafName  = if null @argNmL then [@nm] else []
+  | Bind        loc . cafNames = if null @argNmL then [@nm] else []
 %%]
