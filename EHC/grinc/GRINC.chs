@@ -86,6 +86,7 @@ doCompileRun fn opts
        ; gr <- parseGrin input opts
        ; putStrLn "point to analysis"
        ; gr <- return $ addPointsToInfo gr
+       ; putStrLn (show gr)
        ; putStrLn "lowering grin"
        ; gr <- return (lowerGrin gr)
        ; putStrLn (show gr)

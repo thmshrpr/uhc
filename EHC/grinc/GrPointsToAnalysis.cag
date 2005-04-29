@@ -30,10 +30,11 @@ ATTR AllGrNT [ | | absEnv USE {.} {id}: {AbstractEnv -> AbstractEnv} absHeap USE
 
 SEM GrAGItf
   | AGItf  module . pointsTo = fst (heapPointsTo @absEnv @absHeap @deps)
-           loc    . deps     = const [] --error "no dependency generation yet"
-                  . absEnv   = @module.absEnv  @absEnvCAF
+           loc    . deps     = buildDeps @absEnv @absHeap
+                  . absEnv'  = @module.absEnv  @absEnvCAF
+                  . absEnv   = filter (((HNm "__") /=) . aeLabel) @absEnv'
                   . absHeap  = @module.absHeap @absHeapCAF
-           lhs    . grTrf    = trace ("env: " ++ show @absEnv) (trace ("heap: " ++ show @absHeap) @module.grTrf)
+           lhs    . grTrf    = trace ("env: " ++ show @absEnv) (trace ("heap: " ++ show @absHeap) @module.grTrf)           
 
 SEM GrModule
   | Mod   lhs . grTrf = trace (show @lhs.pointsTo) @grTrf
@@ -44,17 +45,32 @@ SEM GrBind
               . absEnv  = if @prune then id else @loc.absEnvBind . @expr.absEnv
 %%]
 
+%%[8.deps hs
+buildDeps env heap label = [ depend | (me,depend) <- table, me == label ]
+        where
+        table = undefined
+
+depHeapElem he = let me              = Right (ahLabel he)
+                     ((_,vars), var) = ahMod  he
+                     depends         = [ Left v | Just v <- (var:vars) ]
+                 in map (\e -> (depends,me)) depends
+
+depEnvElem ee = let me = Left (aeLabel ee)
+                in undefined
+%%]
+
 %%%%%%%%%%%%%%%%%%%
 %% Tag2ResultVar %%
 %%%%%%%%%%%%%%%%%%%
 
 %%[8.tag2resultVar
 ATTR AllGrNT [ tag2resultVar: {AssocL GrTag HsName} | | ]
+ATTR GrModule [ | | tag2resultVar: {AssocL GrTag HsName} ]
 SEM GrModule
   | Mod     loc . tag2resultVar = [ (t, hsnPrefix "@" f) | ((t,_), EvApTagVar f) <- @evalTagMp ]
 
 SEM GrAGItf
-  | AGItf   loc . tag2resultVar = []
+  | AGItf   module . tag2resultVar = []
 %%]
 
 %%[8.valueCopy
@@ -251,16 +267,16 @@ store (Tag e1 .. en); -> \n              => n:
 
 %%[8.store
 SEM GrExpr
-  | Store  loc . (heapPointer, absEnv, absHeap) = makeStore @lhs.tag2resultVar 
+  | Store  loc . (heapPointer, absEnv, absHeap) = makeStore (flip lookup @lhs.tag2resultVar)
                                                             @lhs.heapPointer
                                                             @val.valInfo
                                                             @lhs.targetInfo
 %%]
 
 %%[8.store hs
-makeStore tag2resultVar heapPointer valInfo targetInfo
+makeStore ftag2resultVar heapPointer valInfo targetInfo
 	= let fNode2Var  tag names t = let absVals   = map sn2av names
-	                                   resultVar = lookup tag tag2resultVar
+	                                   resultVar = ftag2resultVar tag
 	                                   env       = makeEnvElem t (AV_Locations [heapPointer]) EnvNoChange
 	                                   heap      = makeHeapElem heapPointer
 	                                                            (AV_Nodes [(tag, absVals)])
@@ -317,13 +333,13 @@ foo a1 ..an; -> \(Tag e1 .. en) => e1:
 SEM GrExpr
   | Call  loc . resultVar = hsnPrefix "@" @nm
               . absEnv = case @lhs.targetInfo of
-                            Left  n           -> (makeEnvElem n AV_Nothing (EnvUnion [@nm]) :)
+                            Left  n           -> (makeEnvElem n AV_Nothing (EnvUnion [@resultVar]) :)
                             Right (tag,names) -> buildSelectElems @resultVar tag names
 %%]
 
-%%%%%%%%%%
-%% Case %%
-%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%
+%% Case Alternative %%
+%%%%%%%%%%%%%%%%%%%%%%
 
 case node of (T e1 .. en)             => e1: 
                                            absVal = Nothing
@@ -338,7 +354,7 @@ case (Tag d1 .. dn) of (Tag e1 .. en) => e1:
                                            absVal = (absVal dn)
                                            envMod = Union (depVar dn)
 
-%%[8.case
+%%[8.alt
 ATTR AllAlt [ valInfo: {NodeInfo (Maybe HsName)} | | ]
 
 SEM GrAlt
@@ -351,6 +367,157 @@ SEM GrAlt
              . absEnv     = genInfo @lhs.valInfo @pat.patInfo @fVar2Var @fVar2Node @fNode2Var @fNode2Node
          lhs . absEnv     = @absEnv . @expr.absEnv
 
+%%]
+
+%%%%%%%%%%
+%% Case %%
+%%%%%%%%%%
+
+Since we can have multiple arms in a case, the question is how we merge the result of each arm.
+
+case n of
+  ... expr1 =>  alt1@n: equation of expr1
+  ... exprn =>  altn@n: equation of exprn
+; \r ->     => r:
+                 absVal: Nothing
+                 absEnv: Union [alt1@n, .., altn@n]
+
+case n of
+  ... expr1           => alt1@n: equation of expr1
+  ... exprna          => altn@n: equation of exprn
+; \(Tag e1 en) ->     => alt1@n@e1
+                           absVal: Nothing
+                           absEnv: alt1@n ! tag ! 1
+                      => alt1@n@en
+                           absVal: Nothing
+                           absEnv: alt1@n ! tag ! n
+                      => altn@n@e1
+                           absVal: Nothing
+                           absEnv: altn@n ! tag ! 1
+                      => altn@n@en
+                           absVal: Nothing
+                           absEnv: altn@n ! tag ! n
+                         e1: 
+                           absVal: Nothing
+                           absEnv: Union [alt1@n@e1, .., altn@n@e1]
+                         en: 
+                           absVal: Nothing
+                           absEnv: Union [alt1@n@en, .., altn@n@en]
+
+%%[8.case
+ATTR AllAlt [ count: Int | | ]
+SEM GrExpr
+  | Case  altL . count = 0
+SEM GrAltL
+  | Cons  tl  . count = @lhs.count + 1
+
+
+ATTR GrAlt    [ | | altTargetName: {HsName}    ]
+SEM GrAltL    [ | | altTargetNames: {[HsName]} ]
+  | Cons  lhs . altTargetNames = @hd.altTargetName : @tl.altTargetNames
+  | Nil   lhs . altTargetNames = []
+
+SEM GrAlt
+  | Alt   loc  . altTargetName = case @lhs.valInfo of
+                                   Left nm -> hsnPrefix ("alt" ++ show @lhs.count ++ "@") nm
+                                   Right _ -> error "No node expected in case expression!" -- TODO: fix?
+          expr . targetInfo    = Left @altTargetName
+
+SEM GrExpr
+  | Case  loc . absEnv = case @lhs.targetInfo of
+                           Left resVar     -> (makeEnvElem resVar AV_Nothing (EnvUnion @altL.altTargetNames) :)
+                           Right (tag,nms) -> error "No node expected after a case expression!" -- TODO: fix?
+          lhs . absEnv = @absEnv . @altL.absEnv
+%%]
+
+%%%%%%%%%%
+%% FFI %%%
+%%%%%%%%%%
+
+ffi "primFoo"; \(Tag e1 en)  => e1:
+                                  absVal = prim(Foo) ! Tag ! 1
+				  envMod = NoChange
+                                en:
+                                  absVal = prim(Foo) ! Tag ! n
+				  envMod = NoChange
+ffi "primFoo"; \r            => r:
+                                 absVal  = prim(Foo)
+
+ffi "foo"; \(Tag e1 e2)      => note: (Tag == Unboxed)
+                                e1: Basic
+                                en: Basic
+
+%%[8.ffi
+SEM GrExpr
+  | FFI  loc . primAbsVal = getPrimAbsVal @nm
+             . prim       = case @lhs.targetInfo of
+                              Left nm          -> (makeEnvElem nm @primAbsVal EnvNoChange :)
+                              Right (tag, nms) -> let (AV_Nodes nodes) = @primAbsVal 
+                                                      tagElementsAV    = fromJust $ lookup tag nodes
+                                                      makeAV teAV nm   = makeEnvElem nm teAV EnvNoChange
+                                                  in (zipWith makeAV tagElementsAV nms ++)
+             . ffi        = case @lhs.targetInfo of
+                              Left  nm         -> error "FFI should be followed by an unboxed node pattern"
+                              Right (tag, nms) -> (map (\e -> makeEnvElem e AV_Basic EnvNoChange) nms ++)
+             . absEnv     = if isPrim @nm then @prim else @ffi
+%%]
+
+Note: we have the ctable, can we do something with that?
+      e.g. we could get the result Tags from it. If we save result type for a FFI.
+
+%%[8.prim hs
+
+getPrimAbsVal :: String -> AbstractValue
+getPrimAbsVal n = maybe (error $ "primitve '" ++ n ++ "' not found") id (lookup n primTable)
+        where 
+        primTable = [ ("primAddInt", makeUnboxedAV [AV_Basic])
+                    , ("primCmpInt", AV_Nodes [ (GrTag_Lit GrTagCon 0 (HNm "_EQ"), [])
+                                              , (GrTag_Lit GrTagCon 1 (HNm "_GT"), [])
+                                              , (GrTag_Lit GrTagCon 2 (HNm "_LT"), [])
+                                              ]
+                      )
+                    ]
+
+makeUnboxedAV vals = AV_Nodes [(GrTag_Unboxed, vals)]
+%%]
+
+%%%%%%%%%%%
+%% Apply %%
+%%%%%%%%%%%
+
+Not implemented yet.
+
+%%[8.apply
+SEM GrExpr
+  | App    loc . err     = error "apply support not implemented yet"
+               . absEnv  = @err
+               . absHeap = @err
+%%]
+
+%%%%%%%%%%%
+%% Fetch %%
+%%%%%%%%%%%
+
+Fetch sould not occur outside eval. And eval is skipped.
+
+%%[8.fetch
+SEM GrExpr
+  | Fetch  loc . err     = error "no fetch expected"
+               . absEnv  = @err
+               . absHeap = @err
+%%]
+
+%%%%%%%%%%%%
+%% Update %%
+%%%%%%%%%%%%
+
+Update sould not occur outside eval. And eval is skipped.
+
+%%[8.update
+SEM GrExpr
+  | Update  loc . err     = error "no update expected"
+                . absEnv  = @err
+                . absHeap = @err
 %%]
 
 %%%%%%%%%%%%%
@@ -393,8 +560,9 @@ store (FCAF); \-> bla
 
 %%[8.CAF import(GrCAFNames)
 SEM GrAGItf
-  | AGItf   loc . mergeCAF = \n (p, e, h) -> let tag        n = fromJust $ revLookup @tag2resultVar (hsnPrefix "@" n)
-                                                 (p', e', h') = makeStore @tag2resultVar p (Right (tag n, [])) (Left n)
+  | AGItf   loc . mergeCAF = \n (p, e, h) -> let resVar       = (hsnPrefix "@" n) 
+                                                 tag          = fromJust $ revLookup @module.tag2resultVar resVar
+                                                 (p', e', h') = makeStore (const . Just $ resVar) p (Right (tag, [])) (Left n)
                                              in (p', e' e, h' h)
                 . (afterCAFPointer, absEnvCAF, absHeapCAF)  = foldr @mergeCAF
                                                                     (0, [], [])
@@ -409,7 +577,12 @@ SEM GrAGItf
 revLookup l e = lookup e (map swap l)
 	where swap = uncurry (flip (,))
 
+fromJust' _ (Just a ) = a
+fromJust' m (Nothing) = error $ "fromJust: " ++ m
+
 
 makeEnvElem  v initial eq = AbstractEnvElement  { aeLabel = v, aeBaseSet = AV_Nothing, aeChangeSet = initial, aeMod = eq}
 makeHeapElem l initial eq = AbstractHeapElement { ahLabel = l, ahBaseSet = AV_Nothing, ahChangeSet = initial, ahMod = eq}
+isPrim (a:b:c:d:_) = ("prim" == a:b:c:d:[])
+isPrim _           = False
 %%]

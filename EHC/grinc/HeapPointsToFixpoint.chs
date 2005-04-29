@@ -168,13 +168,13 @@ envChangeSet am env heap = case am of
 %%[8 export(lookupEnv)
 lookupEnv :: AbstractEnv -> Variable -> AbstractEnvElement
 lookupEnv env idx = case l of
-                      []  -> error "Environment incomplete"
+                      []  -> error $ "Environment incomplete: '" ++ show idx ++ "' not found"
                       h:_ -> h
 	where l = dropWhile ((idx /=) . aeLabel) env
 
 lookupHeap :: AbstractHeap -> Location -> AbstractHeapElement
 lookupHeap heap idx = case l of
-                        []  -> error "Heap incomplete"
+                        []  -> error $ "Heap incomplete: '" ++ show idx ++ "' not found"
                         h:_ -> h
 	where l = dropWhile ((idx /=) . ahLabel) heap
 
