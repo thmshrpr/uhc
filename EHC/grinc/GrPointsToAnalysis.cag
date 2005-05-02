@@ -46,17 +46,31 @@ SEM GrBind
 %%]
 
 %%[8.deps hs
-buildDeps env heap label = [ depend | (me,depend) <- table, me == label ]
+buildDeps env heap label = [ depend | (mine,depend) <- table, me <- f mine, me == label ]
         where
-        table = undefined
+        f (Left l)  = [l]
+        f (Right v) = case aeChangeSet . lookupEnv env $ v of 
+                        AV_Locations ls -> Left v : map Right ls
+                        AV_Nothing      -> Left v : []
+                        _               -> error "No location in eval"
+        table       = heapTable ++ envTable
+        heapTable   = concatMap depHeapElem heap
+        envTable    = concatMap depEnvElem env
 
+depHeapElem :: AbstractHeapElement -> [(Either Label Variable, Label)]
 depHeapElem he = let me              = Right (ahLabel he)
                      ((_,vars), var) = ahMod  he
-                     depends         = [ Left v | Just v <- (var:vars) ]
-                 in map (\e -> (depends,me)) depends
+                 in [ (Left $ Left v, me) | Just v <- (var:vars) ]
 
-depEnvElem ee = let me = Left (aeLabel ee)
-                in undefined
+depEnvElem :: AbstractEnvElement -> [(Either Label Variable, Label)]
+depEnvElem ee = let me          = Left (aeLabel ee)
+                    mvar2Label  = maybe id (\v -> ((Left $ Left v, me):))
+                in case aeMod ee of
+                     EnvNoChange       -> []
+                     EnvUnion vars     -> map (\v -> (Left $ Left v,me)) vars
+                     EnvEval var       -> [(Right var, me)]
+                     EnvSelect var _ _ -> [(Left $ Left  var, me)]
+                     EnvTag _ mvs mrv  -> foldr (\mv f -> mvar2Label mv . f) (mvar2Label mrv) mvs []
 %%]
 
 %%%%%%%%%%%%%%%%%%%

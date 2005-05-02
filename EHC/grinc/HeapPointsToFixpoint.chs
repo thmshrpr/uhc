@@ -186,7 +186,7 @@ isChanged AV_Nothing = False
 isChanged _          = True
 %%]
 
-%%[8.fixpoint
+%%[8.fixpoint export(Label)
 type Label     = Either Variable Location
 type WorkList  = [Label]
 type Depends   = (Label -> [Label])
