@@ -34,7 +34,7 @@ SEM GrAGItf
                   . absEnv'  = @module.absEnv  @absEnvCAF
                   . absEnv   = filter (((HNm "__") /=) . aeLabel) @absEnv'
                   . absHeap  = @module.absHeap @absHeapCAF
-           lhs    . grTrf    = trace ("env: " ++ show @absEnv) (trace ("heap: " ++ show @absHeap) @module.grTrf)           
+           lhs    . grTrf    = trace ("env: " ++ show @absEnv) (trace ("heap: " ++ show @absHeap) @module.grTrf)
 
 SEM GrModule
   | Mod   lhs . grTrf = trace (show @lhs.pointsTo) @grTrf
@@ -46,10 +46,11 @@ SEM GrBind
 %%]
 
 %%[8.deps hs
-buildDeps env heap label = [ depend | (mine,depend) <- table, me <- f mine, me == label ]
+buildDeps env heap label = trace ("DEPS " ++ show label ++ ": " ++ show deps) deps
         where
+        deps        = [ depend | (mine,depend) <- table, me <- f mine, me == label ]
         f (Left l)  = [l]
-        f (Right v) = case aeChangeSet . lookupEnv env $ v of 
+        f (Right v) = case aeBaseSet . lookupEnv env $ v of 
                         AV_Locations ls -> Left v : map Right ls
                         AV_Nothing      -> Left v : []
                         _               -> error "No location in eval"
@@ -201,19 +202,6 @@ genInfo sourceInfo targetInfo llf lrf rlf rrf =
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-%%[8.rotzooi
-ATTR AllAlt [ scrutinizer: {HsName} | | ]
-SEM GrExpr
-  | Case altL . scrutinizer = @val.caseNm
-
-SEM GrVal [ | | caseNm : {HsName} ]
-  | Var      lhs . caseNm = @nm
-  | * - Var  lhs . caseNm = error "no value variable"
-%%]
-
-
-
 
 %%%%%%%%%%
 %% Unit %%
@@ -539,17 +527,18 @@ SEM GrExpr
 %%%%%%%%%%%%%
 
 %%[8.actuals
-ATTR AllGrNT [ | actualsEnv USE {.} {id} : {[(HsName, [HsName])] -> [(HsName, [HsName])]} | ]
-ATTR AllBind [ allActuals: {[(HsName, [HsName])]} | | ]
+ATTR AllGrNT [ | actualsEnv USE {.} {id} : {[(HsName, [Maybe HsName])] -> [(HsName, [Maybe HsName])]} | ]
+ATTR AllBind [ allActuals: {[(HsName, [Maybe HsName])]} | | ]
 
 SEM GrExpr
-  | Store Unit  loc . fGenActuals = \tag mns n -> let args      = [ arg | Just arg <- mns ]
+  | Store Unit  loc . fGenActuals = \tag mns n -> let args      = tail mns -- first element is the size of the rest of the node
                                                       resultVar = lookup tag @lhs.tag2resultVar
                                                       actuals r = ((r,args) :)
                                                   in maybe id actuals resultVar
                     . actualsEnv  = case (@val.valInfo, @lhs.targetInfo) of
                                       (Right (st,snms), Left tn) -> @fGenActuals st snms tn
                                       otherwise                  -> id
+  | Call        loc . actualsEnv = ((@resultVar, @argL.depVars) :)
 
 SEM GrAGItf
   | AGItf    module . actualsEnv  = id
@@ -559,8 +548,10 @@ SEM GrModule
 
 SEM GrBind
   | Bind      loc   . bindActuals = transpose [ actuals | (resVar, actuals) <- @lhs.allActuals, resVar == @resultVar ]
-                    . absEnvBind  = let envElem formal actuals = makeEnvElem formal AV_Nothing (EnvUnion actuals)
+                    . absEnvBind  = let getActuals = filter isJust
+		                        envElem formal actuals = makeEnvElem formal AV_Nothing (EnvUnion [ actual | Just actual <- actuals])
                                     in (zipWith envElem @argNmL @bindActuals ++)
+                    . actualsEnv  = if @prune then @lhs.actualsEnv else @expr.actualsEnv
 %%]
 
 %%%%%%%%%
@@ -595,8 +586,8 @@ fromJust' _ (Just a ) = a
 fromJust' m (Nothing) = error $ "fromJust: " ++ m
 
 
-makeEnvElem  v initial eq = AbstractEnvElement  { aeLabel = v, aeBaseSet = AV_Nothing, aeChangeSet = initial, aeMod = eq}
-makeHeapElem l initial eq = AbstractHeapElement { ahLabel = l, ahBaseSet = AV_Nothing, ahChangeSet = initial, ahMod = eq}
+makeEnvElem  v initial eq = AbstractEnvElement  { aeLabel = v, aeBaseSet = initial, aeMod = eq}
+makeHeapElem l initial eq = AbstractHeapElement { ahLabel = l, ahBaseSet = initial, ahMod = eq}
 isPrim (a:b:c:d:_) = ("prim" == a:b:c:d:[])
 isPrim _           = False
 %%]
