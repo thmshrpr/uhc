@@ -29,11 +29,12 @@ ATTR AllGrNT [ pointsTo: AbstractEnv | | grTrf: SELF ]
 ATTR AllGrNT [ | | absEnv USE {.} {id}: {AbstractEnv -> AbstractEnv} absHeap USE {.} {id}: {AbstractHeap -> AbstractHeap} ]
 
 SEM GrAGItf
-  | AGItf  module . pointsTo = fst (heapPointsTo @absEnv @absHeap @deps)
+  | AGItf  module . pointsTo = trace ("RESULT: " ++ show @analysisResult) fst @analysisResult 
            loc    . deps     = buildDeps @absEnv @absHeap
                   . absEnv'  = @module.absEnv  @absEnvCAF
                   . absEnv   = filter (((HNm "__") /=) . aeLabel) @absEnv'
                   . absHeap  = @module.absHeap @absHeapCAF
+                  . analysisResult = heapPointsTo @absEnv @absHeap @deps
            lhs    . grTrf    = trace ("env: " ++ show @absEnv) (trace ("heap: " ++ show @absHeap) @module.grTrf)
 
 SEM GrModule
@@ -46,9 +47,11 @@ SEM GrBind
 %%]
 
 %%[8.deps hs
-buildDeps env heap label = trace ("DEPS " ++ show label ++ ": " ++ show deps) deps
+buildDeps env heap label = trace ("DEPS " ++ show label ++ ": " ++ show allDeps) allDeps
         where
-        deps        = [ depend | (mine,depend) <- table, me <- f mine, me == label ]
+	allDeps     = case label of { Left _ -> deps; Right _ -> deps ++ evalDeps }
+        evalDeps    = [ depend | (Right _, depend) <- envTable ]
+        deps        = [ depend | (mine   , depend) <- table, me <- f mine, me == label ]
         f (Left l)  = [l]
         f (Right v) = case aeBaseSet . lookupEnv env $ v of 
                         AV_Locations ls -> Left v : map Right ls
@@ -473,9 +476,9 @@ getPrimAbsVal :: String -> AbstractValue
 getPrimAbsVal n = maybe (error $ "primitve '" ++ n ++ "' not found") id (lookup n primTable)
         where 
         primTable = [ ("primAddInt", makeUnboxedAV [AV_Basic])
-                    , ("primCmpInt", AV_Nodes [ (GrTag_Lit GrTagCon 0 (HNm "_EQ"), [])
-                                              , (GrTag_Lit GrTagCon 1 (HNm "_GT"), [])
-                                              , (GrTag_Lit GrTagCon 2 (HNm "_LT"), [])
+                    , ("primCmpInt", AV_Nodes [ (GrTag_Lit GrTagCon 0 (HNm "_EQ"), [AV_Basic])
+                                              , (GrTag_Lit GrTagCon 1 (HNm "_GT"), [AV_Basic])
+                                              , (GrTag_Lit GrTagCon 2 (HNm "_LT"), [AV_Basic])
                                               ]
                       )
                     ]
@@ -527,7 +530,7 @@ SEM GrExpr
 %%%%%%%%%%%%%
 
 %%[8.actuals
-ATTR AllGrNT [ | actualsEnv USE {.} {id} : {[(HsName, [Maybe HsName])] -> [(HsName, [Maybe HsName])]} | ]
+ATTR AllGrNT [ | | actualsEnv USE {.} {id} : {[(HsName, [Maybe HsName])] -> [(HsName, [Maybe HsName])]} ]
 ATTR AllBind [ allActuals: {[(HsName, [Maybe HsName])]} | | ]
 
 SEM GrExpr
@@ -535,7 +538,7 @@ SEM GrExpr
                                                       resultVar = lookup tag @lhs.tag2resultVar
                                                       actuals r = ((r,args) :)
                                                   in maybe id actuals resultVar
-                    . actualsEnv  = case (@val.valInfo, @lhs.targetInfo) of
+                loc . actualsEnv  = case (@val.valInfo, @lhs.targetInfo) of
                                       (Right (st,snms), Left tn) -> @fGenActuals st snms tn
                                       otherwise                  -> id
   | Call        loc . actualsEnv = ((@resultVar, @argL.depVars) :)
@@ -551,7 +554,7 @@ SEM GrBind
                     . absEnvBind  = let getActuals = filter isJust
 		                        envElem formal actuals = makeEnvElem formal AV_Nothing (EnvUnion [ actual | Just actual <- actuals])
                                     in (zipWith envElem @argNmL @bindActuals ++)
-                    . actualsEnv  = if @prune then @lhs.actualsEnv else @expr.actualsEnv
+                    . actualsEnv  = if @prune then id else @expr.actualsEnv
 %%]
 
 %%%%%%%%%
@@ -567,11 +570,9 @@ store (FCAF); \-> bla
 SEM GrAGItf
   | AGItf   loc . mergeCAF = \n (p, e, h) -> let resVar       = (hsnPrefix "@" n) 
                                                  tag          = fromJust $ revLookup @module.tag2resultVar resVar
-                                                 (p', e', h') = makeStore (const . Just $ resVar) p (Right (tag, [])) (Left n)
+                                                 (p', e', h') = makeStore (const . Just $ resVar) p (Right (tag, [Nothing])) (Left n)
                                              in (p', e' e, h' h)
-                . (afterCAFPointer, absEnvCAF, absHeapCAF)  = foldr @mergeCAF
-                                                                    (0, [], [])
-                                                                    (trace ("CAF: " ++ show @module.cafNames) @module.cafNames)
+                . (afterCAFPointer, absEnvCAF, absHeapCAF)  = foldr @mergeCAF (0, [], []) @module.cafNames
 %%]
 
 
