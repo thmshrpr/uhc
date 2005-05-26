@@ -13,14 +13,14 @@ Seq m a (Seq k b h)
 %include afp.fmt
 %%]
 
-%%[8 import(../GrinCodeAbsSyn)
+%%[8 import(../../GrinCodeAbsSyn)
 %%]
 
 %%[8.wrapper
 WRAPPER GrAGItf
 %%]
 
-%%[8 hs import(EHCommon, FiniteMap, GrinCode) export(lowerGrin)
+%%[8 hs import(EHCommon, FiniteMap, GrinCode) export(rightSkew)
 rightSkew :: GrModule -> (GrModule, Bool)
 rightSkew grmod = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod)) Inh_GrAGItf
                     in (grTrf_Syn_GrAGItf t, active_Syn_GrAGItf t)
@@ -29,7 +29,7 @@ rightSkew grmod = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod)) Inh_G
 %%[8
 ATTR GrAGItf [ | | grTrf: GrModule ]
 ATTR AllGrNT [ | | grTrf: SELF     ] 
-ATTR AllExpr [ | | copy:  SELF     ]
+ATTR AllGrNT [ | | copy:  SELF     ]
 ATTR AllGrExpr AllBind GrModule GrAGItf [ | | active USE {||} {False} : Bool ]
 %%]
 
@@ -45,6 +45,7 @@ SEM GrExpr
   | Seq  lhs  . (active, grTrf) = case @expr.copy of
                                       GrExpr_Seq e p b -> (True , GrExpr_Seq e p (GrExpr_Seq b @pat.grTrf @body.grTrf))
                                       otherwise        -> (@active, @grTrf)
+         loc  . active          = @expr.active || @body.active
 %%]
 
 % vim:ts=4:et:

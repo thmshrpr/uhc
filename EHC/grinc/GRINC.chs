@@ -9,13 +9,13 @@
 %%% Main
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%[1 module Main import(System, GetOpt, IO, Control.Monad)
+%%[1 module Main import(System, GetOpt, IO, Control.Monad.Error, Control.Monad.State)
 %%]
 
-%%[8 import(UU.Parsing, UU.Pretty(pp), EHCommon, EHScanner, GRIParser, GrinCode, GrinCodePretty)
+%%[8 import(UU.Parsing, UU.Pretty, EHCommon, EHScanner, GRIParser, GrinCode, GrinCodePretty)
 %%]
 
-%%[8 import (FPath,GRINCCommon, GrPointsToAnalysis, LowerGrin, GRIN2Cmm, CmmCodePretty)
+%%[8 import (FPath,GRINCCommon, CompilerDriver)
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -57,43 +57,122 @@ openFPath fp mode | fpathIsEmpty fp = case mode of
                                         let fNm = fpathToStr fp
                                         h <- openFile fNm mode
                                         return (fNm,h)
-%%]
 
-%%[8
-parseGrin :: FPath -> Opts -> IO GrModule
-parseGrin fp opts
-  = do { (fn,fh) <- openFPath fp ReadMode
-       ; tokens  <- scanHandle scanOpts fn fh
-       ; gr      <- parseIO (pModule) tokens
-       ; return gr
-       }
-%%]
 
-%%[8
-writeCmm :: CmmUnit -> FPath -> Opts -> IO ()
-writeCmm cmm fp opts
+writePP ::  (a -> PP_Doc) -> a -> FPath -> Opts -> IO ()
+writePP f text fp opts
   = do {  (fn, fh) <- openFPath fp WriteMode
-       ;  hPutStrLn fh (show.pp $ cmm)
-       ;  hClose fh
+       ;  hPutStrLn fh (show.f $ text)
        }
+%%]
+
+%%[8.parse
+parseGrin :: FPath -> Opts -> IO (String, GrModule)
+parseGrin fp opts = do
+	(fn,fh) <- openFPath fp ReadMode
+	tokens  <- scanHandle scanOpts fn fh
+	gr      <- parseIO (pModule) tokens
+	return (fn, gr)
+
+caParseGrin :: CompileAction ()
+caParseGrin = do
+	putMsg VerboseNormal "Parsing" Nothing
+	path <- gets csPath
+	opts <- gets csOpts
+	(fn, code) <- liftIO $ parseGrin path opts
+	-- let name = HNm fn
+	let (GrModule_Mod name _ _ _ _) = code
+	modify (\s -> s { csName = name })
+	modify (csUpdateGrinCode code)
+%%]
+
+%%[8.normForHPT import(NormForHPT)
+caNormForHPT :: CompileAction ()
+caNormForHPT = do
+	putMsg VerboseNormal "Normalizing" Nothing
+	code   <- gets csGrinCode
+	unique <- gets csUnique
+        (unique', code) <- return $ normForHPT unique code
+	modify (csUpdateGrinCode code)
+	modify (csUpdateUnique unique')
+	putMsg VerboseALot "Normalized" (Just (show (unique'-unique) ++ " variable(s) introduced"))
+%%]
+
+%%[8.rightSkew import(RightSkew)
+caRightSkew1 :: CompileAction Bool
+caRightSkew1 = do 
+	code <- gets csGrinCode
+        (code, changed) <- return $ rightSkew code
+	modify (csUpdateGrinCode code)	
+	let msg2 = if changed then "Changes" else "No change"
+	putMsg VerboseALot "Right skewed" (Just msg2)
+	return changed
+
+caRightSkew = caFix caRightSkew1
+%%]
+
+%%[8.heapPointsTo import(GrPointsToAnalysis)
+caHeapPointsTo :: CompileAction ()
+caHeapPointsTo = do
+	putMsg VerboseNormal "Heap-points-to analysis" Nothing
+	code <- gets csGrinCode
+        code <- return $ addPointsToInfo code
+	modify (csUpdateGrinCode code)	
+%%]
+
+%%[8.lowering import(LowerGrin)
+caLowerGrin :: CompileAction ()
+caLowerGrin = do
+	putMsg VerboseNormal "Lowering GRIN" Nothing
+	code <- gets csGrinCode
+        code <- return $ lowerGrin code
+	modify (csUpdateGrinCode code)	
+%%]
+
+%%[8.writeCmm import(GRIN2Cmm, CmmCodePretty)
+caGrin2Cmm :: CompileAction CmmUnit
+caGrin2Cmm = do
+	code <- gets csGrinCode
+	return (grin2cmm code)
+
+caWriteCmm :: CompileAction ()
+caWriteCmm = do
+	cmm <- caGrin2Cmm
+	input <- gets csPath
+        let output = fpathSetSuff "cmm" input
+	options <- gets csOpts
+	when (optDebug options) (liftIO $ putStrLn "=============" >> putStrLn (show cmm))
+	liftIO $ writePP pp cmm output options
+%%]
+
+%%[8.writeGrin
+caWriteGrin :: CompileAction ()
+caWriteGrin = do
+	code <- gets csGrinCode
+	input <- gets csPath
+        let output = fpathSetSuff "grin.new" input
+	options <- gets csOpts
+	liftIO $ writePP (ppGrModule Nothing) code output options
 %%]
 
 %%[8
 doCompileRun :: String -> Opts -> IO ()
-doCompileRun fn opts
-  = do { let input = mkTopLevelFPath "grin" fn
-       ; putStrLn "parsing grin"
-       ; gr <- parseGrin input opts
-       ; putStrLn "point to analysis"
-       ; gr <- return $ addPointsToInfo gr
-       ; putStrLn (show gr)
-       ; putStrLn "lowering grin"
-       ; gr <- return (lowerGrin gr)
-       ; putStrLn (show gr)
-       ; putStrLn "translating to C--"
-       ; let cmm    = grin2cmm gr
-             output = fpathSetSuff "cmm" input
-       ; when (optDebug opts) (putStrLn "=============" >> putStrLn (show cmm))
-       ; writeCmm cmm output opts
-       }
+doCompileRun fn opts = let input                    = mkTopLevelFPath "grin" fn
+                           initState                = emptyState
+				{ csPath = input
+				, csOpts  = opts
+				}
+                           putErrs (CompileError e) = putStrLn e >> return ()
+                       in drive initState putErrs compileActions
+
+compileActions :: CompileAction ()
+compileActions = do
+	caParseGrin
+	caNormForHPT
+	caWriteGrin
+	throwError noMsg
+	caRightSkew
+	caHeapPointsTo
+	caLowerGrin
+	caWriteCmm
 %%]

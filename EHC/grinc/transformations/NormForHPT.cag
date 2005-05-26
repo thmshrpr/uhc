@@ -10,6 +10,8 @@ Normalisation for the Heap-points-to analysis
     - After an eval or apply call 
     - After a case statement
 
+BUG: unique number should be chained correctly
+
 %%[0
 %include lhs2TeX.fmt
 %include afp.fmt
@@ -22,17 +24,17 @@ Normalisation for the Heap-points-to analysis
 WRAPPER GrAGItf
 %%]
 
-%%[8 hs import(EHCommon, GrinCode) export(normForHPT)
+%%[8 hs import(EHCommon, GrinCode, Debug.Trace) export(normForHPT)
 normForHPT :: Int -> GrModule -> (Int, GrModule)
 normForHPT unique grmod = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod)) 
-                                               (Inh_GrAGItf { unique_Syn_GrAGItf = unique })
+                                               (Inh_GrAGItf { unique_Inh_GrAGItf = unique })
                           in (unique_Syn_GrAGItf t, grTrf_Syn_GrAGItf t)
 
 newVar :: Int -> (HsName, Int)
 newVar u = (HNPos u, u+1)
 
 newVar' :: Bool -> Int -> (HsName, Int)
-newVar' b u = (undefined, u)
+newVar' b u = if b then newVar u else (undefined, u)
 
 newGrIdent :: HsName -> (GrVal, GrPat)
 newGrIdent n = (GrVal_Var n, GrPat_Var n)
@@ -41,12 +43,13 @@ newGrIdent n = (GrVal_Var n, GrPat_Var n)
 %%[8
 ATTR GrAGItf [ | unique: Int | grTrf: GrModule ]
 ATTR AllGrNT [ | unique: Int | grTrf: SELF ]
+ATTR AllGrNT [ | | copy: SELF ]
 %%]
 
 Change last expression of binding to last of alternative (or binding)
 
-%%[8.lastOfAlt include(../GrLastExpr)
-GrExpr
+%%[8.lastOfAlt import(../GrLastExpr)
+SEM GrExpr
   | Case    altL . hasNext   = False
 %%]
 
@@ -65,29 +68,32 @@ SEM GrExpr
 Is the statement a simple unit
 
 %%[8.simpleUnit
-GrExpr
+SEM GrExpr
   | Unit      loc  .  simpleUnit  =  case @val.grTrf of
-                                        Var _     -> True
-                                        otherwise -> False
+                                        GrVal_Var _ -> True
+                                        otherwise   -> False
   | * - Unit  loc  .  simpleUnit  =  False
 %%]
 
 Transform the last statment in an alternative which is no simple unit
 
+TODO: Seq and Case does not need this transformation, is this correct?
+
 %%[8.lastUnit
-GrExpr
-  | Unit  loc  .  doUnitTrans    = @lhs.isInAlt && @isLastExpr && (not @simpleUnit)
-               .  (var, unique)  = newVar' @doUnitTrans @lhs.unique
-               .  (val', pat')   = newGrIdent @var
-          lhs  .  gtTrf          = if @doUnitTrans
-                                   then GrExpr_Seq @grTrf @pat' (GrExpr_Unit @var')
-                                   else @grTrf
+SEM GrExpr
+  | * - Seq Case loc  .  doUnitTrans    = @lhs.isInAlt && @isLastExpr && (not @simpleUnit)
+                      .  (var, unique)  = newVar' @doUnitTrans @lhs.unique
+                      .  (val', pat')   = newGrIdent @var
+                 lhs  .  grTrf          = if @doUnitTrans 
+                                          then trace (show @copy) $ GrExpr_Seq @grTrf @pat' (GrExpr_Unit @val')
+                                          else @grTrf
+                      .  unique         = @unique
 %%]
 
 The scrutinizer must be a variable
 
 %%[8.scrutinizer
-GrExpr
+SEM GrExpr
   | Case  loc  .  doCaseTrans    = case @val.grTrf of
                                        GrVal_Var _ -> False
                                        otherwise   -> True
@@ -103,8 +109,8 @@ Which expressions need a simple pattern after the statement
 
 %%[8.needSimplePattern
 SEM GrExpr [ | |  needsSimplePattern : Bool ]
-  | Case Eval Apply      lhs  . needsSimplePattern = True
-  | * - Case Eval Apply  lhs  . needsSimplePattern = False
+  | Case Eval App      lhs  . needsSimplePattern = True
+  | * - Case Eval App  lhs  . needsSimplePattern = False
 %%]
 
 %%[8.isSimplePattern
@@ -122,8 +128,8 @@ SEM GrExpr
               .  (var, unique)   = newVar' @doPatternTrans @lhs.unique
               .  (val', pat')    = newGrIdent @var
          lhs  .  grTrf           = if @doPatternTrans
-                                   then GrExpr_Seq @expr.grTrf @val'
-                                                   (GrExpr_Seq (GrExpr_Unit @pat') @pat.grTrf @body.grTrf)
+                                   then GrExpr_Seq @expr.grTrf @pat'
+                                                   (GrExpr_Seq (GrExpr_Unit @val') @pat.grTrf @body.grTrf)
                                    else @grTrf
 %%]
 

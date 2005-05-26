@@ -15,6 +15,8 @@ AGC_FLAGS_DATA := -dr
 AGC_FLAGS_CODE := -cfspr
 AGC_FLAGS_FULL := $(AGC_FLAGS_DATA) $(AGC_FLAGS_CODE)
 
+GT:= grinc/transformations
+
 default: grinc
 
 help:
@@ -31,10 +33,15 @@ help:
 ### GRINC
 ##########################
 
-GRINC_SOURCE     := grinc/GRINC.hs grinc/GRINCCommon.hs EHCommon.hs EHScanner.hs GrinCode.hs GrinCodePretty.hs gri/GRIParser.hs grinc/GRIN2Cmm.hs grinc/CmmCode.hs grinc/CmmCodePretty.hs grinc/LowerGrin.hs grinc/GrPointsToAnalysis.hs
+TRANS_SRC    := $(GT)/NormForHPT.hs $(GT)/RightSkew.hs $(GT)/LowerGrin.hs 
+
+GRINC_SOURCE := grinc/GRINC.hs grinc/CompilerDriver.hs grinc/GRINCCommon.hs EHCommon.hs EHScanner.hs \
+                GrinCode.hs GrinCodePretty.hs gri/GRIParser.hs grinc/GRIN2Cmm.hs \
+		grinc/CmmCode.hs grinc/CmmCodePretty.hs grinc/GrPointsToAnalysis.hs \
+		$(TRANS_SRC)
 
 grc: $(GRINC_SOURCE) Makefile
-	$(GHC) --make -package uust -package data -ilib -igrinc -igri -i. $< -o $@
+	$(GHC) --make -package uust -package data -ilib -igrinc -i$(GT) -igri -i. $< -o $@
 	strip $@
 
 grinc/GRIN2Cmm.hs: grinc/GRIN2Cmm.ag GrinCodeAbsSyn.ag GrinCode.hs grinc/CmmBuilding.hs Makefile
@@ -46,9 +53,6 @@ grinc/CmmCodePretty.hs: grinc/CmmCodePretty.ag grinc/CmmCodeAbsSyn.ag grinc/CmmC
 grinc/CmmCode.hs: grinc/CmmCode.ag Makefile
 	$(call AGCC,$<,$(AGC_FLAGS_DATA))
 
-grinc/LowerGrin.hs: grinc/LowerGrin.ag GrinCodeAbsSyn.ag GrinCode.hs Makefile
-	$(call AGCC,$<,$(AGC_FLAGS_CODE))
-
 GrinCodePretty.hs: GrinCodePretty.ag GrinCode.hs GrinCode.ag Makefile
 	$(call AGCC,$<,$(AGC_FLAGS_CODE))
 
@@ -56,6 +60,16 @@ GrinCode.hs: GrinCode.ag Makefile
 	$(call AGCC,$<,$(AGC_FLAGS_DATA))
 
 grinc/GrPointsToAnalysis.hs: grinc/GrPointsToAnalysis.ag Makefile
+	$(call AGCC,$<,$(AGC_FLAGS_CODE))
+
+
+grinc/transformations/LowerGrin.hs: grinc/transformations/LowerGrin.ag GrinCodeAbsSyn.ag GrinCode.hs Makefile
+	$(call AGCC,$<,$(AGC_FLAGS_CODE))
+
+grinc/transformations/NormForHPT.hs: grinc/transformations/NormForHPT.ag GrinCodeAbsSyn.ag GrinCode.hs Makefile
+	$(call AGCC,$<,$(AGC_FLAGS_CODE))
+
+grinc/transformations/RightSkew.hs: grinc/transformations/RightSkew.ag GrinCodeAbsSyn.ag GrinCode.hs Makefile
 	$(call AGCC,$<,$(AGC_FLAGS_CODE))
 
 # standard build
@@ -71,6 +85,6 @@ grinc/CmmBuilding.hs: grinc/CmmCode.hs
 
 grinc/GrPointsToAnalysis.hs: grinc/GrPointsToAnalysis.ag grinc/GrCAFNames.ag grinc/HeapPointsToFixpoint.hs GrinCode.hs GrinCode.ag
 
-
 grinc/HeapPointsToFixpoint.hs: EHCommon.hs
+
 %%]

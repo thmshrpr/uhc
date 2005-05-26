@@ -12,7 +12,7 @@ later:
 %include afp.fmt
 %%]
 
-%%[8 import(../GrinCodeAbsSyn)
+%%[8 import(../../GrinCodeAbsSyn)
 %%]
 
 %%[8.wrapper

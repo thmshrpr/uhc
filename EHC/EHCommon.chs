@@ -728,7 +728,7 @@ groupSortByOn :: (b -> b -> Ordering) -> (a -> b) -> [a] -> [[a]]
 groupSortByOn cmp sel = groupByOn (\e1 e2 -> cmp e1 e2 == EQ) sel . sortByOn cmp sel
 %%]
 
-%%[8
+%%[8 export(strBlankPad)
 strBlankPad :: Int -> String -> String
 strBlankPad n s = s ++ replicate (n - length s) ' '
 %%]
