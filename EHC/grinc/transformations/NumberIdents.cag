@@ -1,0 +1,137 @@
+% $Id$
+
+Rename all identifiers to unique numbers. exceptions are the FFI names (and
+primitves) as well as the eval and apply function names.
+
+To rename everyting fast and efficient we can use the fact that the scope of a
+variable is local to a binding, but we don't do that yet.
+
+%%[0
+%include lhs2TeX.fmt
+%include afp.fmt
+%%]
+
+%%[8 import(../../GrinCodeAbsSyn)
+%%]
+
+%%[8.wrapper
+WRAPPER GrAGItf
+%%]
+
+%%[8 hs import(GRINCCommon, EHCommon, GrinCode, Data.Array.IArray) export(numberIdents, IdentNameMap)
+type IdentNameMap = Array Int HsName
+
+numberIdents :: Int -> GrModule -> (Int, GrModule, IdentNameMap)
+numberIdents u grmod = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod))
+                                            (Inh_GrAGItf { unique_Inh_GrAGItf = u })
+                       in (unique_Syn_GrAGItf t, grTrf_Syn_GrAGItf t, varMap_Syn_GrAGItf t)
+%%]
+
+%%[8.lookup hs import(Data.FiniteMap)
+type LookupList = FiniteMap HsName Int
+
+findNewVar fm e = HNPos $ lookupWithDefaultFM fm (-999) e
+
+addMaybe u fm = maybe (fm, u) addName
+	where
+	addName e | e == wildcardNm  = (fm            , u  )
+	          | otherwise        = (addToFM fm e u, u+1)
+
+addList u fm = onFst (addListToFM fm) . foldr addName ([], [], u)
+	where
+	onFst f (a, b, c)                       = (f a    , b             , c  )
+	addName e (l, l2, u) | e == wildcardNm  = (l      , wildcardNr:l2 , u  )
+	                     | otherwise        = ((e,u):l, ((HNPos u):l2), u+1)
+%%]
+
+%%[8
+ATTR GrAGItf [ | unique: Int | grTrf: GrModule ]
+ATTR AllGrNT [ | unique: Int | grTrf: SELF ]
+%%]
+
+%%[8.ListOfNames
+ATTR AllGrNT [ | var2id: LookupList | ]
+ATTR GrAGItf [ | | varMap:  IdentNameMap ]
+
+SEM GrAGItf
+  | AGItf  loc  .  varMap  =  listArray (@low, @high - 1) (keysFM @module.var2id)
+                .  low     = @lhs.unique
+                .  high    = @module.unique
+           lhs  .  unique  = @high
+%%]
+
+retrieving names and their mapping
+
+%%[8.caf import(../GrCAFNames)
+SEM GrAGItf
+  | AGItf  loc     .  mapping  =  zip @module.cafNames [ @low .. ]
+           module  .  unique   =  @low + length @mapping
+                   .  var2id   =  listToFM ((evalNm, 1) : (applyNm, 2) : @mapping)
+%%]
+
+%%[8.TagName
+SEM GrTag [ | | varName: {Maybe HsName} ]
+  | Var       lhs  .  varName  =  Just @nm
+  | * - Var   lhs  .  varName  =  Nothing
+%%]
+
+%%[8.GetDefinedNames
+SEM GrPat
+  | Node      loc  .  (var2id', newNames, unique') = addList @lhs.unique @lhs.var2id @fldL
+  | Tag       loc  .  var2id'  = @lhs.var2id
+                   .  unique'  = @unique'
+  | Var       lhs  .  var2id   = addToFM @lhs.var2id @nm @lhs.unique
+                   .  unique   = @lhs.unique + 1
+              loc  .  newName  = HNPos @lhs.unique
+  | Node Tag  loc  .  (var2id , unique )  = addMaybe @unique' @var2id' @tag.varName
+              loc  .  newTag              = maybe @tag.grTrf GrTag_Var @tag.varName
+    
+SEM GrBind
+  | Bind     loc  .  (var2id', newNames, unique')  =  addList @lhs.unique @lhs.var2id @argNmL
+                  .  bindName                      =  if @nm == applyNm
+                                                      then applyNr
+                                                      else if @nm == evalNm
+                                                      then evalNr
+                                                      else HNPos @unique'
+             expr .  var2id                        =  if isSpecialBind @nm then @var2id' else addToFM @var2id' @nm @unique'
+                  .  unique                        =  if isSpecialBind @nm then @unique' else @unique' + 1
+%%]
+
+replacing every identifier with a number. exception: eval and apply names are kept as they are
+
+%%[8.ReplaceIdents
+SEM GrPat
+  | Node  lhs  .  grTrf  = GrPat_Node @newTag @newNames
+  | Tag   lhs  .  grTrf  = GrPat_Tag  @newTag
+  | Var   lhs  .  grTrf  = GrPat_Var  @newName
+
+SEM GrBind
+  | Bind  lhs  .  grTrf  = GrBind_Bind @bindName @newNames @expr.grTrf
+
+SEM GrVal
+  | Var  lhs  .  grTrf  = GrVal_Var (findNewVar @lhs.var2id @nm)
+
+SEM GrTag
+  | Var  lhs  .  grTrf  = GrTag_Var (findNewVar @lhs.var2id @nm)
+
+SEM GrExpr
+  | App Eval Call Fetch Update  loc  .  newName  =  (findNewVar @lhs.var2id @nm)
+  | App                         lhs  .  grTrf    =  GrExpr_App     @newName @argL.grTrf
+  | Eval                        lhs  .  grTrf    =  GrExpr_Eval    @newName
+  | Call                        lhs  .  grTrf    =  GrExpr_Call    @newName @argL.grTrf
+  | Fetch                       lhs  .  grTrf    =  GrExpr_Fetch   @newName @mbOffset
+  | Update                      lhs  .  grTrf    =  GrExpr_Update  @newName @val.grTrf
+  | FFI                         lhs  .  grTrf    =  GrExpr_FFI     @nm (map (findNewVar @lhs.var2id) @argL)
+
+SEM GrModule
+  | Mod  lhs  . grTrf         = GrModule_Mod @baseName @bindL.grTrf @ctagsMp @newEvalTagMp @newAppTagMp
+         loc  . newEvalTagMp  = map (newMap @bindL.var2id) @evalTagMp
+              . newAppTagMp   = map (newMap @bindL.var2id) @applyTagMp
+%%]
+
+%%[8 hs
+newMap map (k, EvApTagVar nm) = (k, EvApTagVar $ findNewVar map nm)
+newMap map x                  = x
+%%]
+
+% vim:ts=4:et:ai:

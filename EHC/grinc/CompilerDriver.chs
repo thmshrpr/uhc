@@ -19,7 +19,7 @@ data CompileState = CompileState
 
 emptyState :: CompileState
 emptyState = CompileState
-	{ csUnique = 0
+	{ csUnique = 3                 -- 0,1,2 are reserved
 	, csName   = HNm "<UNKNOWN>"
 	, csMbCode = Nothing
 	, csPath   = emptyFPath
@@ -85,10 +85,12 @@ putMsg minVerbosity msg mbMsg =  harden_ $ do
 %%]
 
 %%[8.fixpoint
-caFix :: CompileAction Bool -> CompileAction ()
-caFix step = do
-	changes <- step 
-	when changes (caFix step)
+caFix :: CompileAction Bool -> CompileAction Int
+caFix step = caFixCount 1
+    where
+    caFixCount n = do
+        changes <- step 
+        if changes then (caFixCount $ n+1) else return n
 %%]
 
 % vim:ts=4:et:ai:

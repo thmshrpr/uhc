@@ -86,6 +86,20 @@ caParseGrin = do
 	modify (csUpdateGrinCode code)
 %%]
 
+%%[8.numberIdentifiers import(NumberIdents, Data.Array.IArray)
+caNumberIdents :: CompileAction IdentNameMap
+caNumberIdents = do
+	putMsg VerboseNormal "Numbering identifiers" Nothing
+	code   <- gets csGrinCode
+	unique <- gets csUnique
+        (unique, code, map) <- return $ numberIdents unique code
+	modify (csUpdateGrinCode code)
+	modify (csUpdateUnique unique)
+	let (low, high) = bounds map
+	putMsg VerboseALot "Identifiers numbered" (Just (show (high-low) ++ " identifiers"))
+	return map
+%%]
+
 %%[8.normForHPT import(NormForHPT)
 caNormForHPT :: CompileAction ()
 caNormForHPT = do
@@ -108,6 +122,7 @@ caRightSkew1 = do
 	putMsg VerboseALot "Right skewed" (Just msg2)
 	return changed
 
+caRightSkew :: CompileAction Int
 caRightSkew = caFix caRightSkew1
 %%]
 
@@ -146,11 +161,11 @@ caWriteCmm = do
 %%]
 
 %%[8.writeGrin
-caWriteGrin :: CompileAction ()
-caWriteGrin = do
+caWriteGrin :: String -> CompileAction ()
+caWriteGrin fn = do
 	code <- gets csGrinCode
 	input <- gets csPath
-        let output = fpathSetSuff "grin.new" input
+        let output =  fpathSetBase (if null fn then fpathBase input ++ "-out" else fn) input
 	options <- gets csOpts
 	liftIO $ writePP (ppGrModule Nothing) code output options
 %%]
@@ -158,20 +173,26 @@ caWriteGrin = do
 %%[8
 doCompileRun :: String -> Opts -> IO ()
 doCompileRun fn opts = let input                    = mkTopLevelFPath "grin" fn
-                           initState                = emptyState
-				{ csPath = input
-				, csOpts  = opts
-				}
+                           initState = CompileState
+                               { csUnique = 3                 -- 0,1,2 are reserved (resp: __, eval, apply)
+                               , csName   = HNm fn
+                               , csMbCode = Nothing
+                               , csPath   = input
+                               , csOpts   = opts
+                               }
                            putErrs (CompileError e) = putStrLn e >> return ()
                        in drive initState putErrs compileActions
 
 compileActions :: CompileAction ()
 compileActions = do
 	caParseGrin
+	caNumberIdents
 	caNormForHPT
-	caWriteGrin
-	throwError noMsg
-	caRightSkew
+	n <- caRightSkew
+	putMsg VerboseALot "unskewed" (Just $ show n ++ " iteration(s)")
+	outputGrin <- gets (optWriteGrin . csOpts)
+	maybe (throwError $ strMsg "No C-- output for the moment") caWriteGrin outputGrin
+	throwError (strMsg $ "compilation stopped.")
 	caHeapPointsTo
 	caLowerGrin
 	caWriteCmm
