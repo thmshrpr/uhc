@@ -33,7 +33,7 @@ help:
 ### GRINC
 ##########################
 
-TRANS_SRC    := $(GT)/NumberIdents.hs $(GT)/NormForHPT.hs $(GT)/RightSkew.hs $(GT)/LowerGrin.hs 
+TRANS_SRC    := $(GT)/NumberIdents.hs $(GT)/NormForHPT.hs $(GT)/RightSkew.hs $(GT)/NameIdents.hs $(GT)/LowerGrin.hs
 
 GRINC_SOURCE := grinc/GRINC.hs grinc/CompilerDriver.hs grinc/GRINCCommon.hs EHCommon.hs EHScanner.hs \
                 GrinCode.hs GrinCodePretty.hs gri/GRIParser.hs grinc/GRIN2Cmm.hs \
@@ -66,7 +66,10 @@ grinc/GrPointsToAnalysis.hs: grinc/GrPointsToAnalysis.ag Makefile
 grinc/transformations/LowerGrin.hs: grinc/transformations/LowerGrin.ag GrinCodeAbsSyn.ag GrinCode.hs Makefile
 	$(call AGCC,$<,$(AGC_FLAGS_CODE))
 
-grinc/transformations/NumberIdents.hs: grinc/transformations/NumberIdents.ag GrinCodeAbsSyn.ag GrinCode.hs grinc/GrCAFNames.ag Makefile
+grinc/transformations/NumberIdents.hs: grinc/transformations/NumberIdents.ag GrinCodeAbsSyn.ag GrinCode.hs Makefile
+	$(call AGCC,$<,$(AGC_FLAGS_CODE))
+
+grinc/transformations/NameIdents.hs: grinc/transformations/NameIdents.ag GrinCodeAbsSyn.ag GrinCode.hs Makefile
 	$(call AGCC,$<,$(AGC_FLAGS_CODE))
 
 grinc/transformations/NormForHPT.hs: grinc/transformations/NormForHPT.ag GrinCodeAbsSyn.ag GrinCode.hs Makefile

@@ -213,12 +213,14 @@ heapPointsTo env heap deps =
 	    envLabels     = foldl (\f e -> (Left  (aeLabel e):) . f) id env
 	    f (Left i) (env,heap) = trace("ENVUPDATE: " ++ "\n changed=" ++ show changed ++ "\nold="++ show e ++ "\n new=" ++ show newE) ((newE:rest,heap), changed)
 	    	where
-	    	([e], rest) = partition ((i==) . aeLabel) env
+	    	(el, rest)  = partition ((i==) . aeLabel) env
+		[e]         = if length el /= 1 then error (show el) else el
 	    	newE        = updateEnvElement e env heap
 	    	changed     = isChanged (aeBaseSet e) (aeBaseSet newE)
 	    f (Right i) (env,heap) = trace("HEAPUPDATE: " ++ "\n changed=" ++ show changed ++ "\nold="++ show e ++ "\n new=" ++ show newE) ((env,newE:rest), changed)
 	    	where
-	    	([e], rest) = partition ((i==) . ahLabel) heap
+	    	(el, rest)  = partition ((i==) . ahLabel) heap
+		[e]         = if length el /= 1 then error (show el) else el
 	    	newE        = updateHeapElement e env
 	    	changed     = isChanged  (ahBaseSet e) (ahBaseSet newE)
 	    tracef w a = f w a -- trace ("STEP: " ++ show w ++ "\n" ++ show a) f w a

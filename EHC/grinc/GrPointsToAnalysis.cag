@@ -15,12 +15,18 @@
 WRAPPER GrAGItf
 %%]
 
-%%[8 hs import(EHCommon, Data.FiniteMap, Data.Maybe, GrinCode,HeapPointsToFixpoint) export(addPointsToInfo)
-addPointsToInfo :: GrModule -> GrModule
-addPointsToInfo grmod = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod)) Inh_GrAGItf
-                    in grTrf_Syn_GrAGItf t
+%%[8 hs import(GRINCCommon, EHCommon, Data.FiniteMap, Data.Maybe, GrinCode,HeapPointsToFixpoint) export(addPointsToInfo)
+type CafMap = FiniteMap HsName HsName
+
+addPointsToInfo :: CafMap -> GrModule -> GrModule
+addPointsToInfo cm grmod = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod)) 
+                                                (Inh_GrAGItf { cafMap_Inh_GrAGItf = cm })
+                           in grTrf_Syn_GrAGItf t
 %%]
 
+%%[8.CafMap
+ATTR GrAGItf AllGrNT [ cafMap: CafMap | | ]
+%%]
 -- Todo: Use arrays in stead of lookup lists
 %%[8
 ATTR GrAGItf [ | | grTrf: GrModule ]
@@ -32,7 +38,7 @@ SEM GrAGItf
   | AGItf  module . pointsTo = trace ("RESULT: " ++ show @analysisResult) fst @analysisResult 
            loc    . deps     = buildDeps @absEnv @absHeap
                   . absEnv'  = @module.absEnv  @absEnvCAF
-                  . absEnv   = filter (((HNm "__") /=) . aeLabel) @absEnv'
+                  . absEnv   = filter ((wildcardNr /=) . aeLabel) @absEnv'
                   . absHeap  = @module.absHeap @absHeapCAF
                   . analysisResult = heapPointsTo @absEnv @absHeap @deps
            lhs    . grTrf    = trace ("env: " ++ show @absEnv) (trace ("heap: " ++ show @absHeap) @module.grTrf)
@@ -41,7 +47,7 @@ SEM GrModule
   | Mod   lhs . grTrf = trace (show @lhs.pointsTo) @grTrf
 
 SEM GrBind
-  | Bind  loc . prune   = (@nm == HNm "eval") || (@nm == HNm "apply")
+  | Bind  loc . prune   = (@nm == evalNr) || (@nm == applyNr)
           lhs . absHeap = if @prune then id else @expr.absHeap
               . absEnv  = if @prune then id else @loc.absEnvBind . @expr.absEnv
 %%]
@@ -85,7 +91,7 @@ depEnvElem ee = let me          = Left (aeLabel ee)
 ATTR AllGrNT [ tag2resultVar: {AssocL GrTag HsName} | | ]
 ATTR GrModule [ | | tag2resultVar: {AssocL GrTag HsName} ]
 SEM GrModule
-  | Mod     loc . tag2resultVar = [ (t, hsnPrefix "@" f) | ((t,_), EvApTagVar f) <- @evalTagMp ]
+  | Mod     loc . tag2resultVar = [ (t, f) | ((t,_), EvApTagVar f) <- @evalTagMp ]
 
 SEM GrAGItf
   | AGItf   module . tag2resultVar = []
@@ -178,7 +184,7 @@ expression in a binding it is the result variable of that binding.
 ATTR AllGrExpr [ targetInfo: {NodeInfo HsName} | | ]
 
 SEM GrBind
-  | Bind  loc  . resultVar  = hsnPrefix "@" @nm
+  | Bind  loc  . resultVar  = @nm
           expr . targetInfo = Left @resultVar -- result variable for this function
 
 SEM GrExpr
@@ -336,7 +342,7 @@ foo a1 ..an; -> \(Tag e1 .. en) => e1:
                                      envMod = @foo ! Tag ! n
 %%[8.call
 SEM GrExpr
-  | Call  loc . resultVar = hsnPrefix "@" @nm
+  | Call  loc . resultVar = @nm
               . absEnv = case @lhs.targetInfo of
                             Left  n           -> (makeEnvElem n AV_Nothing (EnvUnion [@resultVar]) :)
                             Right (tag,names) -> buildSelectElems @resultVar tag names
@@ -543,9 +549,6 @@ SEM GrExpr
                                       otherwise                  -> id
   | Call        loc . actualsEnv = ((@resultVar, @argL.depVars) :)
 
-SEM GrAGItf
-  | AGItf    module . actualsEnv  = id
-
 SEM GrModule
   | Mod       bindL . allActuals  = @bindL.actualsEnv []
 
@@ -568,9 +571,10 @@ store (FCAF); \-> bla
 
 %%[8.CAF import(GrCAFNames)
 SEM GrAGItf
-  | AGItf   loc . mergeCAF = \n (p, e, h) -> let resVar       = (hsnPrefix "@" n) 
+  | AGItf   loc . mergeCAF = \n (p, e, h) -> let resVar       = n
+                                                 cafVar       = getCafVar @lhs.cafMap n
                                                  tag          = fromJust $ revLookup @module.tag2resultVar resVar
-                                                 (p', e', h') = makeStore (const . Just $ resVar) p (Right (tag, [Nothing])) (Left n)
+                                                 (p', e', h') = makeStore (const . Just $ resVar) p (Right (tag, [Nothing])) (Left cafVar)
                                              in (p', e' e, h' h)
                 . (afterCAFPointer, absEnvCAF, absHeapCAF)  = foldr @mergeCAF (0, [], []) @module.cafNames
 %%]
@@ -582,6 +586,8 @@ SEM GrAGItf
 --revLookup :: (Eq b) => [(a,b)] -> b -> Maybe a
 revLookup l e = lookup e (map swap l)
 	where swap = uncurry (flip (,))
+
+getCafVar m k = fromJust' ("cafVar not found " ++ show k) $ lookupFM m k
 
 fromJust' _ (Just a ) = a
 fromJust' m (Nothing) = error $ "fromJust: " ++ m

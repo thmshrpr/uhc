@@ -87,17 +87,26 @@ caParseGrin = do
 %%]
 
 %%[8.numberIdentifiers import(NumberIdents, Data.Array.IArray)
-caNumberIdents :: CompileAction IdentNameMap
+caNumberIdents :: CompileAction (IdentNameMap, CafMap)
 caNumberIdents = do
 	putMsg VerboseNormal "Numbering identifiers" Nothing
 	code   <- gets csGrinCode
 	unique <- gets csUnique
-        (unique, code, map) <- return $ numberIdents unique code
+        (unique, code, varMap, cafMap) <- return $ numberIdents unique code
 	modify (csUpdateGrinCode code)
 	modify (csUpdateUnique unique)
-	let (low, high) = bounds map
+	let (low, high) = bounds varMap
 	putMsg VerboseALot "Identifiers numbered" (Just (show (high-low) ++ " identifiers"))
-	return map
+	return (varMap, cafMap)
+%%]
+
+%%[8.nameIdents import(NameIdents)
+caNameIdents :: IdentNameMap -> CompileAction ()
+caNameIdents m = do
+	putMsg VerboseNormal "Numbering identifiers" Nothing
+	code <- gets csGrinCode
+        code <- return $ nameIdents m code
+	modify (csUpdateGrinCode code)
 %%]
 
 %%[8.normForHPT import(NormForHPT)
@@ -127,11 +136,11 @@ caRightSkew = caFix caRightSkew1
 %%]
 
 %%[8.heapPointsTo import(GrPointsToAnalysis)
-caHeapPointsTo :: CompileAction ()
-caHeapPointsTo = do
+caHeapPointsTo :: CafMap -> CompileAction ()
+caHeapPointsTo cm = do
 	putMsg VerboseNormal "Heap-points-to analysis" Nothing
 	code <- gets csGrinCode
-        code <- return $ addPointsToInfo code
+        code <- return $ addPointsToInfo cm code
 	modify (csUpdateGrinCode code)	
 %%]
 
@@ -170,7 +179,7 @@ caWriteGrin fn = do
 	liftIO $ writePP (ppGrModule Nothing) code output options
 %%]
 
-%%[8
+%%[8 import(Data.FiniteMap)
 doCompileRun :: String -> Opts -> IO ()
 doCompileRun fn opts = let input                    = mkTopLevelFPath "grin" fn
                            initState = CompileState
@@ -186,14 +195,17 @@ doCompileRun fn opts = let input                    = mkTopLevelFPath "grin" fn
 compileActions :: CompileAction ()
 compileActions = do
 	caParseGrin
-	caNumberIdents
+	(vm, cm) <- caNumberIdents
 	caNormForHPT
 	n <- caRightSkew
 	putMsg VerboseALot "unskewed" (Just $ show n ++ " iteration(s)")
+	caHeapPointsTo cm
+
+	caNameIdents vm
 	outputGrin <- gets (optWriteGrin . csOpts)
 	maybe (throwError $ strMsg "No C-- output for the moment") caWriteGrin outputGrin
-	throwError (strMsg $ "compilation stopped.")
-	caHeapPointsTo
+	throwError (strMsg $ "compilation stopped. cm=" ++ show (fmToList cm))
+
 	caLowerGrin
 	caWriteCmm
 %%]
