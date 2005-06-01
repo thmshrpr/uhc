@@ -45,7 +45,7 @@ data AbstractValue
 type AbstractNode = (GrTag, [AbstractValue]) -- Of course a Nodes can no occur inside a AbstractNode
 type Location = Int
 
-type Variable = HsName
+type Variable = Int
 
 instance Monoid AbstractValue where
 	mempty  = AV_Nothing
@@ -69,19 +69,19 @@ mergeNodes an bn = let compareNode x y                = fst x == fst y
                    in foldl' mergeNode1 an bn
 %%]
 
-%%[8.Heap export(AbstractHeap, AbstractHeapElement(..), AbstractHeapModifier, AbstractNodeModifier)
-type AbstractHeap = [AbstractHeapElement]
+%%[8.Heap export(AbstractHeap, AbstractHeapElement(..), AbstractHeapModifier, AbstractNodeModifier, ahLabel)
+type AbstractHeap = [(Location, AbstractHeapElement)]
 data AbstractHeapElement = AbstractHeapElement
-    { ahLabel     :: !Location
-    , ahBaseSet   :: !AbstractValue
+    { ahBaseSet   :: !AbstractValue
     , ahMod       :: !AbstractHeapModifier
     }
 	deriving (Eq)
+	
+ahLabel = fst
+
 
 instance Show AbstractHeapElement where
-	show (AbstractHeapElement l b m) =  "{" ++ show l ++ "}\n  " 
-	                                 ++ "base   = " ++ show b ++ "\n  "
-	                                 ++ "mod    = " ++ show m ++ "\n"
+	show (AbstractHeapElement b m) = "\nbase = " ++ show b ++ "\t;\t" ++ "mod = " ++ show m ++ "\n"
 
 type AbstractHeapModifier = (AbstractNodeModifier, Maybe Variable)
 type AbstractNodeModifier = (GrTag, [Maybe Variable]) --(tag, [fields])
@@ -92,19 +92,18 @@ updateHeapElement he env = let newChangeSet = heapChangeSet (ahMod he) env
                            in he { ahBaseSet = newBaseSet }
 %%]
 
-%%[8.Environment export(AbstractEnv, AbstractEnvElement(..), AbstractEnvModifier(..))
-type AbstractEnv = [AbstractEnvElement]
+%%[8.Environment export(AbstractEnv, AbstractEnvElement(..), AbstractEnvModifier(..),aeLabel)
+type AbstractEnv = [(Variable, AbstractEnvElement)]
 data AbstractEnvElement = AbstractEnvElement
-    { aeLabel     :: !Variable
-    , aeBaseSet   :: !AbstractValue
+    { aeBaseSet   :: !AbstractValue
     , aeMod       :: !AbstractEnvModifier
     }
 	deriving (Eq)
 
+aeLabel = fst	
+
 instance Show AbstractEnvElement where
-	show (AbstractEnvElement l b m) =  "{" ++ show l ++ "}\n  " 
-	                                ++ "base   = " ++ show b ++ "\n  "
-	                                ++ "mod    = " ++ show m ++ "\n"
+	show (AbstractEnvElement b m) = "\nbase = " ++ show b ++ "\t;\t" ++ "mod = " ++ show m ++ "\n"
 
 data AbstractEnvModifier
   = EnvNoChange
@@ -164,13 +163,13 @@ lookupEnv :: AbstractEnv -> Variable -> AbstractEnvElement
 lookupEnv env idx = case l of
                       []  -> error $ "Environment incomplete: '" ++ show idx ++ "' not found"
                       h:_ -> h
-	where l = dropWhile ((idx /=) . aeLabel) env
+	where l = maybe [] (\e -> [e]) (lookup idx env)
 
 lookupHeap :: AbstractHeap -> Location -> AbstractHeapElement
 lookupHeap heap idx = case l of
                         []  -> error $ "Heap incomplete: '" ++ show idx ++ "' not found"
                         h:_ -> h
-	where l = dropWhile ((idx /=) . ahLabel) heap
+	where l = maybe [] (\e -> [e]) (lookup idx heap)
 
 lookup' :: (Eq a) => [(a,b)] -> a -> b
 lookup' list = fromJust . flip lookup list
@@ -211,20 +210,20 @@ heapPointsTo env heap deps =
 	let labels        = heapLabels . envLabels $ []
 	    heapLabels    = foldl (\f e -> (Right (ahLabel e):) . f) id heap
 	    envLabels     = foldl (\f e -> (Left  (aeLabel e):) . f) id env
-	    f (Left i) (env,heap) = trace("ENVUPDATE: " ++ "\n changed=" ++ show changed ++ "\nold="++ show e ++ "\n new=" ++ show newE) ((newE:rest,heap), changed)
+	    f (Left i) (env,heap) = (((i,newE):rest,heap), changed)
 	    	where
 	    	(el, rest)  = partition ((i==) . aeLabel) env
-		[e]         = if length el /= 1 then error (show el) else el
+		[(_,e)]     = if length el /= 1 then error (show el) else el
 	    	newE        = updateEnvElement e env heap
 	    	changed     = isChanged (aeBaseSet e) (aeBaseSet newE)
-	    f (Right i) (env,heap) = trace("HEAPUPDATE: " ++ "\n changed=" ++ show changed ++ "\nold="++ show e ++ "\n new=" ++ show newE) ((env,newE:rest), changed)
+	    f (Right i) (env,heap) = ((env,(i,newE):rest), changed)
 	    	where
 	    	(el, rest)  = partition ((i==) . ahLabel) heap
-		[e]         = if length el /= 1 then error (show el) else el
+		[(_,e)]    = if length el /= 1 then error (show el) else el
 	    	newE        = updateHeapElement e env
 	    	changed     = isChanged  (ahBaseSet e) (ahBaseSet newE)
-	    tracef w a = f w a -- trace ("STEP: " ++ show w ++ "\n" ++ show a) f w a
-	in fixpoint (env,heap) deps labels tracef
+	    tracef w a = trace ("STEP: " ++ show w ++ "\n" ++ show a) f w a
+	in fixpoint (env,heap) deps labels f
 
 
 isChanged :: AbstractValue -> AbstractValue -> Bool

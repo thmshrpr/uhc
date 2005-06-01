@@ -103,7 +103,7 @@ caNumberIdents = do
 %%[8.nameIdents import(NameIdents)
 caNameIdents :: IdentNameMap -> CompileAction ()
 caNameIdents m = do
-	putMsg VerboseNormal "Numbering identifiers" Nothing
+	putMsg VerboseNormal "Naming identifiers" Nothing
 	code <- gets csGrinCode
         code <- return $ nameIdents m code
 	modify (csUpdateGrinCode code)

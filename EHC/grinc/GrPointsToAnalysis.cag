@@ -38,7 +38,7 @@ SEM GrAGItf
   | AGItf  module . pointsTo = trace ("RESULT: " ++ show @analysisResult) fst @analysisResult 
            loc    . deps     = buildDeps @absEnv @absHeap
                   . absEnv'  = @module.absEnv  @absEnvCAF
-                  . absEnv   = filter ((wildcardNr /=) . aeLabel) @absEnv'
+                  . absEnv   = filter ((getNr wildcardNr /=) . aeLabel) @absEnv'
                   . absHeap  = @module.absHeap @absHeapCAF
                   . analysisResult = heapPointsTo @absEnv @absHeap @deps
            lhs    . grTrf    = trace ("env: " ++ show @absEnv) (trace ("heap: " ++ show @absHeap) @module.grTrf)
@@ -53,9 +53,9 @@ SEM GrBind
 %%]
 
 %%[8.deps hs
-buildDeps env heap label = trace ("DEPS " ++ show label ++ ": " ++ show allDeps) allDeps
+buildDeps env heap label = allDeps
         where
-	allDeps     = case label of { Left _ -> deps; Right _ -> deps ++ evalDeps }
+        allDeps     = case label of { Left _ -> deps; Right _ -> deps ++ evalDeps }
         evalDeps    = [ depend | (Right _, depend) <- envTable ]
         deps        = [ depend | (mine   , depend) <- table, me <- f mine, me == label ]
         f (Left l)  = [l]
@@ -67,20 +67,20 @@ buildDeps env heap label = trace ("DEPS " ++ show label ++ ": " ++ show allDeps)
         heapTable   = concatMap depHeapElem heap
         envTable    = concatMap depEnvElem env
 
-depHeapElem :: AbstractHeapElement -> [(Either Label Variable, Label)]
-depHeapElem he = let me              = Right (ahLabel he)
-                     ((_,vars), var) = ahMod  he
-                 in [ (Left $ Left v, me) | Just v <- (var:vars) ]
+depHeapElem :: (Location, AbstractHeapElement) -> [(Either Label Variable, Label)]
+depHeapElem (l, he) = let me              = Right l
+                          ((_,vars), var) = ahMod  he
+                      in [ (Left $ Left v, me) | Just v <- (var:vars) ]
 
-depEnvElem :: AbstractEnvElement -> [(Either Label Variable, Label)]
-depEnvElem ee = let me          = Left (aeLabel ee)
-                    mvar2Label  = maybe id (\v -> ((Left $ Left v, me):))
-                in case aeMod ee of
-                     EnvNoChange       -> []
-                     EnvUnion vars     -> map (\v -> (Left $ Left v,me)) vars
-                     EnvEval var       -> [(Right var, me)]
-                     EnvSelect var _ _ -> [(Left $ Left  var, me)]
-                     EnvTag _ mvs mrv  -> foldr (\mv f -> mvar2Label mv . f) (mvar2Label mrv) mvs []
+depEnvElem :: (Variable, AbstractEnvElement) -> [(Either Label Variable, Label)]
+depEnvElem (l, ee) = let me          = Left l
+                         mvar2Label  = maybe id (\v -> ((Left $ Left v, me):))
+                     in case aeMod ee of
+                          EnvNoChange       -> []
+                          EnvUnion vars     -> map (\v -> (Left $ Left v,me)) vars
+                          EnvEval var       -> [(Right var, me)]
+                          EnvSelect var _ _ -> [(Left $ Left  var, me)]
+                          EnvTag _ mvs mrv  -> foldr (\mv f -> mvar2Label mv . f) (mvar2Label mrv) mvs []
 %%]
 
 %%%%%%%%%%%%%%%%%%%
@@ -88,10 +88,10 @@ depEnvElem ee = let me          = Left (aeLabel ee)
 %%%%%%%%%%%%%%%%%%%
 
 %%[8.tag2resultVar
-ATTR AllGrNT [ tag2resultVar: {AssocL GrTag HsName} | | ]
-ATTR GrModule [ | | tag2resultVar: {AssocL GrTag HsName} ]
+ATTR AllGrNT [ tag2resultVar: {AssocL GrTag Int} | | ]
+ATTR GrModule [ | | tag2resultVar: {AssocL GrTag Int} ]
 SEM GrModule
-  | Mod     loc . tag2resultVar = [ (t, f) | ((t,_), EvApTagVar f) <- @evalTagMp ]
+  | Mod     loc . tag2resultVar = [ (t, f) | ((t,_), EvApTagVar (HNPos f)) <- @evalTagMp ]
 
 SEM GrAGItf
   | AGItf   module . tag2resultVar = []
@@ -129,7 +129,7 @@ SEM GrTag [ | | tagName: SELF ]
 A grin node is either a single variable or a complete node (with a known tag)
 
 %%[8.nodeInfo hs
-type NodeInfo a = Either HsName (GrTag, [a])
+type NodeInfo a = Either Int (GrTag, [a])
 %%]
 
 %%%%%%%%%%%%%%%%
@@ -139,20 +139,20 @@ type NodeInfo a = Either HsName (GrTag, [a])
 A grin value is either a single variable or a complete node (known tag)
 
 %%[8.valInfo
-SEM GrVal [ | | valInfo : {NodeInfo (Maybe HsName)}]
+SEM GrVal [ | | valInfo : {NodeInfo (Maybe Int)}]
   | Node      lhs . valInfo = Right (@tag.tagName, @fldL.depVars)
   | Tag       lhs . valInfo = Right (@tag.tagName, [])
-  | Var       lhs . valInfo = Left @nm
+  | Var       lhs . valInfo = Left (getNr @nm)
   | Empty     lhs . valInfo = error "no empty value expected!"
   | LitInt    lhs . valInfo = error "no literal value expected!"
   | NodeAdapt lhs . valInfo = error "no support for NodeAdapt"
 %%]
 
 %%[8.depVars
-SEM GrVal  [ | | depVar:  {Maybe HsName} ]
-  | Var      lhs . depVar = Just @nm
+SEM GrVal  [ | | depVar:  {Maybe Int} ]
+  | Var      lhs . depVar = Just (getNr @nm)
   | * - Var  lhs . depVar = Nothing
-SEM GrValL [ | | depVars: {[Maybe HsName]}  ]
+SEM GrValL [ | | depVars: {[Maybe Int]}  ]
   | Cons     lhs . depVars = @hd.depVar : @tl.depVars
   | Nil      lhs . depVars = []
 %%]
@@ -164,10 +164,10 @@ SEM GrValL [ | | depVars: {[Maybe HsName]}  ]
 A grin pattern is either a single variable or a compete node pattern (known tag)
 
 %%[8.patInfo
-SEM GrPat [ | | patInfo: {NodeInfo HsName} ]
-  | Node       lhs . patInfo = Right (@tag.tagName, @fldL)
+SEM GrPat [ | | patInfo: {NodeInfo Int} ]
+  | Node       lhs . patInfo = Right (@tag.tagName, map getNr @fldL)
   | Tag        lhs . patInfo = Right (@tag.tagName, [])
-  | Var        lhs . patInfo = Left  @nm
+  | Var        lhs . patInfo = Left (getNr @nm)
   | Empty      lhs . patInfo = error "empty pattern no expected!"
   | LitInt     lhs . patInfo = error "literal int in pattern? I did not know that..."
   | NodeSplit  lhs . patInfo = error "no support for NodeSplit"
@@ -181,10 +181,10 @@ The target info is basicly the pattern information. However, for the last
 expression in a binding it is the result variable of that binding.
 
 %%[8.targetInformation
-ATTR AllGrExpr [ targetInfo: {NodeInfo HsName} | | ]
+ATTR AllGrExpr [ targetInfo: {NodeInfo Int} | | ]
 
 SEM GrBind
-  | Bind  loc  . resultVar  = @nm
+  | Bind  loc  . resultVar  = getNr @nm
           expr . targetInfo = Left @resultVar -- result variable for this function
 
 SEM GrExpr
@@ -197,9 +197,9 @@ SEM GrExpr
 %%[8.genInfo hs
 genInfo :: NodeInfo a 
         -> NodeInfo b
-        -> (HsName->HsName->c)
-        -> (HsName->GrTag->[b]->c)
-        -> (GrTag->[a]->HsName->c)
+        -> (Int->Int->c)
+        -> (Int->GrTag->[b]->c)
+        -> (GrTag->[a]->Int->c)
         -> (GrTag->[a]->GrTag->[b]->c)
         -> c
 genInfo sourceInfo targetInfo llf lrf rlf rrf =
@@ -243,19 +243,19 @@ SEM GrExpr
   | Unit   loc . fVar2Var   = \s t         -> (makeEnvElem t AV_Nothing (EnvUnion [s]) :)
                . fNode2Var  = \tag names t -> let absVals   = map sn2av names
                                                   resultVar = lookup tag @lhs.tag2resultVar
-                                                  env       = makeEnvElem t 
+                                                  env       = makeEnvElem t
                                                                           (AV_Nodes [(tag, absVals)])
                                                                           (EnvTag tag names resultVar)
                                               in (env :)
                . fVar2Node  = buildSelectElems
-               . fNode2Node = \st snms tt tnms -> let sn2mod = maybe EnvNoChange (\x -> EnvUnion [x]) 
+               . fNode2Node = \st snms tt tnms -> let sn2mod = maybe EnvNoChange (\x -> EnvUnion [x])
                                                       toEnvElem sn tn = makeEnvElem tn (sn2av sn) (sn2mod sn)
                                                   in (zipWith toEnvElem snms tnms ++) -- note: st == tt
                . absEnv  = genInfo @val.valInfo @lhs.targetInfo @fVar2Var @fVar2Node @fNode2Var @fNode2Node
 %%]
 
 %%[8.selectVar hs
-sn2av :: Maybe HsName -> AbstractValue
+sn2av :: Maybe Int -> AbstractValue
 sn2av = maybe AV_Basic (const AV_Nothing)
 
 buildSelectElems selectVar tag nms
@@ -308,6 +308,8 @@ eval(l); -> \n              => n:
                                  absVal = Nothing
                                  envMod = Eval l
 
+the next is not needed because of normalisation:
+
 eval(l); -> \(Tag e1 .. en) => @eval@l:
                                  absVal = Nothing
                                  envMod = Eval l
@@ -320,10 +322,8 @@ eval(l); -> \(Tag e1 .. en) => @eval@l:
 %%[8.eval
 SEM GrExpr
   | Eval   loc . absEnv = case @lhs.targetInfo of
-                            Left  n           -> (makeEnvElem n AV_Nothing (EnvEval @nm) :)
-                            Right (tag,names) -> let tmpVar     = hsnPrefix "@eval@" @nm
-                                                     tmpEnvElem = (makeEnvElem tmpVar AV_Nothing (EnvEval @nm) :)
-                                                 in  tmpEnvElem . buildSelectElems tmpVar tag names
+                            Left  n           -> (makeEnvElem n AV_Nothing (EnvEval $ getNr @nm) :)
+                            Right (tag,names) -> error "NormForHPT not executed"
 %%]
 
 %%%%%%%%%%
@@ -342,7 +342,7 @@ foo a1 ..an; -> \(Tag e1 .. en) => e1:
                                      envMod = @foo ! Tag ! n
 %%[8.call
 SEM GrExpr
-  | Call  loc . resultVar = @nm
+  | Call  loc . resultVar = getNr @nm
               . absEnv = case @lhs.targetInfo of
                             Left  n           -> (makeEnvElem n AV_Nothing (EnvUnion [@resultVar]) :)
                             Right (tag,names) -> buildSelectElems @resultVar tag names
@@ -358,6 +358,8 @@ case node of (T e1 .. en)             => e1:
                                          en: 
                                            absVal = Nothing
                                            envMod = node ! Tag ! n
+
+the following is not needed because of normalisation
 case (Tag d1 .. dn) of (Tag e1 .. en) => e1:
                                            absVal = (absVal d1)
                                            envMod = Union (depVar d1)
@@ -366,26 +368,24 @@ case (Tag d1 .. dn) of (Tag e1 .. en) => e1:
                                            envMod = Union (depVar dn)
 
 %%[8.alt
-ATTR AllAlt [ valInfo: {NodeInfo (Maybe HsName)} | | ]
+ATTR AllAlt [ valInfo: {NodeInfo (Maybe Int)} | | ]
 
 SEM GrAlt
   | Alt  loc . fVar2Node  = buildSelectElems
-             . fNode2Node = \st snms tt tnms -> let sn2mod = maybe EnvNoChange (\x -> EnvUnion [x]) 
-                                                    toEnvElem sn tn = makeEnvElem tn (sn2av sn) (sn2mod sn)
-                                                in (zipWith toEnvElem snms tnms ++) -- note: st == tt
+             . fNode2Node = error "NormForHPT not executed"
              . fVar2Var   = error "no variable in alternative pattern expected!"
              . fNode2Var  = error "no variable in alternative pattern expected!"
              . absEnv     = genInfo @lhs.valInfo @pat.patInfo @fVar2Var @fVar2Node @fNode2Var @fNode2Node
          lhs . absEnv     = @absEnv . @expr.absEnv
-
 %%]
 
 %%%%%%%%%%
 %% Case %%
 %%%%%%%%%%
 
-Since we can have multiple arms in a case, the question is how we merge the result of each arm.
+Since we can have multiple arms in a case, the question is how we merge the result of each arm. 
 
+old solution:
 case n of
   ... expr1 =>  alt1@n: equation of expr1
   ... exprn =>  altn@n: equation of exprn
@@ -415,30 +415,30 @@ case n of
                            absVal: Nothing
                            absEnv: Union [alt1@n@en, .., altn@n@en]
 
+Since we normalise each case to end with a simple unit (e.g. unit v). So we
+collect the last elements of the arms and join these afterwards. 
+
+We use the targetName of the wildcard variable so that these last equations and
+partial collections are filtered afterwards.
+
 %%[8.case
-ATTR AllAlt [ count: Int | | ]
+-- Fix GrExpr_Seq so that last element of absEnv is on top of the list
 SEM GrExpr
-  | Case  altL . count = 0
-SEM GrAltL
-  | Cons  tl  . count = @lhs.count + 1
+  | Seq  lhs . absEnv = @body.absEnv . @pat.absEnv . @expr.absEnv
 
-
-ATTR GrAlt    [ | | altTargetName: {HsName}    ]
-SEM GrAltL    [ | | altTargetNames: {[HsName]} ]
-  | Cons  lhs . altTargetNames = @hd.altTargetName : @tl.altTargetNames
-  | Nil   lhs . altTargetNames = []
+ATTR AllAlt     [ | | altTargetNames USE {++} {[]}: {[Int]} ]
 
 SEM GrAlt
-  | Alt   loc  . altTargetName = case @lhs.valInfo of
-                                   Left nm -> hsnPrefix ("alt" ++ show @lhs.count ++ "@") nm
-                                   Right _ -> error "No node expected in case expression!" -- TODO: fix?
-          expr . targetInfo    = Left @altTargetName
+  | Alt   loc   .  altTargetNames  =  let (_, u)         = head (@expr.absEnv [])
+                                          (EnvUnion un)  = aeMod u
+                                      in un
+          expr  .  targetInfo     =  Left (getNr wildcardNr)
 
 SEM GrExpr
-  | Case  loc . absEnv = case @lhs.targetInfo of
-                           Left resVar     -> (makeEnvElem resVar AV_Nothing (EnvUnion @altL.altTargetNames) :)
-                           Right (tag,nms) -> error "No node expected after a case expression!" -- TODO: fix?
-          lhs . absEnv = @absEnv . @altL.absEnv
+  | Case  loc   .  absEnv = case @lhs.targetInfo of
+                              Left resVar     -> (makeEnvElem resVar AV_Nothing (EnvUnion @altL.altTargetNames) :)
+                              Right (tag,nms) -> error "No node expected after a case expression!"
+          lhs  .  absEnv = @absEnv . @altL.absEnv
 %%]
 
 %%%%%%%%%%
@@ -536,13 +536,13 @@ SEM GrExpr
 %%%%%%%%%%%%%
 
 %%[8.actuals
-ATTR AllGrNT [ | | actualsEnv USE {.} {id} : {[(HsName, [Maybe HsName])] -> [(HsName, [Maybe HsName])]} ]
-ATTR AllBind [ allActuals: {[(HsName, [Maybe HsName])]} | | ]
+ATTR AllGrNT [ | | actualsEnv USE {.} {id} : {[(Int, [Maybe Int])] -> [(Int, [Maybe Int])]} ]
+ATTR AllBind [ allActuals: {[(Int, [Maybe Int])]} | | ]
 
 SEM GrExpr
   | Store Unit  loc . fGenActuals = \tag mns n -> let args      = tail mns -- first element is the size of the rest of the node
                                                       resultVar = lookup tag @lhs.tag2resultVar
-                                                      actuals r = ((r,args) :)
+                                                      actuals r = ((r, args) :)
                                                   in maybe id actuals resultVar
                 loc . actualsEnv  = case (@val.valInfo, @lhs.targetInfo) of
                                       (Right (st,snms), Left tn) -> @fGenActuals st snms tn
@@ -555,7 +555,7 @@ SEM GrModule
 SEM GrBind
   | Bind      loc   . bindActuals = transpose [ actuals | (resVar, actuals) <- @lhs.allActuals, resVar == @resultVar ]
                     . absEnvBind  = let getActuals = filter isJust
-		                        envElem formal actuals = makeEnvElem formal AV_Nothing (EnvUnion [ actual | Just actual <- actuals])
+                                        envElem formal actuals = makeEnvElem (getNr formal) AV_Nothing (EnvUnion [ actual | Just actual <- actuals])
                                     in (zipWith envElem @argNmL @bindActuals ++)
                     . actualsEnv  = if @prune then id else @expr.actualsEnv
 %%]
@@ -571,7 +571,7 @@ store (FCAF); \-> bla
 
 %%[8.CAF import(GrCAFNames)
 SEM GrAGItf
-  | AGItf   loc . mergeCAF = \n (p, e, h) -> let resVar       = n
+  | AGItf   loc . mergeCAF = \n (p, e, h) -> let resVar       = getNr n
                                                  cafVar       = getCafVar @lhs.cafMap n
                                                  tag          = fromJust $ revLookup @module.tag2resultVar resVar
                                                  (p', e', h') = makeStore (const . Just $ resVar) p (Right (tag, [Nothing])) (Left cafVar)
@@ -587,14 +587,19 @@ SEM GrAGItf
 revLookup l e = lookup e (map swap l)
 	where swap = uncurry (flip (,))
 
-getCafVar m k = fromJust' ("cafVar not found " ++ show k) $ lookupFM m k
+getCafVar m k = getNr . fromJust' ("cafVar not found " ++ show k) $ lookupFM m k
 
 fromJust' _ (Just a ) = a
 fromJust' m (Nothing) = error $ "fromJust: " ++ m
 
+getNr :: HsName -> Int
+getNr (HNPos i) = i
+getNr a         = error $ "not a numbered name: " ++ show a
 
-makeEnvElem  v initial eq = AbstractEnvElement  { aeLabel = v, aeBaseSet = initial, aeMod = eq}
-makeHeapElem l initial eq = AbstractHeapElement { ahLabel = l, ahBaseSet = initial, ahMod = eq}
+makeEnvElem  v initial eq = (v, AbstractEnvElement  {aeBaseSet = initial, aeMod = eq})
+makeHeapElem l initial eq = (l, AbstractHeapElement { ahBaseSet = initial, ahMod = eq})
 isPrim (a:b:c:d:_) = ("prim" == a:b:c:d:[])
 isPrim _           = False
 %%]
+
+% vim:et:ts=4:ai:
