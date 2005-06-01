@@ -30,7 +30,7 @@ changeSet based on the previous values. This is only possible if we update all e
 Note: we can implement the heap and environment as an array. With constant
 lookup times.
 
-%%[8 import(Data.Maybe, Data.List, Data.Monoid, EHCommon(HsName), GrinCode(GrTag))
+%%[8 import(Data.Maybe, Data.List, Data.Monoid, Data.Array.ST, Control.Monad.ST, Control.Monad, EHCommon(HsName), GrinCode(GrTag))
 %%]
 
 %%[8.AbstractValue export(AbstractValue(..), AbstractNode, Location, Variable)
@@ -69,41 +69,38 @@ mergeNodes an bn = let compareNode x y                = fst x == fst y
                    in foldl' mergeNode1 an bn
 %%]
 
-%%[8.Heap export(AbstractHeap, AbstractHeapElement(..), AbstractHeapModifier, AbstractNodeModifier, ahLabel)
-type AbstractHeap = [(Location, AbstractHeapElement)]
+%%[8.Heap export(AbstractHeap, AbstractHeapElement(..), AbstractHeapModifier, AbstractNodeModifier)
+type AbstractHeap s = STArray s Location AbstractHeapElement
 data AbstractHeapElement = AbstractHeapElement
     { ahBaseSet   :: !AbstractValue
     , ahMod       :: !AbstractHeapModifier
     }
 	deriving (Eq)
 	
-ahLabel = fst
-
-
 instance Show AbstractHeapElement where
-	show (AbstractHeapElement b m) = "\nbase = " ++ show b ++ "\t;\t" ++ "mod = " ++ show m ++ "\n"
+	show (AbstractHeapElement b m) = "\nbase = " ++ show b ++ ";\t" ++ "mod = " ++ show m ++ "\n"
 
 type AbstractHeapModifier = (AbstractNodeModifier, Maybe Variable)
 type AbstractNodeModifier = (GrTag, [Maybe Variable]) --(tag, [fields])
 
-updateHeapElement :: AbstractHeapElement -> AbstractEnv -> AbstractHeapElement
-updateHeapElement he env = let newChangeSet = heapChangeSet (ahMod he) env
-                               newBaseSet   = newChangeSet `mappend` ahBaseSet he
-                           in he { ahBaseSet = newBaseSet }
+updateHeapElement :: AbstractHeapElement -> AbstractEnv s -> ST s AbstractHeapElement
+updateHeapElement he env = do 
+    { newChangeSet <- heapChangeSet (ahMod he) env
+    ; let newBaseSet   = newChangeSet `mappend` ahBaseSet he
+    ; return (he { ahBaseSet = newBaseSet })
+    }
 %%]
 
-%%[8.Environment export(AbstractEnv, AbstractEnvElement(..), AbstractEnvModifier(..),aeLabel)
-type AbstractEnv = [(Variable, AbstractEnvElement)]
+%%[8.Environment export(AbstractEnv, AbstractEnvElement(..), AbstractEnvModifier(..))
+type AbstractEnv s = STArray s Variable AbstractEnvElement
 data AbstractEnvElement = AbstractEnvElement
     { aeBaseSet   :: !AbstractValue
     , aeMod       :: !AbstractEnvModifier
     }
 	deriving (Eq)
 
-aeLabel = fst	
-
 instance Show AbstractEnvElement where
-	show (AbstractEnvElement b m) = "\nbase = " ++ show b ++ "\t;\t" ++ "mod = " ++ show m ++ "\n"
+	show (AbstractEnvElement b m) = "\nbase = " ++ show b ++ ";\t" ++ "mod = " ++ show m ++ "\n"
 
 data AbstractEnvModifier
   = EnvNoChange
@@ -113,22 +110,27 @@ data AbstractEnvModifier
   | EnvTag GrTag [Maybe Variable] (Maybe Variable)
 	deriving (Show, Eq)
 
-updateEnvElement :: AbstractEnvElement -> AbstractEnv -> AbstractHeap -> AbstractEnvElement
-updateEnvElement ee env heap = let newChangeSet = envChangeSet (aeMod ee) env heap
-                                   newBaseSet   = newChangeSet `mappend` aeBaseSet ee
-                               in ee { aeBaseSet = newBaseSet }
+updateEnvElement :: AbstractEnvElement -> AbstractEnv s -> AbstractHeap s -> ST s AbstractEnvElement
+updateEnvElement ee env heap = do
+    { newChangeSet <- envChangeSet (aeMod ee) env heap
+    ; newBaseSet   = newChangeSet `mappend` aeBaseSet ee
+    ; return (ee { aeBaseSet = newBaseSet })
+    }
 %%]
 
 %%[8.heapChangeSet
-heapChangeSet :: AbstractHeapModifier -> AbstractEnv -> AbstractValue
-heapChangeSet ((tag, deps), resultDep) env = AV_Nodes [(tag, getLocations deps)] `mappend` (maybe AV_Nothing (aeBaseSet . lookupEnv env) resultDep)
+heapChangeSet :: AbstractHeapModifier -> AbstractEnv s -> ST s AbstractValue
+heapChangeSet ((tag, deps), resultDep) env = do
+    { resCS <- getBaseSet resultDep
+    ; locs  <- mapM getBaseSet deps
+    ; return (AV_Nodes [(tag, locs)] `mappend` resCS)
+    }
 	where
-	getLocations :: [Maybe Variable] -> [AbstractValue]
-	getLocations  = map (maybe AV_Basic (aeBaseSet . lookupEnv env))
+    getBaseSet = maybe (return AV_Nothing) (\v -> lookupEnv env v >>= (return . aeBaseSet))
 %%]
 
 %%[8.envChangeSet
-envChangeSet :: AbstractEnvModifier -> AbstractEnv -> AbstractHeap -> AbstractValue
+envChangeSet :: AbstractEnvModifier -> AbstractEnv s -> AbstractHeap s -> ST s AbstractValue
 envChangeSet am env heap = case am of
                              EnvNoChange     -> AV_Nothing
                              EnvUnion vs     -> mconcat $ map (aeBaseSet . lookupEnv env) vs
@@ -159,17 +161,11 @@ envChangeSet am env heap = case am of
 %%]
 
 %%[8 export(lookupEnv)
-lookupEnv :: AbstractEnv -> Variable -> AbstractEnvElement
-lookupEnv env idx = case l of
-                      []  -> error $ "Environment incomplete: '" ++ show idx ++ "' not found"
-                      h:_ -> h
-	where l = maybe [] (\e -> [e]) (lookup idx env)
+lookupEnv :: AbstractEnv s -> Variable -> ST s AbstractEnvElement
+lookupEnv env idx = readArray env idx
 
-lookupHeap :: AbstractHeap -> Location -> AbstractHeapElement
-lookupHeap heap idx = case l of
-                        []  -> error $ "Heap incomplete: '" ++ show idx ++ "' not found"
-                        h:_ -> h
-	where l = maybe [] (\e -> [e]) (lookup idx heap)
+lookupHeap :: AbstractHeap s -> Location -> ST s AbstractHeapElement
+lookupHeap heap idx = readArray heap idx
 
 lookup' :: (Eq a) => [(a,b)] -> a -> b
 lookup' list = fromJust . flip lookup list
@@ -180,17 +176,20 @@ lookup' list = fromJust . flip lookup list
 a <=! b = all (flip elem b) a
 %%]
 
-%%[8.fixpoint export(Label)
-type Label     = Either Variable Location
-type WorkList  = [Label]
-type Depends   = (Label -> [Label])
-type Analysis  = (AbstractEnv, AbstractHeap)
+%%[8.fixpoint export(Label, Analysis)
+type Label       = Either Variable Location
+type WorkList    = [Label]
+type Depends     = (Label -> [Label])
+type Analysis  s = (AbstractEnv s, AbstractHeap s)
 
-fixpoint :: Analysis -> Depends -> WorkList -> (Label -> Analysis -> (Analysis, Bool)) -> Analysis
-fixpoint base deps []              f = base
-fixpoint base deps (work:worklist) f | changed   = fixpoint step deps (deps work ++ worklist) f
-                                     | otherwise = fixpoint base deps worklist f
-	where (step, changed) = f work base
+fixpoint :: Analysis s -> Depends -> WorkList -> (Label -> Analysis s -> ST s (Analysis s, Bool)) -> ST s (Analysis s)
+fixpoint base deps []              f = return base
+fixpoint base deps (work:worklist) f = do
+    { (step, changed) <- f work base
+    ; if changed
+      then fixpoint step deps (deps work ++ worklist) f
+      else fixpoint base deps worklist f
+    }
 
 {-
 fixpoint :: Analysis -> Depends -> WorkList -> (Label -> Analysis -> (Analysis, Bool)) -> Analysis
@@ -205,25 +204,27 @@ fixpoint base deps worklist f = let step work            =  let (newElem, change
 %%]
 
 %%[8 import(Debug.Trace) export(heapPointsTo)
-heapPointsTo :: AbstractEnv -> AbstractHeap -> Depends -> Analysis
-heapPointsTo env heap deps = 
-	let labels        = heapLabels . envLabels $ []
-	    heapLabels    = foldl (\f e -> (Right (ahLabel e):) . f) id heap
-	    envLabels     = foldl (\f e -> (Left  (aeLabel e):) . f) id env
-	    f (Left i) (env,heap) = (((i,newE):rest,heap), changed)
-	    	where
-	    	(el, rest)  = partition ((i==) . aeLabel) env
-		[(_,e)]     = if length el /= 1 then error (show el) else el
-	    	newE        = updateEnvElement e env heap
-	    	changed     = isChanged (aeBaseSet e) (aeBaseSet newE)
-	    f (Right i) (env,heap) = ((env,(i,newE):rest), changed)
-	    	where
-	    	(el, rest)  = partition ((i==) . ahLabel) heap
-		[(_,e)]    = if length el /= 1 then error (show el) else el
-	    	newE        = updateHeapElement e env
-	    	changed     = isChanged  (ahBaseSet e) (ahBaseSet newE)
-	    tracef w a = trace ("STEP: " ++ show w ++ "\n" ++ show a) f w a
-	in fixpoint (env,heap) deps labels f
+heapPointsTo :: AbstractEnv s -> AbstractHeap s -> Depends -> ST s (Analysis s)
+heapPointsTo env heap deps =
+    let labels        = heapLabels ++ envLabels
+        heapLabels    = map Right (indices heap)
+        envLabels     = map Left (indices env)
+        f (Left i) (env, heap) = do
+            { e  <- readArray env i
+            ; e' <- updateEnvElement e env heap
+            ; let changed = isChanged (aeBaseSet e) (aeBaseSet e')
+            ; when changed (writeArray env i e')
+            ; return ((env,heap), changed)
+            }
+        f (Right i) (env, heap) = do
+            { e  <- readArray heap i
+            ; e' <- updateHeapElement e env
+            ; let changed = isChanged (ahBaseSet e) (ahBaseSet e')
+            ; when changed (writeArray heap i e')
+            ; return ((env,heap), changed)
+            }
+        tracef w a = trace ("STEP: " ++ show w ++ "\n") f w a
+    in fixpoint (env,heap) deps labels f
 
 
 isChanged :: AbstractValue -> AbstractValue -> Bool
@@ -233,3 +234,5 @@ isChanged old new = case (old, new) of
 		      otherwise                          -> old /= new
 		      
 %%]
+
+% vim:ts=4:et:ai:
