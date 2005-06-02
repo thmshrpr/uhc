@@ -81,19 +81,16 @@ caParseGrin = do
 	path <- gets csPath
 	opts <- gets csOpts
 	(fn, code) <- liftIO $ parseGrin path opts
-	-- let name = HNm fn
-	let (GrModule_Mod name _ _ _ _) = code
-	modify (\s -> s { csName = name })
 	modify (csUpdateGrinCode code)
 %%]
 
 
-%%[8.dropEvalAndApply import(DropEvalAndApply)
-caDropEvalAndApply :: CompileAction ()
-caDropEvalAndApply = do
-	putMsg VerboseALot "Removing definition of eval and apply" Nothing
+%%[8.dropEvalAndApply import(DropUnusedBindings)
+caDropUnusedBindings :: CompileAction ()
+caDropUnusedBindings = do
+	putMsg VerboseALot "Removing unused function definitions" Nothing
 	code <- gets csGrinCode
-	code <- return $ dropEvalAndApply code
+	code <- return $ dropUnusedBindings True code
 	modify (csUpdateGrinCode code)
 %%]
 
@@ -196,7 +193,6 @@ doCompileRun :: String -> Opts -> IO ()
 doCompileRun fn opts = let input                    = mkTopLevelFPath "grin" fn
                            initState = CompileState
                                { csUnique = 3                 -- 0,1,2 are reserved (resp: __, eval, apply)
-                               , csName   = HNm fn
                                , csMbCode = Nothing
                                , csPath   = input
                                , csOpts   = opts
@@ -207,7 +203,7 @@ doCompileRun fn opts = let input                    = mkTopLevelFPath "grin" fn
 compileActions :: CompileAction ()
 compileActions = do
 	caParseGrin
-	caDropEvalAndApply
+	caDropUnusedBindings
 	low <- gets csUnique
 	(vm, cm) <- caNumberIdents
 	caNormForHPT
@@ -219,11 +215,13 @@ compileActions = do
 	(env, heap) <- caHeapPointsTo (low,high) cm
 
 	debugging <- gets (optDebug . csOpts)
+	when debugging (liftIO $ putStrLn "*** Equations ***")
 	when debugging (liftIO $ printArray "env:"  aeMod env)
 	when debugging (liftIO $ printArray "heap:" ahMod heap)
 
-	liftIO $ printArray "env:"  aeBaseSet env
-	liftIO $ printArray "heap:" ahBaseSet heap
+	when debugging (liftIO $ putStrLn "*** Abstract Values ***")
+	when debugging (liftIO $ printArray "env:"  aeBaseSet env)
+	when debugging (liftIO $ printArray "heap:" ahBaseSet heap)
 
 	--caNameIdents vm
 	outputGrin <- gets (optWriteGrin . csOpts)

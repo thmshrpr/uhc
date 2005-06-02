@@ -11,7 +11,6 @@
 %%[8.State import(GRINCCommon, EHCommon, GrinCode, FPath)
 data CompileState = CompileState
 	{ csUnique :: Int
-	, csName   :: HsName
 	, csMbCode :: Maybe GrModule 
 	, csPath   :: FPath
 	, csOpts   :: Opts
@@ -20,7 +19,6 @@ data CompileState = CompileState
 emptyState :: CompileState
 emptyState = CompileState
 	{ csUnique = 3                 -- 0,1,2 are reserved
-	, csName   = HNm "<UNKNOWN>"
 	, csMbCode = Nothing
 	, csPath   = emptyFPath
 	, csOpts   = defaultOpts
@@ -73,15 +71,14 @@ harden_  =  harden ()
 %%[8.utils
 putMsg :: Verbosity -> String -> (Maybe String) -> CompileAction ()
 putMsg minVerbosity msg mbMsg =  harden_ $ do
-	currentVerbosity <- gets (optVerbosity . csOpts)
-	guard (currentVerbosity >= minVerbosity)
-	modName <- gets csName
-	path    <- gets csPath
-        let msg2    = maybe "" (\m -> ", " ++ m) mbMsg
-	let message =            strBlankPad 25 msg
-	              ++ " "  ++ strBlankPad 15 (show modName)
-	              ++ " (" ++ fpathToStr path ++ msg2 ++ ")"
-	liftIO $ putStrLn message
+    currentVerbosity <- gets (optVerbosity . csOpts)
+    guard (currentVerbosity >= minVerbosity)
+    path    <- gets csPath
+    let msg2    = maybe "" (\m -> " (" ++ m ++ ")") mbMsg
+    let message =            strBlankPad 25 msg
+                  ++ " "  ++ strBlankPad 15 (fpathToStr path)
+                  ++ msg2
+    liftIO $ putStrLn message
 %%]
 
 %%[8.fixpoint

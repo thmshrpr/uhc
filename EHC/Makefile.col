@@ -34,7 +34,7 @@ help:
 ##########################
 
 TRANS_SRC    := $(GT)/NumberIdents.hs $(GT)/NormForHPT.hs $(GT)/RightSkew.hs $(GT)/NameIdents.hs \
-                $(GT)/LowerGrin.hs $(GT)/DropEvalAndApply.hs
+                $(GT)/LowerGrin.hs $(GT)/DropUnusedBindings.hs
 
 GRINC_SOURCE := grinc/GRINC.hs grinc/CompilerDriver.hs grinc/GRINCCommon.hs EHCommon.hs EHScanner.hs \
                 GrinCode.hs GrinCodePretty.hs gri/GRIParser.hs grinc/GRIN2Cmm.hs \
@@ -63,7 +63,7 @@ GrinCode.hs: GrinCode.ag Makefile
 grinc/GrPointsToAnalysis.hs: grinc/GrPointsToAnalysis.ag Makefile
 	$(call AGCC,$<,$(AGC_FLAGS_CODE))
 
-grinc/transformations/DropEvalAndApply.hs: grinc/transformations/DropEvalAndApply.ag GrinCodeAbsSyn.ag GrinCode.hs Makefile
+grinc/transformations/DropUnusedBindings.hs: grinc/transformations/DropUnusedBindings.ag GrinCodeAbsSyn.ag GrinCode.hs Makefile
 	$(call AGCC,$<,$(AGC_FLAGS_CODE))
 
 grinc/transformations/LowerGrin.hs: grinc/transformations/LowerGrin.ag GrinCodeAbsSyn.ag GrinCode.hs Makefile
