@@ -80,7 +80,7 @@ SEM GrAGItf
                    .  var2id       = @module.cafVar
            loc     .  bind2id      = @module.bind2idFrag
                    .  origNames    = fmToList @bind2id ++ fmToList @module.var2id
-                   .  varMapping   = [ (i, n) | (n, HNPos i) <- @origNames ]
+                   .  varMapping   = [ (i, n) | (n, HNPos i) <- @origNames, not (n `elem` [applyNm, evalNm]) ]
                    .  varMap       = array (@low, @high-1) @varMapping
 %%]
 
@@ -177,8 +177,15 @@ SEM GrModule
 %%]
 
 %%[8 hs
-newMap map (k, EvApTagVar nm) = (k, EvApTagVar $ findNewVar map nm)
+newMap map (k, EvApTagVar nm) = let newNm = if applyNm == nm
+                                            then applyNr
+                                            else if evalNm == nm
+                                            then evalNr
+                                            else findNewVar map nm
+                                in (k, EvApTagVar newNm)
 newMap map x                  = x
+
+
 %%]
 
 % vim:ts=4:et:ai:

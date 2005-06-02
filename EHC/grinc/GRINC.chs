@@ -61,8 +61,9 @@ openFPath fp mode | fpathIsEmpty fp = case mode of
 
 writePP ::  (a -> PP_Doc) -> a -> FPath -> Opts -> IO ()
 writePP f text fp opts
-  = do {  (fn, fh) <- openFPath fp WriteMode
-       ;  hPutStrLn fh (show.f $ text)
+  = do { (fn, fh) <- openFPath fp WriteMode
+       ; hPutStrLn fh (show.f $ text)
+       ; hClose fh
        }
 %%]
 
@@ -83,6 +84,16 @@ caParseGrin = do
 	-- let name = HNm fn
 	let (GrModule_Mod name _ _ _ _) = code
 	modify (\s -> s { csName = name })
+	modify (csUpdateGrinCode code)
+%%]
+
+
+%%[8.dropEvalAndApply import(DropEvalAndApply)
+caDropEvalAndApply :: CompileAction ()
+caDropEvalAndApply = do
+	putMsg VerboseALot "Removing definition of eval and apply" Nothing
+	code <- gets csGrinCode
+	code <- return $ dropEvalAndApply code
 	modify (csUpdateGrinCode code)
 %%]
 
@@ -136,12 +147,13 @@ caRightSkew = caFix caRightSkew1
 %%]
 
 %%[8.heapPointsTo import(GrPointsToAnalysis)
-caHeapPointsTo :: CafMap -> CompileAction ()
-caHeapPointsTo cm = do
+caHeapPointsTo :: (Int, Int) -> CafMap -> CompileAction Analysis
+caHeapPointsTo bounds cm = do
 	putMsg VerboseNormal "Heap-points-to analysis" Nothing
-	code <- gets csGrinCode
-        code <- return $ addPointsToInfo cm code
-	modify (csUpdateGrinCode code)	
+	code   <- gets csGrinCode
+        result <- liftIO $ heapPointsToAnalysis bounds cm code
+	--modify (csUpdateGrinCode code)
+	return result
 %%]
 
 %%[8.lowering import(LowerGrin)
@@ -179,7 +191,7 @@ caWriteGrin fn = do
 	liftIO $ writePP (ppGrModule Nothing) code output options
 %%]
 
-%%[8 import(Data.FiniteMap)
+%%[8 import(Data.FiniteMap, HeapPointsToFixpoint)
 doCompileRun :: String -> Opts -> IO ()
 doCompileRun fn opts = let input                    = mkTopLevelFPath "grin" fn
                            initState = CompileState
@@ -195,17 +207,35 @@ doCompileRun fn opts = let input                    = mkTopLevelFPath "grin" fn
 compileActions :: CompileAction ()
 compileActions = do
 	caParseGrin
+	caDropEvalAndApply
+	low <- gets csUnique
 	(vm, cm) <- caNumberIdents
 	caNormForHPT
 	n <- caRightSkew
 	putMsg VerboseALot "unskewed" (Just $ show n ++ " iteration(s)")
-	caHeapPointsTo cm
+	high <- gets csUnique
+	high <- return (high - 1)
 
-	caNameIdents vm
+	(env, heap) <- caHeapPointsTo (low,high) cm
+
+	debugging <- gets (optDebug . csOpts)
+	when debugging (liftIO $ printArray "env:"  aeMod env)
+	when debugging (liftIO $ printArray "heap:" ahMod heap)
+
+	liftIO $ printArray "env:"  aeBaseSet env
+	liftIO $ printArray "heap:" ahBaseSet heap
+
+	--caNameIdents vm
 	outputGrin <- gets (optWriteGrin . csOpts)
 	maybe (throwError $ strMsg "No C-- output for the moment") caWriteGrin outputGrin
+
 	throwError (strMsg $ "compilation stopped. cm=" ++ show (fmToList cm))
 
 	caLowerGrin
 	caWriteCmm
+
+printArray s f a = do
+	{ putStrLn s 
+	; mapM_ (\(k, v) -> putStrLn ("  " ++ show k ++ " = " ++ show (f v))) (assocs a)
+	}
 %%]
