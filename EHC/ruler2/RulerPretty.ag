@@ -1,0 +1,283 @@
+-- $Id: Ruler.ag 231 2005-06-07 14:39:41Z atze $
+
+-------------------------------------------------------------------------
+-- Pretty printing of ruler AST
+-------------------------------------------------------------------------
+
+-------------------------------------------------------------------------
+-- Plain, for all
+-------------------------------------------------------------------------
+
+ATTR AGItf AGExprItf AllNT AGARuleItf [ | | pp USE {>-<} {empty} : PP_Doc ]
+
+SEM AGItf
+  | AGItf           lhs     .   pp          =   @decls.pp
+                                                >-< "----------" >-< ppGam @decls.gathScGam
+                                                >-< "----------" >-< ppGam @rsGam
+
+SEM Decl
+  | Scheme          lhs     .   pp          =   "scheme"        >#< @scKind >#< @nm >-< "=" >#< @decls.pp
+  | Fmt             lhs     .   pp          =   "format"        >#< @fmKind >#< @matchExpr.pp >#< "=" >#< @expr.pp
+  | ScmView         lhs     .   pp          =   "view"          >#< @nm >-< "=" >#< @decls.pp
+  | RulView         lhs     .   pp          =   "view"          >#< @nm >-< "=" >#< (@pre.pp >-< "-" >-< @post.pp)
+  | Rules           lhs     .   pp          =   "rules"         >#< @nm >#< "scheme" >#< @schemeNm >-< "=" >#< @decls.pp
+  | RulesGroup      lhs     .   pp          =   "rulesgroup"    >#< @nm >#< "scheme" >#< @schemeNm >-< "=" >#< (vlist . map (\(rs,r) -> "rule" >#< rs >#< r) $ @rlNms)
+  | Rule            lhs     .   pp          =   "rule"          >#< @nm >#< "viewsel" >#< pp (show @viewSel.vwSelNmS) >-< "=" >#< @decls.pp
+  | ViewHierarchy   lhs     .   pp          =   "viewhierarchy" >#< text (show @nmOrder)
+  | FmtJudge        lhs     .   pp          =   "judge"         >#< @expr.pp
+  | Attr            lhs     .   pp          =   "attr"          >#< ("inh" >#< @inhs.pp >-< "i+s" >#< @inhsyns.pp >-< "syn" >#< @syns.pp)
+
+SEM ViewSel
+  | All             lhs     .   pp          =   pp "*"
+  | View            lhs     .   pp          =   pp @nm
+  | Range           lhs     .   pp          =   @vwFr.pp >#< ".." >#< @vwTo.pp
+
+SEM ViewSels
+  | Cons            lhs     .   pp          =   @hd.pp >|< "," >#< @tl.pp
+
+SEM RExpr
+  | Judge           lhs     .   pp          =   "judge" >#< maybe empty (\n -> pp n >#< "=") @mbRNm >#< pp @schemeNm >#< @eqns.pp
+  | Del             lhs     .   pp          =   "judge" >#< "-" >#< ppCommas @nms
+
+SEM Expr
+  | App             lhs     .   pp          =   @lExpr.pp >#< @rExpr.pp
+  | Op              lhs     .   pp          =   @lExpr.pp >#< @nmExpr.pp >#< @rExpr.pp
+  | Sel             lhs     .   pp          =   pp_brackets @expr.pp >|< "." >|< @selMbExpr.pp
+  | Var             lhs     .   pp          =   pp @nm
+  | Int             lhs     .   pp          =   pp @int
+  | StrText StrAsIs lhs     .   pp          =   pp @str
+  | Paren           lhs     .   pp          =   pp_parens @expr.pp
+  | AppTop          lhs     .   pp          =   @expr.pp
+  | Named           lhs     .   pp          =   @expr.pp
+
+SEM AttrIntro
+  | Intro           lhs     .   pp          =   pp @props >#< pp @nm >#< ":" >#< pp @ty
+
+SEM AttrEqn
+  | Eqn             lhs     .   pp          =   "|" >#< pp @nm >#< "=" >#< @expr.pp
+
+SEM ANm
+  | Loc             lhs     .   pp          =   ppDest "L" @lhs.isDest @lhs.mbDstWd @lhs.mbPrevNdStr @ndStr ""     @nm
+  | Lhs             lhs     .   pp          =   ppDest "P" @lhs.isDest @lhs.mbDstWd @lhs.mbPrevNdStr @ndStr @ndStr @nm
+  | Fld             lhs     .   pp          =   ppDest "F" @lhs.isDest @lhs.mbDstWd @lhs.mbPrevNdStr "??"   @ndStr @nm
+  | Node            lhs     .   pp          =   ppDest "N" @lhs.isDest @lhs.mbDstWd @lhs.mbPrevNdStr @ndStr @ndStr @nm
+
+-------------------------------------------------------------------------
+-- ARule's PP
+-------------------------------------------------------------------------
+
+SEM ARule
+  | Rule            lhs     .   pp          =   "SEM" >#< pp (head @ndNmL) >#< "--" >#< ppCommas @info
+                                                >-< indent 2 ("|" >#< @rlNm >|< indent 2 @eqns.pp)
+
+SEM AEqn
+  | Eqn             lhs     .   pp          =   @dest.pp >#< "=" >#< @val.pp
+  | Err             lhs     .   pp          =   "ERR" >#< @expr.pp
+
+SEM AEqnDest
+  | Many            lhs     .   pp          =   ppListSep "(" ")" "," @dests.ppL
+
+SEM AEqnDests [ | | ppL: {[PP_Doc]} ]
+  | Cons            lhs     .   ppL         =   @hd.pp : @tl.ppL
+  | Nil             lhs     .   ppL         =   []
+
+-------------------------------------------------------------------------
+-- ARule max column width info, for tabular like PP
+-------------------------------------------------------------------------
+
+ATTR AllARuleButARule [ mbDstWd: {Maybe (Int,Int)} | | mxDstNdWd, mxDstAtWd USE {`max`} {0}: Int ]
+
+SEM ANm
+  | Loc Lhs         lhs     .   mxDstNdWd   =   3
+  | Node            lhs     .   mxDstNdWd   =   length @ndStr
+  | *               lhs     .   mxDstAtWd   =   length . show $ @nm
+
+SEM ARule
+  | Rule            loc     .   mbDstWd     =   Just (@eqns.mxDstNdWd,@eqns.mxDstAtWd)
+
+SEM Expr
+  | AVar            loc     .   mbDstWd     =   Nothing
+
+SEM AEqnDest
+  | Many            dests   .   mbDstWd     =   Nothing
+
+-------------------------------------------------------------------------
+-- ARule dest width info, for lining up multidestination AEqn
+-------------------------------------------------------------------------
+
+ATTR AEqnDest [ | | dstWd: Int ]
+ATTR AEqnDests [ | | dstWdL: {[Int]} ]
+
+SEM AEqnDest
+  | Many            lhs     .   dstWd       =   sum @dests.dstWdL + length @dests.dstWdL + 1
+  | One             lhs     .   dstWd       =   @anm.mxDstNdWd + @anm.mxDstAtWd
+
+SEM AEqnDests
+  | Cons            lhs     .   dstWdL      =   @hd.dstWd : @tl.dstWdL
+  | Nil             lhs     .   dstWdL      =   []
+
+SEM AEqn
+  | Eqn             loc     .   needsNl     =   let (w1,w2) = fromJust @lhs.mbDstWd
+                                                    w = w1 + w2 + atDstFillLen
+                                                in  False
+
+-------------------------------------------------------------------------
+-- Node name of AEqnDest in an AEqn, for emitting only first of a series of same node names
+-------------------------------------------------------------------------
+
+ATTR ANm AEqnDest AEqn [ | | ndStr: String ]
+ATTR ANm AEqnDest AEqn AEqns [ mbPrevNdStr: {Maybe String} | | ]
+
+SEM ANm
+  | Loc             loc     .   ndStr       =   "loc"
+  | Lhs             loc     .   ndStr       =   "lhs"
+  | Node            loc     .   ndStr       =   show @ndNm
+  | Fld             loc     .   ndStr       =   ""
+
+SEM AEqnDest
+  | Many            lhs     .   ndStr       =   "??"
+
+SEM AEqn
+  | Err             lhs     .   ndStr       =   "??"
+
+SEM AEqns
+  | Cons            tl      .   mbPrevNdStr =   fmap (const @hd.ndStr) @lhs.mbDstWd
+
+SEM ARule
+  | Rule            loc     .   mbPrevNdStr =   Nothing
+
+SEM AEqnDests
+  | Cons            loc     .   mbPrevNdStr =   Nothing
+
+SEM AEqnDest
+  | Many            loc     .   mbPrevNdStr =   Nothing
+
+SEM Expr
+  | AVar            loc     .   mbPrevNdStr =   Nothing
+
+-------------------------------------------------------------------------
+-- Context of ANm
+-------------------------------------------------------------------------
+
+{
+atDstFill1 = "  .  "
+atDstFill2 = "  "
+atDstFillLen = length atDstFill1 + length atDstFill2
+
+ppDest :: String -> Bool -> Maybe (Int,Int) -> Maybe String -> String -> String -> Nm -> PP_Doc
+ppDest k isDest mbDstWd mbPrevNdStr dstPre srcPre n
+  = tr $ if isDest
+         then case mbDstWd of
+                Just (ndW,atW)
+                  -> strPad (if maybe False (==dstPre) mbPrevNdStr then "" else dstPre) ndW
+                     >|< atDstFill1 >|< strPad (show n) atW >|< atDstFill2
+                _ -> mkPre dstPre n
+         else "@" >|< mkPre srcPre n
+  where mkPre s n = if null s then pp n else s >|< "." >|< pp n
+        tr x = x -- (pp k >|< pp_braces x)
+}
+
+ATTR ANm [ isDest: Bool | | ]
+
+SEM Expr
+  | AVar            anm     .   isDest      =   False
+
+SEM AEqnDest
+  | One             anm     .   isDest      =   True
+
+-------------------------------------------------------------------------
+-- Pretty printing, LaTeX, Expr
+-------------------------------------------------------------------------
+
+ATTR AGExprItf Expr [ | | ppLaTeX USE {>-<} {empty} : PP_Doc ]
+
+SEM Expr
+  | Int             loc     .   ppLaTeX     =   pp @int
+  | StrText         loc     .   ppLaTeX     =   switchLaTeXLhs (mkMBox (text @str))
+  | StrAsIs         loc     .   ppLaTeX     =   pp @str
+  | App             loc     .   ppLaTeX     =   @lExpr.ppLaTeX >#< @rExpr.ppLaTeX
+  | Op              loc     .   ppLaTeX     =   @lExpr.ppLaTeX >#< @nmExpr.ppLaTeX >#< @rExpr.ppLaTeX
+  | Paren           loc     .   ppLaTeX     =   (if @lhs.needToParen then ppParens else id) @expr.ppLaTeX
+  | SelTop          loc     .   ppLaTeXSel  =   ppSelLaTeX (== nmVec) @expr.ppLaTeX (reverse @expr.selL)
+                    loc     .   ppLaTeX     =   if @expr.isEmpty then empty else @ppLaTeXSel
+  | Var             loc     .   ppLaTeX     =   ppNmLaTeX . nmLhs2TeXSafe $ @nm
+  | Wrap            loc     .   ppLaTeX     =   let wr o c e = switchLaTeXLhs (mkTexCmdUse (show o) empty) >#< e >#< switchLaTeXLhs (mkTexCmdUse (show c) empty)
+                                                in  case Map.lookup @wrKind wrKindGam of
+                                                      Just i -> wr (wkBegCmd i) (wkEndCmd i) @expr.ppLaTeX
+                                                      _      -> @expr.ppLaTeX
+  | Empty           loc     .   ppLaTeX     =   empty
+
+-------------------------------------------------------------------------
+-- Maybe Pretty printing, LaTeX
+-------------------------------------------------------------------------
+
+ATTR MbExpr [ | | mbPPLaTeX: {Maybe (Nm,PP_Doc)} ]
+
+SEM MbExpr
+  | Nothing         lhs     .   mbPPLaTeX   =   Nothing
+  | Just            lhs     .   mbPPLaTeX   =   Just (@just.txt,@just.ppLaTeX)
+
+-------------------------------------------------------------------------
+-- Just the text of a name
+-------------------------------------------------------------------------
+
+ATTR Expr [ | | txt USE {`const`} {nmNone}: Nm ]
+
+SEM Expr
+  | Var             lhs     .   txt         =   @nm
+  | StrText StrAsIs lhs     .   txt         =   Nm @str
+  | App SelTop Op   lhs     .   txt         =   nmNone
+
+-------------------------------------------------------------------------
+-- Selections info
+-------------------------------------------------------------------------
+
+ATTR Expr [ | | selL: {[Maybe (Nm,PP_Doc)]}]
+
+SEM Expr
+  | Sel             lhs     .   selL        =   @selMbExpr.mbPPLaTeX : @expr.selL
+  | * - Sel         lhs     .   selL        =   []
+
+-------------------------------------------------------------------------
+-- Empty expr?
+-------------------------------------------------------------------------
+
+ATTR Expr [ | | isEmpty USE {&&} {False}: Bool ]
+
+SEM Expr
+  | Empty           lhs     .   isEmpty     =   True
+  | Sel             lhs     .   isEmpty     =   @expr.isEmpty
+
+-------------------------------------------------------------------------
+-- Need parenthesis
+-------------------------------------------------------------------------
+
+ATTR MbExpr Expr [ needToParen: Bool | | ]
+
+SEM Expr
+  | Sel             selMbExpr   .   needToParen =   False
+                    expr        .   needToParen =   case @selMbExpr.mbPPLaTeX of
+                                                        Just (n,_) | n == nmVec
+                                                          -> False
+                                                        _ -> @lhs.needToParen
+  | Paren App Op SelTop Sel
+                    loc         .   needToParen =   True
+
+SEM AGExprItf
+  | AGItf           loc         .   needToParen =   True
+  
+SEM Decl
+  | Fmt FmtJudge    loc         .   needToParen =   True
+  
+SEM RExprEqn
+  | Expr            loc         .   needToParen =   True
+
+SEM AttrEqn
+  | Eqn             loc         .   needToParen =   True
+  
+SEM AExpr
+  | Expr            loc         .   needToParen =   True
+  
+SEM AEqn
+  | Err             loc         .   needToParen =   True
+  

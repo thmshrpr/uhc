@@ -9,10 +9,10 @@
 %%% Options of all sorts
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%[1 import(GetOpt,EHCommon) export(EHCOpts(..), defaultEHCOpts, ehcCmdLineOpts)
+%%[1 import(System.Console.GetOpt,EHCommon) export(EHCOpts(..), defaultEHCOpts, ehcCmdLineOpts)
 %%]
 
-%%[4 import(EHTy) export(FIOpts(..), fioSwapCoCo, fioSwapOpts, strongFIOpts, instFIOpts, instLFIOpts, fioMkStrong, fioMkUnify)
+%%[4 import(EHTy,UU.Pretty) export(FIOpts(..), fioSwapCoCo, fioSwapOpts, strongFIOpts, instFIOpts, instLFIOpts, fioMkStrong, fioMkUnify)
 %%]
 
 %%[4_2 export(unifyFIOpts,meetFIOpts,joinFIOpts,impredFIOpts)
@@ -21,7 +21,7 @@
 %%[5 export(weakFIOpts)
 %%]
 
-%%[8 import(List,Char) export(cmdLineTrfs,trfOptOverrides)
+%%[8 import(Data.List,Data.Char) export(cmdLineTrfs,trfOptOverrides)
 %%]
 
 %%[9 export(predFIOpts,implFIOpts)
@@ -216,9 +216,21 @@ strongFIOpts =  FIOpts  {  fioLeaveRInst     =   False               ,  fioBindR
 
 %%[4
 instance Show FIOpts where
-  show o =  "FIOpts{"
-            ++ " fioLeaveRInst=" ++ show (fioLeaveRInst o)
-            ++ " }"
+  show o =  "FIOpts"
+%%]
+
+%%[4
+instance PP FIOpts where
+  pp   o =  "FIOpts{"
+            >#< "leaveRInst=" >|< pp (fioLeaveRInst o)
+            >#< "bindLFirst=" >|< pp (fioBindLFirst o)
+            >#< "bindRFirst=" >|< pp (fioBindRFirst o)
+%%]
+%%[9
+            >#< "allowRPredElim=" >|< pp (fioAllowRPredElim o)
+%%]
+%%[4
+            >#< "}"
 %%]
 
 %%[4.FIOpts.defaults

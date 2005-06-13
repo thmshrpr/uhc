@@ -17,7 +17,7 @@ LHS2TEX := lhs2TeX
 
 
 #default rule
-default: 8/grc
+default: 8/grinc
 
 #help rule
 .PHONY: help
@@ -37,7 +37,7 @@ help:
 shuffle: $(SHUFFLE)
 
 $(SHUFFLE): shuffle/Shuffle.hs $(wildcard lib/*.hs)
-	$(GHC) --make -package uust -package data -ilib $< -o $@
+	$(GHC) --make -fglasgow-exts -package uust -package data -ilib $< -o $@
 	strip $@
 
 shuffle/Shuffle.hs: shuffle/Shuffle.ag
@@ -59,32 +59,32 @@ SOURCES_CAG := $(foreach dir, . gri grinc grinc/transformations ,$(wildcard $(di
 ALL_SOURCES := Makefile.col $(SOURCES_HS) $(SOURCES_AG) $(SOURCES_CHS) $(SOURCES_CAG)
 
 #all target files to create
-ALL_TARGETS = $(addprefix $(1)/, Makefile $(SOURCES_HS) $(SOURCES_AG) $(SOURCES_CHS:.chs=.hs) $(SOURCES_CAG:.cag=.ag))
+ALL_TARGETS = $(1)/Makefile $(addprefix $(1)/src/, $(SOURCES_HS) $(SOURCES_AG) $(SOURCES_CHS:.chs=.hs) $(SOURCES_CAG:.cag=.ag))
 
 V     = $(firstword $(subst /, ,$@))
 BUILD = $(MAKE) -C $V $(notdir $@)
 SBASE = $(notdir $(basename $<))
 	
 # well we want to keep our files!
-.PRECIOUS: $(foreach V,$(VERSIONS), $V/%.ag $V/%.hs $V/Makefile)
+.PRECIOUS: $(foreach V,$(VERSIONS), $V/src/%.ag $V/src/%.hs $V/src/Makefile)
 
 8/Makefile: Makefile.col shuffle
 	mkdir -p 8
 	$(SHUFFLE) --gen=$V -a --lhs2tex=no -b $(notdir) --order="$(SHUFFLE_ORDER)" $< > $@
 
-8/%.ag: %.cag shuffle
+8/src/%.ag: %.cag shuffle
 	mkdir -p $(dir $@)
 	$(SHUFFLE) --gen=$V --ag --order="$(SHUFFLE_ORDER)" -b $(SBASE) $< | $(LHS2TEX) --newcode > $@.tmp && mv $@.tmp $@
 
-8/%.hs: %.chs shuffle
+8/src/%.hs: %.chs shuffle
 	mkdir -p $(dir $@)
 	$(SHUFFLE) --gen=$V --hs --order="$(SHUFFLE_ORDER)" -b $(SBASE) $< | $(LHS2TEX) --newcode > $@.tmp && mv $@.tmp $@
 
-8/%.hs: %.hs shuffle
+8/src/%.hs: %.hs shuffle
 	mkdir -p $(dir $@)
 	cp $< $@
 
-8/%.ag: %.ag shuffle
+8/src/%.ag: %.ag shuffle
 	mkdir -p $(dir $@)
 	cp $< $@
 
@@ -113,7 +113,7 @@ SBASE = $(notdir $(basename $<))
 
 .PHONY: again clean distclean
 again:
-	rm -rf 8/grc 8/grinc/
+	rm -rf 8/grinc 8/src/grinc/
 clean:
 	rm -rf $(VERSIONS)
 distclean: clean

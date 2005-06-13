@@ -20,6 +20,11 @@ inlineApply grmod = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod)) Inh
                     in grTrf_Syn_GrAGItf t
 %%]
 
+
+%%[8.evalCode
+evalCode unique v = (unique, GrExpr_Case v [])
+%%]
+
 %%[8
 ATTR GrAGItf [ | | grTrf: GrModule ]
 ATTR AllGrNT [ | | grTrf: SELF ]

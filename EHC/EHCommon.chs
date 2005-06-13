@@ -15,16 +15,13 @@
 %%[1 export(AssocL, hdAndTl, ppAssocL)
 %%]
 
-%%[1 import(UU.Pretty, List) export(PP_DocL, ppListSep, ppCommaList, ppListSepFill, ppSpaced, ppAppTop, ppCon, ppCmt)
+%%[1 import(UU.Pretty, Data.List) export(PP_DocL, ppListSep, ppCommaList, ppListSepFill, ppSpaced, ppAppTop, ppCon, ppCmt)
 %%]
 
-%%[1 export(MkConApp, mkApp, mkConApp, mkArrow)
+%%[1 export(SemApp(..))
 %%]
 
-%%[1.mkProdApp.exp export(mkProdApp)
-%%]
-
-%%[7.mkProdApp.exp -1.mkProdApp.exp
+%%[1 export(mkApp, mkConApp, mk1Arrow, mkArrow)
 %%]
 
 %%[1 export(assocLKeys)
@@ -39,7 +36,7 @@
 %%[2 export(assocLMapElt,assocLMapKey)
 %%]
 
-%%[2 import(List) export(unionL)
+%%[2 export(unionL)
 %%]
 
 %%[3 export(hsnUn, hsnIsUn, hsnUnUn)
@@ -84,7 +81,7 @@
 %%[8 export(Seq,mkSeq,unitSeq,concatSeq,"(<+>)",seqToList,emptySeq)
 %%]
 
-%%[8 import (FiniteMap) export(showPP,ppPair,ppFM)
+%%[8 import (qualified Data.Map as Map) export(showPP,ppPair,ppFM)
 %%]
 
 %%[8 export(mkNewLevUIDL,mkInfNewLevUIDL)
@@ -366,37 +363,54 @@ seqToList (Seq s) = s []
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Semantics classes
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[1.SemApp
+class SemApp res where
+  semApp       ::  res -> res -> res
+  semAppTop    ::  res -> res
+  semCon       ::  HsName -> res
+  semParens    ::  res -> res
+  mkProdApp    ::  [res] -> res
+  mkProdApp rs =   mkConApp (hsnProd (length rs)) rs
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Building specific structures
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%[1.MkConApp
-type MkConApp t = (HsName -> t,t -> t -> t,t -> t,t -> t)
 %%]
+type MkConApp t = (HsName -> t,t -> t -> t,t -> t,t -> t)
 
 %%[1.mkApp.Base
-mkApp :: MkConApp t -> [t] -> t
-mkApp (_,app,top,_) ts
+mkApp :: SemApp t => [t] -> t
+mkApp ts
   =  case ts of
        [t]  ->  t
-       _    ->  top (foldl1 app ts)
+       _    ->  semAppTop (foldl1 semApp ts)
 %%]
 
 %%[1.mkApp.mkConApp
-mkConApp :: MkConApp t -> HsName -> [t] -> t
-mkConApp alg@(con,_,_,_) c ts = mkApp alg (con c : ts)
+mkConApp :: SemApp t => HsName -> [t] -> t
+mkConApp c ts = mkApp (semCon c : ts)
 %%]
 
 %%[1.mkApp.mkProdApp
-mkProdApp :: MkConApp t -> [t] -> t
-mkProdApp alg ts = mkConApp alg (hsnProd (length ts)) ts
 %%]
+mkProdApp :: SemApp t => [t] -> t
+mkProdApp ts = mkConApp (hsnProd (length ts)) ts
 
 %%[7 -1.mkApp.mkProdApp
 %%]
 
 %%[1.mkApp.mkArrow
-mkArrow :: MkConApp t -> t -> t -> t
-mkArrow alg@(con,_,_,_) a r = mkApp alg [con hsnArrow,a,r]
+mk1Arrow :: SemApp t => t -> t -> t
+mk1Arrow a r = mkApp [semCon hsnArrow,a,r]
+
+mkArrow :: SemApp t => [t] -> t -> t
+mkArrow = flip (foldr mk1Arrow)
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -492,8 +506,8 @@ showPP x = disp (pp x) 100 ""
 %%]
 
 %%[8
-ppFM :: (PP k,PP v) => FiniteMap k v -> PP_Doc
-ppFM = ppAssocL . fmToList
+ppFM :: (PP k,PP v) => Map.Map k v -> PP_Doc
+ppFM = ppAssocL . Map.toList
 %%]
 
 %%[9
@@ -522,6 +536,7 @@ putPPFile :: String -> PP_Doc -> Int -> IO ()
 putPPFile fn pp wid
   =  do  {  h <- openFile fn WriteMode
          ;  hPutStrLn h (disp pp wid "")
+         ;  hClose h
          }
 %%]
 

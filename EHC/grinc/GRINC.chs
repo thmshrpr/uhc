@@ -212,6 +212,9 @@ compileActions = do
 	high <- gets csUnique
 	high <- return (high - 1)
 
+	outputGrin <- gets (optWriteGrin . csOpts)
+	maybe (throwError $ strMsg "No C-- output for the moment") caWriteGrin outputGrin
+
 	(env, heap) <- caHeapPointsTo (low,high) cm
 
 	debugging <- gets (optDebug . csOpts)

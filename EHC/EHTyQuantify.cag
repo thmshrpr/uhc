@@ -15,7 +15,7 @@
 %%[4 hs import(EHDebug,UU.Pretty)
 %%]
 
-%%[4 hs import(Set,FiniteMap,List)
+%%[4 hs import(qualified Data.Set as Set,qualified Data.Map as Map,Data.List as List)
 %%]
 
 %%[4 import(EHTyAbsSyn,EHTyCommonAG)
@@ -25,7 +25,7 @@ WRAPPER TyAGItf
 %%[6 hs export(kiQuantify)
 %%]
 
-%%[9 hs import(Maybe,UU.Pretty) export(tyQuantifyPr,tyQuantifyRank,TyQuOut(..),TyQuOpts(..),defaultTyQuOpts)
+%%[9 hs import(Data.Maybe,UU.Pretty) export(tyQuantifyPr,tyQuantifyRank,TyQuOut(..),TyQuOpts(..),defaultTyQuOpts)
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -92,7 +92,7 @@ defaultTyQuOpts = TyQuOpts False [1..]
 
 data TyQuOut
   = TyQuOut   { tqoTy               ::  Ty
-              , tqoInsPrIdSet       ::  Set PredOccId
+              , tqoInsPrIdSet       ::  Set.Set PredOccId
               , tqoImplsCnstr       ::  Cnstr
               }
 
@@ -190,11 +190,11 @@ SEM Impls
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%[4
-ATTR AllTy [ | | gathFxTvM USE {`plusFM`} {emptyFM}: TvCatMp ]
+ATTR AllTy [ | | gathFxTvM USE {`Map.union`} {Map.empty}: TvCatMp ]
 ATTR AllTy [ fxTvM: TvCatMp | | ]
 
 SEM Ty
-  | Var         lhs         .   gathFxTvM   =   if tvCatIsFixed @categ.self then @tv `unitFM` @categ.self else emptyFM
+  | Var         lhs         .   gathFxTvM   =   if tvCatIsFixed @categ.self then @tv `Map.singleton` @categ.self else Map.empty
 
 SEM TyAGItf
   | AGItf       loc         .   fxTvM       =   @ty.gathFxTvM
@@ -266,11 +266,25 @@ SEM Pred
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%[4
+%%]
 ATTR Ty [ | | isVar: Bool ]
 
 SEM Ty
   | Var         lhs         .   isVar       =   True
   | * - Var     lhs         .   isVar       =   False
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Is location in type a place where we treat quantification specally?
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[6_4.isSpecLoc
+ATTR Ty [ | | isSpecLoc: Bool ^^ isSpecLocL: [Bool] ]
+
+SEM Ty
+  | App         loc         .   isSpecLoc   =   @isSpineRoot && (@appIsArrow || @appIsLikeProd)
+                            .   isSpecLocL  =   @arg.isSpecLoc : @func.isSpecLocL
+  | * - App     loc         .   isSpecLoc   =   False
+                            .   isSpecLocL  =   []
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -289,19 +303,45 @@ ATTR AllTy [ isQuLoc: Bool | | ]
 SEM Ty
   | Var         loc         .   isQuLoc     =   @lhs.isQuLoc
   | App         func        .   isQuLoc     =   False
+                (loc.isQuLoc,arg.isQuLoc)   =   if          @isArrowRoot    then    (@lhs.isQuLoc,True)
+                                                else  if    @isArrowArg     then    (False,True)
+                                                else  if    @appIsLikeProd  then    (@lhs.isQuLoc,True)
+                                                                            else    (@lhs.isQuLoc,True)
+
+SEM TyAGItf
+  | AGItf       ty          .   isQuLoc     =   True
+%%]
+SEM Ty
+  | Var         loc         .   isQuLoc     =   @lhs.isQuLoc
+  | App         func        .   isQuLoc     =   False
                 loc         .   argIsQuLoc  =   not @arg.isVar
                 (loc.isQuLoc,arg.isQuLoc)   =   if          @isArrowRoot    then    (@lhs.isQuLoc,True)
                                                 else  if    @isArrowArg     then    (False,True)
                                                 else  if    @appIsLikeProd  then    (@lhs.isQuLoc,True)
                                                                             else    (@lhs.isQuLoc,@argIsQuLoc)
 
-SEM TyAGItf
-  | AGItf       ty          .   isQuLoc     =   True
+%%[9
+SEM Ty
+  | Pred        loc         .   isQuLoc     =   @lhs.coco /= CoContraVariant
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Is location in type a place where quantification of previously existentialized tvar may be done?
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[4
+SEM Ty
+  | App         loc         .   isReQuExLoc =   @lhs.rank > 1
+                                                ||  @lhs.rank == 1
+                                                    &&  (@lhs.tyCtxt == TyQuCtxtArrow && not @arg.isArrow
+                                                        || @lhs.tyCtxt /= TyQuCtxtArrow
+                                                        )
+  | Var         loc         .   isReQuExLoc =   True
 %%]
 
 %%[9
 SEM Ty
-  | Pred        loc         .   isQuLoc     =   @lhs.coco /= CoContraVariant
+  | Pred        loc         .   isReQuExLoc =   True
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -350,12 +390,24 @@ SEM Ty
 
 %%[6_4
 SEM Ty
+  | Var         loc         .   qHereTvL        =   if @isQuLoc && @isReQuExLoc
+                                                    then  filter (tvIsEx @lhs.fxTvM) [@tv]
+                                                    else  []
   | App         loc         .   qHereTvL        :=  if @isQuLoc
-                                                    then  if    @appIsArrow || @appIsLikeProd
+                                                    then  if    @isSpecLoc
                                                           then  tvarOccurGE2 @frTvLL
                                                           else  filter (not . tvIsEx @lhs.fxTvM) @frTvL
                                                     else  []
 %%]
+SEM Ty
+  | Var         loc         .   qHereTvL        =   if @isQuLoc
+                                                    then  [@tv]
+                                                    else  []
+  | App         loc         .   qHereTvL        :=  if @isQuLoc
+                                                    then  if    @isSpecLoc
+                                                          then  tvarOccurGE2 @frTvLL
+                                                          else  filter (not . tvIsEx @lhs.fxTvM) @frTvL
+                                                    else  []
 
 %%[9
 SEM Ty
@@ -618,11 +670,11 @@ SEM Ty
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%[9
-ATTR TyAGItf AllTy [ | | insPrIdSet USE {`Set.union`} {emptySet} : {Set PredOccId} ]
+ATTR TyAGItf AllTy [ | | insPrIdSet USE {`Set.union`} {Set.empty} : {Set.Set PredOccId} ]
 
 SEM Ty
-  | App         lhs         .   insPrIdSet      =   mkSet (map poPoi @insHerePrL) `Set.union` @func.insPrIdSet `Set.union` @arg.insPrIdSet
-  | Var         lhs         .   insPrIdSet      =   mkSet (map poPoi @insHerePrL)
+  | App         lhs         .   insPrIdSet      =   Set.fromList (map poPoi @insHerePrL) `Set.union` @func.insPrIdSet `Set.union` @arg.insPrIdSet
+  | Var         lhs         .   insPrIdSet      =   Set.fromList (map poPoi @insHerePrL)
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

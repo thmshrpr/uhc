@@ -1,0 +1,621 @@
+-- $Id$
+
+imports
+{
+import System
+import System.Console.GetOpt
+import Data.Maybe
+import Data.Char
+import IO
+import Data.List
+import qualified Data.Set as Set
+import qualified Data.Map as Map
+import FPath
+import Utils
+import PPUtils
+import UU.Pretty
+import UU.Parsing
+import UU.Scanner
+import UU.Scanner.Position( initPos, Pos )
+import System.Exit
+import RulerUtils
+import RulerAdmin
+import RulerMkAdmin
+}
+
+-------------------------------------------------------------------------
+-- Version of program
+-------------------------------------------------------------------------
+
+{
+versionSvn      = "$Id$"
+versionMajor    = "0"
+versionMinor    = "1"
+versionQuality  = "alpha"
+versionDist     = versionMajor ++ "." ++ versionMinor ++ versionQuality
+versionProg     = "ruler"
+versionInfo     = versionProg ++ versionDist ++ ", " ++ versionSvn
+}
+
+-------------------------------------------------------------------------
+-- Main
+-------------------------------------------------------------------------
+
+{
+main :: IO ()
+main
+  = do { args <- getArgs
+       ; let oo@(o,n,errs)  = getOpt Permute cmdLineOpts args
+             opts           = foldr ($) defaultOpts o
+       ; if optHelp opts
+         then putStrLn (usageInfo ("version: " ++ versionInfo ++ "\n\nUsage ruler [options] [file]\n\noptions:") cmdLineOpts)
+         else if optVersion opts
+         then putStrLn versionDist
+         else if null errs
+              then  doCompile (if null n then emptyFPath else mkFPath (head n)) opts
+              else  do hPutStr stderr (head errs)
+                       exitFailure
+       }
+
+doCompile :: FPath -> Opts -> IO ()
+doCompile fp opts
+  = do { (fn,fb,fh)
+             <- if fpathIsEmpty fp
+                then return ("<stdin>","<stdin>",stdin)
+                else do { let fn = fpathToStr fp
+                        ; h <- openFile fn ReadMode
+                        ; return (fn,fpathToStr (fpathRemoveSuff fp),h)
+                        }
+       ; tokens <- mkHScan fn fh
+       ; let (pres,perrs) = parseToResMsgs pAGItf tokens
+       ; if null perrs
+         then do { let res = wrap_AGItf pres
+                               (Inh_AGItf
+                                  { opts_Inh_AGItf = opts
+                                  })
+                 ; let putDbg = putBld (optDebug opts) (pp_Syn_AGItf res)
+                       errL = errL_Syn_AGItf res
+                 ; if null errL
+                   then do { putDbg
+                           ; putBld (optGenFM opts /= FmAll) (mkPP_Syn_AGItf res (optGenFM opts))
+                           }
+                   else do { hPutBld True stderr (ppErrPPL errL)
+                           ; putDbg
+                           ; exitFailure
+                           }
+                 }
+         else do { let (showErrs,omitErrs) = splitAt 5 perrs
+                 ; hPutBld True stderr (ppErrPPL showErrs)
+                 ; if null omitErrs
+                   then return ()
+                   else hPutStrLn stderr "... and more parsing errors"
+                 }
+       }
+  where hPutBld f h b = if f then hPutPPFile h b 2000 else return ()
+        putBld  f   b = hPutBld f stdout b
+}
+
+-------------------------------------------------------------------------
+-- Defaults
+-------------------------------------------------------------------------
+
+{
+rulesCmdPre = "rules"
+}
+
+-------------------------------------------------------------------------
+-- Options
+-------------------------------------------------------------------------
+
+{
+data Opts 
+  = Opts
+      { optGenFM        :: FmKind
+      , optAtDir        :: AtDir    -- used internally only
+      , optSubstFullNm  :: Bool     -- used internally only
+      , optHelp         :: Bool
+      , optDebug        :: Bool
+      , optVersion      :: Bool
+      , optMbMarkChange :: Maybe ViewSels
+      , optBaseNm       :: String
+      }
+
+defaultOpts
+  = Opts
+      { optGenFM        =  FmAll
+      , optAtDir        =  AtInOut
+      , optSubstFullNm  =  True
+      , optHelp         =  False
+      , optDebug        =  False
+      , optVersion      =  False
+      , optMbMarkChange =  Nothing
+      , optBaseNm       =  rulesCmdPre
+      }
+
+cmdLineOpts  
+  =  [ Option "l"  ["lhs2tex"]          (NoArg oGenLhs2tex)
+          "generate code for lhs2tex, default=no"
+     , Option "v"  ["version"]          (NoArg oVersion)
+          "print version info"
+     , Option "a"  ["ag"]               (NoArg oGenAG)
+          "generate code for AG, default=no"
+     , Option "c"  ["markchanges"]      (OptArg oMarkCh "<views>")
+          "mark changes between specified views (in combi with --lhs2tex)"
+     , Option ""   ["help"]             (NoArg oHelp)
+          "output this help"
+     , Option "d"  ["debug"]            (NoArg oDebug)
+          "output debugging info"
+     , Option "b"  ["base"]             (ReqArg oBase "<name>")
+          "base name, default = 'rules'"
+     ]
+  where  oGenLhs2tex     o =  o {optGenFM = FmTeX}
+         oGenAG          o =  o {optGenFM = FmAG}
+         oHelp           o =  o {optHelp = True}
+         oDebug          o =  o {optDebug = True}
+         oVersion        o =  o {optVersion = True}
+         oBase       s   o =  o {optBaseNm = s}
+         oMarkCh     ms  o =  o {optMbMarkChange = fmap (viewSelsSelf' . fst . parseToResMsgs pViewSels . mkScan "") ms}
+         yesno updO  ms  o =  case ms of
+                                Just "yes"  -> updO True o
+                                Just "no"   -> updO False o
+                                _           -> o
+}
+
+-------------------------------------------------------------------------
+-- Inclusion of split off parts
+-------------------------------------------------------------------------
+
+INCLUDE "RulerParser.ag"
+INCLUDE "RulerWrap.ag"
+INCLUDE "RulerMisc.ag"
+INCLUDE "RulerViewDpd.ag"
+INCLUDE "RulerPretty.ag"
+INCLUDE "RulerAST.ag"
+INCLUDE "RulerGen.ag"
+INCLUDE "RulerExprMatchSubst.ag"
+INCLUDE "RulerARule.ag"
+
+-------------------------------------------------------------------------
+-- Misc functions dependent on AST
+-------------------------------------------------------------------------
+
+{
+jdGamFmExpr :: FmKind -> JdGam Expr -> Expr
+jdGamFmExpr = fkGamLookup exprUnk jdExpr
+}
+
+-------------------------------------------------------------------------
+-- Error
+-------------------------------------------------------------------------
+
+ATTR AllNT AGItf [ | | errL USE {++} {[]}: {[Err]} ]
+
+SEM RExpr
+  | Judge           lhs     .   errL        =   @errSc
+                                                ++ (if null @errSc
+                                                    then @errVwSc ++ (if null @errVwSc then @errRE else [])
+                                                    else []
+                                                   )
+                                                ++ @eqns.errL
+
+SEM RExprEqn
+  | Expr            lhs     .   errL        =   @errJd
+                                                ++ (if null @errJd
+                                                    then @errMt
+                                                    else []
+                                                   )
+                                                ++ @expr.errL
+
+SEM Decl
+  | FmtJudge        lhs     .   errL        =   @errVwSc
+                                                ++ (if null @errVwSc
+                                                    then @errUndefs
+                                                    else []
+                                                   )
+                                                ++ @expr.errL
+  | Rules           lhs     .   errL        =   @errUndefs ++ @decls.errL
+
+-------------------------------------------------------------------------
+-- Name occurrences
+-------------------------------------------------------------------------
+
+ATTR AllExpr AGExprItf [ | | nmS USE {`Set.union`} {Set.empty}: {Set.Set Nm} ]
+
+SEM Expr
+  | Var             lhs     .   nmS         =   Set.singleton @nm
+  | Op              lhs     .   nmS         =   (@nm `Set.delete` @nmExpr.nmS) `Set.union` @lExpr.nmS `Set.union` @rExpr.nmS
+
+-------------------------------------------------------------------------
+-- Internal marked/named fragments
+-------------------------------------------------------------------------
+
+ATTR AllExpr AGExprItf [ | | reGamExprFmGam USE {`fmGamUnion`} {Map.empty}: {FmGam Expr} ]
+
+SEM Expr
+  | Named           lhs     .   reGamExprFmGam
+                                            =   fmSingleton @nm FmAll @expr.self `fmGamUnion` @expr.reGamExprFmGam
+
+-------------------------------------------------------------------------
+-- View selection
+-------------------------------------------------------------------------
+
+ATTR AGViewSelsItf AllViewSel [ | | vwSelNmS USE {`Set.union`} {Set.empty}: {Set.Set Nm} ]
+
+SEM ViewSel
+  | View            lhs     .   vwSelNmS    =   Set.singleton @nm
+  | All             lhs     .   vwSelNmS    =   vgVertices @lhs.vwDpdGr
+  | Range           lhs     .   vwSelNmS    =   let toS = Set.fold (\n r -> vgReachableFrom @lhs.vwDpdGr n `Set.union` r) Set.empty @vwTo.vwSelNmS
+                                                    frSL = [ vgReachableTo @lhs.vwDpdGr n | n <- Set.toList @vwFr.vwSelNmS ]
+                                                in  Set.filter (\n -> any (\s -> n `Set.member` s) frSL) toS
+
+-------------------------------------------------------------------------
+-- Attr
+-------------------------------------------------------------------------
+
+ATTR AllAttrIntro AllDecl [ | | atGam USE {`Map.union`} {Map.empty}: AtGam ]
+ATTR AllAttrIntro [ atDirs: {[AtDir]} | | ]
+
+SEM AttrIntro
+  | Intro           loc     .   atGam       =   Map.singleton @nm (AtInfo @nm @lhs.atDirs @props)
+
+SEM Decl
+  | Attr            inhs    .   atDirs      =   [AtInh]
+                    inhsyns .   atDirs      =   [AtInh,AtSyn]
+                    syns    .   atDirs      =   [AtSyn]
+
+-------------------------------------------------------------------------
+-- Externally declared identifiers
+-------------------------------------------------------------------------
+
+ATTR AllDecl [ extNmS: {Set.Set Nm} | | gathExtNmS USE {`Set.union`} {Set.empty}: {Set.Set Nm} ]
+
+SEM AGItf
+  | AGItf           loc     .   extNmS      =   @decls.gathExtNmS
+
+SEM Decl
+  | Extern          lhs     .   gathExtNmS  =   Set.fromList @nms
+
+-------------------------------------------------------------------------
+-- View (related to scheme)
+-------------------------------------------------------------------------
+
+ATTR AllDecl [ | | vwScGam USE {`Map.union`} {Map.empty}: {VwScGam Expr} ]
+ATTR AllDecl [ | | vwJdGam USE {`Map.union`} {Map.empty}: {JdGam Expr} ]
+
+SEM Decl
+  | ScmView         lhs     .   vwScGam     =   Map.singleton @nm (VwScInfo @nm @decls.vwJdGam @decls.atGam emptyGam)
+  | FmtJudge        lhs     .   vwJdGam     =   Map.singleton @fmKind (JdInfo @expr.self)
+                    loc     .   cxStr       =   "judgement for view '" ++ show @lhs.viewNm ++ "' for scheme '" ++ show @lhs.scmNm ++ "'"
+                            .   (vwScInfo,errVwSc)
+                                            =   case scVwGamLookup @lhs.scmNm @lhs.viewNm @lhs.scGam of
+                                                    Just (_,i) -> (i,[])
+                                                    Nothing    -> (emptyVwScInfo,[Err_UndefNm @pos @cxStr "view" [@lhs.viewNm]])
+                            .   errUndefs   =   let nms = Map.keys (vwscFullAtGam @vwScInfo) \\ Set.toList @expr.nmS
+                                                in  if null nms then [] else [Err_UndefNm @pos @cxStr "attr" nms]
+
+-------------------------------------------------------------------------
+-- Scheme
+-------------------------------------------------------------------------
+
+{
+prevWRTDpd :: Nm -> DpdGr Nm -> Map.Map Nm v -> v -> v
+prevWRTDpd n g m v
+  = maybeHd v (\n -> maybe v id . Map.lookup n $ m) (vgDpdsOn g n)
+}
+
+ATTR AllDecl [ | | gathScGam USE {`Map.union`} {Map.empty}: {ScGam Expr} ]
+ATTR AllDecl AllRExpr [ scGam: {ScGam Expr} | | ]
+
+SEM AGItf
+  | AGItf           loc     .   scGam       =   @decls.gathScGam
+
+SEM Decl
+  | Scheme          lhs     .   gathScGam   =   let (g,_)
+                                                      = foldr
+                                                          (\nVw (vsg,agMp)
+                                                              -> let (ag,jdg) = prevWRTDpd nVw @lhs.vwDpdGr agMp (emptyGam,emptyGam)
+                                                                     (vw,ag',jdg')
+                                                                        = case Map.lookup nVw vsg of
+                                                                              Just vw
+                                                                                -> (vw,new `Map.union` ag,vwscJdGam vw `Map.union` jdg)
+                                                                                where new = Map.mapWithKey
+                                                                                              (\n a
+                                                                                                 -> case atProps a `intersect` Map.elems propsMp of
+                                                                                                      (_:_) -> [(ns,AtInfo ns [AtSyn] (atProps a)),(ni,AtInfo ni [AtInh] (atProps a))]
+                                                                                                            where ns = nmSetSuff n "syn"
+                                                                                                                  ni = nmSetSuff n "inh"
+                                                                                                      _     -> [(n,a)]
+                                                                                              )
+                                                                                              (vwscAtGam vw)
+                                                                              Nothing
+                                                                                -> (emptyVwScInfo { vwscNm = nVw, vwscJdGam = jdg },ag,jdg)
+                                                                     vwag = Map.fromList . concat . Map.elems $ ag'
+                                                                     agMp' = Map.insert nVw (ag',jdg') agMp
+                                                                 in  (Map.insert nVw (vw {vwscFullAtGam = vwag}) vsg,agMp')
+                                                          )
+                                                          (@decls.vwScGam,Map.empty)
+                                                          (vgTopSort @lhs.vwDpdGr)
+                                                in  Map.singleton @nm (ScInfo @nm @mbAGNm @scKind g)
+
+-------------------------------------------------------------------------
+-- Rule
+-------------------------------------------------------------------------
+
+ATTR AllAttrEqn [ | | jaGam USE {`Map.union`} {Map.empty}: {JAGam Expr} ]
+
+SEM AttrEqn
+  | Eqn             lhs     .   jaGam       =   Map.singleton @nm (JAInfo @nm @expr.self @expr.nmS)
+  | Del             lhs     .   jaGam       =   Map.singleton @nm (JAInfoDel @nm)
+
+ATTR RExprEqn [ vwScInfo: {VwScInfo Expr}  pos: SPos  cxStr: String  schemeNm: Nm | | ]
+
+SEM RExprEqn
+  | Expr            loc     .   (jdExpr,errJd)
+                                            =   gamTryLookups (Expr_Empty,[Err_NoJdSc @lhs.pos @lhs.cxStr [@lhs.schemeNm]])
+                                                              (\i -> (jdExpr i,[]))
+                                                              [FmSpec,FmTeX,FmAll] (vwscJdGam @lhs.vwScInfo)
+                            .   mt          =   exprMatch @expr.self @jdExpr
+                            .   errMt       =   if mtMatches @mt then [] else [Err_Match @lhs.pos @lhs.cxStr (pp @expr.self) (pp @jdExpr)]
+                    lhs     .   jaGam       =   fmGamToJaGam FmAll (mtFmGam @mt)
+
+ATTR AllRExpr [ | | reGam USE {`Map.union`} {Map.empty}: {REGam Expr} ]
+
+SEM RExpr
+  | Judge           eqns    .   pos         =   @pos
+                            .   schemeNm    =   @schemeNm
+                    loc     .   nm          =   maybe (Nm ("_" ++ show @lUniq)) id @mbRNm
+                            .   cxStr       =   "judgement for view '" ++ show @lhs.viewNm ++ "' for rule '" ++ show @lhs.ruleNm ++ "'"
+                            .   cxStr2      =   @cxStr ++ " for scheme '" ++ show @schemeNm ++ "'"
+                            .   (scInfo,errSc)
+                                            =   case Map.lookup @schemeNm @lhs.scGam of
+                                                    Just i -> (i,[])
+                                                    Nothing -> (emptyScInfo,[Err_UndefNm @pos @cxStr "scheme" [@schemeNm]])
+                            .   (vwScInfo,errVwSc)
+                                            =   case Map.lookup @lhs.viewNm (scVwGam @scInfo) of
+                                                    Just i -> (i,[])
+                                                    Nothing -> (emptyVwScInfo,[Err_UndefNm @pos @cxStr "view" [@lhs.viewNm]])
+                            .   (reInfo,errRE)
+                                            =   let aDirMp = Map.mapWithKey (\n _ -> maybe [] atDirs . Map.lookup n . vwscFullAtGam $ @vwScInfo) @eqns.jaGam
+                                                    aDirMissMp = Map.filter null aDirMp
+                                                in  (REInfoJudge @nm @schemeNm Set.empty Set.empty @eqns.jaGam
+                                                    ,[] -- if Map.null aDirMissMp then [] else [Err_UndefNm @pos @cxStr2 "attr" (Map.keys aDirMissMp)]
+                                                    )
+                    lhs     .   reGam       =   Map.singleton @nm @reInfo
+  | Del             lhs     .   reGam       =   Map.singleton (head @nms) (REInfoDel @nms)
+
+-------------------------------------------------------------------------
+-- Rules, names
+-------------------------------------------------------------------------
+
+ATTR AllRExpr AllDecl [ viewNm: Nm | | ]
+ATTR AllRExpr AllDecl [ ruleNm: Nm | | ]
+ATTR AllDecl [ scmNm: Nm | | ]
+
+SEM Decl
+  | Rule            loc     .   ruleNm      =   @nm
+
+SEM Decl
+  | Scheme          loc     .   scmNm       =   @nm
+
+SEM Decl
+  | RulView ScmView loc     .   viewNm      =   @nm
+
+SEM AGItf
+  | AGItf           decls   .   ruleNm      =   nmNone
+                            .   scmNm       =   nmNone
+                            .   viewNm      =   nmNone
+
+-------------------------------------------------------------------------
+-- Rules, views for rule
+-------------------------------------------------------------------------
+
+ATTR AllDecl [ | | vwRlGam USE {`Map.union`} {Map.empty}: {VwRlGam Expr} ]
+
+SEM Decl
+  | RulView         lhs     .   vwRlGam     =   Map.singleton @nm (VwRlInfo @nm @pre.reGam @post.reGam emptyGam emptyGam [] Nothing)
+
+-------------------------------------------------------------------------
+-- Rules, individual rules for rule set
+-------------------------------------------------------------------------
+
+ATTR AllDecl [ | | rlGam USE {`Map.union`} {Map.empty}: {RlGam Expr} ]
+
+SEM Decl
+  | Rule            lhs     .   rlGam       =   Map.singleton @nm (RlInfo @nm @pos @mbBasedOnNm @mbAGNm @lhs.rlSeqNr @viewSel.vwSelNmS @decls.vwRlGam)
+
+-------------------------------------------------------------------------
+-- Rules, all rule sets
+-------------------------------------------------------------------------
+
+{
+-- build views of a rule by extending each view along view order dependency
+rlGamUpdVws :: Opts -> DpdGr Nm -> Set.Set Nm -> ScGam Expr -> RlGam Expr -> RlInfo Expr -> (RlInfo Expr,[Err])
+rlGamUpdVws opts vwDpdGr extNmS scGam rlGam rlInfo
+  = let vwIsIncl n = n `Set.member` rlInclVwS rlInfo
+        doMarkChngForVw
+          = case optMbMarkChange opts of
+              Just vs
+                -> (`Set.member` vs')
+                where vs' = viewSelsNmS vwDpdGr vs
+              _ -> const False
+        mbOnVwRlInfo = maybe Nothing (\n -> Map.lookup n rlGam) (rlMbOnNm rlInfo)
+        (g,_,eg)
+            = foldr
+                (\nVw (vrg,prePostGamMp,errg)
+                  -> let (preg,postg,prevVwRlChs) = prevWRTDpd nVw vwDpdGr prePostGamMp (emptyGam,emptyGam,emptyGam)
+                         (pregIncr,pregDflt) = reGamExtDflt' dfltJaGam nVw scGam preg
+                         (postgIncr,postgDflt) = reGamExtDflt' dfltJaGam nVw scGam postg
+                         ext newG prevG = reGamExtWithNew exprNmGam (exprSubst (defaultOpts {optSubstFullNm=False})) exprNmS dfltJaGam nVw scGam prevG newG
+                         vrgOfVwRlInfo = Map.lookup nVw . rlVwGam
+                         doMarkChng = doMarkChngForVw nVw
+                         dfltJaGam
+                           = case mbOnVwRlInfo of
+                               Just i  -> \sn jn -> maybe (jaGamDflt Expr_Var sn nVw scGam) reJAGam . Map.lookup jn $ g
+                                       where g = maybe emptyGam (\i -> vwrlFullPreGam i `Map.union` vwrlFullPostGam i) (vrgOfVwRlInfo i)
+                               Nothing -> \sn _  -> jaGamDflt Expr_Var sn nVw scGam
+                         (vw,preg',postg')
+                           = case maybe Nothing vrgOfVwRlInfo mbOnVwRlInfo of
+                               Just i
+                                 -> case Map.lookup nVw vrg of
+                                      Just vw -> (vw                        ,ext (vwrlPreGam vw) preD,ext (vwrlPostGam vw) postD)
+                                      Nothing -> (emptyVwRlInfo {vwrlNm=nVw},ext emptyGam        preD,ext emptyGam         postD)
+                                 where preD  = ext (vwrlFullPreGam  i) pregDflt
+                                       postD = ext (vwrlFullPostGam i) postgDflt
+                               Nothing
+                                 -> case Map.lookup nVw vrg of
+                                      Just vw -> (vw                        ,ext (vwrlPreGam vw) pregDflt,ext (vwrlPostGam vw) postgDflt)
+                                      Nothing -> (emptyVwRlInfo {vwrlNm=nVw},ext emptyGam        pregDflt,ext emptyGam         postgDflt)
+                         vwRlChs
+                           = let pg  = preg `Map.union` postg
+                                 pg' = preg' `Map.union` postg'
+                                 pd  = pg' `Map.difference` pg
+                                 un  = Map.unionWith (\i1 i2 -> i1 {reJAGam = reJAGam i1 `Map.union` reJAGam i2})
+                                 pn  = (vwrlPreGam vw `Map.union` vwrlPostGam vw) `un` pregIncr `un` postgIncr
+                             in  Map.mapWithKey (\jn ji -> Map.mapWithKey (\an _ -> RlChInfo jn an) (maybe emptyGam id $ reMbJAGam ji))
+                                 $ pd `Map.union` (pn `Map.difference` pd)
+                         vwRlChsWtPrev = vwRlChs `rcGamUnion` prevVwRlChs
+                         vw2 = vw {vwrlFullPreGam = reGamUpdInOut nVw scGam preg'
+                                  ,vwrlFullPostGam = reGamUpdInOut nVw scGam  postg'
+                                  ,vwrlMbChGam = if doMarkChng then Just vwRlChsWtPrev else Nothing
+                                  }
+                         vw3 = vwrlDelEmptyJd vw2
+                         vw4 = vw3 {vwrlPreScc = vwrlScc vw3}
+                         vwUndefs = vwrlUndefs vw3 `Set.difference` extNmS
+                     in  (if vrwlIsEmpty vw4 then Map.delete nVw vrg else Map.insert nVw vw4 vrg
+                         ,Map.insert nVw
+                                     (preg',postg',if doMarkChng then emptyGam else vwRlChsWtPrev)
+                                     prePostGamMp
+                         ,if Set.null vwUndefs
+                          then errg
+                          else Map.insert nVw (Set.toList vwUndefs) errg
+                         )
+                )
+                (rlVwGam rlInfo,Map.empty,emptyGam)
+                (vgTopSort vwDpdGr)
+    in  (rlInfo { rlVwGam = Map.filterWithKey (\n _ -> vwIsIncl n) g }
+        ,[ Err_UndefNm (rlPos rlInfo) ("view '" ++ show n ++ "' for rule '" ++ show (rlNm rlInfo) ++ "'") "identifier" nms
+         | (n,nms) <- Map.toList eg, vwIsIncl n
+         ]
+        )
+}
+
+ATTR AllDecl [ rsGam: {RsGam Expr} | | gathRsGam USE {`Map.union`} {Map.empty}: {RsGam Expr} ]
+
+SEM Decl
+  | Rules           loc     .   rlDpdTopsort=   let dpdL = [ [n] | n <- Map.keys @decls.rlGam ]
+                                                           ++ [ [onNm,n] | i <- Map.elems @decls.rlGam, onNm <- maybeToList (rlMbOnNm i), let n = rlNm i ]
+                                                    dpdG = mkVwDpdGr dpdL
+                                                in  vgTopSort dpdG
+                            .   (rlGam,errUndefs)
+                                            =   foldr
+                                                  (\rNm (rlGam,errs)
+                                                    -> let (rlInfo,errs')
+                                                             = rlGamUpdVws @lhs.opts @lhs.vwDpdGr @lhs.extNmS @lhs.scGam rlGam (maybe (panic "(rlGam,errUndefs)") id . Map.lookup rNm $ rlGam)
+                                                       in  (Map.insert rNm rlInfo rlGam,errs' ++ errs)
+                                                  )
+                                                  (@decls.rlGam,[])
+                                                  @rlDpdTopsort
+                    lhs     .   gathRsGam   =   Map.singleton @nm (RsInfo @nm @schemeNm @info @rlGam)
+  | RulesGroup      lhs     .   gathRsGam   =   Map.singleton @nm (RsInfoGroup @nm @schemeNm @info @rlNms)
+
+SEM AGItf
+  | AGItf           loc     .   rsGam       =   @decls.gathRsGam
+
+-------------------------------------------------------------------------
+-- Formats, rewrites
+-------------------------------------------------------------------------
+
+{
+type RwExprGam = RwGam (Expr,Expr)
+}
+
+ATTR AllDecl [ | | gathFmGam USE {`fmGamUnion`} {Map.empty}: {FmGam Expr} ]
+ATTR AllDecl AllExpr AGExprItf [ fmGam: {FmGam Expr} | | ]
+
+ATTR AllDecl [ | | gathRwGam USE {`rwGamUnion`} {Map.empty}: RwExprGam ]
+ATTR AllDecl AllExpr AGExprItf [ rwGam: RwExprGam | | ]
+
+SEM AGItf
+  | AGItf           loc     .   fmGam       =   @decls.gathFmGam
+                            .   rwGam       =   @decls.gathRwGam
+
+SEM Decl
+  | Fmt             lhs     .   (gathFmGam,gathRwGam)
+                                            =   case @matchExpr.exprIsRw of
+                                                  ExprIsRw  n  -> (emptyGam,rwSingleton n @fmKind @atIO (@matchExpr.self,@expr.self))
+                                                  ExprIsVar n  -> (fmSingleton n @fmKind @expr.self,emptyGam)
+                                                  ExprIsOther  -> (emptyGam,emptyGam)
+
+SEM RExprEqn
+  | Expr            loc     .   fmGam       =   emptyGam
+                            .   rwGam       =   emptyGam
+
+SEM AttrEqn
+  | Eqn             loc     .   fmGam       =   emptyGam
+                            .   rwGam       =   emptyGam
+
+SEM AExpr
+  | Expr            loc     .   fmGam       =   emptyGam
+                            .   rwGam       =   emptyGam
+
+SEM AEqn
+  | Err             loc     .   fmGam       =   emptyGam
+                            .   rwGam       =   emptyGam
+
+SEM Decl
+  | Fmt FmtJudge    expr    .   fmGam       =   emptyGam
+                            .   rwGam       =   emptyGam
+
+-------------------------------------------------------------------------
+-- Preambles
+-------------------------------------------------------------------------
+
+ATTR AllDecl [ | | paGam USE {`Map.union`} {Map.empty}: {FmKdGam String} ]
+
+SEM Decl
+  | Preamble        lhs     .   paGam       =   Map.singleton @fmKind @preamble
+
+-------------------------------------------------------------------------
+-- Wrapping context (stack)
+-------------------------------------------------------------------------
+
+ATTR AllExpr [ wrKindStk: {[WrKind]} | | ]
+
+SEM Expr
+  | Wrap            expr    .   wrKindStk   =   @wrKind : @lhs.wrKindStk
+
+SEM AGExprItf
+  | AGItf           expr    .   wrKindStk   =   [WrNone]
+
+SEM Decl
+  | Fmt             loc     .   wrKindStk   =   [WrNone]
+
+SEM RExprEqn
+  | Expr            loc     .   wrKindStk   =   [WrNone]
+
+SEM AttrEqn
+  | Eqn             loc     .   wrKindStk   =   [WrNone]
+
+SEM AExpr
+  | Expr            loc     .   wrKindStk   =   [WrNone]
+
+SEM AEqn
+  | Err             loc     .   wrKindStk   =   [WrNone]
+
+SEM Decl
+  | Fmt FmtJudge    expr    .   wrKindStk   =   [WrNone]
+
+-------------------------------------------------------------------------
+-- Is Expr a complex (non variable expr)? Then it will be used only for parameterized rewrites
+-------------------------------------------------------------------------
+
+ATTR Expr AGExprItf [ | | exprIsRw: ExprIsRw ]
+
+SEM Expr
+  | Op              lhs     .   exprIsRw    =   let nm e = case e of {ExprIsRw n -> (`nmApd` n) ; _ -> id}
+                                                in  ExprIsRw . {- nm @lExpr.exprIsRw . -} nm @rExpr.exprIsRw $ @nm
+  | App             lhs     .   exprIsRw    =   ExprIsRw nmApp
+  | Var             lhs     .   exprIsRw    =   ExprIsVar @nm
+  | * - Op Var AppTop App Paren
+                    lhs     .   exprIsRw    =   ExprIsOther
+

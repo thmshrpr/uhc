@@ -9,7 +9,7 @@
 %%% Common
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%[8 module GRINCCommon import(System.Console.GetOpt,EHCommon) export(Opts(..), defaultOpts, cmdLineOpts)
+%%[8 module GRINCCommon import(System.Console.GetOpt,EHCommon, Data.FiniteMap) export(Opts(..), defaultOpts, cmdLineOpts)
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -56,7 +56,7 @@ cmdLineOpts
          oGrin       ms  o = o { optWriteGrin = maybe (Just "") (const ms) ms }
 %%]
 
-%%[8 export(wildcardNm, wildcardNr, evalNm, evalNr,  applyNm, applyNr, isSpecialBind)
+%%[8 export(wildcardNm, wildcardNr, evalNm, evalNr,  applyNm, applyNr, isSpecialBind, CafMap)
 wildcardNm = HNm "__"
 wildcardNr = HNPos 0
 
@@ -66,6 +66,16 @@ applyNm =  HNm "apply"
 applyNr =  HNPos 2
 
 isSpecialBind f = f == evalNm || f == applyNm
+
+type CafMap = FiniteMap HsName HsName
+%%]
+
+%%[8.analysis import(HeapPointsToFixpoint, Data.Array)
+type Analysis        = (Array Int AbstractEnvElement, Array Int AbstractHeapElement)
+getEnvVar :: Analysis -> Int -> AbstractValue
+getEnvVar (ea, _) i  = aeBaseSet (ea ! i)
+getHeapLoc :: Analysis -> Int -> AbstractValue
+getHeapLoc (_, ha) i = ahBaseSet (ha ! i)
 %%]
 
 % vim:ts=4:et:ai:

@@ -9,10 +9,10 @@
 %%% Main
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%[1 module Main import(System, GetOpt, IO, UU.Pretty, UU.Parsing, UU.Parsing.Offside, EHCommon, EHOpts,EHParser, EHMainAG)
+%%[1 module Main import(System, System.Console.GetOpt, IO, UU.Pretty, UU.Parsing, UU.Parsing.Offside, EHCommon, EHOpts,EHParser, EHMainAG)
 %%]
 
-%%[8 import (EHScanner,EHError,EHErrorPretty,FPath,FiniteMap,Maybe,List,Directory)
+%%[8 import (EHScanner,EHError,EHErrorPretty,FPath,qualified Data.Map as Map,Data.Maybe,Data.List,Directory)
 %%]
 
 %%[8 import (EHCoreJava,EHCoreGrin,EHCorePretty)
@@ -35,78 +35,19 @@ main
          ;  let  oo@(o,n,errs)  = getOpt Permute ehcCmdLineOpts args
                  opts           = foldr ($) defaultEHCOpts o
          ;  if ehcoptHelp opts
-            then  putStrLn (usageInfo "Usage: ehc [options] [file]\n\noptions:" ehcCmdLineOpts)
-            else  if null errs
-                  then  doCompileRun (if null n then "" else head n) opts
-                  else  putStr (head errs)
-         }
 %%]
-
-%%[8.main -1.main
-main :: IO ()
-main
-  =  do  {  args <- getArgs
-         ;  let  oo@(o,n,errs)  = getOpt Permute ehcCmdLineOpts args
-                 opts           = foldr ($) defaultEHCOpts o
-         ;  if ehcoptHelp opts
+%%[1.main.ehcoptHelp
+            then  putStrLn (usageInfo "Usage: ehc [options] [file]\n\noptions:" ehcCmdLineOpts)
+%%]
+%%[8.main.ehcoptHelp -1.main.ehcoptHelp
             then  do  {  putStrLn (usageInfo "Usage ehc [options] [file]\n\noptions:" ehcCmdLineOpts)
                       ;  putStrLn ("Transformations:\n" ++ (unlines . map (\(n,t) -> "  " ++ n ++ ": " ++ t) $ cmdLineTrfs))
                       }
+%%]
+%%[1.main.tl
             else  if null errs
                   then  doCompileRun (if null n then "" else head n) opts
                   else  putStr (head errs)
-         }
-%%]
-
-%%[doCompileA.1
-  =  do  {  (fn,fh) <-  if null filename
-                        then  return ("<stdin>",stdin)
-                        else  do  {  h <- openFile filename ReadMode
-                                  ;  return (filename,h)
-                                  }
-         ;  tokens <- offsideScanHandle fn fh
-         ;  let steps = parseOffside (pAGItf) tokens
-         ;  (res,_) <- evalStepsIO show steps
-%%]
-
-%%[doCompileB.1
-         ;  let wrRes = wrap_AGItf res (Inh_AGItf {opts_Inh_AGItf = opts})
-%%]
-
-%%[doCompileB.8
-         ;  let fp = mkFPath fn
-                wrRes = wrap_AGItf res (Inh_AGItf {gUniq_Inh_AGItf = uidStart, opts_Inh_AGItf = opts, baseName_Inh_AGItf = fpathBase fp})
-%%]
-
-%%[doCompileC.1
-         ;  case ehcoptDumpPP opts of
-              Just "pp"   ->  putStrLn (disp (pp_Syn_AGItf wrRes) 70 "")
-              Just "ast"  ->  putStrLn (disp (ppAST_Syn_AGItf wrRes) 1000 "")
-              _           ->  return ()
-%%]
-
-%%[doCompileC.8
-         ;  let codePP = ppCModule (cmodule_Syn_AGItf wrRes)
-         ;  case ehcoptDumpPP opts of
-              Just "pp"    ->  putStrLn (disp (pp_Syn_AGItf wrRes) 70 "")
-              Just "ast"   ->  putStrLn (disp (ppAST_Syn_AGItf wrRes) 1000 "")
-              Just "code"  ->  putStrLn (disp codePP 120 "")
-              _            ->  return ()
-%%]
-
-%%[doCompileD.1
-         ;  if ehcoptShowTopTyPP opts
-            then  putStr (disp (topTyPP_Syn_AGItf wrRes) 1000 "")
-            else  return ()
-%%]
-
-%%[1.doCompile
-doCompileRun :: String -> EHCOpts -> IO ()
-doCompileRun filename opts
-%%@doCompileA.1
-%%@doCompileB.1
-%%@doCompileC.1
-%%@doCompileD.1
          }
 %%]
 
@@ -159,7 +100,7 @@ data CompileRunState
 
 data CompileRun
   = CompileRun
-      { crCUCache       :: FiniteMap HsName CompileUnit
+      { crCUCache       :: Map.Map HsName CompileUnit
       , crCompileOrder  :: [[HsName]]
       , crOpts          :: EHCOpts
       , crState         :: CompileRunState
@@ -206,7 +147,7 @@ crSetInfos msg dp is cr
       _  -> cr {crState = CRSErrInfoL msg dp is}
 
 crMbCU :: HsName -> CompileRun -> Maybe CompileUnit
-crMbCU modNm cr = lookupFM (crCUCache cr) modNm
+crMbCU modNm cr = Map.lookup modNm (crCUCache cr)
 
 crCU :: HsName -> CompileRun -> CompileUnit
 crCU modNm = fromJust . crMbCU modNm
@@ -220,7 +161,7 @@ crCUFPath modNm cr = maybe emptyFPath cuFilePath (crMbCU modNm cr)
 crUpdCU :: HsName -> (CompileUnit -> IO CompileUnit) -> CompileRun -> IO CompileRun
 crUpdCU modNm upd cr
   = do { cu <- maybe (upd emptyCU) upd (crMbCU modNm cr)
-       ; return (cr {crCUCache = addToFM (crCUCache cr) modNm cu})
+       ; return (cr {crCUCache = Map.insert modNm cu (crCUCache cr)})
        }
 
 crSeq :: [CompileRun -> IO CompileRun] -> CompileRun -> IO CompileRun
@@ -424,11 +365,31 @@ crCompileOrderedCUs :: [[HsName]] -> CompileRun -> IO CompileRun
 crCompileOrderedCUs modNmLL = crSeq (map (crCompileCU . head) modNmLL)
 %%]
 
-
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Compiler driver
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[1.doCompile
+doCompileRun :: String -> EHCOpts -> IO ()
+doCompileRun filename opts
+  =  do  {  (fn,fh) <-  if null filename
+                        then  return ("<stdin>",stdin)
+                        else  do  {  h <- openFile filename ReadMode
+                                  ;  return (filename,h)
+                                  }
+         ;  tokens <- offsideScanHandle fn fh
+         ;  let steps = parseOffside (pAGItf) tokens
+         ;  (res,_) <- evalStepsIO show steps
+         ;  let wrRes = wrap_AGItf res (Inh_AGItf {opts_Inh_AGItf = opts})
+         ;  case ehcoptDumpPP opts of
+              Just "pp"   ->  putStrLn (disp (pp_Syn_AGItf wrRes) 70 "")
+              Just "ast"  ->  putStrLn (disp (ppAST_Syn_AGItf wrRes) 1000 "")
+              _           ->  return ()
+         ;  if ehcoptShowTopTyPP opts
+            then  putStr (disp (topTyPP_Syn_AGItf wrRes) 1000 "")
+            else  return ()
+         }
+%%]
 
 %%[8.doCompile -1.doCompile
 doCompileRun :: String -> EHCOpts -> IO ()
@@ -445,7 +406,7 @@ doCompileRun fn opts
              aCompile cr    = crCompileOrderedCUs (crCompileOrder cr) cr
        ; cr <- crSeq [ aSetup, aCompile ]
                  (CompileRun
-                    { crCUCache = emptyFM, crCompileOrder = []
+                    { crCUCache = Map.empty, crCompileOrder = []
                     , crOpts = opts', crP1In = p1ib
                     , crState = CRSOk, crNextUID = uidStart, crHereUID = uidStart
                     })

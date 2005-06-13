@@ -1,5 +1,12 @@
 % $Id$
 
+TODO: I would expect this transformation to drop main (which it should not if made correctly). But it looks like it does not. Why?
+
+TODO: to remove recursive bindings we need the names of recursive binding group
+which should be ignored if a call to there is made. lazy calls are more subtle.
+
+TODO: The use of a caf variable should keep the caf (needs a caf map - if available)
+
 %%[0
 %include lhs2TeX.fmt
 %include afp.fmt
@@ -12,7 +19,7 @@
 WRAPPER GrAGItf
 %%]
 
-%%[8 hs import("Data.Set as Set")
+%%[8 hs import("qualified Data.Set as Set")
 %%]
 
 %%[8 hs import(EHCommon, GRINCCommon, GrinCode) export(dropUnusedBindings)
@@ -30,10 +37,10 @@ ATTR GrAGItf GrModule [ dropSpecial: Bool | | ]
 %%]
 
 %%[8.retrieveUsedBindings
-ATTR AllBind AllGrExpr [ tag2binding: {[(GrTag, HsName)]} | usedBindings: {Set HsName} | ]
+ATTR AllBind AllGrExpr [ tag2binding: {[(GrTag, HsName)]} | usedBindings: {Set.Set HsName} | ]
 
 SEM GrModule
-  | Mod  loc    .  evalMap       =  [ (k, v)                         | ((k, _), EvApTagVar v) <- @evalTagMp  ]                
+  | Mod  loc    .  evalMap       =  [ (k, v)                         | ((k, _), EvApTagVar v) <- @evalTagMp  ]
                 .  applyMap      =  [ (k, findBindName @searchMap a) | ((k, _), a           ) <- @applyTagMp ]
                 .  searchMap     =  [ (k, v)                         | ((k, _), v)            <- @applyTagMp ]
          bindL  .  tag2binding   =  @applyMap ++ @evalMap
@@ -51,14 +58,14 @@ SEM GrVal [ | | mbTag: {Maybe GrTag} ]
 
 
 %%[8.findBindName hs
-findBindName map e = case e of
-    EvApTagTag  t ->  maybe (error $ "could not find bind name for tag " ++ show t) (findBindName map) (lookup t map)
+findBindName bindMap e = case e of
+    EvApTagTag  t ->  maybe (error $ "could not find bind name for tag " ++ show t) (findBindName bindMap) (lookup t bindMap)
     EvApTagVar  v ->  v
     EvApTagUnit   ->  error "unit tag not expected"
 %%]
 
 %%[8.dropUnusedBindings
-ATTR AllBind [ allUsedBindings: {Set HsName} | | ]
+ATTR AllBind [ allUsedBindings: {Set.Set HsName} | | ]
 
 SEM GrModule
   | Mod  loc    .  specialNames     =  [evalNm, evalNr,  applyNm, applyNr]
@@ -66,7 +73,7 @@ SEM GrModule
          bindL  .  allUsedBindings  =  foldl @modifier @bindL.usedBindings @specialNames
          
 SEM GrBind [ | | dropBinding: Bool ]
-  | Bind  lhs  . dropBinding  =  not $ elementOf @nm @lhs.allUsedBindings
+  | Bind  lhs  . dropBinding  =  not $ Set.elementOf @nm @lhs.allUsedBindings
   | Rec   lhs  . dropBinding  =  @bindL.count == 0
 
 

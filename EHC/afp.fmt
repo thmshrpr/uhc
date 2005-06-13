@@ -86,15 +86,17 @@
 
 %format restr		= "\backslash "
 
-%format Gammap      = Gamma "^{p}"
+%format Gammap      = Gamma "_{p}"
 %format Gammaq      = Gamma "^{q}"
 %format Gammab      = Gamma "^{b}"
+%format Gammasig    = Gamma "_{sig}"
 
 %format sigmak      = sigma "^{k}"
 %format sigman      = sigma "_{n}"
 %format sigmapk     = sigma "_{p}^{k}"
 %format sigmaq      = sigma "^{q}"
 %format sigmab      = sigma "^{b}"
+%format sigmae      = sigma "_{e}"
 %format sigmal      = sigma "^{l}"
 %format sigmar      = sigma "^{r}"
 %format sigma'
@@ -102,16 +104,26 @@
 %format sigma2
 %format sigma3
 %format sigma4
+%format sigmaQu     = sigma "_{" Qu "}"
+
+%format isigma      = "\mathbb{\bbsigma}"
+%format bsigma      = sigma "_{" /=/ "}"
 
 %format Cnstr       = "\mathcal{C}"
-%format Cnstrp		= Cnstr "^{p}"
+%format Cnstrr		= Cnstr "_{r}"
+%format Cnstrp		= Cnstr "_{p}"
 %format Cnstrk		= Cnstr "^{k}"
 %format CnstrEq		= Cnstr "^{eq}"
 %format `cnstrTyUnit`	= :->
 
+%format ICnstr      = "\mathbb{C}"
+%format ICnstrk		= ICnstr "^{k}"
+
 %format Qu          = "\mathcal{Q}"
 
-%format ident       = "{\xi}"
+%format ident       = iota
+%format identv      = "i"
+%format identc      = "I"
 
 %format tvar        = "{\nu}"
 %format tvarv       = v
@@ -140,12 +152,21 @@
 %format instf		= inst "_{" tvarf "}"
 %format instc		= inst "_{" tvarc "}"
 %format instE		= inst "^{" exists "}"
+%format instWith(v)(x)	= inst "_{" v "}(" x ")"
 
 %format lbl			= l
 %format lbln		= lbl "_{n}"
 %format lbl1
 
+%format red				= "\color{red}"
+%format rcOMark			= "\color{blue}"
+%format rcCMark			= "\color{black}"
+%format rsOMark			= "\color{lightgray}"
+%format rsCMark			= "\color{black}"
+
+%format \\ 	    		= "{\backslash}"
 %format // 	    		= "/"
+%format /^/ 	    	= "/"
 %format /=/ 	    	= "{\eqcirc}"
 %format |=>     		= "\Yright "
 %format :->         	= "\mapsto "
@@ -158,11 +179,27 @@
 %format :>   			= "\rightsquigarrow "
 %format <:   			= "\leftsquigarrow "
 %format .    			= "."
-%format :=	 			= "{\coloneqq}"
+%format :=	 			= "\coloneqq "
+%format === 			= "\equiv "
+%format =/= 			= "\not\equiv "
 %format =@= 			= "{\varparallel}"
+% format <=> 			= "\mathrel{\cong}"
+%format <=> 			= "\cong "
+%format <+-> 			= "\mathrel{\vartriangle}\hspace{-.25em}\mathrel{\triangledown}"
+% format <+-> 			= "\setbox0=\hbox{\ensuremath{\mathrel{\vartriangle}}}\copy0\kern-.4\wd0\mathrel{\triangledown}"
+%format <+> 			= "\mathrel{\vartriangle}"
+%format <-> 			= "\mathrel{\triangledown}"
 
+%format talt			= phi
+%format tctxt			= "\mathcal{X}"
+%format tctxtH			= tctxt "_{H}"
+%format tctxtS			= tctxt "_{S}"
+%format tctxtU			= tctxt "_{U}"
+%format tctxtL			= tctxt "_{L}"
+%format taltcx(cx)		= talt "_{" cx "}"
 
-%format fiopt			= iota
+% format fiopt			= "{\xi}"
+%format fiopt			= "o"
 %format strongFIOpts	= fiopt "_{str}"
 %format weakFIOpts		= fiopt "_{wk}"
 %format instFIOpts		= fiopt "_{inst}"
@@ -171,23 +208,37 @@
 %format implFIOpts		= fiopt "_{impl}"
 %format unifyFIOpts		= fiopt "_{unify}"
 %format meetFIOpts		= fiopt "_{meet}"
+%format joinFIOpts		= fiopt "_{join}"
+%format impredFIOpts	= fiopt "_{im}"
 
 %format	fioptBase		= "\textit{fi}"
-%format fioLeaveRInstY	= fioptBase "_{r-inst}^{+}"
-%format fioLeaveRInstN	= fioptBase "_{r-inst}^{-}"
-%format fioBindRFirstY	= fioptBase "_{r-bind}^{+}"
-%format fioBindRFirstN	= fioptBase "_{r-bind}^{-}"
-%format fioBindLFirstY	= fioptBase "_{l-bind}^{+}"
-%format fioBindLFirstN	= fioptBase "_{l-bind}^{-}"
+%format fioLeaveRInst	= fioptBase "_{r-inst}"
+%format fioLeaveRInstY	= fioLeaveRInst "^{+}"
+%format fioLeaveRInstN	= fioLeaveRInst "^{-}"
+%format fioBindRFirst	= fioptBase "_{r-bind}"
+%format fioBindRFirstY	= fioBindRFirst "^{+}"
+%format fioBindRFirstN	= fioBindRFirst "^{-}"
+%format fioBindLFirst	= fioptBase "_{l-bind}"
+%format fioBindLFirstY	= fioBindLFirst "^{+}"
+%format fioBindLFirstN	= fioBindLFirst "^{-}"
 %format fioBindToTyBind		= fioptBase "_{delay-bind}"
 %format fioBindToTyBindY	= fioBindToTyBind "^{+}"
 %format fioBindToTyBindN	= fioBindToTyBind "^{-}"
-%format fioMeet			= fioptBase "_{meet}"
+%format fioFit			= fioptBase "_{" <= "}"
+%format fioFitY			= fioFit "^{+}"
+%format fioFitN			= fioFit "^{-}"
+%format fioMeet			= fioptBase "_{" <+> "}"
 %format fioMeetY		= fioMeet "^{+}"
 %format fioMeetN		= fioMeet "^{-}"
+%format fioJoin			= fioptBase "_{" <-> "}"
+%format fioJoinY		= fioJoin "^{+}"
+%format fioJoinN		= fioJoin "^{-}"
 %format fioAllowEqOpen	= fioptBase "_{eq-open}"
 %format fioAllowEqOpenY	= fioAllowEqOpen "^{+}"
 %format fioAllowEqOpenN	= fioAllowEqOpen "^{-}"
+%format fioBindToTyAlts	= fioptBase "_{alt}"
+%format fioBindToTyAltsY	= fioBindToTyAlts "^{+}"
+%format fioBindToTyAltsN	= fioBindToTyAlts "^{-}"
 
 %format coco        	= "\mathcal{V}"
 %format cocovar     	= coco
