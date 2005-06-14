@@ -15,11 +15,13 @@ AGC_FLAGS_DATA := -dr
 AGC_FLAGS_CODE := -cfspr
 AGC_FLAGS_FULL := $(AGC_FLAGS_DATA) $(AGC_FLAGS_CODE)
 
-VPATH = src
+GT:= grinc/Trf
 
-GT:= grinc/transformations
+#source is in the src dir (prevent name clashes with exectables and dirs)
+vpath %.ag src
+vpath %.hs src
 
-default: grinc
+default: bin/grinc
 
 help:
 	@echo "Usage: make <rule>" ;\
@@ -39,21 +41,21 @@ TRANS_SRC    := $(GT)/NumberIdents.hs $(GT)/NormForHPT.hs $(GT)/RightSkew.hs $(G
                 $(GT)/LowerGrin.hs $(GT)/DropUnusedBindings.hs
 
 GRINC_SOURCE := grinc/GRINC.hs grinc/CompilerDriver.hs grinc/GRINCCommon.hs EHCommon.hs EHScanner.hs \
-                GrinCode.hs GrinCodePretty.hs gri/GRIParser.hs grinc/GRIN2Cmm.hs \
-		grinc/CmmCode.hs grinc/CmmCodePretty.hs grinc/GrPointsToAnalysis.hs \
+                GrinCode.hs GrinCodePretty.hs gri/GRIParser.hs grinc/Cmm/FromGrin.hs \
+		grinc/Cmm/CmmCode.hs grinc/Cmm/CmmCodePretty.hs grinc/GrPointsToAnalysis.hs \
 		$(TRANS_SRC)
 
 grinc: $(GRINC_SOURCE)
-	$(GHC) --make -fglasgow-exts -package util -package uust -package data -isrc/lib -isrc/grinc -isrc/$(GT) -isrc/gri -isrc $< -o $@
+	$(GHC) --make -fglasgow-exts -package util -package uust -package data -isrc/lib -isrc/grinc -isrc/gri -isrc $< -o $@
 	strip $@
 
-grinc/GRIN2Cmm.hs: grinc/GRIN2Cmm.ag GrinCodeAbsSyn.ag GrinCode.hs grinc/CmmBuilding.hs
+grinc/Cmm/FromGrin.hs: grinc/Cmm/FromGrin.ag GrinCodeAbsSyn.ag GrinCode.hs grinc/Cmm/CmmBuilding.hs
 	$(call AGCC,$<,$(AGC_FLAGS_CODE))
 
-grinc/CmmCodePretty.hs: grinc/CmmCodePretty.ag grinc/CmmCodeAbsSyn.ag grinc/CmmCode.hs
+grinc/Cmm/CmmCodePretty.hs: grinc/Cmm/CmmCodePretty.ag grinc/Cmm/CmmCodeAbsSyn.ag grinc/Cmm/CmmCode.hs
 	$(call AGCC,$<,$(AGC_FLAGS_CODE))
 
-grinc/CmmCode.hs: grinc/CmmCode.ag
+grinc/Cmm/CmmCode.hs: grinc/Cmm/CmmCode.ag
 	$(call AGCC,$<,$(AGC_FLAGS_DATA))
 
 GrinCodePretty.hs: GrinCodePretty.ag GrinCode.hs GrinCode.ag
@@ -65,22 +67,22 @@ GrinCode.hs: GrinCode.ag
 grinc/GrPointsToAnalysis.hs: grinc/GrPointsToAnalysis.ag
 	$(call AGCC,$<,$(AGC_FLAGS_CODE))
 
-grinc/transformations/DropUnusedBindings.hs: grinc/transformations/DropUnusedBindings.ag GrinCodeAbsSyn.ag GrinCode.hs
+$(GT)/DropUnusedBindings.hs: $(GT)/DropUnusedBindings.ag GrinCodeAbsSyn.ag GrinCode.hs
 	$(call AGCC,$<,$(AGC_FLAGS_CODE))
 
-grinc/transformations/LowerGrin.hs: grinc/transformations/LowerGrin.ag GrinCodeAbsSyn.ag GrinCode.hs
+$(GT)/LowerGrin.hs: $(GT)/LowerGrin.ag GrinCodeAbsSyn.ag GrinCode.hs
 	$(call AGCC,$<,$(AGC_FLAGS_CODE))
 
-grinc/transformations/NumberIdents.hs: grinc/transformations/NumberIdents.ag GrinCodeAbsSyn.ag GrinCode.hs
+$(GT)/NumberIdents.hs: $(GT)/NumberIdents.ag GrinCodeAbsSyn.ag GrinCode.hs
 	$(call AGCC,$<,$(AGC_FLAGS_CODE))
 
-grinc/transformations/NameIdents.hs: grinc/transformations/NameIdents.ag GrinCodeAbsSyn.ag GrinCode.hs
+$(GT)/NameIdents.hs: $(GT)/NameIdents.ag GrinCodeAbsSyn.ag GrinCode.hs
 	$(call AGCC,$<,$(AGC_FLAGS_CODE))
 
-grinc/transformations/NormForHPT.hs: grinc/transformations/NormForHPT.ag GrinCodeAbsSyn.ag GrinCode.hs
+$(GT)/NormForHPT.hs: $(GT)/NormForHPT.ag GrinCodeAbsSyn.ag GrinCode.hs
 	$(call AGCC,$<,$(AGC_FLAGS_CODE))
 
-grinc/transformations/RightSkew.hs: grinc/transformations/RightSkew.ag GrinCodeAbsSyn.ag GrinCode.hs
+$(GT)/RightSkew.hs: $(GT)/RightSkew.ag GrinCodeAbsSyn.ag GrinCode.hs
 	$(call AGCC,$<,$(AGC_FLAGS_CODE))
 
 # standard build
@@ -88,11 +90,11 @@ grinc/transformations/RightSkew.hs: grinc/transformations/RightSkew.ag GrinCodeA
 	$(call AGCC,$<,$(AGC_FLAGS_FULL))
 
 # dependencies
-grinc/CmmCode.hs: grinc/CmmCode.ag grinc/CmmCodeAbsSyn.ag
+grinc/Cmm/CmmCode.hs: grinc/Cmm/CmmCode.ag grinc/Cmm/CmmCodeAbsSyn.ag
 
 GrinCode.hs: GrinCode.ag GrinCodeAbsSyn.ag
 
-grinc/CmmBuilding.hs: grinc/CmmCode.hs
+grinc/Cmm/CmmBuilding.hs: grinc/Cmm/CmmCode.hs
 
 grinc/GrPointsToAnalysis.hs: grinc/GrPointsToAnalysis.ag grinc/GrCAFNames.ag grinc/HeapPointsToFixpoint.hs GrinCode.hs GrinCode.ag
 

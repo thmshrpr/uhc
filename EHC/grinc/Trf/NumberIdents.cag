@@ -18,7 +18,7 @@ variable is local to a binding, but we don't do that yet.
 WRAPPER GrAGItf
 %%]
 
-%%[8 hs import(GRINCCommon, EHCommon, GrinCode, Data.Array.IArray, Data.FiniteMap, Data.Maybe) export(numberIdents, IdentNameMap)
+%%[8 hs module Trf.NumberIdents import(GRINCCommon, EHCommon, GrinCode, Data.Array.IArray, Data.FiniteMap, Data.Maybe) export(numberIdents, IdentNameMap)
 type IdentNameMap = Array Int HsName
 
 numberIdents :: Int -> GrModule -> (Int, GrModule, IdentNameMap, CafMap)

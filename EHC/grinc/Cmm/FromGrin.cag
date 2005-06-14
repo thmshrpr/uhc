@@ -5,10 +5,10 @@
 %include afp.fmt
 %%]
 
-%%[8 import(../GrinCodeAbsSyn)
+%%[8 import(../../GrinCodeAbsSyn)
 %%]
 
-%%[8 hs import("EHCommon hiding ((<+>))", Data.List(nub), Data.Maybe, GrinCode, CmmBuilding) export(grin2cmm,CmmUnit(..))
+%%[8 hs module Cmm.FromGrin import("EHCommon hiding ((<+>))", Data.List(nub), Data.Maybe, GrinCode, Cmm.CmmBuilding) export(grin2cmm,CmmUnit(..))
 grin2cmm :: GrModule -> CmmUnit
 grin2cmm gr = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf gr))
                                    (Inh_GrAGItf {})

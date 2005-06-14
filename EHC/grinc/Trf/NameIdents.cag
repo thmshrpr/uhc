@@ -14,7 +14,7 @@ Rename numbered identifiers to their names.
 WRAPPER GrAGItf
 %%]
 
-%%[8 hs import(GRINCCommon, EHCommon, GrinCode, Data.Array.IArray) export(nameIdents)
+%%[8 hs module Trf.NameIdents import(GRINCCommon, EHCommon, GrinCode, Data.Array.IArray) export(nameIdents)
 type IdentNameMap = Array Int HsName
 
 nameIdents :: IdentNameMap -> GrModule -> GrModule

@@ -19,7 +19,7 @@ TODO: The use of a caf variable should keep the caf (needs a caf map - if availa
 WRAPPER GrAGItf
 %%]
 
-%%[8 hs import("qualified Data.Set as Set")
+%%[8 hs module Trf.DropUnusedBindings import("qualified Data.Set as Set")
 %%]
 
 %%[8 hs import(EHCommon, GRINCCommon, GrinCode) export(dropUnusedBindings)

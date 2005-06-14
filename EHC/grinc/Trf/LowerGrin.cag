@@ -19,7 +19,7 @@ later:
 WRAPPER GrAGItf
 %%]
 
-%%[8 hs import(EHCommon, FiniteMap, GrinCode) export(lowerGrin)
+%%[8 hs module Trf.LowerGrin import(EHCommon, FiniteMap, GrinCode) export(lowerGrin)
 lowerGrin :: GrModule -> GrModule
 lowerGrin grmod = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod)) Inh_GrAGItf
                   in grTrf_Syn_GrAGItf t

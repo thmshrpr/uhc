@@ -12,7 +12,7 @@
 %%[1 module Main import(System, GetOpt, IO, Control.Monad.Error, Control.Monad.State)
 %%]
 
-%%[8 import(UU.Parsing, UU.Pretty, EHCommon, EHScanner, GRIParser, GrinCode, GrinCodePretty)
+%%[8 import(UU.Parsing, UU.Pretty, EHCommon, EHScanner, GrinCode)
 %%]
 
 %%[8 import (FPath,GRINCCommon, CompilerDriver)
@@ -67,7 +67,7 @@ writePP f text fp opts
        }
 %%]
 
-%%[8.parse
+%%[8.parse import(GRIParser)
 parseGrin :: FPath -> Opts -> IO (String, GrModule)
 parseGrin fp opts = do
 	(fn,fh) <- openFPath fp ReadMode
@@ -85,7 +85,7 @@ caParseGrin = do
 %%]
 
 
-%%[8.dropEvalAndApply import(DropUnusedBindings)
+%%[8.dropEvalAndApply import(Trf.DropUnusedBindings)
 caDropUnusedBindings :: CompileAction ()
 caDropUnusedBindings = do
 	putMsg VerboseALot "Removing unused function definitions" Nothing
@@ -94,7 +94,7 @@ caDropUnusedBindings = do
 	modify (csUpdateGrinCode code)
 %%]
 
-%%[8.numberIdentifiers import(NumberIdents, Data.Array.IArray)
+%%[8.numberIdentifiers import(Trf.NumberIdents, Data.Array.IArray)
 caNumberIdents :: CompileAction (IdentNameMap, CafMap)
 caNumberIdents = do
 	putMsg VerboseNormal "Numbering identifiers" Nothing
@@ -108,7 +108,7 @@ caNumberIdents = do
 	return (varMap, cafMap)
 %%]
 
-%%[8.nameIdents import(NameIdents)
+%%[8.nameIdents import(Trf.NameIdents)
 caNameIdents :: IdentNameMap -> CompileAction ()
 caNameIdents m = do
 	putMsg VerboseNormal "Naming identifiers" Nothing
@@ -117,7 +117,7 @@ caNameIdents m = do
 	modify (csUpdateGrinCode code)
 %%]
 
-%%[8.normForHPT import(NormForHPT)
+%%[8.normForHPT import(Trf.NormForHPT)
 caNormForHPT :: CompileAction ()
 caNormForHPT = do
 	putMsg VerboseNormal "Normalizing" Nothing
@@ -129,7 +129,7 @@ caNormForHPT = do
 	putMsg VerboseALot "Normalized" (Just (show (unique'-unique) ++ " variable(s) introduced"))
 %%]
 
-%%[8.rightSkew import(RightSkew)
+%%[8.rightSkew import(Trf.RightSkew)
 caRightSkew1 :: CompileAction Bool
 caRightSkew1 = do 
 	code <- gets csGrinCode
@@ -153,7 +153,7 @@ caHeapPointsTo bounds cm = do
 	return result
 %%]
 
-%%[8.lowering import(LowerGrin)
+%%[8.lowering import(Trf.LowerGrin)
 caLowerGrin :: CompileAction ()
 caLowerGrin = do
 	putMsg VerboseNormal "Lowering GRIN" Nothing
@@ -162,7 +162,7 @@ caLowerGrin = do
 	modify (csUpdateGrinCode code)	
 %%]
 
-%%[8.writeCmm import(GRIN2Cmm, CmmCodePretty)
+%%[8.writeCmm import(Cmm.FromGrin, Cmm.CmmCodePretty)
 caGrin2Cmm :: CompileAction CmmUnit
 caGrin2Cmm = do
 	code <- gets csGrinCode
@@ -178,7 +178,7 @@ caWriteCmm = do
 	liftIO $ writePP pp cmm output options
 %%]
 
-%%[8.writeGrin
+%%[8.writeGrin import(GrinCodePretty)
 caWriteGrin :: String -> CompileAction ()
 caWriteGrin fn = do
 	code <- gets csGrinCode

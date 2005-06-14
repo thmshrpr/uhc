@@ -52,8 +52,8 @@ shuffle/Shuffle.hs: shuffle/Shuffle.ag
 SOURCES_HS  := $(foreach dir, . ,$(wildcard $(dir)/*.hs))
 SOURCES_AG  := 
 
-SOURCES_CHS := $(foreach dir, . gri grinc ,$(wildcard $(dir)/*.chs))
-SOURCES_CAG := $(foreach dir, . gri grinc grinc/transformations ,$(wildcard $(dir)/*.cag))
+SOURCES_CHS := $(foreach dir, . gri grinc grinc/Cmm ,$(wildcard $(dir)/*.chs))
+SOURCES_CAG := $(foreach dir, . gri grinc grinc/Cmm grinc/Trf ,$(wildcard $(dir)/*.cag))
 
 # Not used but good to know:
 ALL_SOURCES := Makefile.col $(SOURCES_HS) $(SOURCES_AG) $(SOURCES_CHS) $(SOURCES_CAG)
