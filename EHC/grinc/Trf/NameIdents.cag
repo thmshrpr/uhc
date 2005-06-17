@@ -15,7 +15,6 @@ WRAPPER GrAGItf
 %%]
 
 %%[8 hs module Trf.NameIdents import(GRINCCommon, EHCommon, GrinCode, Data.Array.IArray) export(nameIdents)
-type IdentNameMap = Array Int HsName
 
 nameIdents :: IdentNameMap -> GrModule -> GrModule
 nameIdents m grmod = let t        = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod))
@@ -35,6 +34,7 @@ findNewVar names nm@(HNPos i) = if i `inBetween` bounds names
                                 else nm
     where
     inBetween n (l, h) = n >= l && n <= h
+findNewVar _  nm = error $ "findNewVar: Not a number: " ++ show nm
 %%]
 
 %%[8.grTrf

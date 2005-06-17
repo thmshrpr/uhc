@@ -10,21 +10,20 @@
 
 %%[8.State import(GRINCCommon, EHCommon, GrinCode, FPath)
 data CompileState = CompileState
-	{ csUnique :: Int
-	, csMbCode :: Maybe GrModule 
-	, csPath   :: FPath
-	, csOpts   :: Opts
-	}
-
-emptyState :: CompileState
-emptyState = CompileState
-	{ csUnique = 3                 -- 0,1,2 are reserved
-	, csMbCode = Nothing
-	, csPath   = emptyFPath
-	, csOpts   = defaultOpts
+	{ csUnique    :: Int
+	, csMbCode    :: Maybe GrModule 
+    , csMbOrigNms :: Maybe IdentNameMap
+    , csMbCafMap  :: Maybe CafMap
+    , csMbHptMap  :: Maybe HptMap
+	, csPath      :: FPath
+	, csOpts      :: Opts
+    , csMsgInfo   :: (Int, Bool)
 	}
 
 csGrinCode           = fromJust . csMbCode
+csOrigNms            = fromJust . csMbOrigNms
+csCafMap             = fromJust . csMbCafMap
+csHptMap             = fromJust . csMbHptMap
 csIsParsed           = isJust   . csMbCode
 csUpdateGrinCode c s = s { csMbCode = Just c }
 csUpdateUnique   u s = s { csUnique = u }
@@ -68,17 +67,54 @@ harden_  :: (MonadError e m) => m() -> m ()
 harden_  =  harden ()
 %%]
 
-%%[8.utils
+%%[8.messages
+initMsgInfo :: (Int, Bool) -- indent, FirstMessageInLevel
+initMsgInfo = (0, False)
+
+putLn = putStrLn ""
+
 putMsg :: Verbosity -> String -> (Maybe String) -> CompileAction ()
 putMsg minVerbosity msg mbMsg =  harden_ $ do
     currentVerbosity <- gets (optVerbosity . csOpts)
     guard (currentVerbosity >= minVerbosity)
-    path    <- gets csPath
+    (indent, first) <- gets csMsgInfo
+    when first (liftIO putLn)
     let msg2    = maybe "" (\m -> " (" ++ m ++ ")") mbMsg
-    let message =            strBlankPad 25 msg
-                  ++ " "  ++ strBlankPad 15 (fpathToStr path)
-                  ++ msg2
+        message = replicate indent ' ' ++ strBlankPad 36 msg ++ msg2
     liftIO $ putStrLn message
+    when first (modify (\s -> s { csMsgInfo = (indent, False) }))
+    
+
+task_ :: Verbosity -> String -> CompileAction a -> CompileAction ()
+task_ minVerbosity td ca = task minVerbosity td ca (const Nothing)
+
+task :: Verbosity -> String -> CompileAction a -> (a -> Maybe String) -> CompileAction ()
+task minVerbosity taskDesc ca f = do 
+    { startMsg minVerbosity taskDesc
+    ; r <- ca
+    ; let message = Just $ maybe "done" id (f r)
+    ; finishMsg minVerbosity message
+    }
+    where
+    startMsg :: Verbosity -> String -> CompileAction ()
+    startMsg minVerbosity msg =  harden_ $ do
+        currentVerbosity <- gets (optVerbosity . csOpts)
+        guard (currentVerbosity >= minVerbosity)
+        (indent, first) <- gets csMsgInfo
+        when first (liftIO putLn)
+        let message = replicate indent ' ' ++ strBlankPad 36 msg
+        liftIO $ putStr message
+        modify (\s -> s { csMsgInfo = (indent+4, True) })
+    
+    finishMsg :: Verbosity -> Maybe String -> CompileAction ()
+    finishMsg minVerbosity mbMsg =  harden_ $ do
+        currentVerbosity <- gets (optVerbosity . csOpts)
+        guard (currentVerbosity >= minVerbosity)
+        (oldIndent, first) <- gets csMsgInfo
+        let indent = oldIndent - 4
+            outputMsg m = putStrLn $ if first then " (" ++ m ++ ")" else replicate indent ' ' ++ m
+        liftIO $ maybe (if first then putLn else return ()) outputMsg mbMsg
+        modify (\s -> s { csMsgInfo = (indent, False) })
 %%]
 
 %%[8.fixpoint

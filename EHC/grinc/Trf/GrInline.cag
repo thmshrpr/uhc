@@ -20,12 +20,60 @@ inlineApply grmod = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod)) Inh
                     in grTrf_Syn_GrAGItf t
 %%]
 
+TODO: add analysis info
+TODO: what to do with vector apply
 
-%%[8.evalCode
-evalCode unique v = (unique, GrExpr_Case v [])
+%%[8.inlineEvalApply
+selectSubMap :: [GrTag] -> EvApTagMp -> EvApTagMp
+selectSubMap tl mp = filter isInList mp
+    where
+    isInList ((t,_),_) = t `elem` tl
+
+
+buildAlternative (t,a) rhsElem unique uf vf tf =
+    let patNames     = take a (map HNPos [unique..])
+        unique'      =  unique + a
+        (newU, rhs)  = case rhsElem of
+                           EvApTagUnit  -> uf unique' patNames a
+                           EvApTagVar f -> vf unique' patNames a f
+                           EvApTagTag t -> tf unique' patNames a t
+        alt      = GrAlt_Alt (GrPat_Node t $ wildcardNr : patNames) rhs
+    in (newU, alt)
+
+-- apply on one argument at the time...
+buildApplAlt aL@[_] k v u = buildAlterative k v u uf vf tf
+    where
+    uf u args a   = error "no unit at the right hand side of apply map expected"
+    tf u args a t = (u, GrExpr_Unit (GrVal_Node t $ (GrVal_Int $ a+1):map GrVal_Var args ++ aL))
+    vf u args a v = (u, GrExpr_Call v $ map GrVal_Var args ++ aL)
+
+buildEvalAlt s k v u = buildAlterative k v u uf vf tf
+    where
+    tf u args a t = error "no tag at the right hand side of eval map expected"
+    uf u args a   = (u, GrExpr_Unit $ GrVal_Var s)
+    vf u args a v = let var = HNPos u
+                        val = GrVal_Var var
+                    in (u+1, GrExpr_Seq (GrExpr_Call v args) 
+                                        (GrPat_Var var)
+                                        (GrExpr_Seq (GrExpr_Update s val)
+                                                    (GrPat_Empty)
+                                                    (GrExpr_Unit val)
+                                        )
+                       )
+
+evalCode unique e l = (unique', GrExpr_Case e alts)
+    where
+    (unique', alts) = foldr (\(k,v) (u,l) -> buildEvalAlt e k v u : l) (unqiue,[]) nodes l
+    (AV_Nodes nodes) = fetch e
+
+evalCode unique e l = (unique', GrExpr_Case e alts
+    where
+    (unique', alts) = foldr (\(k,v) (u,l) -> buildEvalAlt e k v u : l) (unqiue,[]) nodes l
 %%]
 
 %%[8
 ATTR GrAGItf [ | | grTrf: GrModule ]
 ATTR AllGrNT [ | | grTrf: SELF ]
 %%]
+
+% vim:ts=4:et:ai:

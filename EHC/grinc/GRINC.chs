@@ -9,7 +9,7 @@
 %%% Main
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%[1 module Main import(System, GetOpt, IO, Control.Monad.Error, Control.Monad.State)
+%%[1 module Main import(System.IO, System.Environment, System.Console.GetOpt, Control.Monad.Error, Control.Monad.State)
 %%]
 
 %%[8 import(UU.Parsing, UU.Pretty, EHCommon, EHScanner, GrinCode)
@@ -70,173 +70,188 @@ writePP f text fp opts
 %%[8.parse import(GRIParser)
 parseGrin :: FPath -> Opts -> IO (String, GrModule)
 parseGrin fp opts = do
-	(fn,fh) <- openFPath fp ReadMode
-	tokens  <- scanHandle scanOpts fn fh
-	gr      <- parseIO (pModule) tokens
-	return (fn, gr)
+    (fn,fh) <- openFPath fp ReadMode
+    tokens  <- scanHandle scanOpts fn fh
+    gr      <- parseIO (pModule) tokens
+    return (fn, gr)
 
 caParseGrin :: CompileAction ()
 caParseGrin = do
-	putMsg VerboseNormal "Parsing" Nothing
-	path <- gets csPath
-	opts <- gets csOpts
-	(fn, code) <- liftIO $ parseGrin path opts
-	modify (csUpdateGrinCode code)
+    putMsg VerboseALot "Parsing" Nothing
+    path <- gets csPath
+    opts <- gets csOpts
+    (fn, code) <- liftIO $ parseGrin path opts
+    modify (csUpdateGrinCode code)
 %%]
 
 
 %%[8.dropEvalAndApply import(Trf.DropUnusedBindings)
 caDropUnusedBindings :: CompileAction ()
 caDropUnusedBindings = do
-	putMsg VerboseALot "Removing unused function definitions" Nothing
-	code <- gets csGrinCode
-	code <- return $ dropUnusedBindings True code
-	modify (csUpdateGrinCode code)
+    putMsg VerboseALot "Remove unused function bindings" Nothing
+    code <- gets csGrinCode
+    code <- return $ dropUnusedBindings True code
+    modify (csUpdateGrinCode code)
 %%]
 
 %%[8.numberIdentifiers import(Trf.NumberIdents, Data.Array.IArray)
-caNumberIdents :: CompileAction (IdentNameMap, CafMap)
-caNumberIdents = do
-	putMsg VerboseNormal "Numbering identifiers" Nothing
-	code   <- gets csGrinCode
-	unique <- gets csUnique
-        (unique, code, varMap, cafMap) <- return $ numberIdents unique code
-	modify (csUpdateGrinCode code)
-	modify (csUpdateUnique unique)
-	let (low, high) = bounds varMap
-	putMsg VerboseALot "Identifiers numbered" (Just (show (high-low) ++ " identifiers"))
-	return (varMap, cafMap)
+caNumberIdents :: CompileAction ()
+caNumberIdents = task VerboseALot "Numbering identifiers"
+    ( do { code   <- gets csGrinCode
+         ; unique <- gets csUnique
+         ; (unique, code, varMap, cafMap) <- return $ numberIdents unique code
+         ; modify (\s -> s { csMbOrigNms = Just varMap, csMbCafMap = Just cafMap, csMbCode = Just code, csUnique = unique } )
+         ; let (low, high) = bounds varMap
+         ; return (high - low)
+         }
+    ) (\i -> Just $ show i ++ " identifiers")
 %%]
 
 %%[8.nameIdents import(Trf.NameIdents)
-caNameIdents :: IdentNameMap -> CompileAction ()
-caNameIdents m = do
-	putMsg VerboseNormal "Naming identifiers" Nothing
-	code <- gets csGrinCode
-        code <- return $ nameIdents m code
-	modify (csUpdateGrinCode code)
+caNameIdents :: CompileAction ()
+caNameIdents = do
+    putMsg VerboseALot "Naming identifiers" Nothing
+    code <- gets csGrinCode
+    vm   <- gets csOrigNms
+    code <- return $ nameIdents vm code
+    modify (csUpdateGrinCode code)
 %%]
 
 %%[8.normForHPT import(Trf.NormForHPT)
 caNormForHPT :: CompileAction ()
-caNormForHPT = do
-	putMsg VerboseNormal "Normalizing" Nothing
-	code   <- gets csGrinCode
-	unique <- gets csUnique
-        (unique', code) <- return $ normForHPT unique code
-	modify (csUpdateGrinCode code)
-	modify (csUpdateUnique unique')
-	putMsg VerboseALot "Normalized" (Just (show (unique'-unique) ++ " variable(s) introduced"))
+caNormForHPT = task VerboseALot "Normalizing"
+    ( do { code   <- gets csGrinCode
+         ; unique <- gets csUnique
+         ; (unique', code) <- return $ normForHPT unique code
+         ; modify (csUpdateGrinCode code)
+         ; modify (csUpdateUnique unique')
+         ; return (unique' - unique)
+         }
+    ) (\i -> Just $ show i ++ " variable(s) introduced")
 %%]
 
 %%[8.rightSkew import(Trf.RightSkew)
 caRightSkew1 :: CompileAction Bool
 caRightSkew1 = do 
-	code <- gets csGrinCode
-        (code, changed) <- return $ rightSkew code
-	modify (csUpdateGrinCode code)	
-	let msg2 = if changed then "Changes" else "No change"
-	putMsg VerboseALot "Right skewed" (Just msg2)
-	return changed
+    code <- gets csGrinCode
+    (code, changed) <- return $ rightSkew code
+    modify (csUpdateGrinCode code)
+    let msg = if changed then "Changes" else "No change"
+    debugging <- gets (optDebug . csOpts)
+    when debugging (liftIO $ putStrLn msg)
+    return changed
 
-caRightSkew :: CompileAction Int
-caRightSkew = caFix caRightSkew1
+caRightSkew :: CompileAction ()
+caRightSkew = task VerboseALot "Unskewing" (caFix caRightSkew1) (\i -> Just $ show i ++ " iteration(s)")
 %%]
 
 %%[8.heapPointsTo import(GrPointsToAnalysis)
-caHeapPointsTo :: (Int, Int) -> CafMap -> CompileAction Analysis
-caHeapPointsTo bounds cm = do
-	putMsg VerboseNormal "Heap-points-to analysis" Nothing
-	code   <- gets csGrinCode
-        result <- liftIO $ heapPointsToAnalysis bounds cm code
-	--modify (csUpdateGrinCode code)
-	return result
+caHeapPointsTo :: (Int, Int) -> CompileAction ()
+caHeapPointsTo bounds = do
+    putMsg VerboseALot "Heap-points-to analysis" Nothing
+    code   <- gets csGrinCode
+    cm     <- gets csCafMap
+    result <- liftIO $ heapPointsToAnalysis bounds cm code
+    modify (\s -> s { csMbHptMap = Just (result, emptyFM) })
 %%]
 
 %%[8.lowering import(Trf.LowerGrin)
 caLowerGrin :: CompileAction ()
 caLowerGrin = do
-	putMsg VerboseNormal "Lowering GRIN" Nothing
-	code <- gets csGrinCode
-        code <- return $ lowerGrin code
-	modify (csUpdateGrinCode code)	
+    putMsg VerboseALot "Lowering GRIN" Nothing
+    code <- gets csGrinCode
+    code <- return $ lowerGrin code
+    modify (csUpdateGrinCode code)
 %%]
 
 %%[8.writeCmm import(Cmm.FromGrin, Cmm.CmmCodePretty)
 caGrin2Cmm :: CompileAction CmmUnit
 caGrin2Cmm = do
-	code <- gets csGrinCode
-	return (grin2cmm code)
+    code <- gets csGrinCode
+    return (grin2cmm code)
 
 caWriteCmm :: CompileAction ()
 caWriteCmm = do
-	cmm <- caGrin2Cmm
-	input <- gets csPath
-        let output = fpathSetSuff "cmm" input
-	options <- gets csOpts
-	when (optDebug options) (liftIO $ putStrLn "=============" >> putStrLn (show cmm))
-	liftIO $ writePP pp cmm output options
+    putMsg VerboseALot "Writing C--" Nothing
+    cmm <- caGrin2Cmm
+    input <- gets csPath
+    let output = fpathSetSuff "cmm" input
+    options <- gets csOpts
+    --debugging <- gets (optDebug . csOpts)
+    --when debugging (liftIO $ putStrLn "=============" >> putStrLn (show cmm))
+    liftIO $ writePP pp cmm output options
 %%]
 
 %%[8.writeGrin import(GrinCodePretty)
 caWriteGrin :: String -> CompileAction ()
 caWriteGrin fn = do
-	code <- gets csGrinCode
-	input <- gets csPath
-        let output =  fpathSetBase (if null fn then fpathBase input ++ "-out" else fn) input
-	options <- gets csOpts
-	liftIO $ writePP (ppGrModule Nothing) code output options
+    putMsg VerboseALot "Writing Grin" Nothing
+    code <- gets csGrinCode
+    input <- gets csPath
+    let output =  fpathSetBase (if null fn then fpathBase input ++ "-out" else fn) input
+    options <- gets csOpts
+    liftIO $ writePP (ppGrModule Nothing) code output options
 %%]
 
 %%[8 import(Data.FiniteMap, HeapPointsToFixpoint)
 doCompileRun :: String -> Opts -> IO ()
-doCompileRun fn opts = let input                    = mkTopLevelFPath "grin" fn
+doCompileRun fn opts = let input     = mkTopLevelFPath "grin" fn
                            initState = CompileState
-                               { csUnique = 3                 -- 0,1,2 are reserved (resp: __, eval, apply)
-                               , csMbCode = Nothing
-                               , csPath   = input
-                               , csOpts   = opts
+                               { csUnique     = 3                 -- 0,1,2 are reserved (resp: __, eval, apply)
+                               , csMbCode     = Nothing
+                               , csMbOrigNms  = Nothing
+                               , csMbCafMap   = Nothing
+                               , csMbHptMap   = Nothing
+                               , csPath       = input
+                               , csOpts       = opts
+                               , csMsgInfo    = initMsgInfo
                                }
                            putErrs (CompileError e) = putStrLn e >> return ()
-                       in drive initState putErrs compileActions
+                       in drive initState putErrs (caLoad >> caAnalyse >> caNormalize >> caOutput)
 
-compileActions :: CompileAction ()
-compileActions = do
-	caParseGrin
-	caDropUnusedBindings
-	low <- gets csUnique
-	(vm, cm) <- caNumberIdents
-	caNormForHPT
-	n <- caRightSkew
-	putMsg VerboseALot "unskewed" (Just $ show n ++ " iteration(s)")
-	high <- gets csUnique
-	high <- return (high - 1)
+caLoad = task_ VerboseNormal "Loading" 
+    ( do { caParseGrin
+         ; caDropUnusedBindings
+         ; caNumberIdents
+         }
+    )
 
-	outputGrin <- gets (optWriteGrin . csOpts)
-	maybe (throwError $ strMsg "No C-- output for the moment") caWriteGrin outputGrin
+caAnalyse = task_ VerboseNormal "Analysing"
+    ( do { caNormForHPT
+         ; caRightSkew
+         ; high <- gets csUnique
+         ; caHeapPointsTo (3,high-1)
 
-	(env, heap) <- caHeapPointsTo (low,high) cm
+         ; debugging <- gets (optDebug . csOpts)
+         ; when debugging (do { ((env, heap),_) <- gets csHptMap
+                              ; liftIO $ do { putStrLn "*** Equations ***"
+                                            ; printArray "env:"  aeMod env
+                                            ; liftIO $ printArray "heap:" ahMod heap
+                                            ; putStrLn "*** Abstract Values ***"
+                                            ; printArray "env:"  aeBaseSet env
+                                            ; printArray "heap:" ahBaseSet heap
+                                            }
+                              }
+                          )
+         }
+    )
+    
 
-	debugging <- gets (optDebug . csOpts)
-	when debugging (liftIO $ putStrLn "*** Equations ***")
-	when debugging (liftIO $ printArray "env:"  aeMod env)
-	when debugging (liftIO $ printArray "heap:" ahMod heap)
 
-	when debugging (liftIO $ putStrLn "*** Abstract Values ***")
-	when debugging (liftIO $ printArray "env:"  aeBaseSet env)
-	when debugging (liftIO $ printArray "heap:" ahBaseSet heap)
-
-	--caNameIdents vm
-	outputGrin <- gets (optWriteGrin . csOpts)
-	maybe (throwError $ strMsg "No C-- output for the moment") caWriteGrin outputGrin
-
-	throwError (strMsg $ "compilation stopped. cm=" ++ show (fmToList cm))
-
-	caLowerGrin
-	caWriteCmm
+caNormalize = task_ VerboseNormal "Normalizing" caLowerGrin
+    
+caOutput = task_ VerboseNormal "Writing code"
+    ( do { caNameIdents
+         ; outputGrin <- gets (optWriteGrin . csOpts)
+         ; maybe (return ()) caWriteGrin outputGrin
+         ; caWriteCmm
+         }
+    )
 
 printArray s f a = do
-	{ putStrLn s 
-	; mapM_ (\(k, v) -> putStrLn ("  " ++ show k ++ " = " ++ show (f v))) (assocs a)
-	}
+    { putStrLn s 
+    ; mapM_ (\(k, v) -> putStrLn ("  " ++ show k ++ " = " ++ show (f v))) (assocs a)
+    }
 %%]
+
+% vim:ts=4:et:ai:

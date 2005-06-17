@@ -478,19 +478,19 @@ newNames base count | count == 0 = []
 %%[8.Call
 SEM GrExpr
   | Call   loc  . realRecievers = nreg2knames @lhs.targetNames
-                . argsReturned  = fromJust $ lookup (cmmName' @nm) @lhs.returnSizeEnv
+                . argsReturned  = fromJust' ("Call: " ++ show @nm) $ lookup (cmmName' @nm) @lhs.returnSizeEnv
                 . recievers     = padWith mkTempVar @realRecievers @argsReturned
                 . cmmBody     = call' @isLastExpr @nm @argL.cmmFunctionArgs @recievers
 
   | App    loc  . realRecievers = nreg2knames @lhs.targetNames
-                . argsReturned  = fromJust $ lookup apply @lhs.returnSizeEnv
+                . argsReturned  = fromJust' ("Apply: " ++ show @appArgs) $ lookup apply @lhs.returnSizeEnv
                 . recievers     = padWith mkTempVar @realRecievers @argsReturned
                 . evalReturnCount = fromJust $ lookup eval @lhs.returnSizeEnv
                 . appArgs       = map (valArg. cmmVar') (newNames @nm @evalReturnCount)
                 . cmmBody       = call @isLastExpr apply (@appArgs ++ @argL.cmmFunctionArgs) @recievers
 
   | Eval   loc  . realRecievers = nreg2knames @lhs.targetNames
-                . argsReturned  = fromJust $ lookup eval @lhs.returnSizeEnv
+                . argsReturned  = fromJust' ("Eval: " ++ show @nm) $ lookup eval @lhs.returnSizeEnv
                 . recievers     = padWith mkTempVar @realRecievers @argsReturned
                 . cmmBody     = call @isLastExpr eval [arg' @lhs.cafEnv @nm] @recievers
 

@@ -56,7 +56,7 @@ cmdLineOpts
          oGrin       ms  o = o { optWriteGrin = maybe (Just "") (const ms) ms }
 %%]
 
-%%[8 export(wildcardNm, wildcardNr, evalNm, evalNr,  applyNm, applyNr, isSpecialBind, CafMap)
+%%[8 export(wildcardNm, wildcardNr, evalNm, evalNr,  applyNm, applyNr, isSpecialBind, CafMap, IdentNameMap)
 wildcardNm = HNm "__"
 wildcardNr = HNPos 0
 
@@ -68,14 +68,28 @@ applyNr =  HNPos 2
 isSpecialBind f = f == evalNm || f == applyNm
 
 type CafMap = FiniteMap HsName HsName
+type IdentNameMap = Array Int HsName
 %%]
 
-%%[8.analysis import(HeapPointsToFixpoint, Data.Array)
-type Analysis        = (Array Int AbstractEnvElement, Array Int AbstractHeapElement)
-getEnvVar :: Analysis -> Int -> AbstractValue
-getEnvVar (ea, _) i  = aeBaseSet (ea ! i)
-getHeapLoc :: Analysis -> Int -> AbstractValue
-getHeapLoc (_, ha) i = ahBaseSet (ha ! i)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Heap Points To Analysis Result %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8.analysis import(HeapPointsToFixpoint, Data.Array, Data.Monoid) export(HptMap, getEnvVar, getHeapLoc, absFetch)
+type HptMap        = ((Array Int AbstractEnvElement, Array Int AbstractHeapElement), FiniteMap Int AbstractValue)
+getEnvVar :: HptMap -> Int -> AbstractValue
+getEnvVar ((ea, _),m) i  | snd (bounds ea) <= i = aeBaseSet (ea ! i)
+                         | otherwise            = lookupWithDefaultFM m (AV_Error $ "variable "++ show i ++ " not found") i
+getHeapLoc :: HptMap -> Int -> AbstractValue
+getHeapLoc ((_, ha),_) i = ahBaseSet (ha ! i)
+
+absFetch :: HptMap -> HsName -> AbstractValue
+absFetch a (HNPos i) = case getEnvVar a i of
+                             AV_Locations l -> mconcat $ map (getHeapLoc a) l
+                             AV_Nothing     -> AV_Nodes []
+                             AV_Error s     -> error $ "analysis error: " ++ s
+                             AV_Basic       -> error $ "variable " ++ show i ++ " is a basic value"
+                             AV_Nodes _     -> error $ "variable " ++ show i ++ "is a node variable"
 %%]
 
 % vim:ts=4:et:ai:
