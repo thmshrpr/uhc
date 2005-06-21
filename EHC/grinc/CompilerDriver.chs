@@ -92,7 +92,7 @@ task :: Verbosity -> String -> CompileAction a -> (a -> Maybe String) -> Compile
 task minVerbosity taskDesc ca f = do 
     { startMsg minVerbosity taskDesc
     ; r <- ca
-    ; let message = Just $ maybe "done" id (f r)
+    ; let message = f r
     ; finishMsg minVerbosity message
     }
     where

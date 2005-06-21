@@ -75,7 +75,7 @@ type IdentNameMap = Array Int HsName
 %% Heap Points To Analysis Result %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%[8.analysis import(HeapPointsToFixpoint, Data.Array, Data.Monoid) export(HptMap, getEnvVar, getHeapLoc, absFetch)
+%%[8.analysis import(HeapPointsToFixpoint, Data.Array, Data.Monoid) export(HptMap, getEnvVar, getHeapLoc, absFetch, addEnvVar, addEnvVars)
 type HptMap        = ((Array Int AbstractEnvElement, Array Int AbstractHeapElement), FiniteMap Int AbstractValue)
 getEnvVar :: HptMap -> Int -> AbstractValue
 getEnvVar ((ea, _),m) i  | snd (bounds ea) <= i = aeBaseSet (ea ! i)
@@ -90,6 +90,12 @@ absFetch a (HNPos i) = case getEnvVar a i of
                              AV_Error s     -> error $ "analysis error: " ++ s
                              AV_Basic       -> error $ "variable " ++ show i ++ " is a basic value"
                              AV_Nodes _     -> error $ "variable " ++ show i ++ "is a node variable"
+
+addEnvVar :: HptMap -> Int -> AbstractValue -> HptMap
+addEnvVar (_,fm) i v = addToFM fm i v
+
+addEnvVars :: HptMap -> [(Int, AbstractValue)] -> HptMap
+addEnvVars (_,fm) = addListToFM fm
 %%]
 
 % vim:ts=4:et:ai:

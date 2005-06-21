@@ -38,7 +38,7 @@ main
             then  putStrLn (usageInfo "Usage: grinc [options] [file]\n\noptions:" cmdLineOpts)
             else  if null errs
                   then  doCompileRun (if null n then "" else head n) opts
-                  else  putStr (head errs)
+                  else  mapM_ (\o -> putStr $ "grinc: " ++ o) errs
          }
 %%]
 
