@@ -155,6 +155,20 @@ caHeapPointsTo bounds = do
     modify (\s -> s { csMbHptMap = Just (result, emptyFM) })
 %%]
 
+%%[8.inline import(Trf.GrInline)
+caInlineEA :: CompileAction Int
+caInlineEA = do
+    putMsg VerboseALot "Inlining Eval and Apply calls" Nothing
+    code   <- gets csGrinCode
+    hptMap <- gets csHptMap
+    unique <- gets csUnique
+    (hptMap, unique', code)   <- return $ inlineEA hptMap unique code
+    modify (csUpdateUnique unique')
+    modify (csUpdateHptMap hptMap)
+    modify (csUpdateGrinCode code)
+    return $ unique' - unique
+%%]
+
 %%[8.lowering import(Trf.LowerGrin)
 caLowerGrin :: CompileAction ()
 caLowerGrin = do
@@ -238,7 +252,13 @@ caAnalyse = task_ VerboseNormal "Analysing"
     
 
 
-caNormalize = task_ VerboseNormal "Normalizing" caLowerGrin
+caNormalize = task_ VerboseNormal "Normalizing" 
+    ( do { caInlineEA
+         ; debugging <- gets (optDebug . csOpts)
+         ; when debugging (caWriteGrin "")
+         ; caLowerGrin
+         }
+    )
     
 caOutput = task_ VerboseNormal "Writing code"
     ( do { caNameIdents

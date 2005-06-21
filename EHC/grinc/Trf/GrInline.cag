@@ -7,23 +7,26 @@ We will inline apply and eval functions (based on flow analysis)
 %include afp.fmt
 %%]
 
-%%[8 module Trf.GrInline import(../../GrinCodeAbsSyn)
+%%[8 import(../../GrinCodeAbsSyn)
 %%]
 
 %%[8.wrapper
 WRAPPER GrAGItf
 %%]
 
-%%[8 hs import(EHCommon, FiniteMap, GrinCode) export(lowerGrin)
-inlineApply :: HptMap -> GrModule -> GrModule
-inlineApply hptMap grmod = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod))
-                                                (Inh_GrAGItf { hptMap_Inh_GrAGItf = hptMap } )
-                          in (hptMap_Syn_GrAGItf t, grTrf_Syn_GrAGItf t)
+%%[8 hs module Trf.GrInline import(EHCommon, GRINCCommon, FiniteMap, GrinCode) export(inlineEA)
+inlineEA :: HptMap -> Int -> GrModule -> (HptMap, Int, GrModule)
+inlineEA hptMap unique grmod = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod))
+                                                    (Inh_GrAGItf { hptMap_Inh_GrAGItf = hptMap
+                                                                 , unique_Inh_GrAGItf = unique
+                                                                 }
+                                                    )
+                               in (hptMap_Syn_GrAGItf t, unique_Syn_GrAGItf t, grTrf_Syn_GrAGItf t)
 %%]
 
 TODO: add apply inlining - what to do with vector apply?
 
-%%[8.inlineEval
+%%[8.inlineEval hs import(Data.Maybe)
 selectSubMap :: [GrTag] -> EvApTagMp -> EvApTagMp
 selectSubMap tl mp = filter isInList mp
     where
@@ -33,49 +36,50 @@ selectSubMap tl mp = filter isInList mp
 -- first element is the arity information (is always a basic abstract value)
 buildAlternative t (_:av) arity rhsElem unique uf vf tf =
     let elems           = zip [unique..] av
-        patNames        = map (\(i,_) -> HNPos) elems
+        patNames        = map (\(i,_) -> HNPos i) elems
         unique'         =  unique + arity
         (newU, h, rhs)  = case rhsElem of
-                              EvApTagUnit  -> uf unique' patNames a
-                              EvApTagVar f -> vf unique' patNames a f
-                              EvApTagTag t -> tf unique' patNames a t
+                              EvApTagUnit  -> uf unique' patNames
+                              EvApTagVar f -> vf unique' patNames f
+                              EvApTagTag t -> tf unique' patNames t
         alt             = GrAlt_Alt (GrPat_Node t $ wildcardNr : patNames) rhs
         newHPT      = h ++ elems
-    in (newU, alt)
+    in (newU, newHPT, alt)
 
 -- apply on one argument at the time...
--- buildApplAlt aL@[_] k v u = buildAlterative k v u uf vf tf
+-- buildApplAlt aL@@[_] k v u = buildAlterative k v u uf vf tf
 --     where
 --     uf u args a   = error "no unit at the right hand side of apply map expected"
 --     tf u args a t = (u, GrExpr_Unit (GrVal_Node t $ (GrVal_Int $ a+1):map GrVal_Var args ++ aL))
 --     vf u args a v = (u, GrExpr_Call v $ map GrVal_Var args ++ aL)
 
-buildEvalAlt s t av evalMap u = buildAlterative t av arity rhs u uf vf tf
+buildEvalAlt :: HsName -> GrTag -> [AbstractValue] -> [(GrTag, (Int, EvApTagElt))] -> HptMap -> Int -> (Int, [(Int, AbstractValue)], GrAlt)
+buildEvalAlt s t av evalMap hptMap u = buildAlternative t av arity rhs u uf vf tf
     where
-    (arity, rhs)  = lookup t evalMap
-    tf u args a t = error "no tag at the right hand side of eval map expected"
-    uf u args a   = (u, [], GrExpr_Unit $ GrVal_Var s)
-    vf u args a v = let var     = HNPos u
-                        val     = GrVal_Var var
-                        absVal  = snd $ lookup (getNr v) evalMap
-                        code    = GrExpr_Seq (GrExpr_Call v args)
-                                             (GrPat_Var var)
-                                             (GrExpr_Seq (GrExpr_Update s val)
-                                                         (GrPat_Empty)
-                                                         (GrExpr_Unit val)
-                                             )
-                    in (u+1, [(u, absVal)], code)
+    (arity, rhs) = fromJust $ lookup t evalMap
+    tf u args t  = error "no tag at the right hand side of eval map expected"
+    uf u args    = (u, [], GrExpr_Unit $ GrVal_Var s)
+    vf u args v  = let var     = HNPos u
+                       val     = GrVal_Var var
+                       absVal  = getEnvVar hptMap (getNr v)
+                       code    = GrExpr_Seq (GrExpr_Call v $ map GrVal_Var args)
+                                            (GrPat_Var var)
+                                            (GrExpr_Seq (GrExpr_Update s val)
+                                                        (GrPat_Empty)
+                                                        (GrExpr_Unit val)
+                                            )
+                   in (u+1, [(u, absVal)], code)
 
 evalCode unique evalMap hptMap l = let unique'                    = unique+1
                                        fetchVar                   = HNPos unique
-                                       (AV_Nodes nodes)           = absFetch hptMap l
-                                       makeAlt  (t, av) (u, h, l) = let (u', h', alt) = buildEvalAlt fetchVar t av evalMap u
+                                       nodes                      = getNodes $ absFetch hptMap l
+                                       makeAlt  (t, av) (u, h, l) = let (u', h', alt) = buildEvalAlt fetchVar t av evalMap hptMap u
                                                                     in (u', h' ++ h, alt:l)
                                        (unique'', hptDelta, alts) = foldr makeAlt (unique', [], []) nodes
-                                       code                       = GrExpr_Seq (GrExpr_Fetch l)
+                                       code                       = GrExpr_Seq (GrExpr_Fetch l Nothing)
                                                                                (GrPat_Var fetchVar)
                                                                                (GrExpr_Case (GrVal_Var fetchVar) alts)
-                                   in (unique'', addEnvVar hptMap hptDelta, code)
+                                   in (unique'', addEnvVars hptMap hptDelta, code)
 %%]
 
 %%[8
@@ -85,14 +89,14 @@ ATTR AllGrNT [ | | grTrf: SELF ]
 %%]
 
 %%[8.applyMap
-ATTR AllBind AllGrExpr [ evalMap: {[(GrTag, (Int, EvApTagElt)]} | | ]
+ATTR AllBind AllGrExpr [ evalMap: {[(GrTag, (Int, EvApTagElt))]} | | ]
 
 SEM GrModule
   | Mod  loc  .  evalMap = [ (t, (a,v))| ((t,a), v) <- @evalTagMp ]
 %%]
 
 %%[8.inlineEval
-GrExpr
+SEM GrExpr
   | Eval loc  .  (unique, hptMap, grTrf) = evalCode @lhs.unique @lhs.evalMap @lhs.hptMap @nm
 %%]
 % vim:ts=4:et:ai:

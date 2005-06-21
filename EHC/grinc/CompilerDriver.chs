@@ -27,6 +27,7 @@ csHptMap             = fromJust . csMbHptMap
 csIsParsed           = isJust   . csMbCode
 csUpdateGrinCode c s = s { csMbCode = Just c }
 csUpdateUnique   u s = s { csUnique = u }
+csUpdateHptMap   m s = s { csMbHptMap = Just m }
 %%]
 
 %%[8.Errors

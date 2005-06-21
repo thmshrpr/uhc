@@ -635,10 +635,6 @@ getCafVar m k = getNr . fromJust' ("cafVar not found " ++ show k) $ lookupFM m k
 fromJust' _ (Just a ) = a
 fromJust' m (Nothing) = error $ "fromJust: " ++ m
 
-getNr :: HsName -> Int
-getNr (HNPos i) = i
-getNr a         = error $ "not a numbered name: " ++ show a
-
 makeHeapElem l initial eq = (l, AbstractHeapElement { ahBaseSet = initial, ahMod = eq})
 isPrim (a:b:c:d:_) = ("prim" == a:b:c:d:[])
 isPrim _           = False
