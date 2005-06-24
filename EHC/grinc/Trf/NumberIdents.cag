@@ -20,14 +20,15 @@ WRAPPER GrAGItf
 
 %%[8 hs module Trf.NumberIdents import(GRINCCommon, EHCommon, GrinCode, Data.Array.IArray, Data.FiniteMap, Data.Maybe) export(numberIdents)
 
-numberIdents :: Int -> GrModule -> (Int, GrModule, IdentNameMap, CafMap)
-numberIdents u grmod = let t        = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod))
-                                                   (Inh_GrAGItf { unique_Inh_GrAGItf = u })
-                           newU     = unique_Syn_GrAGItf t
-                           newGrMod = grTrf_Syn_GrAGItf  t
-                           varMap   = varMap_Syn_GrAGItf t
-                           cafMap   = cafMap_Syn_GrAGItf t
-                       in (newU, newGrMod, varMap, cafMap)
+numberIdents :: Int -> HsName -> GrModule -> (Int, HsName, GrModule, IdentNameMap, CafMap)
+numberIdents u entry grmod = let t        = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod))
+                                                         (Inh_GrAGItf { unique_Inh_GrAGItf = u, entry_Inh_GrAGItf = entry })
+                                 newU     = unique_Syn_GrAGItf t
+                                 newGrMod = grTrf_Syn_GrAGItf  t
+                                 varMap   = varMap_Syn_GrAGItf t
+                                 cafMap   = cafMap_Syn_GrAGItf t
+                                 newEntry = entry_Syn_GrAGItf  t
+                             in (newU, newEntry, newGrMod, varMap, cafMap)
 %%]
 
 %%[8.lookup hs
@@ -63,6 +64,12 @@ SEM GrAGItf
            module  .  cafUniq     = @lhs.unique
                    .  cafVarUniq  = @module.cafUniq
                    .  unique      = @module.cafVarUniq
+%%]
+
+%%[8.translateEntry
+ATTR GrAGItf [ | entry: HsName | ]
+SEM GrAGItf
+  | AGItf  lhs . entry = fromJust $ lookupFM @bind2id @lhs.entry
 %%]
 
 %%[8.maps

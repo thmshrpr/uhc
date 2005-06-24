@@ -1,0 +1,29 @@
+module "apply"
+{ $app $f $a
+    = { eval $f ; \$e ->
+        apply $e $a
+      }
+; $id $a
+    = { eval $a
+      }
+; main 
+    = { store (#0/P/1/$id 0) ; \$id ->
+        store (#0/C/$Int 1 4) ; \$4 ->
+        $app $id $4
+      }
+}
+
+ctags
+{ $_Int  = $_Int  0 1
+}
+
+evalmap 
+{ #0/C/$Int   1 -> unit
+; #0/P/1/$id  0 -> unit
+; #0/F/$app   2 -> $app
+; #0/F/$id    1 -> $id
+; #0/F/main   0 -> main
+}
+applymap 
+{ #0/P/1/$id 0 -> $id 
+} 

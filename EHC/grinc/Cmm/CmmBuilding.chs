@@ -192,7 +192,7 @@ cmmVar'    = cmmVar    . cmmName'
 varUpdate' = varUpdate . cmmName'
 %%]
 
-% NOTE: As a convention the tags are named after the their binding name with "@F" prepended
+% NOTE: As a convention the tags of bindings are named after the their binding name with "@F" prepended
 
 %%[8.CAFs export(CAFEnv,arg,var,var',arg',cafNode4name,cafOffset)
 type CAFEnv = [(CmmName, Int)]

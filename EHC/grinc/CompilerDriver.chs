@@ -12,6 +12,7 @@
 data CompileState = CompileState
 	{ csUnique    :: Int
 	, csMbCode    :: Maybe GrModule 
+	, csEntry     :: !HsName
     , csMbOrigNms :: Maybe IdentNameMap
     , csMbCafMap  :: Maybe CafMap
     , csMbHptMap  :: Maybe HptMap

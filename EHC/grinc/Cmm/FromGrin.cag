@@ -9,10 +9,10 @@
 %%]
 
 %%[8 hs module Cmm.FromGrin import("EHCommon hiding ((<+>))", Data.List(nub), Data.Maybe, GrinCode, Cmm.CmmBuilding) export(grin2cmm,CmmUnit(..))
-grin2cmm :: GrModule -> CmmUnit
-grin2cmm gr = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf gr))
-                                   (Inh_GrAGItf {})
-              in cmmUnit_Syn_GrAGItf t
+grin2cmm :: HsName -> GrModule -> CmmUnit
+grin2cmm e gr = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf gr))
+                                     (Inh_GrAGItf { entryNm_Inh_GrAGItf = e })
+                in cmmUnit_Syn_GrAGItf t
 %%]
 
 %%[8.wrapper
@@ -80,7 +80,7 @@ SEM GrPat
   | Node      loc . nodeSize = 1 + length @fldL
 
 SEM GrModule
-  | Mod  loc . tags    = nub @bindL.tags
+  | Mod  loc . tags    = map (\cn -> ("@F" ++ cn, SmallLayout)) @bindL.cafNames ++ nub @bindL.tags
 
 SEM GrTag
   | Lit  loc . tagLayout = if @lhs.nodeSize > 4 then error "tags do not fit" else Just SmallLayout
@@ -172,7 +172,7 @@ SEM GrModule
 Merge everyting together into a C-- compilation unit
 
 %%[8
-ATTR GrAGItf GrModule [ | | cmmUnit : CmmUnit ]
+ATTR GrAGItf GrModule [ entryNm: HsName | | cmmUnit : CmmUnit ]
 
 SEM GrModule
   | Mod          loc . cmmUnit  = let addTl mtl             = maybe emptyBuilder id mtl
@@ -181,7 +181,7 @@ SEM GrModule
                                       unitTypedefs          = typedefs bits32 ["@ptr", "@val"]
                                       unitTarget            = target 8 LittleEndian 32 32
 				      heapPointer           = globalVarDecl False "address" bits32 [("@hp", Nothing)]
-				      grin_main             = buildDriver "$main" @lhs.cafEnv
+				      grin_main             = buildDriver @lhs.entryNm
                                       tagConstants          = fst $ foldr buildTagConst (emptyBuilder,0) @tags
                                       buildTagConst (n,_) (r,i) = (constant (Just valType) n (int i) ~> r, i+1)
                                   in CmmUnit_Unit (  build $ unitTarget ~> unitTypedefs ~> heapPointer
@@ -191,8 +191,8 @@ SEM GrModule
 %%]
 
 %%[8.driver hs
-buildDriver nm env = procedure "" "@grin_main" [] 
-  ( cmmTailcall "" (cmmVar eval) [arg env nm]
+buildDriver nm = procedure "" "@grin_main" [] 
+  ( cmmTailcall "" (cmmVar' nm) []
   )
 %%]
 
@@ -310,7 +310,7 @@ SEM GrBind
 
 SEM GrExpr
   | Seq      expr . hasNext = True
-             body . hasNext = False
+             body . hasNext = @lhs.hasNext
 
 SEM GrExpr
   | * - Seq Case  loc . isLastExpr = not @lhs.hasNext
@@ -331,7 +331,7 @@ ATTR AllGrExpr [ targetNames: {CmmNameRegister} | | allUsedNames USE {++} {[]}: 
 
 SEM GrExpr
   | Seq      expr . targetNames  = @pat.definedNames
-             body . targetNames  = []
+             body . targetNames  = @lhs.targetNames
 
 SEM GrExpr  
   | Seq	         lhs  . allUsedNames = @expr.allUsedNames ++ @pat.definedNames ++ @body.allUsedNames
@@ -385,8 +385,7 @@ allowed forms of a GrVal and their mappings
 - (Unboxed)        => []
 
 Note that we silent ignore the fact that a value with a single integer also
-succeed, as well as a node within a node. This is because the grin AST allows
-more than the concrete syntax.
+succeed, as well as a node within a node. These structures should not occur.
 
 %%[8.GrValReference
 ATTR GrVal GrValL [ | | cmmReturnArgs USE {++} {[]}: {CmmActuals} cmmExpressions USE {++} {[]}: {CmmExpressions} ]
@@ -420,8 +419,8 @@ addTagArg isPtr me as = maybe as addActual me
 %% Cmm code, Case %%
 %%%%%%%%%%%%%%%%%%%%
 
-The case is more a lot of translation work than anything else.  However case
-shortcutting might be done here. This is currently not implemented.
+The case is more a lot of translation work than anything else.  Case
+shortcutting can be done here. This is currently not implemented.
 
 TODO: implement case shortcutting
 

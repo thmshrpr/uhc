@@ -1,11 +1,9 @@
 % $Id$
 
-TODO: I would expect this transformation to drop main (which it should not if made correctly). But it looks like it does not. Why?
-
 TODO: to remove recursive bindings we need the names of recursive binding group
 which should be ignored if a call to there is made. lazy calls are more subtle.
 
-TODO: The use of a caf variable should keep the caf (needs a caf map - if available)
+TODO: The use of a caf variable should keep the caf (needs a caf map - if available) for now keep all cafs
 
 %%[0
 %include lhs2TeX.fmt
@@ -23,17 +21,17 @@ WRAPPER GrAGItf
 %%]
 
 %%[8 hs import(EHCommon, GRINCCommon, GrinCode) export(dropUnusedBindings)
-dropUnusedBindings :: Bool -> GrModule -> GrModule
-dropUnusedBindings ds grmod = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod))
-                                                 (Inh_GrAGItf { dropSpecial_Inh_GrAGItf = ds })
-                            in grTrf_Syn_GrAGItf t
+dropUnusedBindings :: Bool -> HsName -> GrModule -> GrModule
+dropUnusedBindings ds e grmod = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod))
+                                                    (Inh_GrAGItf { dropSpecial_Inh_GrAGItf = ds, entry_Inh_GrAGItf = e })
+                                in grTrf_Syn_GrAGItf t
 %%]
 
 %%[8
 ATTR GrAGItf [ | | grTrf: GrModule ]
 ATTR AllGrNT [ | | grTrf: SELF ]
 
-ATTR GrAGItf GrModule [ dropSpecial: Bool | | ]
+ATTR GrAGItf GrModule [ dropSpecial: Bool entry: HsName | | ]
 %%]
 
 %%[8.retrieveUsedBindings
@@ -64,13 +62,18 @@ findBindName bindMap e = case e of
     EvApTagUnit   ->  error "unit tag not expected"
 %%]
 
+%%[8.CAFs import(../GrCAFNames)
+SEM GrModule
+  | Mod  loc  .  usedBindings = foldl Set.addToSet @bindL.usedBindings (@lhs.entry : @bindL.cafNames)
+%%]
+
 %%[8.dropUnusedBindings
 ATTR AllBind [ allUsedBindings: {Set.Set HsName} | | ]
 
 SEM GrModule
   | Mod  loc    .  specialNames     =  [evalNm, evalNr,  applyNm, applyNr]
                 .  modifier         =  if @lhs.dropSpecial then Set.delFromSet else Set.addToSet
-         bindL  .  allUsedBindings  =  foldl @modifier @bindL.usedBindings @specialNames
+         bindL  .  allUsedBindings  =  foldl @modifier @usedBindings @specialNames
          
 SEM GrBind [ | | dropBinding: Bool ]
   | Bind  lhs  . dropBinding  =  not $ Set.elementOf @nm @lhs.allUsedBindings
@@ -81,7 +84,7 @@ SEM GrBindL [ | | count: Int ]
   | Cons  lhs  .  grTrf  =  if @hd.dropBinding
                             then @tl.grTrf
                             else @hd.grTrf : @tl.grTrf
-               .  count  =  1 + @tl.count          
+               .  count  =  if @hd.dropBinding then @tl.count else 1 + @tl.count
   | Nil   lhs  .  count  =  0
 %%]
 

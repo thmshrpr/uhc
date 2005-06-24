@@ -58,7 +58,7 @@ cmdLineOpts
 
 %%[8 export(wildcardNm, wildcardNr, evalNm, evalNr,  applyNm, applyNr, isSpecialBind, CafMap, IdentNameMap, getNr)
 wildcardNm = HNm "__"
-wildcardNr = HNPos 0
+wildcardNr = HNPos (0)
 
 evalNm  =  HNm "eval"
 evalNr  =  HNPos 1

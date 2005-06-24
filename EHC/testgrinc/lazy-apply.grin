@@ -1,0 +1,45 @@
+module "lazy-apply"
+{ $add $x $y
+    = { eval $x ; \(#0/C/$Int $__ $x') ->
+        eval $y ; \(#0/C/$Int $__ $y') ->
+        ffi primAddInt $x' $y' ; \(#U $z') ->
+        unit (#0/C/$Int 1 $z')
+      }
+; $f 
+    = { store (#0/C/$Int 1 1) ; \$1 ->
+        unit (#0/P/1/$add 1 $1)
+      }
+; $twice $f $a
+    = { store (#0/A/apply 2 $f $a) ; \$app ->
+        eval $f ; \$e ->
+        apply $e $app
+      }
+; main 
+    = { store (#0/C/$Int 1 1) ; \$1 ->
+        $twice $f $1
+      } 
+; ap $f $a 
+    = { eval $f ; \$n ->
+        apply $n $a
+      }
+}
+
+ctags
+{ $Int = $Int 0 1
+} 
+
+evalmap
+{ #0/C/$Int   1 -> unit
+; #0/P/1/$add 1 -> unit
+; #0/P/2/$add 0 -> unit
+; #0/F/$add   2 -> $add
+; #0/F/$twice 2 -> $twice
+; #0/F/$f     0 -> $f
+; #0/F/main   0 -> main
+; #0/A/apply  2 -> ap
+}
+
+applymap
+{ #0/P/1/$add 1 -> $add
+; #0/P/2/$add 0 -> #0/P/1/$add
+}

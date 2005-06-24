@@ -33,7 +33,7 @@ lookup times.
 %%[8 import(Data.Maybe, Data.List, Data.Monoid, Data.Array.ST, Control.Monad.ST, Control.Monad, EHCommon, GrinCode)
 %%]
 
-%%[8  import(UU.Pretty, GrinCodePretty)
+%%[8  import(UU.Pretty, GrinCodePretty) export("module Data.Monoid")
 %%]
 
 %%[8.AbstractValue export(AbstractValue(..), AbstractNode, Location, Variable)

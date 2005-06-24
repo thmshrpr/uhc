@@ -90,7 +90,8 @@ caDropUnusedBindings :: CompileAction ()
 caDropUnusedBindings = do
     putMsg VerboseALot "Remove unused function bindings" Nothing
     code <- gets csGrinCode
-    code <- return $ dropUnusedBindings True code
+    entry <- gets csEntry
+    code <- return $ dropUnusedBindings True entry code
     modify (csUpdateGrinCode code)
 %%]
 
@@ -99,22 +100,30 @@ caNumberIdents :: CompileAction ()
 caNumberIdents = task VerboseALot "Numbering identifiers"
     ( do { code   <- gets csGrinCode
          ; unique <- gets csUnique
-         ; (unique, code, varMap, cafMap) <- return $ numberIdents unique code
-         ; modify (\s -> s { csMbOrigNms = Just varMap, csMbCafMap = Just cafMap, csMbCode = Just code, csUnique = unique } )
+         ; entry <- gets csEntry
+         ; (unique, entry, code, varMap, cafMap) <- return $ numberIdents unique entry code
+         ; modify (\s -> s { csMbOrigNms = Just varMap
+                           , csMbCafMap = Just cafMap
+                           , csMbCode = Just code
+                           , csEntry = entry
+                           , csUnique = unique
+                           }
+                  )
          ; let (low, high) = bounds varMap
          ; return (high - low)
          }
     ) (\i -> Just $ show i ++ " identifiers")
 %%]
 
-%%[8.nameIdents import(Trf.NameIdents)
+%%[8.nameIdents import(Trf.NameIdents, Data.Maybe)
 caNameIdents :: CompileAction ()
 caNameIdents = do
     putMsg VerboseALot "Naming identifiers" Nothing
-    code <- gets csGrinCode
-    vm   <- gets csOrigNms
-    code <- return $ nameIdents vm code
+    code  <- gets csGrinCode
+    vm    <- gets csOrigNms
+    code  <- return $ nameIdents vm code
     modify (csUpdateGrinCode code)
+    modify (\s -> s { csEntry = vm ! getNr (csEntry s) } )
 %%]
 
 %%[8.normForHPT import(Trf.NormForHPT)
@@ -182,7 +191,8 @@ caLowerGrin = do
 caGrin2Cmm :: CompileAction CmmUnit
 caGrin2Cmm = do
     code <- gets csGrinCode
-    return (grin2cmm code)
+    entry <- gets csEntry
+    return (grin2cmm entry code)
 
 caWriteCmm :: CompileAction ()
 caWriteCmm = do
@@ -213,6 +223,7 @@ doCompileRun fn opts = let input     = mkTopLevelFPath "grin" fn
                            initState = CompileState
                                { csUnique     = 3                 -- 0,1,2 are reserved (resp: __, eval, apply)
                                , csMbCode     = Nothing
+                               , csEntry      = HNm "main"
                                , csMbOrigNms  = Nothing
                                , csMbCafMap   = Nothing
                                , csMbHptMap   = Nothing
@@ -227,6 +238,8 @@ caLoad = task_ VerboseNormal "Loading"
     ( do { caParseGrin
          ; caDropUnusedBindings
          ; caNumberIdents
+         ; debugging <- gets (optDebug . csOpts)
+         ; when debugging (caWriteGrin "loaded")
          }
     )
 
@@ -250,18 +263,16 @@ caAnalyse = task_ VerboseNormal "Analysing"
          }
     )
     
-
-
 caNormalize = task_ VerboseNormal "Normalizing" 
     ( do { caInlineEA
          ; debugging <- gets (optDebug . csOpts)
-         ; when debugging (caWriteGrin "")
+         ; when debugging (caWriteGrin "inlined")
          ; caLowerGrin
          }
     )
     
 caOutput = task_ VerboseNormal "Writing code"
-    ( do { caNameIdents
+    ( do { -- caNameIdents
          ; outputGrin <- gets (optWriteGrin . csOpts)
          ; maybe (return ()) caWriteGrin outputGrin
          ; caWriteCmm
