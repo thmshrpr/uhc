@@ -14,7 +14,7 @@ We will inline apply and eval functions (based on flow analysis)
 WRAPPER GrAGItf
 %%]
 
-%%[8 hs module Trf.GrInline import(EHCommon, GRINCCommon, FiniteMap, GrinCode, HeapPointsToFixpoint, Data.List) export(inlineEA)
+%%[8 hs module Trf.GrInline import(EHCommon, GRINCCommon, GrinCode, HeapPointsToFixpoint, Data.List) export(inlineEA)
 inlineEA :: HptMap -> Int -> GrModule -> (HptMap, Int, GrModule)
 inlineEA hptMap unique grmod = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod))
                                                     (Inh_GrAGItf { hptMap_Inh_GrAGItf = hptMap
@@ -53,8 +53,8 @@ buildAlternative t (_:av) arity rhsElem unique uf vf tf =
         newHPT      = h ++ elems
     in (newU, newHPT, alt)
 
-buildEvalAlt :: HsName -> GrTag -> [AbstractValue] -> [(GrTag, (Int, EvApTagElt))] -> HptMap -> Int -> (Int, [(Int, AbstractValue)], GrAlt)
-buildEvalAlt s t av evalMap hptMap u = buildAlternative t av arity rhs u uf vf tf
+buildEvalAlt :: HsName -> HsName -> GrTag -> [AbstractValue] -> [(GrTag, (Int, EvApTagElt))] -> HptMap -> Int -> (Int, [(Int, AbstractValue)], GrAlt)
+buildEvalAlt l s t av evalMap hptMap u = buildAlternative t av arity rhs u uf vf tf
     where
     (arity, rhs) = fromJust' ("tag not found: " ++ show t) (lookup t evalMap)
     tf u args t  = error "no tag at the right hand side of eval map expected"
@@ -64,22 +64,22 @@ buildEvalAlt s t av evalMap hptMap u = buildAlternative t av arity rhs u uf vf t
                        absVal  = getEnvVar hptMap (getNr v)
                        code    = GrExpr_Seq (GrExpr_Call v $ map GrVal_Var args)
                                             (GrPat_Var var)
-                                            (GrExpr_Seq (GrExpr_Update s val)
+                                            (GrExpr_Seq (GrExpr_Update l val)
                                                         (GrPat_Empty)
                                                         (GrExpr_Unit val)
                                             )
                    in (u+1, [(u, absVal)], code)
 
-evalCode unique evalMap hptMap l = let unique'                    = unique+1
-                                       fetchVar                   = HNPos unique
-                                       nodes                      = getNodes $ absFetch hptMap l
-                                       makeAlt  (t, av) (u, h, l) = let (u', h', alt) = buildEvalAlt fetchVar t av evalMap hptMap u
-                                                                    in (u', h' ++ h, alt:l)
-                                       (unique'', hptDelta, alts) = foldr makeAlt (unique', [], []) nodes
-                                       code                       = GrExpr_Seq (GrExpr_Fetch l Nothing)
-                                                                               (GrPat_Var fetchVar)
-                                                                               (GrExpr_Case (GrVal_Var fetchVar) alts)
-                                   in (unique'', addEnvVars hptMap hptDelta, code)
+evalCode unique evalMap hptMap loc = let unique'                    = unique+1
+                                         fetchVar                   = HNPos unique
+                                         nodes                      = getNodes $ absFetch hptMap loc
+                                         makeAlt  (t, av) (u, h, l) = let (u', h', alt) = buildEvalAlt loc fetchVar t av evalMap hptMap u
+                                                                      in (u', h' ++ h, alt:l)
+                                         (unique'', hptDelta, alts) = foldr makeAlt (unique', [], []) nodes
+                                         code                       = GrExpr_Seq (GrExpr_Fetch loc Nothing)
+                                                                                 (GrPat_Var fetchVar)
+                                                                                 (GrExpr_Case (GrVal_Var fetchVar) alts)
+                                     in (unique'', addEnvVars hptMap hptDelta, code)
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%

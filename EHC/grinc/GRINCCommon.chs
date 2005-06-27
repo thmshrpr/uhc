@@ -9,7 +9,7 @@
 %%% Common
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%[8 module GRINCCommon import(System.Console.GetOpt,EHCommon, Data.FiniteMap) export(Opts(..), defaultOpts, cmdLineOpts)
+%%[8 module GRINCCommon import(System.Console.GetOpt,EHCommon, "qualified Data.Map as Map") export(Opts(..), defaultOpts, cmdLineOpts)
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -67,7 +67,8 @@ applyNr =  HNPos 2
 
 isSpecialBind f = f == evalNm || f == applyNm
 
-type CafMap = FiniteMap HsName HsName
+-- CafMap :: Binding name -> Variable Name
+type CafMap = Map.Map HsName HsName
 type IdentNameMap = Array Int HsName
 
 getNr :: HsName -> Int
@@ -79,11 +80,11 @@ getNr a         = error $ "not a numbered name: " ++ show a
 %% Heap Points To Analysis Result %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%[8.analysis import(HeapPointsToFixpoint, Data.Array, Data.Monoid) export(HptMap, getEnvVar, getHeapLoc, absFetch, addEnvVar, addEnvVars, getNodes, AbstractValue(..))
-type HptMap        = ((Array Int AbstractEnvElement, Array Int AbstractHeapElement), FiniteMap Int AbstractValue)
+%%[8.analysis import(HeapPointsToFixpoint, Data.Array, Data.Monoid) export(HptMap, getEnvVar, getHeapLoc, absFetch, addEnvVar, addEnvVars, getNodes, AbstractValue(..), listInsert)
+type HptMap        = ((Array Int AbstractEnvElement, Array Int AbstractHeapElement), Map.Map Int AbstractValue)
 getEnvVar :: HptMap -> Int -> AbstractValue
 getEnvVar ((ea, _),m) i  | snd (bounds ea) >= i = aeBaseSet (ea ! i)
-                         | otherwise            = lookupWithDefaultFM m (AV_Error $ "variable "++ show i ++ " not found") i
+                         | otherwise            = Map.findWithDefault (AV_Error $ "variable "++ show i ++ " not found") i m
 getHeapLoc :: HptMap -> Int -> AbstractValue
 getHeapLoc ((_, ha),_) i = ahBaseSet (ha ! i)
 
@@ -101,10 +102,12 @@ getNodes av = case av of
                   _          -> error $ "not a node: " ++ show av
 
 addEnvVar :: HptMap -> Int -> AbstractValue -> HptMap
-addEnvVar (a,fm) i v = (a, addToFM fm i v)
+addEnvVar (a,fm) i v = (a, Map.insert i v fm)
 
 addEnvVars :: HptMap -> [(Int, AbstractValue)] -> HptMap
-addEnvVars (a,fm) l = (a, addListToFM fm l)
+addEnvVars (a,fm) l = (a, foldl (flip $ uncurry Map.insert) fm l)
+
+listInsert l fm = foldl (flip $ uncurry Map.insert) fm l
 %%]
 
 % vim:ts=4:et:ai:

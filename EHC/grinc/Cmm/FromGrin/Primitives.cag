@@ -1,0 +1,51 @@
+% $Id$
+
+%%[0
+%include lhs2TeX.fmt
+%include afp.fmt
+%%]
+
+%%%%%%%%%%%%%%%%
+%% Primitives %%
+%%%%%%%%%%%%%%%%
+
+builtin primitives (like plus and compare on integers)
+
+%%[8 hs
+-- primitivesTable: list of (name, (return size, required imports, CAFnames -> arguments -> result variables -> primitve))
+primitivesTable :: [(String, (Int, [String], CAFEnv -> CmmNames -> CmmNames -> CmmBodyBuilder))]
+primitivesTable
+  = [ ("primAddInt", (1, [], emitPrimAddInt))
+    , ("primCmpInt", (2, [], emitPrimCmpInt))
+    ]
+
+emitPrimAddInt env (l:r:[]) tn = assignOrReturn tn [(cmmVar l <+> cmmVar r)]
+
+emitPrimCmpInt env (l:r:[]) tn 
+  = let ltA  = arg env "$_LT"
+        gtA  = arg env "$_GT"
+        eqA  = arg env "$_EQ"
+        mkEvalCall a = if null tn -- TODO: is this always correct?
+                       then call True  eval [a] []
+                       else call False eval [a] (map (\n -> ("",n)) tn)
+    in
+    ite (prim "gt" [valArg $ cmmVar l,valArg $ cmmVar r])
+        (mkEvalCall gtA)
+        (ite (prim "lt" [valArg $ cmmVar l,valArg $ cmmVar r])
+             (mkEvalCall ltA)
+             (mkEvalCall eqA)
+        )
+
+assignOrReturn tn expr = if null tn
+                         then cmmReturn "" (map valArg expr)
+                         else updates (zipWith (\l r -> (varUpdate l,r)) tn expr)
+%%]
+
+Prepare the primitive information in a FFI
+
+%%[8.FFI
+SEM GrExpr
+  | FFI    loc  . mbPrim                = lookup @nm primitivesTable
+                . isPrim                = isJust @mbPrim
+                . (primSize, primImports, primStmF)  = fromJust @mbPrim
+%%]

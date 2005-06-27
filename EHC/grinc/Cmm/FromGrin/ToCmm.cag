@@ -1,0 +1,281 @@
+% $Id$
+
+%%[0
+%include lhs2TeX.fmt
+%include afp.fmt
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%  Cmm code, top level %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Merge everyting together into a C-- compilation unit
+
+%%[8
+ATTR GrAGItf GrModule [ entryNm: HsName | | cmmUnit : CmmUnit ]
+
+SEM GrModule
+  | Mod          loc . cmmUnit  = let addTl mtl             = maybe emptyBuilder id mtl
+                                      externals             = addTl @imports ~> addTl @exports 
+                                      cafNodes              = @sectionCAFNodes :: CmmToplevelBuilder
+                                      unitTypedefs          = typedefs bits32 ["@ptr", "@val"]
+                                      unitTarget            = target 8 LittleEndian 32 32
+				      heapPointer           = globalVarDecl False "address" bits32 [("@hp", Nothing)]
+				      grin_main             = buildDriver @lhs.entryNm @returnSizeEnv
+                                      tagConstants          = fst $ foldr buildTagConst (emptyBuilder,0) @tags
+                                      buildTagConst (n,_) (r,i) = (constant (Just valType) n (int i) ~> r, i+1)
+                                  in CmmUnit_Unit (  build $ unitTarget ~> unitTypedefs ~> heapPointer
+                                                  ~> externals ~> tagConstants ~> cafNodes ~> @strings
+                                                  ~> grin_main ~> @bindL.cmmProcs
+                                                  )
+%%]
+
+%%[8.driver hs
+buildDriver nm env = procedure callConv "@grin_main" [] (vars ~> callMain ~> endGrin)
+	where
+	callConv = ""
+        vars     = varDecl False "" valType [("@tmp", Nothing), ("@result", Nothing)]
+        callMain = cmmCall "" (cmmVar name) [] recievers
+        endGrin  = cmmReturn callConv [valArg $ cmmVar resultVar]
+	name = cmmName' nm
+	recievers = padWith (const tmpVar) [tmpVar, tmpVar, ("", resultVar)] (fromJust' ("entrypoint not found: " ++ show name) $ lookup name env)
+	tmpVar    = ("", "@tmp")
+	resultVar = "@result"
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Cmm code, procedures %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+We collect the code for each Grin binding to map to a C-- procedure. Note that
+we skip here apply, since we cannot generate code for this function.
+
+%%[8
+ATTR AllBind [ | | cmmProcs USE {~>} {emptyBuilder}: {CmmToplevelBuilder} ]
+
+SEM GrBind
+  | Bind        loc . cmmProcs = buildProcedure @nm @argNmL @cmmBody
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Cmm code, Expressions %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+The attributes needed for code generation for expressions. The names in which
+to generate the code and the function which builds up the C-- body representing
+the Grin code.
+
+%%[8.Expressions
+ATTR GrExpr    [ | | cmmBody USE {~>} {emptyBuilder}: {CmmBodyBuilder} ]
+
+SEM GrBind
+  | Bind        loc . declaredVars = @tmpVars ~> nreg2varDef (noDups @expr.allUsedNames)
+                loc . cmmBody      = @traceStm ~> @declaredVars ~> @expr.cmmBody
+		loc . tmpVars      = foldr (\i f -> varDecl False "" valType [("@tmp" ++ show i, Nothing)] ~> f) emptyBuilder [1..4]
+%%]
+
+%%%%%%%%%%%%%%%%%%%
+%% Cmm code, Seq %%
+%%%%%%%%%%%%%%%%%%%
+
+The sequence operation does not generate code by itself, but does the chaining
+of commands.  The left hand side must create its result in the variables named
+in the pattern in this bind operation. This is the main task of GrExpr_Seq.
+
+%%[8.Seq
+ATTR AllGrExpr [ targetNames: {CmmNameRegister} | | allUsedNames USE {++} {[]}: {CmmNameRegister} ]
+
+SEM GrExpr
+  | Seq      expr . targetNames  = @pat.definedNames
+             body . targetNames  = @lhs.targetNames
+
+SEM GrExpr  
+  | Seq	         lhs  . allUsedNames = @expr.allUsedNames ++ @pat.definedNames ++ @body.allUsedNames
+
+SEM GrBind
+  | Bind   expr . targetNames = []
+
+  
+-- Collect names for a pattern in Seq
+ATTR GrPat [ | | definedNames USE {++} {[]}: {CmmNameRegister} ]
+SEM GrPat
+  | Node       loc . fldNames = map (elemVar.cmmName') @fldL
+               loc . definedNames = let 
+	                                knownTag   = maybe @fldNames (const $ tagVar "@tmp" : @fldNames) @tag.tagName
+	                                unknownTag = maybe @fldNames (\n -> tagVar n : @fldNames) @tag.tagName
+				    in if @tag.isPtr then unknownTag else knownTag
+  | NodeSplit  loc . definedNames = error "No NodeAdapt suport in GrPat"
+  | Tag        loc . definedNames = let knownTag   = maybe [] (const [tagVar "@tmp"]) @tag.tagName
+	                                unknownTag = maybe [] (\e -> [tagVar e]) @tag.tagName
+				    in if @tag.isPtr then unknownTag else knownTag
+  | Empty      loc . definedNames = []
+  | Var        loc . definedNames = [ elemVar . cmmName' $ @nm ]
+%%]
+
+%%%%%%%%%%%%%%%%%%%%
+%% Cmm code, Unit %%
+%%%%%%%%%%%%%%%%%%%%
+
+The grin unit operation returns values, both as a function return and as a copy
+operation. We use the size info to pad the return if necessary.
+
+%%[8.Unit
+SEM GrExpr
+  | Unit   loc  . dummyRet    = const . valArg $ int (-1)
+                . returnStm   = cmmReturn ""  (padWith @dummyRet @val.cmmReturnArgs @lhs.maxReturnSize)
+                . copyStm     = updates $ zipWith (\l e -> (varUpdate . fst $ l, e)) @lhs.targetNames @val.cmmExpressions
+                . cmmBody     = if @isLastExpr then @returnStm else @copyStm
+%%]
+
+%%%%%%%%%%%%%%%%%%%%
+%% Cmm code, Case %%
+%%%%%%%%%%%%%%%%%%%%
+
+The case is more a lot of translation work than anything else.  Case
+shortcutting can be done here. This is currently not implemented.
+
+TODO: implement case shortcutting
+
+Lowering grin has made the case expressions simple: the value to be scrutinised
+is a tag variable.  A pattern in an alternative list only a tag constant.
+
+%%[8.case
+ATTR GrAltL    [  | | cmmAlts: {CmmAlternatives} ]
+ATTR GrAlt     [  | | cmmAlt: {CmmAlternative} ]
+
+SEM GrAltL
+  | Cons   lhs  . cmmAlts     = @hd.cmmAlt : @tl.cmmAlts
+  | Nil    lhs  . cmmAlts     = []
+
+SEM GrAlt 
+  | Alt    lhs  . cmmAlt      = CmmAlternative_Alt [@pat.cmmRange] (build @expr.cmmBody)
+
+-- case alternative range
+ATTR GrPat [ | | cmmRange: {CmmRange} ] 
+SEM GrPat
+  | Tag        loc . cmmTN    = maybe (error "unknown tag in case pattern") (\n -> CmmRange_Single $ cmmVar n) @tag.tagName
+                   . cmmRange = if @tag.isPtr then error "not a constant in pattern of case alternative" else @cmmTN
+  | * - Tag    loc . cmmRange = error "no tag in case pattern"
+
+-- case scrutiniser
+ATTR GrVal [ | | caseExpr: {CmmExpression} ]
+SEM GrVal
+  | Tag        lhs . caseExpr = maybe (error "cannot scrutinise an unbox tag") id @tag.cmmExpr
+  | * - Tag    lhs . caseExpr = error "not a tag in a case"
+
+SEM GrExpr
+  | Case   loc  . cmmBody     = cmmSwitch @val.caseExpr @altL.cmmAlts
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%
+%% Cmm code, Calls %%
+%%%%%%%%%%%%%%%%%%%%%
+
+Function call, which can be tail calls if they are the last statement.
+targetNames might need to change to tell what kind of names are used. so
+names2knames can use this info.
+
+Apply and Eval calls are handled exactly the same currently.
+
+Note: this is a copy paste - after inlining of app is done this is not needed anymore
+%%[8 hs
+newNames :: HsName -> Int -> [HsName]
+newNames base count | count == 0 = []
+                    | otherwise  = suffix "_Tag" : map (\n -> suffix $ "_Field" ++ show n) [1..(count-1)]
+	where
+	suffix = hsnSuffix base
+%%]
+
+%%[8.Call
+SEM GrExpr
+  | Call   loc  . realRecievers = nreg2knames @lhs.targetNames
+                . argsReturned  = fromJust' ("Call: " ++ show @nm) $ lookup (cmmName' @nm) @lhs.returnSizeEnv
+                . recievers     = padWith mkTempVar @realRecievers @argsReturned
+                . cmmBody     = call' @isLastExpr @nm @argL.cmmFunctionArgs @recievers
+
+  | App    loc  . realRecievers = nreg2knames @lhs.targetNames
+                . argsReturned  = fromJust' ("Apply: " ++ show @appArgs) $ lookup apply @lhs.returnSizeEnv
+                . recievers     = padWith mkTempVar @realRecievers @argsReturned
+                . evalReturnCount = fromJust $ lookup eval @lhs.returnSizeEnv
+                . appArgs       = map (valArg. cmmVar') (newNames @nm @evalReturnCount)
+                . cmmBody       = call @isLastExpr apply (@appArgs ++ @argL.cmmFunctionArgs) @recievers
+
+  | Eval   loc  . realRecievers = nreg2knames @lhs.targetNames
+                . argsReturned  = fromJust' ("Eval: " ++ show @nm) $ lookup eval @lhs.returnSizeEnv
+                . recievers     = padWith mkTempVar @realRecievers @argsReturned
+                . cmmBody     = call @isLastExpr eval [arg' @lhs.cafEnv @nm] @recievers
+
+-- Collect function arguments 
+ATTR GrValL [ | | cmmFunctionArgs : {CmmActuals} ]
+ATTR GrVal  [ | | cmmFunctionArg  : {CmmActual } ]
+
+SEM GrValL
+  | Cons     lhs . cmmFunctionArgs = @hd.cmmFunctionArg : @tl.cmmFunctionArgs
+  | Nil      lhs . cmmFunctionArgs = []
+
+SEM GrVal
+  | Var      loc . cmmFunctionArg = head @cmmReturnArgs -- see: ValueInfo.cag
+  | * - Var  loc . cmmFunctionArg = error $ "actual requested, but no GrVal_Var"
+%%]
+
+%%%%%%%%%%%%%%%%%%%
+%% Cmm code, FFI %%
+%%%%%%%%%%%%%%%%%%%
+
+FFI is used for primitives and foreign calls (with the C calling convention).
+note that a C call cannot be handled as a last expression, this might change.
+
+%%[8.FFI
+SEM GrExpr
+  | FFI    loc  . recievers   = nreg2knames @lhs.targetNames
+                . primStm     = @primStmF @lhs.cafEnv (map cmmName' @argL) (nreg2names @lhs.targetNames)
+                . callStm     = cmmCall "C" (cmmVar $ cmmName @nm) (map (valArg . cmmVar') @argL) @recievers
+                . cmmBody     = if @isPrim then @primStm
+                                else if not @isLastExpr then @callStm
+                                else error "FFI as last expression"
+
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Cmm code, Monadic operations %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+We assume cmmExpressions gives us the correct code
+
+%%[8.MO
+SEM GrExpr
+  | Store  loc  . cmmBody     = buildStore @val.cmmExpressions (nreg2names @lhs.targetNames)
+
+  | Fetch  loc  . cmmBody     = buildFetch @nm  (nreg2names @lhs.targetNames)
+
+  | Update loc  . cmmBody     = buildUpdate @nm @val.cmmExpressions
+
+%%]
+TODO: make length etc correct
+%%[8.MO hs
+buildStore nms [p] = let grow          = 4 * max 4 (length nms)
+                         alloc         = [ (varUpdate p, cmmVar "@hp") 
+                                         , (varUpdate "@hp", cmmVar "@hp" <+> int grow)
+                                         ]
+                         assign e tf i = let hd = (memUpdate valType (cmmVar p) i, e)
+			                     tl = tf (i+4)
+                                         in hd:tl
+                         store         = foldr assign (const []) nms 0
+                     in updates alloc ~> updates store
+
+-- TODO: fix Fetch
+-- just load as much as possible
+buildFetch  p nms = let assign n tf i = let hd = (varUpdate n, fetch (cmmVar' p) i)
+                                            tl = tf (i+4)
+                                        in hd:tl
+                        fetches       = foldr assign (const []) nms 0
+                    in updates fetches
+
+-- TODO: fix Update
+-- just store the values (do not take space as a problem)
+buildUpdate p nms = let assign e tf i = let hd = (memUpdate valType (cmmVar' p) i, e)
+                                            tl = tf (i+4)
+                                        in hd:tl
+                        stores        = foldr assign (const []) nms 0
+                    in updates stores
+%%]

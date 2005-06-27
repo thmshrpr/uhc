@@ -15,7 +15,7 @@
 WRAPPER GrAGItf
 %%]
 
-%%[8 hs import(Data.FiniteMap, Data.Maybe, Control.Monad, Control.Monad.ST, Data.Array.ST, Data.Array.IArray)
+%%[8 hs import("qualified Data.Map as Map", Data.Maybe, Control.Monad, Control.Monad.ST, Data.Array.ST, Data.Array.IArray)
 %%]
 
 %%[8 hs import(Debug.Trace)
@@ -630,7 +630,7 @@ SEM GrAGItf
 revLookup l e = lookup e (map swap l)
 	where swap = uncurry (flip (,))
 
-getCafVar m k = getNr . fromJust' ("cafVar not found " ++ show k) $ lookupFM m k
+getCafVar m k = getNr . fromJust' ("cafVar not found " ++ show k) $ Map.lookup k m
 
 fromJust' _ (Just a ) = a
 fromJust' m (Nothing) = error $ "fromJust: " ++ m

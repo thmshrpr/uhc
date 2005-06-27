@@ -161,7 +161,7 @@ caHeapPointsTo bounds = do
     code   <- gets csGrinCode
     cm     <- gets csCafMap
     result <- liftIO $ heapPointsToAnalysis bounds cm code
-    modify (\s -> s { csMbHptMap = Just (result, emptyFM) })
+    modify (\s -> s { csMbHptMap = Just (result, Map.empty) })
 %%]
 
 %%[8.inline import(Trf.GrInline)
@@ -192,7 +192,8 @@ caGrin2Cmm :: CompileAction CmmUnit
 caGrin2Cmm = do
     code <- gets csGrinCode
     entry <- gets csEntry
-    return (grin2cmm entry code)
+    cafMap <- gets csCafMap
+    return (grin2cmm entry cafMap code)
 
 caWriteCmm :: CompileAction ()
 caWriteCmm = do
@@ -217,7 +218,7 @@ caWriteGrin fn = do
     liftIO $ writePP (ppGrModule Nothing) code output options
 %%]
 
-%%[8 import(Data.FiniteMap, HeapPointsToFixpoint)
+%%[8 import("qualified Data.Map as Map", HeapPointsToFixpoint)
 doCompileRun :: String -> Opts -> IO ()
 doCompileRun fn opts = let input     = mkTopLevelFPath "grin" fn
                            initState = CompileState

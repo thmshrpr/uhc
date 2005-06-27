@@ -18,7 +18,7 @@ variable is local to a binding, but we don't do that yet.
 WRAPPER GrAGItf
 %%]
 
-%%[8 hs module Trf.NumberIdents import(GRINCCommon, EHCommon, GrinCode, Data.Array.IArray, Data.FiniteMap, Data.Maybe) export(numberIdents)
+%%[8 hs module Trf.NumberIdents import(GRINCCommon, EHCommon, GrinCode, Data.Array.IArray, "qualified Data.Map as Map", Data.Maybe) export(numberIdents)
 
 numberIdents :: Int -> HsName -> GrModule -> (Int, HsName, GrModule, IdentNameMap, CafMap)
 numberIdents u entry grmod = let t        = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod))
@@ -32,16 +32,16 @@ numberIdents u entry grmod = let t        = wrap_GrAGItf (sem_GrAGItf (GrAGItf_A
 %%]
 
 %%[8.lookup hs
-type LookupList = FiniteMap HsName HsName
+type LookupList = Map.Map HsName HsName
 
-findNewVar fm e = lookupWithDefaultFM fm (HNPos $ -999) e
+findNewVar fm e = Map.findWithDefault (HNPos $ -999) e fm
 
 addMaybe u fm = maybe (fm, u) addName
 	where
-	addName e | e == wildcardNm  = (fm                    , u  )
-	          | otherwise        = (addToFM fm e (HNPos u), u+1)
+	addName e | e == wildcardNm  = (fm                       , u  )
+	          | otherwise        = (Map.insert e (HNPos u) fm, u+1)
 
-addList u fm = onFst (addListToFM fm) . foldr addName ([], [], u)
+addList u fm = onFst (flip listInsert fm) . foldr addName ([], [], u)
 	where
 	onFst f (a, b, c)                       = (f a          , b             , c  )
 	addName e (l, l2, u) | e == wildcardNm  = (l            , wildcardNr:l2 , u  )
@@ -69,7 +69,7 @@ SEM GrAGItf
 %%[8.translateEntry
 ATTR GrAGItf [ | entry: HsName | ]
 SEM GrAGItf
-  | AGItf  lhs . entry = fromJust $ lookupFM @bind2id @lhs.entry
+  | AGItf  lhs . entry = fromJust $ Map.lookup @lhs.entry @bind2id
 %%]
 
 %%[8.maps
@@ -79,12 +79,12 @@ ATTR GrModule AllBind [ | bind2idFrag: LookupList cafVar: LookupList | ]
 ATTR GrModule AllBind [ | cafMap: CafMap | ]
 
 SEM GrAGItf
-  | AGItf  module  .  bind2idFrag  = emptyFM
-                   .  cafVar       = emptyFM
-                   .  cafMap       = emptyFM
+  | AGItf  module  .  bind2idFrag  = Map.empty
+                   .  cafVar       = Map.empty
+                   .  cafMap       = Map.empty
                    .  var2id       = @module.cafVar
            loc     .  bind2id      = @module.bind2idFrag
-                   .  origNames    = fmToList @bind2id ++ fmToList @module.var2id
+                   .  origNames    = Map.toList @bind2id ++ Map.toList @module.var2id
                    .  varMapping   = [ (i, n) | (n, HNPos i) <- @origNames, not (n `elem` [applyNm, evalNm]) ]
                    .  varMap       = array (@low, @high-1) @varMapping
 %%]
@@ -92,12 +92,12 @@ SEM GrAGItf
 retrieving names and their mapping
 
 %%[8.addMbFM hs
-addMbToFM fm mbk mbv = maybe fm id mbFM
+addMbToMap fm mbk mbv = maybe fm id mbMap
     where
-    mbFM = do
+    mbMap = do
         k <- mbk
         v <- mbv
-        return $ addToFM fm k v
+        return $ Map.insert k v fm
 %%]
 
 %%[8.caf
@@ -107,8 +107,8 @@ SEM GrBind
                .  cafVarName   = if @isCaf then Just $ HNPos @lhs.cafVarUniq else Nothing
                .  cafUniq      = if @isCaf then @lhs.cafUniq+1               else @lhs.cafUniq
                .  cafVarUniq   = if @isCaf then @lhs.cafVarUniq+1            else @lhs.cafVarUniq
-               .  cafMap       = addMbToFM @lhs.cafMap @cafName   @cafVarName
-               .  cafVar       = addMbToFM @lhs.cafVar (Just @nm) @cafVarName
+               .  cafMap       = addMbToMap @lhs.cafMap @cafName   @cafVarName
+               .  cafVar       = addMbToMap @lhs.cafVar (Just @nm) @cafVarName
 %%]
 
 %%[8.bindings
@@ -122,7 +122,7 @@ SEM GrBind
                                           else (HNPos @lhs.unique, @lhs.unique+1)
                .  bind2idFrag          = if isSpecialBind @nm
                                          then @lhs.bind2idFrag
-                                         else addToFM @lhs.bind2idFrag @nm @bindName
+                                         else Map.insert @nm @bindName @lhs.bind2idFrag
 %%]
 
 %%[8.TagName
@@ -136,7 +136,7 @@ SEM GrPat
   | Node       loc  .  (var2id', newNames, unique') = addList @lhs.unique @lhs.var2id @fldL
   | Tag        loc  .  var2id'  = @lhs.var2id
                     .  unique'  = @unique'
-  | Var        lhs  .  var2id   = addToFM @lhs.var2id @nm (HNPos @lhs.unique)
+  | Var        lhs  .  var2id   = Map.insert @nm (HNPos @lhs.unique) @lhs.var2id
                     .  unique   = @lhs.unique + 1
                loc  .  newName  = HNPos @lhs.unique
   | Node Tag   loc  .  (var2id , unique )  = addMaybe @unique' @var2id' @tag.varName

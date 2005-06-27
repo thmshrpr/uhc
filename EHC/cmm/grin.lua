@@ -12,8 +12,8 @@ end
 -- Tell the driver how to convert a .grin fle into a .cmm file
 function CMD.compilertab[".grin"](file)
   local out      = CMD.outfilename(file, ".cmm") -- compiler generate output to this path
-  local grinc    = Frontends.GRIN.file("grc")
-  local options  = ""
+  local grinc    = Frontends.GRIN.file("grinc")
+  local options  = "-v2"
   --if Frontends.GRINC.aOption then options = "..." end -- allow options
   CMD.exec(grinc .. " " .. options .. " " .. file)
   return out

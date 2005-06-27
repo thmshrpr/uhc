@@ -151,8 +151,11 @@ envChangeSet am env heap applyMap = case am of
                                         EnvUnion    vs mbS -> let addApplyArgument s av = envChangeSet s env heap applyMap >>= return . flip mappend av
                                                               in mapM valAbsEnv vs >>= return . mconcat >>= maybe return addApplyArgument mbS
                                         EnvEval     v      -> valAbsEnv v >>= evalChangeSet
-                                        EnvApp      f a    -> valAbsEnv f >>= flip applyChangeSet a
-                                        EnvLazyApp  f a    -> valAbsEnv f >>= evalChangeSet >>= flip applyChangeSet a >> return AV_Nothing
+                                        EnvApp      f a    -> do { pnodes  <- valAbsEnv f 
+                                                                 ; argsVal <- mapM (\(Left v) -> valAbsEnv v) a
+                                                                 ; applyChangeSet pnodes argsVal
+                                                                 }
+                                        EnvLazyApp  f a    -> return AV_Nothing -- valAbsEnv f >>= evalChangeSet >>= flip applyChangeSet a >> return AV_Nothing
                                         EnvSelect   v n i  -> valAbsEnv v >>= return . selectChangeSet n i
                                         EnvTag      t f r  -> tagChangeSet t f r
 	where
@@ -197,28 +200,28 @@ envChangeSet am env heap applyMap = case am of
                                ; let newNodes = AV_Nodes [(t, vars)]
                                ; maybe (return newNodes) (\v -> valAbsEnv v >>= return . mappend newNodes) r
                                }
-    --applyChangeSet :: AbstractValue -> [Variable] -> ST s AbstractValue
-    applyChangeSet f args = let len              = length args
-                                nodes            = case f of 
-                                                       AV_Nodes nodes -> nodes
-                                                       AV_Nothing     -> []
-                                                       otherwise      -> error $ "apply on function: " ++ show f
-                                pnodes           = [ (t,n,m,a) | (t@(GrTag_Lit (GrTagPApp m) _ n), a) <- nodes ] -- missing: Fnodes can return a pnode?
-                                changeApplyNode n m a  = if len > m then 
-                                                         error "apply chains not supported yet"
-                                                         else do { let tag = if len == m
-                                                                             then GrTag_Lit GrTagFun 0 n
-                                                                             else GrTag_Lit (GrTagPApp $ m - len) 0 n -- TODO: use the applyMap for this?
-                                                                 ; argsVal <- mapM (\(Left v) -> valAbsEnv v) args
-                                                                 ; let newNode = (tag, a ++ argsVal)
-                                                                 ; appendApplyArg env (AV_Nodes [newNode])
-                                                                 ; return (if len == m then Nothing else Just newNode)
-                                                                 }
-                                makeChangeSet n mNode = maybe (valAbsEnv $ getResultVar n) (\x -> return $ AV_Nodes [x]) mNode
-                                getResultVar :: GrTag -> Int
-                                getResultVar          = (\(Right i) -> i) . fromJust . flip lookup applyMap
-                                getNewTag             = (\(Left  t) -> t) . fromJust . flip lookup applyMap
-                            in mapM (\(t,n,m,a) -> changeApplyNode n m a >>= makeChangeSet t) pnodes >>= return . mconcat
+    --applyChangeSet :: AbstractValue -> [AbstractValue] -> ST s AbstractValue
+    applyChangeSet f argsVal = 
+        let len              = length argsVal
+            nodes            = case f of
+                                   AV_Nodes nodes -> nodes
+                                   AV_Nothing     -> []
+                                   otherwise      -> error $ "apply on function: " ++ show f
+            pnodes           = [ (t,n,m,a) | (t@(GrTag_Lit (GrTagPApp m) _ n), a) <- nodes ] -- missing: Fnodes can return a pnode?
+            changeApplyNode n m a  = if len > m then 
+                                     error "apply chains not supported yet"
+                                     else do { let tag = if len == m
+                                                         then GrTag_Lit GrTagFun 0 n
+                                                         else GrTag_Lit (GrTagPApp $ m - len) 0 n -- TODO: use the applyMap for this?
+                                             ; let newNode = (tag, a ++ argsVal)
+                                             ; appendApplyArg env (AV_Nodes [newNode])
+                                             ; return (if len == m then Nothing else Just newNode)
+                                             }
+            makeChangeSet n mNode = maybe (valAbsEnv $ getResultVar n) (\x -> return $ AV_Nodes [x]) mNode
+            getResultVar :: GrTag -> Int
+            getResultVar          = (\(Right i) -> i) . fromJust . flip lookup applyMap
+            getNewTag             = (\(Left  t) -> t) . fromJust . flip lookup applyMap
+        in mapM (\(t,n,m,a) -> changeApplyNode n m a >>= makeChangeSet t) pnodes >>= return . mconcat
 %%]
 
 %%[8 export(lookupEnv)
@@ -247,6 +250,7 @@ type WorkList    = [Label]
 type Depends     = (Label -> [Label])
 type Analysis  s = (AbstractEnv s, AbstractHeap s)
 
+{-
 fixpoint :: Analysis s -> Depends -> WorkList -> (Label -> Analysis s -> ST s (Analysis s, Bool)) -> ST s (Analysis s)
 fixpoint base deps []              f = return base
 fixpoint base deps (work:worklist) f = do
@@ -254,6 +258,17 @@ fixpoint base deps (work:worklist) f = do
     ; if changed
       then fixpoint step deps (deps work ++ worklist) f
       else fixpoint base deps worklist f
+    }
+-}
+
+fixpoint analysis labels f = do
+    { let doStep (analysis, hasChanges) l = do { (analysis', isChanged) <- f l analysis
+                                               ; return (analysis', hasChanges || isChanged)
+                                               }
+    ; (analysis', changes) <- foldM doStep (analysis, False) labels
+    ; if changes
+      then fixpoint analysis' labels f
+      else return analysis'
     }
 %%]
 
@@ -277,7 +292,7 @@ heapPointsTo env heap applyMap =
             ; when changed (writeArray heap i e')
             ; return ((env,heap), changed)
             }
-    in fixpoint (env,heap) (const labels) labels f
+    in fixpoint (env,heap) labels f
 
 
 isChanged :: AbstractValue -> AbstractValue -> Bool

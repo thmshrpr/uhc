@@ -1,10 +1,10 @@
 module "apply"
-{ $app $f $a
+{ $app $f $a1
     = { eval $f ; \$e ->
-        apply $e $a
+        apply $e $a1
       }
-; $id $a
-    = { eval $a
+; $id $a2
+    = { eval $a2
       }
 ; main 
     = { store (#0/P/1/$id 0) ; \$id ->
@@ -14,7 +14,7 @@ module "apply"
 }
 
 ctags
-{ $_Int  = $_Int  0 1
+{ $Int  = $Int  0 1
 }
 
 evalmap 

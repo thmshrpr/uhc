@@ -1,0 +1,30 @@
+% $Id$
+
+%%[0
+%include lhs2TeX.fmt
+%include afp.fmt
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%
+%%  Collecting Tags %%
+%%%%%%%%%%%%%%%%%%%%%%
+
+Tags will become constants in C--. Here they are collected to give each tag an
+unique number. We need to know which tag layout should be used.
+
+Small layout for nodes which fit in 4 words
+
+%%[8 hs
+data TagLayout = SmallLayout | BigLayout
+	deriving (Eq,Show)
+type TagEnv    = [(CmmName, TagLayout)]
+
+tagLit2cmmName (GrTag_Lit c _ n) = '@' : categStr c ++ cmmName' n
+%%]
+
+%%[8.tagConstants
+ATTR AllGrNT [ | | tags USE {++} {[]}: {TagEnv} ]
+SEM GrModule
+  | Mod  loc . tags    = let chooseLayout ((t, s), _) = (tagLit2cmmName t, if (s+1) < 4 then SmallLayout else BigLayout)
+                         in map chooseLayout @evalTagMp
+%%]

@@ -103,4 +103,6 @@ grinc/GrPointsToAnalysis.hs: grinc/GrPointsToAnalysis.ag grinc/GrCAFNames.ag gri
 
 grinc/HeapPointsToFixpoint.hs: EHCommon.hs
 
+grinc/Cmm/FromGrin.hs: grinc/Cmm/FromGrin.ag GrinCodeAbsSyn.ag GrinCode.hs grinc/Cmm/CmmBuilding.hs $(wildcard src/grinc/Cmm/FromGrin/*.ag)
+
 %%]

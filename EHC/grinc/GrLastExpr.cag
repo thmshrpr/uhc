@@ -19,7 +19,7 @@ SEM GrBind
 
 SEM GrExpr
   | Seq      expr . hasNext = True
-             body . hasNext = False
+             body . hasNext = @lhs.hasNext
 
 SEM GrExpr
   | * - Seq Case  loc . isLastExpr = not @lhs.hasNext

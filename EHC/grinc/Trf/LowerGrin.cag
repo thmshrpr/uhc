@@ -19,7 +19,7 @@ later:
 WRAPPER GrAGItf
 %%]
 
-%%[8 hs module Trf.LowerGrin import(EHCommon, FiniteMap, GrinCode) export(lowerGrin)
+%%[8 hs module Trf.LowerGrin import(EHCommon, "qualified Data.Map as Map", GrinCode) export(lowerGrin)
 lowerGrin :: GrModule -> GrModule
 lowerGrin grmod = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod)) Inh_GrAGItf
                   in grTrf_Syn_GrAGItf t
@@ -190,31 +190,33 @@ In a case we transform from the maximal node size of the scrutinized value to
 the maximal node size in each alternative. (see below)
 
 %%[8
-ATTR AllGrNT [ grNodeSubst : {FiniteMap HsName GrVal} | |                                        ]
-ATTR GrPat   [                                        | | grNodeSubst : {FiniteMap HsName GrVal} ]
+ATTR AllGrNT [ grNodeSubst : {Map.Map HsName GrVal} | |                                        ]
+ATTR GrPat   [                                        | | grNodeSubst : {Map.Map HsName GrVal} ]
 
 
 SEM GrAGItf
-  | AGItf    module . grNodeSubst = emptyFM
+  | AGItf    module . grNodeSubst = Map.empty
 
 -- An apply has one argument which shoud be vectorised
 SEM GrBind
   | Bind     expr   . grNodeSubst = let (tn:fldnL) = @newVectorArgs
                                         vars       = map GrVal_Var fldnL
                                     in if @nm == HNm "apply"
-                                       then addToFM @lhs.grNodeSubst @vectorArg
+                                       then Map.insert
+                                            @vectorArg
                                             (GrVal_Node (GrTag_Var tn) vars)
+                                            @lhs.grNodeSubst 
                                        else @lhs.grNodeSubst
 
 SEM GrPat
-  | Var      lhs . grNodeSubst = addToFM @lhs.grNodeSubst @nm (GrVal_Node (GrTag_Var @tn) (map GrVal_Var @fldnL))
+  | Var      lhs . grNodeSubst = Map.insert @nm (GrVal_Node (GrTag_Var @tn) (map GrVal_Var @fldnL)) @lhs.grNodeSubst
 
 SEM GrVal
-  | Var      loc . maybeNode   = lookupFM @lhs.grNodeSubst @nm
+  | Var      loc . maybeNode   = Map.lookup @nm @lhs.grNodeSubst
                  . node        = maybe @grTrf id @maybeNode
 
 SEM GrExpr
-  | Eval     loc . maybeNode   = lookupFM @lhs.grNodeSubst @nm
+  | Eval     loc . maybeNode   = Map.lookup @nm @lhs.grNodeSubst
                  . newName     = maybe @nm (\(GrVal_Var nm) -> nm) @maybeNode
              lhs . grTrf       = GrExpr_Eval @newName
 %%]
@@ -270,8 +272,8 @@ SEM GrPat
 -- add the substitutions for the case alternatives
 SEM GrAlt
   | Alt           expr . grNodeSubst = let (GrVal_Node t l) = @lhs.varNode -- if failed: no node in a case
-                                           mappings         = listToFM $ zipWith (\o n -> (o, n)) @pat.patFieldL l
+                                           mappings         = Map.fromList $ zipWith (\o n -> (o, n)) @pat.patFieldL l
                                            newNode          = GrVal_Node t (zipWith const l @pat.patFieldL)
-                                           addVectorMap  fm = maybe fm (\n -> addToFM fm n newNode) @lhs.varName
-                                       in addVectorMap $ @lhs.grNodeSubst `plusFM` mappings
+                                           addVectorMap  fm = maybe fm (\n -> Map.insert n newNode fm) @lhs.varName
+                                       in addVectorMap $ @lhs.grNodeSubst `Map.union` mappings
 %%]
