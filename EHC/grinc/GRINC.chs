@@ -183,7 +183,8 @@ caLowerGrin :: CompileAction ()
 caLowerGrin = do
     putMsg VerboseALot "Lowering GRIN" Nothing
     code <- gets csGrinCode
-    code <- return $ lowerGrin code
+    cafMap <- gets csCafMap
+    code <- return $ lowerGrin cafMap code
     modify (csUpdateGrinCode code)
 %%]
 
