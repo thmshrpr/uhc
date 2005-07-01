@@ -1,0 +1,67 @@
+% $Id$
+
+TODO: Make the copy propagation
+
+%%[0
+%include lhs2TeX.fmt
+%include afp.fmt
+%%]
+
+%%[8 import(../../GrinCodeAbsSyn)
+%%]
+
+%%[8.wrapper
+WRAPPER GrAGItf
+%%]
+
+%%[8 hs module Trf.CopyPropagation import(EHCommon, GRINCCommon, GrinCode) export(propagate)
+propagate :: GrModule -> GrModule
+propagate grmod = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod))
+                                       (Inh_GrAGItf)
+                  in grTrf_Syn_GrAGItf t
+%%]
+
+
+%%[8
+ATTR GrAGItf [ | | grTrf: GrModule ]
+ATTR AllGrNT [ | | grTrf: SELF ]
+%%]
+
+%%[8.unitInfo
+ATTR GrExpr [ | | unitInfo : {Maybe GrVal} ]
+
+SEM GrExpr
+  | Unit      loc  .  unitInfo = Just @val.grTrf
+  | * - Unit  loc  .  unitInfo = Nothing
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%
+%%% Left Unit law %%%
+%%%%%%%%%%%%%%%%%%%%%
+
+A bit to simple, we must allow:
+
+unit (t a1 an); \(t' a1' an') -> e => [t/t' a1/a1' an/an']
+unit (t a1 an); \v'           -> e => [(t a1 an)/v']
+unit v        ; \(t' a1' an') -> e => Do not propogate, only if a1 .. an do not occur in e. (do we lose tag info in that case?)
+unit v        ; \v'           -> e => [v/v']
+
+
+%%[8 hs import(qualified Data.Map as Map)
+type ValueMap = Map.Map GrVal GrVal
+%%]
+
+%%[8.leftUnit
+ATTR AllGrExpr [ valueMap: ValueMap | | ]
+
+SEM GrBind
+  | Bind  expr  .  valueMap  =  Map.empty
+
+SEM GrExpr
+  | Seq   loc  .  (canTrf, subst)  = let transform v = case (v, @pat.grTrf) of
+                                                           (GrVal_Node vt vl,  GrPat_Node pt pl) -> (False, (pt, vt) : zip pl vl)
+
+                                     in maybe @lhs.valueMap (\v -> Map.insert @lhs.valueMap @pat.grTrf v) @expr.unitInfo
+%%]
+
+% vim:ts=4:et:ai:

@@ -72,10 +72,11 @@ buildEvalAlt l s t av evalMap hptMap u = buildAlternative t av arity rhs u uf vf
 
 evalCode unique evalMap hptMap loc = let unique'                    = unique+1
                                          fetchVar                   = HNPos unique
-                                         nodes                      = getNodes $ absFetch hptMap loc
+                                         fetchAbsVal                = absFetch hptMap loc
+                                         nodes                      = getNodes fetchAbsVal
                                          makeAlt  (t, av) (u, h, l) = let (u', h', alt) = buildEvalAlt loc fetchVar t av evalMap hptMap u
                                                                       in (u', h' ++ h, alt:l)
-                                         (unique'', hptDelta, alts) = foldr makeAlt (unique', [], []) nodes
+                                         (unique'', hptDelta, alts) = foldr makeAlt (unique', [(unique, fetchAbsVal)], []) nodes
                                          code                       = GrExpr_Seq (GrExpr_Fetch loc Nothing)
                                                                                  (GrPat_Var fetchVar)
                                                                                  (GrExpr_Case (GrVal_Var fetchVar) alts)

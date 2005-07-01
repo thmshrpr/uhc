@@ -178,6 +178,25 @@ caInlineEA = do
     return $ unique' - unique
 %%]
 
+%%[8.sparseCase import(Trf.SparseCase)
+caSparseCase :: CompileAction ()
+caSparseCase = do
+    putMsg VerboseALot "Removing impossible case alternatives" Nothing
+    code <- gets csGrinCode
+    hptMap <- gets csHptMap
+    code <- return $ sparseCase hptMap code
+    modify (csUpdateGrinCode code)
+%%]
+
+%%[8.eliminateCase import(Trf.CaseElimination)
+caEliminateCases :: CompileAction ()
+caEliminateCases = do
+    putMsg VerboseALot "Removing evaluated and trivial cases" Nothing
+    code <- gets csGrinCode
+    code <- return $ eliminateCases code
+    modify (csUpdateGrinCode code)
+%%]
+
 %%[8.lowering import(Trf.LowerGrin)
 caLowerGrin :: CompileAction ()
 caLowerGrin = do
@@ -269,6 +288,10 @@ caNormalize = task_ VerboseNormal "Normalizing"
     ( do { caInlineEA
          ; debugging <- gets (optDebug . csOpts)
          ; when debugging (caWriteGrin "inlined")
+         ; caSparseCase
+         ; caEliminateCases
+         ; debugging <- gets (optDebug . csOpts)
+         ; when debugging (caWriteGrin "optimized")
          ; caLowerGrin
          }
     )

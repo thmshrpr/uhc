@@ -38,7 +38,8 @@ help:
 ##########################
 
 TRANS_SRC    := $(GT)/NumberIdents.hs $(GT)/NormForHPT.hs $(GT)/RightSkew.hs $(GT)/NameIdents.hs \
-                $(GT)/LowerGrin.hs $(GT)/DropUnusedBindings.hs $(GT)/GrInline.hs
+                $(GT)/LowerGrin.hs $(GT)/DropUnusedBindings.hs $(GT)/GrInline.hs $(GT)/CaseElimination.hs \
+		$(GT)/SparseCase.hs
 
 GRINC_SOURCE := grinc/GRINC.hs grinc/CompilerDriver.hs grinc/GRINCCommon.hs EHCommon.hs EHScanner.hs \
                 GrinCode.hs GrinCodePretty.hs gri/GRIParser.hs grinc/Cmm/FromGrin.hs \
@@ -86,6 +87,12 @@ $(GT)/RightSkew.hs: $(GT)/RightSkew.ag GrinCodeAbsSyn.ag GrinCode.hs
 	$(call AGCC,$<,$(AGC_FLAGS_CODE))
 
 $(GT)/GrInline.hs: $(GT)/GrInline.ag GrinCodeAbsSyn.ag GrinCode.hs
+	$(call AGCC,$<,$(AGC_FLAGS_CODE))
+
+$(GT)/SparseCase.hs: $(GT)/SparseCase.ag GrinCodeAbsSyn.ag GrinCode.hs
+	$(call AGCC,$<,$(AGC_FLAGS_CODE))
+
+$(GT)/CaseElimination.hs: $(GT)/CaseElimination.ag GrinCodeAbsSyn.ag GrinCode.hs
 	$(call AGCC,$<,$(AGC_FLAGS_CODE))
 
 # standard build
