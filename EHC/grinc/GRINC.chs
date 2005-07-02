@@ -197,6 +197,21 @@ caEliminateCases = do
     modify (csUpdateGrinCode code)
 %%]
 
+%%[8.propagate import(Trf.CopyPropagation)
+caCopyPropagation1 :: CompileAction Bool
+caCopyPropagation1 = do
+    code <- gets csGrinCode
+    (changed, code) <- return $ propagate code
+    let msg = if changed then "Changes" else "No change"
+    debugging <- gets (optDebug . csOpts)
+    when debugging (liftIO $ putStrLn msg)
+    modify (csUpdateGrinCode code)
+    return changed
+
+caCopyPropagation :: CompileAction ()
+caCopyPropagation = task VerboseALot "Copy propagation" (caFix caCopyPropagation1) (\i -> Just $ show i ++ " iteration(s)")
+%%]
+
 %%[8.lowering import(Trf.LowerGrin)
 caLowerGrin :: CompileAction ()
 caLowerGrin = do
@@ -286,10 +301,12 @@ caAnalyse = task_ VerboseNormal "Analysing"
     
 caNormalize = task_ VerboseNormal "Normalizing" 
     ( do { caInlineEA
+         ; caRightSkew
          ; debugging <- gets (optDebug . csOpts)
          ; when debugging (caWriteGrin "inlined")
          ; caSparseCase
          ; caEliminateCases
+         ; caCopyPropagation 
          ; debugging <- gets (optDebug . csOpts)
          ; when debugging (caWriteGrin "optimized")
          ; caLowerGrin

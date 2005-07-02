@@ -14,32 +14,112 @@ TODO: Make the copy propagation
 WRAPPER GrAGItf
 %%]
 
-%%[8 hs module Trf.CopyPropagation import(EHCommon, GRINCCommon, GrinCode) export(propagate)
-propagate :: GrModule -> GrModule
+%%[8 hs module Trf.CopyPropagation import(EHCommon, GRINCCommon, GrinCode, Data.Maybe) export(propagate)
+propagate :: GrModule -> (Bool, GrModule)
 propagate grmod = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod))
                                        (Inh_GrAGItf)
-                  in grTrf_Syn_GrAGItf t
+                  in (isTrf_Syn_GrAGItf t, grTrf_Syn_GrAGItf t)
 %%]
 
 
 %%[8
-ATTR GrAGItf [ | | grTrf: GrModule ]
-ATTR AllGrNT [ | | grTrf: SELF ]
+ATTR GrAGItf [ | | grTrf: GrModule  isTrf: Bool                   ]
+ATTR AllGrNT [ | | grTrf: SELF      isTrf USE {||} {False}: Bool  ]
 %%]
 
-%%[8.unitInfo
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Value Information %%%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8 hs
+genInfo v p nnf nvf vnf vvf = case (v,p) of
+    (GrVal_Node vt vls, GrPat_Node pt nms) -> nnf vt vls pt nms
+    (GrVal_Tag  vt    , GrPat_Node pt nms) -> nnf vt  [] pt nms
+    (GrVal_Node vt vls, GrPat_Tag  pt    ) -> nnf vt vls pt  []
+    (GrVal_Tag  vt    , GrPat_Tag  pt    ) -> nnf vt  [] pt  []
+    (GrVal_Node vt vls, GrPat_Var  pn    ) -> nvf vt vls pn
+    (GrVal_Tag  vt    , GrPat_Var  pn    ) -> nvf vt  [] pn
+    (GrVal_Var  vn    , GrPat_Node pt nms) -> vnf vn     pt nms
+    (GrVal_Var  vn    , GrPat_Tag  pt    ) -> vnf vn     pt  []
+    (GrVal_Var  vn    , GrPat_Var  pn    ) -> vvf vn     pn
+%%]
+
+%%[8.valueInfo
 ATTR GrExpr [ | | unitInfo : {Maybe GrVal} ]
 
 SEM GrExpr
-  | Unit      loc  .  unitInfo = Just @val.grTrf
-  | * - Unit  loc  .  unitInfo = Nothing
+  | Unit          loc  .  unitInfo = Just @val.grTrf
+  | Seq           loc  .  unitInfo = @expr.unitInfo
+  | * - Unit Seq  loc  .  unitInfo = Nothing
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%
+%%% Right Unit law %%%
+%%%%%%%%%%%%%%%%%%%%%%
+
+removes terms like '\x -> unit x'
+
+two forms possible:
+    seq v x (unit x)           => v
+    seq v x (seq (unit x) p e) => seq v p e
+
+example:    
+    seq f 8 (seq (unit 8) 13 (seq (unit 13) p e))
+
+   inner: lhs.grTrf = seq f  8 (seq (unit  8) p e)
+   outer: lhs.grTrf = seq f 13 (seq (unit 13) p e)
+
+We give the v and x to the next element. 
+
+%%[8.rightUnit hs
+makeRightUnitExpr seqPat unitVal seqExpr newExpr   = 
+    do { p <- seqPat
+       ; e <- seqExpr
+       ; v <- unitVal
+       ; let vvf vn pn          = if vn == pn
+                                  then Just $ newExpr e
+                                  else Nothing
+             nnf vt vls pt pls  = let sameArgs     = zipWith sameArg vls pls
+                                      sameArg v p  = case v of
+                                                         GrVal_Var n -> n == p
+                                                         otherwise   -> False
+                                  in if vt == pt && and sameArgs
+                                     then Just $ newExpr e
+                                     else Nothing
+             vnf vn     pt pls  = Nothing
+             nvf vt vls vn      = Nothing
+       ; genInfo v p nnf nvf vnf vvf
+       }
+%%]
+
+%%[8.rightUnit
+ATTR GrExpr [ seqExpr: {Maybe GrExpr}  seqPat: {Maybe GrPat} | | rightTrf: {Maybe GrExpr} ]
+
+SEM GrExpr
+  |  Seq   lhs   .  rightTrf  =  makeRightUnitExpr @lhs.seqPat @expr.unitInfo
+                                                   @lhs.seqExpr (\e -> GrExpr_Seq e @pat.grTrf @body.grTrf)
+                 .  grTrf     =  maybe @grTrf id @body.rightTrf
+                 .  isTrf     =  isJust @body.rightTrf || @expr.isTrf || @body.isTrf
+           body  .  seqExpr   =  Just @expr.grTrf
+                 .  seqPat    =  Just @pat.grTrf
+           expr  .  seqExpr   =  Nothing
+                 .  seqPat    =  Nothing
+  |  Unit  lhs   .  rightTrf  =  makeRightUnitExpr @lhs.seqPat @unitInfo 
+                                                    @lhs.seqExpr id
+  | * - Seq Unit  lhs  .  rightTrf = Nothing
+
+SEM GrAlt
+  | Alt   expr  .  seqExpr  = Nothing
+                .  seqPat   = Nothing
+SEM GrBind
+  | Bind  expr  .  seqExpr  = Nothing
+                .  seqPat   = Nothing
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%
 %%% Left Unit law %%%
 %%%%%%%%%%%%%%%%%%%%%
 
-A bit to simple, we must allow:
 
 unit (t a1 an); \(t' a1' an') -> e => [t/t' a1/a1' an/an']
 unit (t a1 an); \v'           -> e => [(t a1 an)/v']
@@ -47,7 +127,7 @@ unit v        ; \(t' a1' an') -> e => Do not propogate, only if a1 .. an do not 
 unit v        ; \v'           -> e => [v/v']
 
 
-%%[8 hs import(qualified Data.Map as Map)
+%%[8 hs import("qualified Data.Map as Map")
 type ValueMap = Map.Map GrVal GrVal
 %%]
 
@@ -57,11 +137,6 @@ ATTR AllGrExpr [ valueMap: ValueMap | | ]
 SEM GrBind
   | Bind  expr  .  valueMap  =  Map.empty
 
-SEM GrExpr
-  | Seq   loc  .  (canTrf, subst)  = let transform v = case (v, @pat.grTrf) of
-                                                           (GrVal_Node vt vl,  GrPat_Node pt pl) -> (False, (pt, vt) : zip pl vl)
-
-                                     in maybe @lhs.valueMap (\v -> Map.insert @lhs.valueMap @pat.grTrf v) @expr.unitInfo
 %%]
 
 % vim:ts=4:et:ai:

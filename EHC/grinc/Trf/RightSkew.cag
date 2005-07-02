@@ -33,12 +33,28 @@ ATTR AllGrNT [ | | copy:  SELF     ]
 ATTR AllGrExpr AllBind GrModule GrAGItf [ | | active USE {||} {False} : Bool ]
 %%]
 
-The copy is needed to implement the transformation in a top down fashen rather
+The copy is needed to implement the transformation in a top down fashion rather
 than bottom up. This saves needless movements.  (If the tree is left skewed
 more than one deep.)
 
+1 deep:
 Seq (Seq m a k) b h
 Seq m a (Seq k b h)
+
+2 deep - top down:
+Seq (Seq (Seq m c l) a k) b h
+run one:
+Seq (Seq m c l) a (Seq k b h)
+run two:
+Seq m c (Seq l a (Seq k b h))
+
+2 deep - bottom up:
+Seq (Seq (Seq m c l) a k) b h
+run one:
+Seq (Seq m c (Seq l a k)) b h
+Seq m c (Seq (Seq l a k) b h)
+run two:
+Seq m c (Seq l a (Seq k b h))
 
 %%[8.rightSkew
 SEM GrExpr
