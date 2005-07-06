@@ -1,0 +1,83 @@
+module "sample"
+{ $Cons $h $t
+    = { unit (#0/C/$Cons 2 $h $t) }
+; $Nil
+    = { unit (#1/C/$Nil 0)}
+; $_add $x $y
+    = { eval $x ; \(#0/C/$Int $__ $x' ) ->
+        eval $y ; \(#0/C/$Int $__ $y' ) ->
+        ffi primAddInt $x' $y' ; \(#U $z') ->
+        unit (#0/C/$Int 1 $z')
+      }
+; rec
+    { $foldl $f $b $l
+        = { eval $l ; \$el ->
+            case $el of
+              { (#0/C/$Cons $__ $hl $tl)
+                    -> { store (#0/F/$foldl 3 $f $b  $tl) ; \$s1 ->
+                         store (#0/A/apply2 3 $f $s1 $hl) ; \$s2 ->
+                         eval $s2
+                       }
+              ; (#1/C/$_Nil $__)
+                    -> { eval $b
+                       }
+              }
+          }
+    }
+; $sum
+    = { store (#0/P/2/$add  0        ) ; \$s3 ->
+        store (#0/C/$Int    1 0      ) ; \$s4 ->
+        unit (#0/P/1/$foldl 2 $s3 $s4)
+      }
+; $list
+    = { store (#0/C/$Int 1 5) ; \$s5 ->
+        $Cons $s5 $Nil        ; \$c5 ->
+        store (#0/C/$Int 1 4) ; \$s6 ->
+        $Cons $s6 $c5         ; \$c4 ->
+        store (#0/C/$Int 1 3) ; \$s7 ->
+        $Cons $s7 $c4         ; \$c3 ->
+        store (#0/C/$Int 1 2) ; \$s8 ->
+        $Cons $s8 $c3         ; \$c2 ->
+        store (#0/C/$Int 1 1) ; \$s9 ->
+        $Cons $s9 $c2
+      }
+; main
+    = { eval $sum ; \$e2 ->
+        apply $e2 $list
+      }
+; app2 $pf $a1 $a2
+    = { eval $pf ; \epf ->
+        apply $epf $a1 $a2
+      }
+}
+ctags
+{ $Int  = $Int  0 1
+; $List = $Cons 0 2 
+        | $Nil  1 0
+} 
+
+evalmap
+{ #0/C/$Int      1 -> unit
+; #0/C/$Cons     2 -> unit
+; #1/C/$Nil      0 -> unit
+; #0/P/2/$add    0 -> unit
+; #0/P/1/$add    1 -> unit
+; #0/P/3/$foldl  0 -> unit
+; #0/P/2/$foldl  1 -> unit
+; #0/P/1/$foldl  2 -> unit
+; #0/A/apply2    3 -> app2
+; #0/F/main      0 -> main
+; #0/F/$add      2 -> $add
+; #0/F/$foldl    3 -> $foldl
+; #0/F/$sum      0 -> $sum
+; #0/F/$list     0 -> $list
+; #0/F/$Cons     2 -> $Cons
+; #0/F/$Nil      0 -> $Nil
+} 
+applymap
+{ #0/P/1/$add   1 -> $add
+; #0/P/2/$add   0 -> #0/P/1/$add
+; #0/P/1/$foldl 2 -> $foldl
+; #0/P/2/$foldl 1 -> #0/P/1/$foldl
+; #0/P/3/$foldl 0 -> #0/P/2/$foldl
+}

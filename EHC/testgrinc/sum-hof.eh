@@ -1,25 +1,17 @@
-let data Ordering = LT | EQ | GT
-    data Bool = False | True
+let data Bool = False | True
     data List a = Nil | Cons a (List a)
 in
 let foreign import jazy "primAddInt" add :: Int -> Int -> Int
-    foreign import jazy "primCmpInt" compare :: Int -> Int -> Ordering
-    gt  = \x -> \y ->
-            case compare x y of
-                GT -> True
-                _  -> False
+    foreign import jazy "primGtInt" gt :: Int -> Int -> Bool
 in
 let upto = \m n ->
         if gt m n then
             Nil
         else
             Cons m (upto (add m 1) n)
-    map = \f l ->
+    foldl = \f b l ->
         case l of
-            Nil       -> Nil
-            Cons n ns -> Cons (f n) (map f ns)
-    sum = \l ->
-        case l of
-            Nil       -> 0
-            Cons n ns -> add n (sum ns)
-in sum (map (add 1) (upto 0 9))
+            Nil       -> b
+            Cons n ns -> f (foldl f b ns) n
+    sum = foldl add 0
+in sum (upto 0 9)
