@@ -73,7 +73,8 @@ ATTR AllBind [ allUsedBindings: {Set.Set HsName} | | ]
 SEM GrModule
   | Mod  loc    .  specialNames     =  [evalNm, evalNr,  applyNm, applyNr]
                 .  modifier         =  if @lhs.dropSpecial then Set.delFromSet else Set.addToSet
-         bindL  .  allUsedBindings  =  foldl @modifier @usedBindings @specialNames
+                .  allUsedBindings  =  foldl @modifier @usedBindings @specialNames
+         bindL  .  allUsedBindings  =  @allUsedBindings
          
 SEM GrBind [ | | dropBinding: Bool ]
   | Bind  lhs  . dropBinding  =  not $ Set.elementOf @nm @lhs.allUsedBindings

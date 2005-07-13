@@ -6,5 +6,5 @@ let foldl = \f b l ->
         case l of
             Nil       -> b
             Cons n ns -> f (foldl f b ns) n
-    sum = foldl add 0
-in sum (Cons 1 (Cons 2 (Cons 3 (Cons 4 (Cons 5 Nil)))))
+    twice = \f x -> f (f x)
+in foldl (\n x -> twice (add n) x) 0 (Cons 1 (Cons 2 (Cons 3 (Cons 4 (Cons 5 Nil)))))

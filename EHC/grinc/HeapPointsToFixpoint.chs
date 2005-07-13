@@ -36,6 +36,24 @@ lookup times.
 %%[8  import(UU.Pretty, GrinCodePretty) export("module Data.Monoid")
 %%]
 
+
+%%[8.OrdTag
+instance Ord GrTag where
+    compare t1 t2 = case t1 of
+                        GrTag_Unboxed     -> case t2 of
+                                                 GrTag_Unboxed     -> EQ
+                                                 otherwise         -> LT
+                        GrTag_Lit c1 _ n1 -> case t2 of
+                                                 GrTag_Unboxed     -> GT
+                                                 GrTag_Lit c2 _ n2 -> case compare c1 c2 of
+                                                                          EQ -> compare n1 n2
+                                                                          a  -> a
+                                                 GrTag_Var _       -> LT
+                        GrTag_Var n1      -> case t2 of
+                                                 GrTag_Var n2      -> compare n1 n2
+                                                 otherwise         -> GT
+%%]
+
 %%[8.AbstractValue export(AbstractValue(..), AbstractNode, Location, Variable)
 data AbstractValue
   = AV_Nothing
@@ -43,7 +61,7 @@ data AbstractValue
   | AV_Locations ![Location]
   | AV_Nodes ![AbstractNode]
   | AV_Error !String
-	deriving (Eq)
+	deriving (Eq, Ord)
 
 instance Show AbstractValue where
     show av = case av of
@@ -68,13 +86,13 @@ instance Monoid AbstractValue where
 	                                  (AV_Nodes     an, AV_Nodes     bn) -> AV_Nodes (an `mergeNodes` bn)
 	                                  (AV_Error     _ , _              ) -> a
 	                                  (_              , AV_Error     _ ) -> b
-	                                  otherwise                          -> AV_Error $ "Wrong variable usage: Location, node or basic value mixed: " ++ show (a,b)
+	                                  otherwise                          -> AV_Error $ "Wrong variable usage: Location, node or basic value mixed"
 
-mergeLocations   = union
+mergeLocations   al bl = sort $ union al bl -- TODO: painfully slow
 mergeNodes an bn = let compareNode x y                = fst x == fst y
                        mergeNode1 nodes node@(nm,avs) = case h of
-                                                         []        -> node:nodes'
-                                                         [(_,avs')] -> (nm, zipWith mappend avs' avs):nodes'
+                                                         []        -> insert node nodes'
+                                                         [(_,avs')] -> insert (nm, zipWith mappend avs' avs) nodes'
                                                          otherwise -> error "Multiple nodes with the same tag found"  --- should never occur
                            where (h,nodes') = partition (compareNode node) nodes
                    in foldl' mergeNode1 an bn
@@ -201,30 +219,30 @@ envChangeSet am env heap applyMap = case am of
                                ; maybe (return newNodes) (\v -> valAbsEnv v >>= return . mappend newNodes) r
                                }
     --applyChangeSet :: AbstractValue -> [AbstractValue] -> ST s AbstractValue
-    applyChangeSet f argsVal = 
-        let len              = length argsVal
-            nodes            = case f of
-                                   AV_Nodes nodes -> nodes
-                                   AV_Nothing     -> []
-                                   otherwise      -> error $ "apply on function: " ++ show f
-            pnodes           = [ (t,n,m,a) | (t@(GrTag_Lit (GrTagPApp m) _ n), a) <- nodes ] -- missing: Fnodes can return a pnode?
-            changeApplyNode n m a  = if len > m then 
-                                     error "apply chains not supported yet"
-                                     else do { let tag = if len == m
-                                                         then GrTag_Lit GrTagFun 0 n
-                                                         else GrTag_Lit (GrTagPApp $ m - len) 0 n -- TODO: use the applyMap for this?
-                                             ; let newNode = (tag, a ++ argsVal)
-                                             ; appendApplyArg env (AV_Nodes [newNode])
-                                             ; return (if len == m then Nothing else Just newNode)
-                                             }
-            makeChangeSet n mNode = maybe (valAbsEnv $ getResultVar n) (\x -> return $ AV_Nodes [x]) mNode
-            getResultVar :: GrTag -> Int
-            getResultVar          = (\(Right i) -> i) . fromJust . flip lookup applyMap
-            getNewTag             = (\(Left  t) -> t) . fromJust . flip lookup applyMap
-        in mapM (\(t,n,m,a) -> changeApplyNode n m a >>= makeChangeSet t) pnodes >>= return . mconcat
+    applyChangeSet f argsVal = foldM applyChangeSet1 f argsVal
+        where
+        --applyChangeSet1 :: AbstractValue -> AbstractValue -> ST s AbstractValue
+        applyChangeSet1 f arg = let partialApplicationNodes = [ node | node@((GrTag_Lit (GrTagPApp _) _ _), _) <- getNodes f ]
+                                    --getNewNode :: GrTag -> [AbstractValue] -> ST s AbstractValue
+                                    getNewNode tag args       = let newArgs = args ++ [arg]
+                                                                in either (\tag' -> return $ AV_Nodes [(tag', newArgs)])
+                                                                          (\var -> appendApplyArg env (AV_Nodes [(GrTag_Var (HNPos var), newArgs)]) >> valAbsEnv var)
+                                                                          (fromJust $ lookup tag applyMap)
+                                in mapM (uncurry getNewNode) partialApplicationNodes >>= return . mconcat
 %%]
 
-%%[8 export(lookupEnv)
+%%[8 import(Data.Either) export(lookupEnv)
+fromLeft  = either id                                     (const $ error "fromLeft: found right value")
+fromRight = either (const $ error "fromRight: found left value") id
+
+--to break circular dependencies a copy paste from GRINCCommon:
+getNodes av = case av of
+                  AV_Nodes n  -> n
+                  AV_Nothing  -> []
+                  AV_Error s  -> error $ "analysis error: " ++  s
+                  _           -> error $ "not a node: " ++ show av
+
+
 lookupEnv :: AbstractEnv s -> Variable -> ST s AbstractEnvElement
 lookupEnv env idx = readArray env idx
 
@@ -292,14 +310,19 @@ heapPointsTo env heap applyMap =
             ; when changed (writeArray heap i e')
             ; return ((env,heap), changed)
             }
+        -- @tracef l a = do { r@((env,heap), c) <- f l a
+        --                ; msg <- if c then either (\i -> lookupEnv env i >>= return . show) (\i -> lookupHeap heap i >>= return . show) l else return "nothing"
+        --                ; trace ("step: " ++ show l ++ " changed: " ++ show msg) $ return r
+        --                }
     in fixpoint (env,heap) labels f
 
 
 isChanged :: AbstractValue -> AbstractValue -> Bool
-isChanged old new = case (old, new) of
-                      (AV_Locations ol, AV_Locations nl) -> not $ nl <=! ol
-                      (AV_Nodes     on, AV_Nodes nn    ) -> not $ nn <=! on      -- will this be good enough?
-		      otherwise                          -> old /= new
+isChanged old new = old /= new
+                    --case (old, new) of
+                    --  (AV_Locations ol, AV_Locations nl) -> not $ nl <=! ol
+                    --  (AV_Nodes     on, AV_Nodes nn    ) -> not $ nn <=! on
+                    --  otherwise                          -> old /= new
 		      
 %%]
 

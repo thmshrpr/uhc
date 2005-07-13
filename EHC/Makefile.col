@@ -50,6 +50,10 @@ grinc: $(GRINC_SOURCE)
 	$(GHC) --make -fglasgow-exts -package util -package uust -package data -isrc/lib -isrc/grinc -isrc/gri -isrc $< -o $@
 	strip $@
 
+tg: grinc/TestGenerator.hs GrinCode.hs GrinCodePretty.hs
+	$(GHC) --make -fglasgow-exts -package util -package uust -package data -isrc/lib -isrc/grinc -isrc/gri -isrc $< -o $@
+	strip $@
+
 grinc/Cmm/FromGrin.hs: grinc/Cmm/FromGrin.ag GrinCodeAbsSyn.ag GrinCode.hs grinc/Cmm/CmmBuilding.hs
 	$(call AGCC,$<,$(AGC_FLAGS_CODE))
 

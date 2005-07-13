@@ -97,9 +97,10 @@ absFetch a (HNPos i) = case getEnvVar a i of
                              AV_Nodes _     -> error $ "variable " ++ show i ++ "is a node variable"
 
 getNodes av = case av of
-                  AV_Nodes n -> n
-                  AV_Error s -> error $ "analysis error: " ++  s
-                  _          -> error $ "not a node: " ++ show av
+                  AV_Nodes n  -> n
+                  AV_Nothing  -> []
+                  AV_Error s  -> error $ "analysis error: " ++  s
+                  _           -> error $ "not a node: " ++ show av
 
 addEnvVar :: HptMap -> Int -> AbstractValue -> HptMap
 addEnvVar (a,fm) i v = (a, Map.insert i v fm)

@@ -232,23 +232,24 @@ caGrin2Cmm = do
 
 caWriteCmm :: CompileAction ()
 caWriteCmm = do
-    putMsg VerboseALot "Writing C--" Nothing
-    cmm <- caGrin2Cmm
     input <- gets csPath
     let output = fpathSetSuff "cmm" input
     options <- gets csOpts
-    --debugging <- gets (optDebug . csOpts)
-    --when debugging (liftIO $ putStrLn "=============" >> putStrLn (show cmm))
+    putMsg VerboseALot ("Writing " ++ fpathToStr output) Nothing
+    cmm <- caGrin2Cmm
     liftIO $ writePP pp cmm output options
 %%]
+
+    -- fpathToStr
+    -- fpathBase
 
 %%[8.writeGrin import(GrinCodePretty)
 caWriteGrin :: String -> CompileAction ()
 caWriteGrin fn = do
-    putMsg VerboseALot "Writing Grin" Nothing
-    code <- gets csGrinCode
     input <- gets csPath
-    let output =  fpathSetBase (if null fn then fpathBase input ++ "-out" else fn) input
+    let output =  fpathSetBase (if null fn then fpathBase input ++ "-out" else fn) input 
+    putMsg VerboseALot ("Writing " ++ fpathToStr output) Nothing
+    code <- gets csGrinCode
     options <- gets csOpts
     liftIO $ writePP (ppGrModule Nothing) code output options
 %%]
@@ -296,6 +297,8 @@ caAnalyse = task_ VerboseNormal "Analysing"
                                             }
                               }
                           )
+         ; debugging <- gets (optDebug . csOpts)
+         ; when debugging (caWriteGrin "inlined-pre")
          }
     )
     

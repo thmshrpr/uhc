@@ -32,7 +32,8 @@ ATTR AllGrNT [ | | grTrf: SELF      isTrf USE {||} {False}: Bool  ]
 %%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%[8 hs
-genInfo v p nnf nvf vnf vvf = case (v,p) of
+-- fix empty patterns and values are not handled cleanly.
+genInfo v p nnf nvf vnf vvf e = case (v,p) of
     (GrVal_Node vt vls, GrPat_Node pt nms) -> nnf vt vls pt nms
     (GrVal_Tag  vt    , GrPat_Node pt nms) -> nnf vt  [] pt nms
     (GrVal_Node vt vls, GrPat_Tag  pt    ) -> nnf vt vls pt  []
@@ -42,6 +43,8 @@ genInfo v p nnf nvf vnf vvf = case (v,p) of
     (GrVal_Var  vn    , GrPat_Node pt nms) -> vnf vn     pt nms
     (GrVal_Var  vn    , GrPat_Tag  pt    ) -> vnf vn     pt  []
     (GrVal_Var  vn    , GrPat_Var  pn    ) -> vvf vn     pn
+    (GrVal_Empty      , _                ) -> e
+    (_                , GrPat_Empty      ) -> e
 %%]
 
 %%[8.valueInfo
@@ -88,7 +91,7 @@ makeRightUnitExpr seqPat unitVal seqExpr newExpr   =
                                      else Nothing
              vnf vn     pt pls  = Nothing
              nvf vt vls vn      = Nothing
-       ; genInfo v p nnf nvf vnf vvf
+       ; genInfo v p nnf nvf vnf vvf Nothing
        }
 %%]
 

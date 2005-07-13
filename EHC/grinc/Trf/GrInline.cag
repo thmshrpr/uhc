@@ -123,9 +123,9 @@ buildApplyAlt ((t, a, avL), rhs) appArgs hptMap u = buildAlternative t avL a rhs
 
 applyCode unique applyMap hptMap funVar appArgs =
     let nodes          = getNodes $ getEnvVar hptMap (getNr funVar)
-        applyCodePart unique hptMap nodes appVar =
+        applyCodePart unique hptMap nodes appVar appArgs =
             let getNewTag :: GrTag -> (Maybe GrTag, Int, EvApTagElt)
-                getNewTag t      = case fromJust' ("tag not found: " ++ show t) (lookup t applyMap) of
+                getNewTag t      = case fromJust' ("tag not found in applyMap: " ++ show t) (lookup t applyMap) of
                                              (a, e@(EvApTagTag  t)) -> (Just t, a, e)
                                              (a, e@(EvApTagVar  v)) -> (Nothing, a, e)
                                              (a,   EvApTagUnit  ) ->  error "unit tag not expected"
@@ -149,14 +149,18 @@ applyCode unique applyMap hptMap funVar appArgs =
             in if null restArgs
                then (unique', hptMap', code)
                else let (unique'', hptMap'', code') = applyCodePart (unique' + 1) 
-                                                                    (addEnvVar hptMap'' unique' resultAV)
-                                                                    (getNodes resultAV) 
+                                                                    (addEnvVar hptMap' unique' resultAV)
+                                                                    (filter isPartialApplication $ getNodes resultAV)
                                                                     newVar
+                                                                    restArgs
                     in (unique'', hptMap'', GrExpr_Seq code (GrPat_Var newVar) code')
-    in applyCodePart unique hptMap nodes funVar
+    in applyCodePart unique hptMap nodes funVar appArgs
 %%]
 
 %%[8 hs
+isPartialApplication ((GrTag_Lit (GrTagPApp _) _ _), _) = True
+isPartialApplication _ = False
+
 fromJust' s Nothing  = error $ "fromJust: " ++ s
 fromJust' _ (Just e) = e
 %%]

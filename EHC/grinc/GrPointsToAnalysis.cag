@@ -34,6 +34,7 @@ heapPointsToAnalysis :: (Int,Int) -> CafMap -> GrModule -> IO Analysis
 heapPointsToAnalysis (low,high) cafMap grmod = stToIO $ do
     { let applyArg = low - 1 ;
     ; absEnv <- (newArray_ (applyArg,high) ) :: EnvAction
+    ; foldM_ (\_ v -> writeArray absEnv v (error $ "no equation for variable " ++ show v)) () [applyArg..high]
     ; let setEnvVar v initial eq = writeArray absEnv v (AbstractEnvElement  {aeBaseSet = initial, aeMod = eq})
     ; let getEnvVar v            = readArray absEnv v
           t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod)) 
@@ -48,7 +49,6 @@ heapPointsToAnalysis (low,high) cafMap grmod = stToIO $ do
     ; absHeap <- makeHeap_Syn_GrAGItf t
     ; setEnvVar applyArg AV_Nothing EnvNoChange
     ; let applyMap = applyMap_Syn_GrAGItf t
-    -- ; let deps = buildDeps absEnv absHeap
     ; heapPointsTo absEnv absHeap applyMap
     ; absHeap <- unsafeFreeze absHeap
     ; absEnv  <- unsafeFreeze absEnv
@@ -600,7 +600,7 @@ SEM GrBind
                      .  fillEnvBind  = let envElem (formal, i) actuals = @lhs.setEnvVar (getNr formal) AV_Nothing (EnvUnion [ actual | Just actual <- actuals] (Just . @applySelect $ i))
                                        in zipWithM_ envElem (zip @argNmL [1..]) (if null @bindActuals then replicate (length @argNmL) [] else @bindActuals)
                      .  actualsEnv   = if @prune then id else @expr.actualsEnv
-                     .  applySelect  = EnvSelect @lhs.tmpVar (fromJust $ revLookup @lhs.tag2resultVar @resultVar) 
+                     .  applySelect  = EnvSelect @lhs.tmpVar (GrTag_Var @nm)
 %%]
 
 %%%%%%%%%

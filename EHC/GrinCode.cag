@@ -56,7 +56,7 @@ data GrTagCateg
   |  GrTagApp
   |  GrTagFun
   |  GrTagPApp {grtgNeeds :: Int}
-  deriving (Show,Eq)
+  deriving (Show,Ord,Eq)
 
 instance PP GrTagCateg where
   pp GrTagCon       = pp "C"
