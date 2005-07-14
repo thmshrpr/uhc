@@ -71,7 +71,7 @@ SEM GrVal
   | LitInt     loc . cmmExpr        = int @int
                    . cmmReturnArgs  = [ valArg @cmmExpr ]
                    . cmmExpressions = [ @cmmExpr ]
-  | Var        loc . cmmExpr        = var' @lhs.cafEnv @nm
+  | Var        loc . cmmExpr        = var' @nm
                    . cmmReturnArgs  = [ ptrArg @cmmExpr ]
                    . cmmExpressions = [ @cmmExpr ]
 %%]

@@ -75,7 +75,7 @@ SEM GrExpr
                                   else 0
   
   | Store Update loc . returnSize = if @isLastExpr then 1 else 0
-  | Fetch        loc . returnSize = if @isLastExpr then error "fetch at return spine" else 0
+  | Fetch        loc . returnSize = if @isLastExpr then maybe (error "fetch at return spine") id @mbOffset else 0
 %%]
 
 %%[8.valueSize

@@ -203,7 +203,7 @@ SEM GrExpr
   | Eval   loc  . realRecievers = nreg2knames @lhs.targetNames
                 . argsReturned  = fromJust' ("Eval: " ++ show @nm) $ lookup eval @lhs.returnSizeEnv
                 . recievers     = padWith mkTempVar @realRecievers @argsReturned
-                . cmmBody     = call @isLastExpr eval [arg' @lhs.cafEnv @nm] @recievers
+                . cmmBody     = call @isLastExpr eval [arg' @nm] @recievers
 
 -- Collect function arguments 
 ATTR GrValL [ | | cmmFunctionArgs : {CmmActuals} ]
@@ -228,7 +228,7 @@ note that a C call cannot be handled as a last expression, this might change.
 %%[8.FFI
 SEM GrExpr
   | FFI    loc  . recievers   = nreg2knames @lhs.targetNames
-                . primStm     = @primStmF @lhs.cafEnv (map cmmName' @argL) (nreg2names @lhs.targetNames)
+                . primStm     = @primStmF (map cmmName' @argL) (nreg2names @lhs.targetNames)
                 . callStm     = cmmCall "C" (cmmVar $ cmmName @nm) (map (valArg . cmmVar') @argL) @recievers
                 . cmmBody     = if @isPrim then @primStm
                                 else if not @isLastExpr then @callStm
@@ -241,12 +241,16 @@ SEM GrExpr
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 We assume cmmExpressions gives us the correct code
+note: Store and Update cannot occur at return spine. Fetch can!
+
 
 %%[8.MO
 SEM GrExpr
   | Store  loc  . cmmBody     = buildStore @val.cmmExpressions (nreg2names @lhs.targetNames)
 
-  | Fetch  loc  . cmmBody     = buildFetch @nm  (nreg2names @lhs.targetNames)
+  | Fetch  loc  . cmmBody     = buildFetch @nm $ if @isLastExpr 
+                                                 then Right (fromJust @mbOffset)
+						 else Left  (nreg2names @lhs.targetNames)
 
   | Update loc  . cmmBody     = buildUpdate @nm @val.cmmExpressions
 
@@ -263,13 +267,13 @@ buildStore nms [p] = let grow          = 4 * max 4 (length nms)
                          store         = foldr assign (const []) nms 0
                      in updates alloc ~> updates store
 
--- TODO: fix Fetch
 -- just load as much as possible
-buildFetch  p nms = let assign n tf i = let hd = (varUpdate n, fetch (cmmVar' p) i)
-                                            tl = tf (i+4)
-                                        in hd:tl
-                        fetches       = foldr assign (const []) nms 0
-                    in updates fetches
+buildFetch p (Right count) = cmmReturn "" (take count $ map (\i ->  ptrArg $ fetch (cmmVar' p) i) [0,4..])
+buildFetch p (Left nms   ) = let assign n tf i = let hd = (varUpdate n, fetch (cmmVar' p) i)
+                                                     tl = tf (i+4)
+                                                 in hd:tl
+                                 fetches       = foldr assign (const []) nms 0
+                             in updates fetches
 
 -- TODO: fix Update
 -- just store the values (do not take space as a problem)

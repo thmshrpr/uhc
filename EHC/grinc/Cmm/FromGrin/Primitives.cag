@@ -13,18 +13,18 @@ builtin primitives (like plus and compare on integers)
 
 %%[8 hs
 -- primitivesTable: list of (name, (return size, required imports, CAFnames -> arguments -> result variables -> primitve))
-primitivesTable :: [(String, (Int, [String], CAFEnv -> CmmNames -> CmmNames -> CmmBodyBuilder))]
+primitivesTable :: [(String, (Int, [String], CmmNames -> CmmNames -> CmmBodyBuilder))]
 primitivesTable
   = [ ("primAddInt", (1, [], emitPrimAddInt))
     , ("primCmpInt", (2, [], emitPrimCmpInt))
     ]
 
-emitPrimAddInt env (l:r:[]) tn = assignOrReturn tn [(cmmVar l <+> cmmVar r)]
+emitPrimAddInt (l:r:[]) tn = assignOrReturn tn [(cmmVar l <+> cmmVar r)]
 
-emitPrimCmpInt env (l:r:[]) tn 
-  = let ltA  = arg env "$_LT"
-        gtA  = arg env "$_GT"
-        eqA  = arg env "$_EQ"
+emitPrimCmpInt (l:r:[]) tn 
+  = let ltA  = arg "$_LT"
+        gtA  = arg "$_GT"
+        eqA  = arg "$_EQ"
         mkEvalCall a = if null tn -- TODO: is this always correct?
                        then call True  eval [a] []
                        else call False eval [a] (map (\n -> ("",n)) tn)

@@ -1,9 +1,5 @@
 module "sample"
-{ $Cons $h $t
-    = { unit (#0/C/$Cons 2 $h $t) }
-; $Nil
-    = { unit (#1/C/$Nil 0)}
-; $add $x $y
+{ $add $x $y
     = { eval $x ; \(#0/C/$Int $__ $x' ) ->
         eval $y ; \(#0/C/$Int $__ $y' ) ->
         ffi primAddInt $x' $y' ; \(#U $z') ->
@@ -18,7 +14,7 @@ module "sample"
                          eval $f1 ; \$ef1 ->
 			 apply $ef1 $s1 $hl
                        }
-              ; (#1/C/$_Nil $__)
+              ; (#1/C/$Nil $__)
                     -> { eval $b
                        }
               }
@@ -34,15 +30,16 @@ module "sample"
         $twice $s4 $x3
       }
 ; $list
-    = { store (#0/C/$Int 1 5)         ; \$s5 ->
-        store (#0/C/$Cons 2 $s5 $Nil) ; \$c5 ->
-        store (#0/C/$Int 1 4)         ; \$s6 ->
-        store (#0/C/$Cons 2 $s6 $c5)  ; \$c4 ->
-        store (#0/C/$Int 1 3)         ; \$s7 ->
-        store (#0/C/$Cons 2 $s7 $c4)  ; \$c3 ->
-        store (#0/C/$Int 1 2)         ; \$s8 ->
-        store (#0/C/$Cons 2 $s8 $c3)  ; \$c2 ->
-        store (#0/C/$Int 1 1)         ; \$s9 ->
+    = { store (#1/C/$Nil 0)           ; \$nil ->
+        store (#0/C/$Int 1 5)         ; \$s5  ->
+        store (#0/C/$Cons 2 $s5 $nil) ; \$c5  ->
+        store (#0/C/$Int 1 4)         ; \$s6  ->
+        store (#0/C/$Cons 2 $s6 $c5)  ; \$c4  ->
+        store (#0/C/$Int 1 3)         ; \$s7  ->
+        store (#0/C/$Cons 2 $s7 $c4)  ; \$c3  ->
+        store (#0/C/$Int 1 2)         ; \$s8  ->
+        store (#0/C/$Cons 2 $s8 $c3)  ; \$c2  ->
+        store (#0/C/$Int 1 1)         ; \$s9  ->
         unit  (#0/C/$Cons 2 $s9 $c2)
       }
 ; main
@@ -76,8 +73,6 @@ evalmap
 ; #0/F/$bar      2 -> $bar
 ; #0/F/$list     0 -> $list
 ; #0/F/main      0 -> main
-; #0/F/$Cons     2 -> $Cons
-; #0/F/$Nil      0 -> $Nil
 } 
 applymap
 { #0/P/1/$add  1 -> $add

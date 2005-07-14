@@ -11,4 +11,4 @@ in=../${1}
 out=../${1%.*}
 
 cd cmm
-${cmmc} -globals -keep .cmm grin.lua startup.cmm ${in} -o ${out}
+${cmmc} peephole.lua -globals -keep .cmm grin.lua startup.cmm ${in} -o ${out}

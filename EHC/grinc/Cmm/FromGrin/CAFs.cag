@@ -14,7 +14,7 @@ CAF is a GRIN function which takes no parametes. every CAF has a variable named
 the same as GRIN function that maps to a FNode. Which, if evaluated, calls the
 corresponding GRIN function.
 
-FNode are 1 element long, so they only have the standard node layout.
+FNode are 1 element long, so they always have the standard node layout.
 
 %%[8
 ATTR GrAGItf GrModule  [ cafMap: CafMap | | ]
@@ -22,14 +22,10 @@ ATTR GrModule [ | | cafNodeNames USE {++} {[]}: {[(CmmName, CmmName)]} ]
 %%]
 
 %%[8
-ATTR AllGrNT [ cafEnv : {CAFEnv} | | ]
-
-SEM GrAGItf
-  | AGItf      module . cafEnv = zipWith (\(v,_) o -> (v, o)) @module.cafNodeNames [0,4*4..] --Note: stdNode layout = 4, min addr size = 8, node element = 32
-
 SEM GrModule
   | Mod       loc . bind2tagname    = [ (b, n) | ((GrTag_Lit _ _ n,_),EvApTagVar b) <- @evalTagMp ]
-              loc . cafNodeNames    = map (\(b,v) -> (cmmName' v, cafNode4name . cmmName' . fromJust $ lookup b @bind2tagname)) $ Map.toList @lhs.cafMap
+              loc . cafNodeNames    = let foo (b,v) = (cmmName' v, cafNode4name . cmmName' . fromJust' ("no caf var for " ++ show b) $ lookup b @bind2tagname)
+	                              in map foo $ Map.toList @lhs.cafMap
                   . sectionCAFNodes = let data2section d    = lift (CmmToplevel_Section "data") [CmmSectionElement_Data d]
                                           zeros             = replicate 3 (int 0)
                                           cmmCAFNode (i,n)  = [ CmmDatum_Label i, reserve 4 valType $ listInit (cmmVar n : zeros)]

@@ -3,8 +3,8 @@
 Rename all identifiers to unique numbers. exceptions are the FFI names (and
 primitves) as well as the eval and apply function names.
 
-To rename everyting fast and efficient we can use the fact that the scope of a
-variable is local to a binding, but we don't do that yet.
+To rename efficient we can use the fact that the scope of a variable is local
+to a binding, but it's easier not to.
 
 %%[0
 %include lhs2TeX.fmt
@@ -84,9 +84,12 @@ SEM GrAGItf
                    .  cafMap       = Map.empty
                    .  var2id       = @module.cafVar
            loc     .  bind2id      = @module.bind2idFrag
-                   .  origNames    = Map.toList @bind2id ++ Map.toList @module.var2id
-                   .  varMapping   = [ (i, n) | (n, HNPos i) <- @origNames, not (n `elem` [applyNm, evalNm]) ]
-                   .  varMap       = array (@low, @high-1) @varMapping
+                   .  bind2idList  = Map.toList @module.bind2idFrag
+                   .  var2idList   = Map.toList @module.var2id
+                   .  bindMapping  = [ (i, n) | (n, HNPos i) <- @bind2idList, not (n `elem` [applyNm, evalNm]) ]
+                   .  varMapping   = let changeCaf n = if Map.member n @module.cafVar then hsnSuffix n "_caf" else n
+                                     in [ (i, changeCaf n) | (n, HNPos i) <- @var2idList ]
+                   .  varMap       = (array (@low, @high-1) (@bindMapping ++ @varMapping), Map.empty)
 %%]
 
 retrieving names and their mapping

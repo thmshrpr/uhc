@@ -56,7 +56,7 @@ cmdLineOpts
          oGrin       ms  o = o { optWriteGrin = maybe (Just "") (const ms) ms }
 %%]
 
-%%[8 export(wildcardNm, wildcardNr, evalNm, evalNr,  applyNm, applyNr, isSpecialBind, CafMap, IdentNameMap, getNr)
+%%[8 export(wildcardNm, wildcardNr, evalNm, evalNr,  applyNm, applyNr, isSpecialBind, CafMap, getNr)
 wildcardNm = HNm "__"
 wildcardNr = HNPos (0)
 
@@ -67,13 +67,24 @@ applyNr =  HNPos 2
 
 isSpecialBind f = f == evalNm || f == applyNm
 
--- CafMap :: Binding name -> Variable Name
-type CafMap = Map.Map HsName HsName
-type IdentNameMap = Array Int HsName
-
 getNr :: HsName -> Int
 getNr (HNPos i) = i
 getNr a         = error $ "not a numbered name: " ++ show a
+
+-- CafMap :: Binding name -> Variable Name
+type CafMap = Map.Map HsName HsName
+%%]
+
+%%[8 export(IdentNameMap, IdentOneToMany, RenameMap, mergeRenameMap)
+type IdentNameMap   = (Array Int HsName, Map.Map Int Int)
+type IdentOneToMany = (Int,  [Int])
+type RenameMap      = [(Int,  [Int])]
+
+mergeRenameMap :: IdentNameMap -> RenameMap -> IdentNameMap
+mergeRenameMap (a,m) rm = (a,foldl addToMap m rm)
+    where
+    addToMap m (orig,vars) = foldl (\m v -> Map.insert v orig m) m vars
+
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

@@ -109,7 +109,7 @@ caNumberIdents = task VerboseALot "Numbering identifiers"
                            , csUnique = unique
                            }
                   )
-         ; let (low, high) = bounds varMap
+         ; let (low, high) = bounds $ fst varMap
          ; return (high - low)
          }
     ) (\i -> Just $ show i ++ " identifiers")
@@ -121,9 +121,13 @@ caNameIdents = do
     putMsg VerboseALot "Naming identifiers" Nothing
     code  <- gets csGrinCode
     vm    <- gets csOrigNms
-    code  <- return $ nameIdents vm code
-    modify (csUpdateGrinCode code)
-    modify (\s -> s { csEntry = vm ! getNr (csEntry s) } )
+    cafMap <- gets csCafMap
+    (cafMap, code)  <- return $ nameIdents vm cafMap code
+    modify (\s -> s { csEntry     = fst vm ! getNr (csEntry s)
+                    , csMbCafMap  = Just cafMap
+                    , csMbCode    = Just code
+                    }
+           )
 %%]
 
 %%[8.normForHPT import(Trf.NormForHPT)
@@ -171,10 +175,14 @@ caInlineEA = do
     code   <- gets csGrinCode
     hptMap <- gets csHptMap
     unique <- gets csUnique
-    (hptMap, unique', code)   <- return $ inlineEA hptMap unique code
-    modify (csUpdateUnique unique')
-    modify (csUpdateHptMap hptMap)
-    modify (csUpdateGrinCode code)
+    varMap <- gets csOrigNms
+    (hptMap, unique', renMap, code)   <- return $ inlineEA hptMap unique code
+    modify (\s -> s { csMbOrigNms  = Just $ mergeRenameMap varMap renMap
+                    , csUnique     = unique'
+                    , csMbHptMap   = Just hptMap
+                    , csMbCode     = Just code
+                    }
+           )
     return $ unique' - unique
 %%]
 
@@ -216,10 +224,16 @@ caCopyPropagation = task VerboseALot "Copy propagation" (caFix caCopyPropagation
 caLowerGrin :: CompileAction ()
 caLowerGrin = do
     putMsg VerboseALot "Lowering GRIN" Nothing
-    code <- gets csGrinCode
-    cafMap <- gets csCafMap
-    code <- return $ lowerGrin cafMap code
-    modify (csUpdateGrinCode code)
+    code   <- gets csGrinCode
+    hptMap <- gets csHptMap
+    unique <- gets csUnique
+    varMap <- gets csOrigNms
+    (uniq, renMap, code) <- return $ lowerGrin hptMap unique code
+    modify (\s -> s { csMbOrigNms  = Just $ mergeRenameMap varMap renMap
+                    , csUnique     = unique
+                    , csMbCode     = Just code
+                    }
+           )
 %%]
 
 %%[8.writeCmm import(Cmm.FromGrin, Cmm.CmmCodePretty)
@@ -309,6 +323,8 @@ caNormalize = task_ VerboseNormal "Normalizing"
          ; when debugging (caWriteGrin "inlined")
          ; caSparseCase
          ; caEliminateCases
+         ; debugging <- gets (optDebug . csOpts)
+         ; when debugging (caWriteGrin "with-copies")
          ; caCopyPropagation 
          ; debugging <- gets (optDebug . csOpts)
          ; when debugging (caWriteGrin "optimized")
@@ -317,7 +333,7 @@ caNormalize = task_ VerboseNormal "Normalizing"
     )
     
 caOutput = task_ VerboseNormal "Writing code"
-    ( do { -- caNameIdents
+    ( do { caNameIdents
          ; outputGrin <- gets (optWriteGrin . csOpts)
          ; maybe (return ()) caWriteGrin outputGrin
          ; caWriteCmm

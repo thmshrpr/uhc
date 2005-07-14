@@ -4,4 +4,4 @@ test -n "${1}" || { cat "$0"; exit 1; }
 base=${1%.cmm}
 dir="`dirname "$0"`"
 
-qc-- -globals ${dir}/startup.cmm ${base}.cmm -o ${base}
+qc-- peephole.lua -globals ${dir}/startup.cmm ${base}.cmm -o ${base}

@@ -194,19 +194,17 @@ varUpdate' = varUpdate . cmmName'
 
 % NOTE: As a convention the tags of bindings are named after the their binding name with "@F" prepended
 
-%%[8.CAFs export(CAFEnv,arg,var,var',arg',cafNode4name,cafOffset)
+%%[8.CAFs export(CAFEnv,arg,var,var',arg',cafNode4name)
 type CAFEnv = [(CmmName, Int)]
 
-arg :: CAFEnv -> CmmName -> CmmActual
-arg  env nm = ptrArg $ var env nm
+arg :: CmmName -> CmmActual
+arg  nm = ptrArg $ var nm
 
-var :: CAFEnv -> CmmName -> CmmExpression
-var env nm = maybe (cmmVar $ nm) cafLocation (lookup nm env)
-	where
-	cafLocation offset = cmmVar "@CAF_Nodes" <+> int offset
+var :: CmmName -> CmmExpression
+var nm = cmmVar nm
 
-var' env nm = var env (cmmName' nm)
-arg' env nm = ptrArg $ var' env nm
+var' nm = var (cmmName' nm)
+arg' nm = ptrArg $ var' nm
 
 cafNode4name :: CmmName -> CmmName
 cafNode4name cn = "@F" ++ cn

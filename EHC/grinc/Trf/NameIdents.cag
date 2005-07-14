@@ -14,26 +14,29 @@ Rename numbered identifiers to their names.
 WRAPPER GrAGItf
 %%]
 
-%%[8 hs module Trf.NameIdents import(GRINCCommon, EHCommon, GrinCode, Data.Array.IArray) export(nameIdents)
+%%[8 hs module Trf.NameIdents import(GRINCCommon, EHCommon, GrinCode, Data.Array.IArray, "qualified Data.Map as Map") export(nameIdents)
 
-nameIdents :: IdentNameMap -> GrModule -> GrModule
-nameIdents m grmod = let t        = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod))
-                                                 (Inh_GrAGItf { names_Inh_GrAGItf = m })
-                     in grTrf_Syn_GrAGItf t
+nameIdents :: IdentNameMap -> CafMap -> GrModule -> (CafMap, GrModule)
+nameIdents m cafMap grmod = let t        = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod))
+                                                        (Inh_GrAGItf { names_Inh_GrAGItf = m })
+                                cafMap' = Map.fromList . map (\(k,v) -> (findNewVar m k, findNewVar m v)) $ Map.toList cafMap
+                     in (cafMap', grTrf_Syn_GrAGItf t)
 %%]
 
 %%[8.lookup hs
-findNewVar names nm@(HNPos i) = if i `inBetween` bounds names
-                                then names ! i
-                                else if wildcardNr == nm
-                                then wildcardNm
-                                else if applyNr == nm
-                                then applyNm
-                                else if evalNr == nm
-                                then evalNm
-                                else nm
+findNewVar (names, map) nm@(HNPos i) = if wildcardNr == nm
+                                       then wildcardNm
+                                       else if applyNr == nm
+                                       then applyNm
+                                       else if evalNr == nm
+                                       then evalNm
+                                       else findNewVar' i ""
     where
     inBetween n (l, h) = n >= l && n <= h
+    findNewVar' v suffix = if v `inBetween` bounds names 
+                           then hsnSuffix (names ! v) suffix 
+                           else maybe (hsnSuffix (HNPos v) suffix) id (Map.lookup v map >>= return . flip findNewVar' ("_" ++ show v ++ suffix))
+
 findNewVar _  nm = error $ "findNewVar: Not a number: " ++ show nm
 %%]
 

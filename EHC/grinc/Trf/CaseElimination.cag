@@ -48,7 +48,7 @@ SEM GrExpr
 
 a case with only one alternative can be rewritten into a seq with a node pattern.
 
-case v of (Tag a1 an) ->    => unit v; \(Tag a1 ... an) ->
+case v of (Tag a1 an) -> e1   => unit v; \(Tag a1 ... an) -> e1
 
 %%[8.trivial
 ATTR AllAlt [ scrutinizer: GrVal | | count: Int newBody: GrExpr ]
@@ -71,6 +71,13 @@ SEM GrExpr
 %%%%%%%%%%%%%%%%%%%%%%
 %%% Evaluated Case %%%
 %%%%%%%%%%%%%%%%%%%%%%
+
+a case with alternatives which only return the scrutinizer can be replaced with a unit scrutinizer. 
+
+case v of
+    (Tag1 a11 a1n) -> unit v
+    ...
+    (TagM aM1 aMn) -> unit v   => unit v
 
 %%[8.evaluatedCase
 ATTR AllAlt [ | | isEvaluated USE {&&} {True}: Bool ]
