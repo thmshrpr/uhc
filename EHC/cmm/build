@@ -1,7 +1,0 @@
-#!/bin/bash
-
-test -n "${1}" || { cat "$0"; exit 1; }
-base=${1%.cmm}
-dir="`dirname "$0"`"
-
-qc-- peephole.lua -globals ${dir}/startup.cmm ${base}.cmm -o ${base}

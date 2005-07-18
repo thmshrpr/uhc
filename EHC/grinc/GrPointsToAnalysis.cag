@@ -297,7 +297,9 @@ makeStore setEnvVar ftag2resultVar heapPointer valInfo targetInfo
                                                         GrTag_Lit GrTagApp _ _ -> True
                                                         otherwise              -> False
                                        (f,args)    = case names of
-                                                        _:f:args  -> (fromJust f, map (Left . fromJust)  args)
+                                                        _:f:args  -> (fromJust' "store f" f
+                                                                     , map (Left . fromJust' "store args")  args
+                                                                     )
                                                         otherwise -> error "No lazy apply tag!"
                                        envMod      = if isApplyTag
                                                      then EnvLazyApp f args
@@ -477,7 +479,7 @@ SEM GrExpr
              . prim       = case @lhs.targetInfo of
                               Left nm          -> @lhs.setEnvVar nm @primAbsVal EnvNoChange
                               Right (tag, nms) -> let (AV_Nodes nodes) = @primAbsVal 
-                                                      tagElementsAV    = fromJust $ lookup tag nodes
+                                                      tagElementsAV    = fromJust' "FFI" $ lookup tag nodes
                                                       makeAV teAV nm   = @lhs.setEnvVar nm teAV EnvNoChange
                                                   in zipWithM_ makeAV tagElementsAV nms
              . ffi        = case @lhs.targetInfo of
@@ -494,15 +496,21 @@ Note: we have the ctable, can we do something with that?
 getPrimAbsVal :: String -> AbstractValue
 getPrimAbsVal n = maybe (error $ "primitve '" ++ n ++ "' not found") id (lookup n primTable)
         where 
-        primTable = [ ("primAddInt", makeUnboxedAV [AV_Basic])
-                    , ("primCmpInt", AV_Nodes [ (GrTag_Lit GrTagCon 0 (HNm "_EQ"), [AV_Basic])
-                                              , (GrTag_Lit GrTagCon 1 (HNm "_GT"), [AV_Basic])
-                                              , (GrTag_Lit GrTagCon 2 (HNm "_LT"), [AV_Basic])
-                                              ]
+        primTable = [ ("primAddInt"  , makeUnboxedAV [AV_Basic])
+                    , ("primSubInt"  , makeUnboxedAV [AV_Basic])
+                    , ("primGtInt"   , booleanNodes)
+                    , ("primEqInt"   , booleanNodes)
+                    , ("primLtInt"   , booleanNodes)
+                    , ("primCmpInt"  , AV_Nodes [ (GrTag_Lit GrTagCon 0 (HNm "_EQ"), [AV_Basic])
+                                                , (GrTag_Lit GrTagCon 1 (HNm "_GT"), [AV_Basic])
+                                                , (GrTag_Lit GrTagCon 2 (HNm "_LT"), [AV_Basic])
+                                                ]
                       )
                     ]
 
 makeUnboxedAV vals = AV_Nodes [(GrTag_Unboxed, vals)]
+booleanNodes = AV_Nodes [ (GrTag_Lit GrTagCon 0 (HNm "_False"), [AV_Basic])
+                        , (GrTag_Lit GrTagCon 1 (HNm "_True" ), [AV_Basic])]
 %%]
 
 %%%%%%%%%%%
@@ -616,7 +624,7 @@ store (FCAF); \bla ->
 SEM GrAGItf
   | AGItf   loc . mergeCAF = \n (p, e, h) -> let resVar       = getNr n
                                                  cafVar       = getCafVar @lhs.cafMap n
-                                                 tag          = fromJust $ revLookup @module.tag2resultVar resVar
+                                                 tag          = fromJust' "resVar" $ revLookup @module.tag2resultVar resVar
                                                  (p', e', h') = makeStore @lhs.setEnvVar (const . Just $ resVar) p (Right (tag, [Nothing])) (Left cafVar)
                                              in (p', e' >> e, h' : h)
                 . (afterCAFPointer, fillEnvCAF, absHeapCAF)  = foldr @mergeCAF (0, return (), []) @module.cafNames

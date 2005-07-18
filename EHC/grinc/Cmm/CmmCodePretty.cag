@@ -97,7 +97,7 @@ SEM CmmActual
   | Actual          loc . pp    = ppKind @kind >|< @val.pp
 
 SEM CmmLValues
-  | Cons            loc . pp    = @hd.pp >|< "," >|< @tl.pp
+  | Cons            loc . pp    = @hd.pp >|< "," >-< @tl.pp
 
 SEM CmmLValue
   | Var             loc . pp    = pp @name
@@ -119,7 +119,7 @@ ppListComma ::  (a -> PP_Doc) -> [a] -> PP_Doc
 ppListComma f = ppList (\e -> f e >|< ",")
 	where
 	ppList ::  (a -> PP_Doc) -> [a] -> PP_Doc
-	ppList f = foldr (\e p -> f e >|< p) empty
+	ppList f = foldr (\e p -> f e >-< p) empty
 
 ppKind :: CmmKind -> PP_Doc
 ppKind kind = if null kind then empty else pp (ppString kind) >#< empty

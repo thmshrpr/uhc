@@ -227,7 +227,7 @@ envChangeSet am env heap applyMap = case am of
                                     getNewNode tag args       = let newArgs = args ++ [arg]
                                                                 in either (\tag' -> return $ AV_Nodes [(tag', newArgs)])
                                                                           (\var -> appendApplyArg env (AV_Nodes [(GrTag_Var (HNPos var), newArgs)]) >> valAbsEnv var)
-                                                                          (fromJust $ lookup tag applyMap)
+                                                                          (fromJust' ("tag missing in applyMap: " ++ show tag) $ lookup tag applyMap)
                                 in mapM (uncurry getNewNode) partialApplicationNodes >>= return . mconcat
 %%]
 
@@ -235,6 +235,8 @@ envChangeSet am env heap applyMap = case am of
 fromLeft  = either id                                     (const $ error "fromLeft: found right value")
 fromRight = either (const $ error "fromRight: found left value") id
 
+fromJust' s Nothing  = error $ "fromJust' Maybe:" ++ s
+fromJust' _ (Just a) = a
 --to break circular dependencies a copy paste from GRINCCommon:
 getNodes av = case av of
                   AV_Nodes n  -> n

@@ -15,25 +15,45 @@ builtin primitives (like plus and compare on integers)
 -- primitivesTable: list of (name, (return size, required imports, CAFnames -> arguments -> result variables -> primitve))
 primitivesTable :: [(String, (Int, [String], CmmNames -> CmmNames -> CmmBodyBuilder))]
 primitivesTable
-  = [ ("primAddInt", (1, [], emitPrimAddInt))
-    , ("primCmpInt", (2, [], emitPrimCmpInt))
+  = [ ("primAddInt"  , (1, [], emitPrimAddInt))
+    , ("primSubInt"  , (1, [], emitPrimSubInt))
+    , ("primCmpInt"  , (2, [], emitPrimCmpInt))
+    , ("primEqInt"   , (2, [], emitPrimEqInt ))
+    , ("primLtInt"   , (2, [], emitPrimLtInt ))
+    , ("primGtInt"   , (2, [], emitPrimGtInt ))
     ]
 
+--buildin datatype
+true_caf   = cmmVar "$_True_caf"
+false_caf  = cmmVar "$_False_caf"
+eq_caf     = cmmVar "$_EQ_caf"
+lt_caf     = cmmVar "$_LT_caf"
+gt_caf     = cmmVar "$_GT_caf"
+
+true_node   = map (fetch true_caf ) [0,4]
+false_node  = map (fetch false_caf) [0,4]
+eq_node     = map (fetch eq_caf   ) [0,4]
+lt_node     = map (fetch lt_caf   ) [0,4]
+gt_node     = map (fetch gt_caf   ) [0,4]
+
 emitPrimAddInt (l:r:[]) tn = assignOrReturn tn [(cmmVar l <+> cmmVar r)]
+emitPrimSubInt (l:r:[]) tn = assignOrReturn tn [(cmmVar l <-> cmmVar r)]
+
+
+emitPrimGtInt = booleanCompare "gt"
+emitPrimLtInt = booleanCompare "lt"
+emitPrimEqInt = booleanCompare "eq"
+
+booleanCompare s (l:r:[]) tn = ite (prim s [valArg $ cmmVar l, valArg $ cmmVar r])
+                                   (assignOrReturn tn true_node)
+                                   (assignOrReturn tn false_node)
 
 emitPrimCmpInt (l:r:[]) tn 
-  = let ltA  = arg "$_LT"
-        gtA  = arg "$_GT"
-        eqA  = arg "$_EQ"
-        mkEvalCall a = if null tn -- TODO: is this always correct?
-                       then call True  eval [a] []
-                       else call False eval [a] (map (\n -> ("",n)) tn)
-    in
-    ite (prim "gt" [valArg $ cmmVar l,valArg $ cmmVar r])
-        (mkEvalCall gtA)
+  = ite (prim "gt" [valArg $ cmmVar l,valArg $ cmmVar r])
+        (assignOrReturn tn gt_node)
         (ite (prim "lt" [valArg $ cmmVar l,valArg $ cmmVar r])
-             (mkEvalCall ltA)
-             (mkEvalCall eqA)
+             (assignOrReturn tn lt_node)
+             (assignOrReturn tn eq_node)
         )
 
 assignOrReturn tn expr = if null tn

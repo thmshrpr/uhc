@@ -12,13 +12,13 @@ import malloc;
 export main;
 export printInt;
 
-const HEAP_SIZE = 8192;
+const HEAP_SIZE = 1024;
 
 bits32 @hp;
 
 section "data" {
 	heapsize_var      : bits8[] "GRIN_HEAPSIZE\0";
-	heapsize_msg      : bits8[] "heapsize %d\n\0";
+	heapsize_msg      : bits8[] "heapsize %d KB\n\0";
 	int_msg           : bits8[] "int: %d\n\0";
 }
 
@@ -49,8 +49,8 @@ foreign "C" main(bits32 argc, "address" bits32 argv) {
 
 
 	//no GC yet - just allocate the memory and hope we will not allocate to much
-	@hp = foreign "C" malloc(heapsize);
-	//@hp = foreign "C" gc_init(heapsize);
+	@hp = foreign "C" malloc(heapsize * 1024);
+	//@hp = foreign "C" gc_init(heapsize * 1024);
 
 	//save argument positions
 	bits32[argument_count] = argc;
