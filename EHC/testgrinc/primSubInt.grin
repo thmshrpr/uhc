@@ -2,7 +2,7 @@ module "primSubstractInt"
 { $substract $x $y
     = { eval $x ; \(#0/C/$_Int $__ $x') ->
         eval $y ; \(#0/C/$_Int $__ $y') ->
-        ffi primSubstractInt $x' $y' ; \(#U $z') ->
+        ffi primSubInt $x' $y' ; \(#U $z') ->
         unit (#0/C/$_Int 1 $z')
       }
 ; main 

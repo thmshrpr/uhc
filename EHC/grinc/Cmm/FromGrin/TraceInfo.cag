@@ -15,13 +15,26 @@ SEM GrBind
   | Bind      loc . traceName     = cmmName' @nm
                   . traceAddress  = "@trace_" ++ @traceName
                   . traceStm'     = cmmCall "C" (cmmVar "puts") [ ptrArg $ cmmVar @traceAddress ] []
-              lhs . importedNames = ("puts", Nothing) : @expr.importedNames
+                  . doTrace       = @nm /= HNm "eval" && False
+              lhs . importedNames = if @doTrace
+                                    then ("puts", Nothing) : @expr.importedNames
+                                    else @expr.importedNames
               loc . traces        = [(@traceAddress, @traceName)]
-              lhs . traces        = if @nm == HNm "eval" then [] else @traces
-              loc . traceStm      = if @nm == HNm "eval" then cmmNop else @traceStm'
+              lhs . traces        = if @doTrace
+                                    then @traces
+                                    else [] 
+              loc . traceStm      = if @doTrace
+                                    then @traceStm'
+                                    else cmmNop 
 
 SEM GrModule
-  | Mod       loc . strings       = let data2section d  = lift (CmmToplevel_Section "data") [CmmSectionElement_Data d]
-                                        traceData (l,t) = [CmmDatum_Label l, reserve many bits8 $ strInit (t ++ "\0")]
-                                    in data2section (concatMap traceData @bindL.traces)
+  | Mod       loc . doTrace       = False
+                  . strings       = if @doTrace
+                                    then let data2section d  = lift (CmmToplevel_Section "data") 
+                                                                    [CmmSectionElement_Data d]
+                                             traceData (l,t) = [ CmmDatum_Label l
+                                                               , reserve many bits8 $ strInit (t ++ "\0")
+                                                               ]
+                                         in data2section (concatMap traceData @bindL.traces)
+                                    else lift (CmmToplevel_Section "data") []
 %%]

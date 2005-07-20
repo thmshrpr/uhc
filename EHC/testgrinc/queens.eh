@@ -3,18 +3,18 @@ let data List a = Nil | Cons a (List a)
     data Ordering = LT | EQ | GT
 in
 let foreign import jazy "primAddInt" add :: Int -> Int -> Int
-    foreign import jazy "primSubstractInt" substract :: Int -> Int -> Int
-    foreign import jazy "primGtInt" gt :: Int -> Int -> Bool
-    foreign import jazy "primEqInt" eq :: Int -> Int -> Bool
-    foreign import jazy "primLtInt" lt :: Int -> Int -> Bool
+    foreign import jazy "primSubInt" substract :: Int -> Int -> Int
+    foreign import jazy "primGtInt"  gt :: Int -> Int -> Bool
+    foreign import jazy "primEqInt"  eq :: Int -> Int -> Bool
+    foreign import jazy "primLtInt"  lt :: Int -> Int -> Bool
 in
 let not = \b -> case b of
                     True -> False
                     False -> True
     neq = \a b -> not (eq a b)
-    or = \a b -> case a of 
-                     True  -> True
-		     False -> b
+    and = \a b -> case a of 
+	  	     False -> False
+                     True  -> b
 in
 let length = \l -> case l of
                        Nil      -> 0
@@ -27,12 +27,12 @@ let length = \l -> case l of
                        False -> Cons m (upto (add m 1) n)
     safe = \x d l -> case l of
                          Nil      -> True
-                         Cons h t -> or (neq x h) 
-                                        (or (neq x (add h d)) 
-                                            (or (neq x (substract h d)) 
-                                                (safe x (add d 1) t)
-                                            )
-                                        )
+                         Cons h t -> and (neq x h) 
+                                         (and (neq x (add h d)) 
+                                              (and (neq x (substract h d)) 
+                                                   (safe x (add d 1) t)
+                                              )
+                                         )
     ok = \l -> case l of
                    Nil      -> True
                    Cons h t -> safe h 1 t

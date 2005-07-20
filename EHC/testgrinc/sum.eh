@@ -1,13 +1,8 @@
-let data Ordering = LT | EQ | GT
-    data Bool = False | True
+let data Bool = False | True
     data List a = Nil | Cons a (List a)
 in
 let foreign import jazy "primAddInt" add :: Int -> Int -> Int
-    foreign import jazy "primCmpInt" compare :: Int -> Int -> Ordering
-    gt  = \x -> \y ->
-            case compare x y of
-                GT -> True
-                _  -> False
+    foreign import jazy "primGtInt"  gt :: Int -> Int -> Bool
 in
 let upto = \m n ->
         if gt m n then

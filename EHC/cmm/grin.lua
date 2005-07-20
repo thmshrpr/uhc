@@ -13,7 +13,7 @@ end
 function CMD.compilertab[".grin"](file)
   local out      = CMD.outfilename(file, ".cmm") -- compiler generate output to this path
   local grinc    = Frontends.GRIN.file("grinc")
-  local options  = "-v2"
+  local options  = "-v0"
   --if Frontends.GRINC.aOption then options = "..." end -- allow options
   CMD.exec(grinc .. " " .. options .. " " .. file)
   return out

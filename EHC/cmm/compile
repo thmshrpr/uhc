@@ -9,6 +9,7 @@ which "${cmmc}" >& /dev/null || cmmc=qc--
 
 in=../${1}
 out=../${1%.*}
+shift
 
 cd cmm
-${cmmc} peephole.lua -globals -keep .cmm grin.lua startup.cmm ${in} -o ${out}
+${cmmc} eh.lua grin.lua peephole.lua -globals startup.cmm ${in} -o ${out} "$@"
