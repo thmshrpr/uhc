@@ -11,7 +11,7 @@ let not = \b -> case b of
                     True -> False
                     False -> True
     neq = \a b -> not (eq a b)
-    or = \a b -> case a of 
+    and = \a b -> case a of 
                      True  -> True
 		     False -> b
     eq = \a b -> case compare a b of
@@ -32,12 +32,12 @@ let length = \l -> case l of
                        False -> Cons m (upto (add m 1) n)
     safe = \x d l -> case l of
                          Nil      -> True
-                         Cons h t -> or (neq x h) 
-                                        (or (neq x (add h d)) 
-                                            (or (neq x (substract h d)) 
-                                                (safe x (add d 1) t)
-                                            )
-                                        )
+                         Cons h t -> and (neq x h) 
+                                         (and (neq x (add h d)) 
+                                              (and (neq x (substract h d)) 
+                                                   (safe x (add d 1) t)
+                                               )
+                                         )
     ok = \l -> case l of
                    Nil      -> True
                    Cons h t -> safe h 1 t

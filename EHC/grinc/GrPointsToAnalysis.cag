@@ -26,11 +26,11 @@ WRAPPER GrAGItf
 type Action          = ST RealWorld ()
 type EnvAction       = ST RealWorld (AbstractEnv RealWorld)
 type HeapAction      = ST RealWorld (AbstractHeap RealWorld)
-type Analysis        = (Array Int AbstractEnvElement, Array Int AbstractHeapElement)
+type HPTResult       = (Int, Array Int AbstractEnvElement, Array Int AbstractHeapElement)
 type SetEnv          = Variable -> AbstractValue -> AbstractEnvModifier -> Action
 type GetEnv          = Variable -> ST RealWorld AbstractEnvElement
 
-heapPointsToAnalysis :: (Int,Int) -> CafMap -> GrModule -> IO Analysis
+heapPointsToAnalysis :: (Int,Int) -> CafMap -> GrModule -> IO HPTResult
 heapPointsToAnalysis (low,high) cafMap grmod = stToIO $ do
     { let applyArg = low - 1 ;
     ; absEnv <- (newArray_ (applyArg,high) ) :: EnvAction
@@ -49,10 +49,10 @@ heapPointsToAnalysis (low,high) cafMap grmod = stToIO $ do
     ; absHeap <- makeHeap_Syn_GrAGItf t
     ; setEnvVar applyArg AV_Nothing EnvNoChange
     ; let applyMap = applyMap_Syn_GrAGItf t
-    ; heapPointsTo absEnv absHeap applyMap
+    ; count   <- heapPointsTo absEnv absHeap applyMap
     ; absHeap <- unsafeFreeze absHeap
     ; absEnv  <- unsafeFreeze absEnv
-    ; return (absEnv, absHeap)
+    ; return (count, absEnv, absHeap)
     }
 %%]
 

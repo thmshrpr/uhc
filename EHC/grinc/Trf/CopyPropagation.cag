@@ -1,6 +1,6 @@
 % $Id$
 
-TODO: Make the copy propagation
+TODO: Left unit not implemented, right unit not correctly (should be a left unit probably)
 
 %%[0
 %include lhs2TeX.fmt
@@ -64,7 +64,7 @@ removes terms like '\x -> unit x'
 
 two forms possible:
     seq v x (unit x)           => v
-    seq v x (seq (unit x) p e) => seq v p e
+    seq v x (seq (unit x) p e) => seq v p e[p/x]
 
 example:    
     seq f 8 (seq (unit 8) 13 (seq (unit 13) p e))

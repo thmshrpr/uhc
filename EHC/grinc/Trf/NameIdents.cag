@@ -23,7 +23,7 @@ nameIdents m cafMap grmod = let t        = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AG
                      in (cafMap', grTrf_Syn_GrAGItf t)
 %%]
 
-%%[8.lookup hs
+%%[8.lookup hs export(findNewVar)
 findNewVar (names, map) nm@(HNPos i) = if wildcardNr == nm
                                        then wildcardNm
                                        else if applyNr == nm

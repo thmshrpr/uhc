@@ -281,42 +281,42 @@ fixpoint base deps (work:worklist) f = do
     }
 -}
 
-fixpoint analysis labels f = do
-    { let doStep (analysis, hasChanges) l = do { (analysis', isChanged) <- f l analysis
-                                               ; return (analysis', hasChanges || isChanged)
-                                               }
-    ; (analysis', changes) <- foldM doStep (analysis, False) labels
-    ; if changes
-      then fixpoint analysis' labels f
-      else return analysis'
-    }
+fixpoint labels f = countFixpoint 1
+    where
+    countFixpoint count = do
+        { let doStep hasChanges l = f l >>= return . (hasChanges ||)
+        ; changes <- foldM doStep False labels
+        ; if changes
+          then countFixpoint (count+1)
+          else return count
+        }
 %%]
 
 %%[8 export(heapPointsTo)
-heapPointsTo :: AbstractEnv s -> AbstractHeap s -> AssocL GrTag (Either GrTag Int) -> ST s (Analysis s)
+heapPointsTo :: AbstractEnv s -> AbstractHeap s -> AssocL GrTag (Either GrTag Int) -> ST s Int
 heapPointsTo env heap applyMap =
     let labels        = heapLabels ++ envLabels
         heapLabels    = map Right (indices heap)
         envLabels     = map Left (tail $ indices env)
-        f (Left i) (env, heap) = do
+        f (Left i) = do
             { e  <- lookupEnv env i
             ; e' <- updateEnvElement e env heap applyMap
             ; let changed = isChanged (aeBaseSet e) (aeBaseSet e')
             ; when changed (writeArray env i e')
-            ; return ((env,heap), changed)
+            ; return changed
             }
-        f (Right i) (env, heap) = do
+        f (Right i) = do
             { e  <- lookupHeap heap i
             ; e' <- updateHeapElement e env
             ; let changed = isChanged (ahBaseSet e) (ahBaseSet e')
             ; when changed (writeArray heap i e')
-            ; return ((env,heap), changed)
+            ; return changed
             }
         -- @tracef l a = do { r@((env,heap), c) <- f l a
         --                ; msg <- if c then either (\i -> lookupEnv env i >>= return . show) (\i -> lookupHeap heap i >>= return . show) l else return "nothing"
         --                ; trace ("step: " ++ show l ++ " changed: " ++ show msg) $ return r
         --                }
-    in fixpoint (env,heap) labels f
+    in fixpoint labels f
 
 
 isChanged :: AbstractValue -> AbstractValue -> Bool

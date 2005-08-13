@@ -39,7 +39,7 @@ help:
 
 TRANS_SRC    := $(GT)/NumberIdents.hs $(GT)/NormForHPT.hs $(GT)/RightSkew.hs $(GT)/NameIdents.hs \
                 $(GT)/LowerGrin.hs $(GT)/DropUnusedBindings.hs $(GT)/GrInline.hs $(GT)/CaseElimination.hs \
-		$(GT)/SparseCase.hs $(GT)/CopyPropagation.hs
+		$(GT)/SparseCase.hs $(GT)/CopyPropagation.hs $(GT)/BuildAppBindings.hs $(GT)/DropUnusedTags.hs
 
 GRINC_SOURCE := grinc/GRINC.hs grinc/CompilerDriver.hs grinc/GRINCCommon.hs EHCommon.hs EHScanner.hs \
                 GrinCode.hs GrinCodePretty.hs gri/GRIParser.hs grinc/Cmm/FromGrin.hs \
@@ -72,7 +72,13 @@ GrinCode.hs: GrinCode.ag
 grinc/GrPointsToAnalysis.hs: grinc/GrPointsToAnalysis.ag
 	$(call AGCC,$<,$(AGC_FLAGS_CODE))
 
+$(GT)/BuildAppBindings.hs: $(GT)/BuildAppBindings.ag GrinCodeAbsSyn.ag GrinCode.hs
+	$(call AGCC,$<,$(AGC_FLAGS_CODE))
+
 $(GT)/DropUnusedBindings.hs: $(GT)/DropUnusedBindings.ag GrinCodeAbsSyn.ag GrinCode.hs
+	$(call AGCC,$<,$(AGC_FLAGS_CODE))
+
+$(GT)/DropUnusedTags.hs: $(GT)/DropUnusedTags.ag GrinCodeAbsSyn.ag GrinCode.hs
 	$(call AGCC,$<,$(AGC_FLAGS_CODE))
 
 $(GT)/LowerGrin.hs: $(GT)/LowerGrin.ag GrinCodeAbsSyn.ag GrinCode.hs

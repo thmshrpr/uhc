@@ -95,6 +95,27 @@ caDropUnusedBindings = do
     modify (csUpdateGrinCode code)
 %%]
 
+%%[8.dropUnusedTags import(Trf.DropUnusedTags)
+caDropUnusedTags :: CompileAction ()
+caDropUnusedTags = do
+    putMsg VerboseALot "Remove unused tags" Nothing
+    code <- gets csGrinCode
+    code <- return $ dropUnusedTags code
+    modify (csUpdateGrinCode code)
+%%]
+
+%%[8.addLazyApply import(Trf.BuildAppBindings)
+caAddLazyApplySupport :: CompileAction ()
+caAddLazyApplySupport = do
+    putMsg VerboseALot "Renaming lazy apply tags" Nothing
+    code   <- gets csGrinCode
+    unique <- gets csUnique
+    (unique, code) <- return $ buildAppBindings unique code
+    modify (csUpdateGrinCode code)
+    modify (csUpdateUnique unique)
+%%]
+
+
 %%[8.numberIdentifiers import(Trf.NumberIdents, Data.Array.IArray)
 caNumberIdents :: CompileAction ()
 caNumberIdents = task VerboseALot "Numbering identifiers"
@@ -160,12 +181,15 @@ caRightSkew = task VerboseALot "Unskewing" (caFix caRightSkew1) (\i -> Just $ sh
 
 %%[8.heapPointsTo import(GrPointsToAnalysis)
 caHeapPointsTo :: (Int, Int) -> CompileAction ()
-caHeapPointsTo bounds = do
-    putMsg VerboseALot "Heap-points-to analysis" Nothing
-    code   <- gets csGrinCode
-    cm     <- gets csCafMap
-    result <- liftIO $ heapPointsToAnalysis bounds cm code
-    modify (\s -> s { csMbHptMap = Just (result, Map.empty) })
+caHeapPointsTo bounds = task VerboseALot "Heap-points-to analysis" 
+    ( do { code    <- gets csGrinCode
+         ; cm      <- gets csCafMap
+         ; (c,e,h) <- liftIO $ heapPointsToAnalysis bounds cm code
+         ; modify (\s -> s { csMbHptMap = Just ((e,h), Map.empty) })
+         ; return c
+         }
+     ) (\i -> Just $ show i ++ " iteration(s)")
+           
 %%]
 
 %%[8.inline import(Trf.GrInline)
@@ -288,9 +312,11 @@ doCompileRun fn opts = let input     = mkTopLevelFPath "grin" fn
 caLoad = task_ VerboseNormal "Loading" 
     ( do { caParseGrin
          ; caDropUnusedBindings
+         ; caDropUnusedTags
          ; caNumberIdents
+         ; caAddLazyApplySupport
          ; debugging <- gets (optDebug . csOpts)
-         ; when debugging (caWriteGrin "loaded")
+         ; when debugging (caWriteGrin "debug.loaded")
          }
     )
 
@@ -302,17 +328,19 @@ caAnalyse = task_ VerboseNormal "Analysing"
 
          ; debugging <- gets (optDebug . csOpts)
          ; when debugging (do { ((env, heap),_) <- gets csHptMap
+                              ; vm    <- gets csOrigNms
+                              ; let newVar i = (i, findNewVar vm (HNPos i))
                               ; liftIO $ do { putStrLn "*** Equations ***"
-                                            ; printArray "env:"  aeMod env
-                                            ; liftIO $ printArray "heap:" ahMod heap
+                                            ; printArray "env:"  newVar aeMod env
+                                            ; printArray "heap:" id ahMod heap
                                             ; putStrLn "*** Abstract Values ***"
-                                            ; printArray "env:"  aeBaseSet env
-                                            ; printArray "heap:" ahBaseSet heap
+                                            ; printArray "env:"  newVar aeBaseSet env
+                                            ; printArray "heap:" id ahBaseSet heap
                                             }
                               }
                           )
          ; debugging <- gets (optDebug . csOpts)
-         ; when debugging (caWriteGrin "inlined-pre")
+         ; when debugging (caWriteGrin "debug.inlined-pre")
          }
     )
     
@@ -320,14 +348,14 @@ caNormalize = task_ VerboseNormal "Normalizing"
     ( do { caInlineEA
          ; caRightSkew
          ; debugging <- gets (optDebug . csOpts)
-         ; when debugging (caWriteGrin "inlined")
+         ; when debugging (caWriteGrin "debug.inlined")
          ; caSparseCase
          ; caEliminateCases
          ; debugging <- gets (optDebug . csOpts)
-         ; when debugging (caWriteGrin "with-copies")
+         ; when debugging (caWriteGrin "debug.with-copies")
          ; caCopyPropagation 
          ; debugging <- gets (optDebug . csOpts)
-         ; when debugging (caWriteGrin "optimized")
+         ; when debugging (caWriteGrin "debug.optimized")
          ; caLowerGrin
          }
     )
@@ -340,9 +368,9 @@ caOutput = task_ VerboseNormal "Writing code"
          }
     )
 
-printArray s f a = do
+printArray s f g a = do
     { putStrLn s 
-    ; mapM_ (\(k, v) -> putStrLn ("  " ++ show k ++ " = " ++ show (f v))) (assocs a)
+    ; mapM_ (\(k, v) -> putStrLn ("  " ++ show (f k) ++ " = " ++ show (g v))) (assocs a)
     }
 %%]
 
