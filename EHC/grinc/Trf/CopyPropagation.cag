@@ -7,7 +7,7 @@ TODO: Left unit not implemented, right unit not correctly (should be a left unit
 %include afp.fmt
 %%]
 
-%%[8 import(../../GrinCodeAbsSyn)
+%%[8 import("../GrinCodeAbsSyn")
 %%]
 
 %%[8.wrapper

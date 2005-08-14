@@ -10,7 +10,7 @@ TODO: has to run before tag map (but should not need to) - since we build tags f
 %include afp.fmt
 %%]
 
-%%[8 import(../../GrinCodeAbsSyn)
+%%[8 import("../GrinCodeAbsSyn")
 %%]
 
 %%[8.wrapper
@@ -46,7 +46,7 @@ SEM GrTag
 %%]
 
 
-%%[8.CAFs import(../GrCAFNames)
+%%[8.CAFs import("../GrCAFNames")
 SEM GrModule
   | Mod  loc  .  usedTags = foldl nm2tag @bindL.usedTags @bindL.cafNames
 %%]

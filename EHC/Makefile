@@ -1,3 +1,4 @@
+#!/usr/bin/make -f
 TOP_PREFIX			:=
 
 default: explanation
@@ -14,6 +15,7 @@ include ruler2/files.mk
 include grin/files.mk
 include ehc/files.mk
 include grini/files.mk
+include grinc/files.mk
 include agprimer/files.mk
 -include figs/files.mk
 -include text/files.mk
@@ -79,10 +81,12 @@ LHS2TEX_POLY_3			= \
 explanation:
 	@echo "make bin/<n>/ehc     : make compiler version <n> (where <n> in {$(EHC_PUB_VARIANTS)})" ; \
 	echo  "make bin/<n>/grini   : make grin interpreter version <n> (where <n> in {$(GRIN_PUB_VARIANTS)})" ; \
+	echo  "make bin/<n>/grinc   : make grin compiler version <n> (where <n> in {$(GRIN_PUB_VARIANTS)})" ; \
 	echo  "make bin/ruler2      : make ruler tool" ; \
 	echo  "make bin/shuffle     : make shuffle tool" ; \
 	echo  "make ehcs            : make all compiler ($(EHC_EXEC_NAME)) versions" ; \
 	echo  "make grinis          : make all grin interpreter ($(GRINI_EXEC_NAME)) versions" ; \
+	echo  "make grincs          : make all grin compiler ($(GRINC_EXEC_NAME)) versions" ; \
 	echo  "make test-regress    : run regression test" ; \
 	echo  "make test-expect     : make expected output (for later comparison with test-regress)" ; \
 
@@ -237,6 +241,8 @@ $(BREW_DOC_PDF): $(BREW_DIR)/RulerDoc.tex $(BREW)
 ehcs: $(EHC_ALL_PUB_EXECS)
 
 grinis: $(GRINI_ALL_PUB_EXECS)
+
+grincs: $(GRINC_ALL_PUB_EXECS)
 
 redit:
 	bbedit \

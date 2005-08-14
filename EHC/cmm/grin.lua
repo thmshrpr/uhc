@@ -1,5 +1,5 @@
 Frontends.GRIN      = Frontends.GRIN or { } -- initialize table
-Frontends.GRIN.dir  = "../8/"
+Frontends.GRIN.dir  = "../bin/8/"
 
 function Frontends.GRIN.file(name)
   return Frontends.GRIN.dir .. '/' .. name -- does not port to windows!

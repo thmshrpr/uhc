@@ -10,7 +10,7 @@ TODO: The use of a caf variable should keep the caf (needs a caf map - if availa
 %include afp.fmt
 %%]
 
-%%[8 import(../../GrinCodeAbsSyn)
+%%[8 import("../GrinCodeAbsSyn")
 %%]
 
 %%[8.wrapper
@@ -62,7 +62,7 @@ findBindName bindMap e = case e of
     EvApTagUnit   ->  error "unit tag not expected"
 %%]
 
-%%[8.CAFs import(../GrCAFNames)
+%%[8.CAFs import("../GrCAFNames")
 SEM GrModule
   | Mod  loc  .  usedBindings = foldl Set.addToSet @bindL.usedBindings (@lhs.entry : @bindL.cafNames)
 %%]

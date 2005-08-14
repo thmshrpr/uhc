@@ -11,7 +11,7 @@ to a binding, but it's easier not to.
 %include afp.fmt
 %%]
 
-%%[8 import(../../GrinCodeAbsSyn)
+%%[8 import("../GrinCodeAbsSyn")
 %%]
 
 %%[8.wrapper

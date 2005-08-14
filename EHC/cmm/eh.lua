@@ -1,5 +1,5 @@
 Frontends.EH      = Frontends.EH or { } -- initialize table
-Frontends.EH.dir  = "../8/"
+Frontends.EH.dir  = "../bin/8/"
 
 function Frontends.EH.file(name)
   return Frontends.EH.dir .. '/' .. name -- does not port to windows!
