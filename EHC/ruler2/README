@@ -1,0 +1,21 @@
+Requirements
+------------
+
+GHC 6.4     : http://www.haskell.org/ghc
+UUST library: see http://www.cs.uu.nl/wiki/Ehc/WebHome
+
+
+Installation
+------------
+
+From withing the directory where this README lives:
+
+to make ../bin/ruler2  :  make ruler
+to make the demo       :  make demo
+to try the demo        :  DEMOEXEC < demo/tst5
+
+to find out the exact names of the executables (like DEMOEXEC above)
+                       :  make
+
+An older (not included) version of the Ruler system is named 'ruler',
+it will become obsolete in the near future so the name ruler2 will change into ruler.

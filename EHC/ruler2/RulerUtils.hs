@@ -11,6 +11,7 @@ import qualified Data.Set as Set
 import qualified Data.Map as Map
 import FPath
 import Utils
+import Nm
 import PPUtils
 import UU.Pretty
 import qualified UU.DData.Scc as Scc
@@ -36,6 +37,7 @@ data Err
   = Err_UndefNm SPos String String [Nm]
   | Err_NoJdSc  SPos String [Nm]
   | Err_Match   SPos String PP_Doc PP_Doc
+  | Err_RlPost  SPos String Nm
   deriving Show
 
 ppErr :: Position pos => (String,pos) -> PP_Doc -> PP_Doc
@@ -59,16 +61,20 @@ instance PP Err where
                         >-< "given view expr      :" >#< given
                        )
                 )
+  pp (Err_RlPost pos cx nm)
+    = ppErr pos ("In" >#< cx >#< "conclusion lacks judgement for ruleset's scheme:" >#< pp nm)
 
 -------------------------------------------------------------------------
 -- Parsing
 -------------------------------------------------------------------------
 
+{-
 parseToResMsgs :: (Symbol s,InputState inp s pos) => AnaParser inp Pair s pos a -> inp -> (a,[Message s pos])
 parseToResMsgs p inp
   = (r,getMsgs steps)
   where steps = parse p inp
         (Pair r _) = evalSteps steps
+-}
 
 instance (Eq s, Show s, Show p, Position p) => PP (Message s p) where
   pp (Msg expecting position action)  
@@ -151,6 +157,11 @@ vgDpdsOn :: DpdGr n -> n -> [n]
 vgDpdsOn g n
   = maybe [] (snd . vgV2N g) (vgK2V g n)
 
+vgIsFirst :: Ord n => DpdGr n -> n -> Set.Set n -> Bool
+vgIsFirst g n ns
+  = Set.null s
+  where s = Set.delete n ns `Set.difference` vgReachableTo g n
+
 -------------------------------------------------------------------------
 -- Kind of scheme
 -------------------------------------------------------------------------
@@ -161,6 +172,17 @@ data ScKind
 
 instance PP ScKind where
   pp = text . show
+
+-------------------------------------------------------------------------
+-- Derived scheme
+-------------------------------------------------------------------------
+
+data ScDeriv
+  = ScList Nm
+  deriving (Show,Eq,Ord)
+
+instance PP ScDeriv where
+  pp (ScList n) = pp_brackets (pp n)
 
 -------------------------------------------------------------------------
 -- Kind of Expr wrappers (for influencing latex pretty printing, colors)
@@ -186,89 +208,16 @@ data ExprIsRw
 -- Names
 -------------------------------------------------------------------------
 
-data Nm' s
-  = Nm     { nmStr      :: s }
-  | NmSel  { nmNm       :: Nm' s
-           , nmMbSel    :: Maybe s
-           }
-  deriving (Eq,Ord)
-
-type Nm = Nm' String
-
-nmBase' :: Nm -> String
-nmBase' (NmSel n _) = nmBase' n
-nmBase' (Nm s)      = s
-
-nmBase :: Nm -> Nm
-nmBase = Nm . nmBase'
-
-nmSetSuff :: Nm -> String -> Nm
-nmSetSuff n s = NmSel (nmBase n) (Just s)
-
-nmSetBase :: Nm -> String -> Nm
-nmSetBase n s
-  = nmFromL (Just s:nL)
-  where (_:nL) = nmToMbL n
-
-nmSetSel :: Nm' s -> s -> Nm' s
-nmSetSel n s = NmSel n (Just s)
-
-nmSel :: Nm -> String
-nmSel = maybe "" id . nmMbSel
-
-nmInit :: Nm -> Nm
-nmInit (NmSel n _) = n
-nmInit n           = n
-
-nmToMbL :: Nm' s -> [Maybe s]
-nmToMbL 
-  = reverse . ns
-  where ns (NmSel n s) = s : ns n
-        ns (Nm s) = [Just s]
-
-nmToL :: Nm -> [String]
-nmToL = map (maybe "" id) . nmToMbL
-
-nmFromL :: [Maybe s] -> Nm' s
-nmFromL
-  = n . reverse
-  where n [Just s] = Nm s
-        n (s:ss) = NmSel (n ss) s
-
-nmApd :: Nm' s -> Nm' s -> Nm' s
-nmApd n1 n2
-  = nmFromL (l1 ++ l2)
-  where l1 = nmToMbL n1
-        l2 = nmToMbL n2
-
-nmStrApd :: Nm -> Nm -> Nm
-nmStrApd n1 n2
-  = Nm (s1 ++ s2)
-  where s1 = show n1
-        s2 = show n2
-
-nmShow' :: String -> Nm -> String
-nmShow' sep = concat . intersperse sep . nmToL
-
-nmShowAG :: Nm -> String
-nmShowAG = nmShow' "_"
-
-instance Show Nm where
-  show = nmShow' "."
-
-instance PP Nm where
-  pp = ppListSep "" "" "." . nmToL
-
-instance Functor Nm' where
-  fmap f (Nm s) = Nm (f s)
-  fmap f (NmSel n ms) = NmSel (fmap f n) (fmap f ms)
-
 strVec = "_"
+strLhs = "lhs"
+strLoc = "loc"
 
-nmVec, nmUnk, nmApp, nmWild, nmNone, nmEql, nmComma, nmOParen, nmCParen :: Nm
+nmVec, nmUnk, nmApp, nmWild, nmNone, nmEql, nmComma, nmOParen, nmCParen, nmLhs, nmAny :: Nm
 nmVec     = Nm strVec
+nmLhs     = Nm strLhs
 nmWild    = nmVec
 nmUnk     = Nm "??"
+nmAny     = Nm "*"
 nmEql     = Nm "="
 nmApp     = Nm "$"
 nmNone    = Nm ""
@@ -276,21 +225,26 @@ nmComma   = Nm ","
 nmOParen  = Nm "("
 nmCParen  = Nm ")"
 
+nmUniq :: Int -> Nm
+nmUniq u  = Nm ("uniq" ++ (if u > 0 then show u else ""))
+
 nmCmdBegChng, nmCmdEndChng, nmCmdBegSame, nmCmdEndSame :: Nm
 nmCmdBegChng = Nm "rulerChngBegMark"
 nmCmdEndChng = Nm "rulerChngEndMark"
 nmCmdBegSame = Nm "rulerSameBegMark"
 nmCmdEndSame = Nm "rulerSameEndMark"
 
+nmFunMkUniq :: Int -> Nm
+nmFunMkUniq u = Nm ("rulerMk" ++ show u ++ "Uniq")
+
 -------------------------------------------------------------------------
 -- LaTeX
 -------------------------------------------------------------------------
 
+{-
 mkLaTeXNm :: String -> String
 mkLaTeXNm = map (\c -> if isAlphaNum c then c else '-')
-
-nmLaTeX :: Nm -> Nm
-nmLaTeX = Nm . mkLaTeXNm . show
+-}
 
 strLhs2TeXSafe :: String -> String
 strLhs2TeXSafe = concat . map (\c -> if c == '|' then "||" else [c])
@@ -301,8 +255,10 @@ nmLhs2TeXSafe = fmap strLhs2TeXSafe
 mkMBox :: PP a => a -> PP_Doc
 mkMBox p = "\\;\\mbox" >|< ppCurly p
 
+{-
 mkRuleNm :: String -> String -> PP_Doc
 mkRuleNm r v = "\\textsc" >|< ppCurly (mkLaTeXNm r) >|< (if null v then empty else "_" >|< ppCurly v)
+-}
 
 mkVerb :: PP_Doc -> PP_Doc
 mkVerb p = ppPacked "@" "@" p
@@ -358,26 +314,8 @@ ppSelLaTeX isVec base sels
                  (x,_)
                    -> x
 
--------------------------------------------------------------------------
--- Tracing
--------------------------------------------------------------------------
-
-tr m s v = trace (m ++ show s) v
-trp m s v = trace (m ++ "\n" ++ disp (m >|< ":" >#< s) 1000 "") v
-
--------------------------------------------------------------------------
--- Misc
--------------------------------------------------------------------------
-
-hdAndTl :: [a] -> (a,[a])
-hdAndTl (x:xs) = (x,xs)
-
-maybeHd :: r -> (a -> r) -> [a] -> r
-maybeHd n f l = if null l then n else f (head l)
-
-strPad :: String -> Int -> String
-strPad s sz = s ++ replicate (sz - length s) ' '
-
-panic m = error ("panic: " ++ m)
+ppWrapShuffle :: Nm -> PP_Doc -> PP_Doc
+ppWrapShuffle n x
+  = "%%[" >|< n >-< x >-< "%%]"
 
 

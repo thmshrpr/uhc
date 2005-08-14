@@ -1,19 +1,19 @@
 preamble tex "%include lhs2TeX.fmt\n%include afp.fmt"
 
-format ag ty.identv = gTy
-{-
-format ag ty.syn = ty
-format ag ty.inh = knTy
-format ag tyCnstr.inh = tyCnstr
-format ag tyCnstr.syn = tyCnstr
--}
+extern ty2
 
-format ag in (a) -> (r) = a `mkTyArrow` r
-format ag in ((c) (v)) = c |=> v
-format ag out ((a) -> (r)) `=` (v) = (a,r) `=` tyArgRes v
+format ag ty.identv = gTy
+format ag identv = nm
+
+format ag def (a) -> (r) = a `mkTyArrow` r
+format ag def ((c | Cnstr) (v | a)) = (c |=> v | a)
+format ag use ((a) -> (r)) `=` (v) = (a,r) `=` tyArgRes v
 
 format ag eFun = func
 format ag eArg = arg
+
+format ag exprs.hd = hd
+format ag exprs.tl = tl
 
 format tex ty = sigma
 format tex ty.inh = sigma..k
@@ -25,27 +25,31 @@ format tex tyCnstr.fun = Cnstr.f
 format tex tyCnstr.arg = Cnstr.a
 format tex valGam = Gamma
 
+-- format ag ty = tyx
+
 format tex eFun = e.1
 format tex eArg = e.2
 
-viewhierarchy = E K 1 2 --, K K1, 1 11
+viewhierarchy = E < K < 1 < 2 --, K K1, 1 11
 
 relation bindIdTy =
   view E =
-    attr [ nm: Nm, valGam: ValGam | | ty: Ty ]
-    judge tex nm :-> ty `elem` valGam
-    judge ag ty `=` valGamLookup (nm) (valGam)
+    hole [ nm: Nm, valGam: ValGam | | ty: Ty ]
+    judgeshape tex nm :-> ty `elem` valGam
+    judgeshape ag ty `=` valGamLookup (nm) (valGam)
 
 scheme expr "Expr" =
   view E =
-    attr [ node e: Expr, valGam: ValGam | ty: Ty | ]
-    judge tex valGam :-.."e" e : ty
+    hole [ node e: Expr, valGam: ValGam | ty: Ty | ]
+    judgeshape tex valGam :-.."e" e : ty
   view K =
-    attr [ | updown ty: Ty |  ]
-    judge tex valGam; ty.inh :-.."e" e : ty.syn
+    hole [ | updown ty: Ty |  ]
+    judgeshape tex valGam; ty.inh :-.."e" e : ty.syn
   view 2 =
-    attr [ | thread tyCnstr: Cnstr | ]
-    judge tex valGam ; tyCnstr.inh ; ty.inh :-.."e" e : ty.syn ~> tyCnstr.syn
+    hole [ | thread tyCnstr: Cnstr | ]
+    judgeshape tex valGam ; tyCnstr.inh ; ty.inh :-.."e" e : ty.syn ~> tyCnstr.syn
+
+scheme exprs : [expr] "Exprs"
 
 rulesgroup expr.subset scheme expr "Subset of Expr type rules" =
   rule expr.base e.var 
@@ -76,12 +80,21 @@ rules expr.base scheme expr "Expr type rules" =
       judge R : expr
           | tyCnstr.syn = tyCnstr tyCnstr.inh
 
+  rule e.var2 : e.var "Var2" =
+    view K =
+      judge F : fit
+          | rty = ty2
+      -
+      judge R : expr
+          | ty.syn = ty2
+
+
   rule e.app "App" =
     view E =
       judge F : expr = valGam :- eFun : (tyFun= ty.a -> ty)
       judge A : expr = valGam :- eArg : ty.a
       -
-      judge R : expr = valGam :- (eFun ^^ eArg) : ty
+      judge R : expr = valGam :- ((node 1 = eFun) ^^ (node 2 = eArg)) : ty
 
     view K =
       judge F : expr
@@ -110,18 +123,19 @@ rules expr.base scheme expr "Expr type rules" =
 
 relation fit =
   view K =
-    attr [ lty: Ty, rty: Ty | | ty: Ty ]
-    judge tex :-.."f" lty <= rty : ty
-    judge ag ty `=` lty `fitsIn` rty
+    hole [ lty: Ty, rty: Ty | | ty: Ty ]
+    judgeshape tex :-.."f" lty <= rty : ty
+    judgeshape ag ty `=` lty `fitsIn` rty
   view 2 =
-    attr [ | | cnstr: Cnstr ]
-    judge tex :-.."f" lty <= rty : ty ~> cnstr
-    judge ag (ty,cnstr) `=` (lty) `fitsIn` (rty)
+    hole [ | | cnstr: Cnstr ]
+    judgeshape tex :-.."f" lty <= rty : ty ~> cnstr
+    judgeshape ag (ty,cnstr) `=` (lty) `fitsIn` (rty)
+--    judgeshape ag (ty,cnstr) `=` fitsIn (lty) (rty)
 
 relation fresh =
   view 2 =
-    attr [ | | tvarv: UID ]
-    judge tex tvarv (text "fresh")
-    judge ag ("loc.gUniq",tvarv) `=` mkNewLevUID "@lhs.gUniq"
+    hole [ | | tvarv: UID ]
+    judgeshape tex tvarv (text "fresh")
+    judgeshape ag tvarv `=` mkTyVar uniq
 
 

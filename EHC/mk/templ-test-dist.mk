@@ -4,8 +4,8 @@ test-expect test-regress: test-lists
 	for v in $(VERSIONS) ; \
 	do \
 	  echo "== version $$v ==" ; \
-	  ehc=../$$v/$(EHC) ; \
-	  gri=../$$v/$(GRI) ; \
+	  ehc=../bin/$$v/$(EHC) ; \
+	  gri=../bin/$$v/grini ; \
 	  if test -x $$ehc ; \
 	  then \
 	    for t in `cat $$v.lst` ; \
@@ -22,7 +22,7 @@ test-expect test-regress: test-lists
 	          echo "== core ==" >> $${th} ; \
 	          cat $${tc} >> $${th} ; \
 	          cp $$t t.eh ; \
-	          if test -x ../bin/jc -a -x ../bin/jr -a "x$(CORE_TARG)" = "xjava" ; \
+	          if test -x ../bin/jc -a -x ../bin/jr -a "x$(CORE_TARG_SUFFIX)" = "xjava" ; \
 	          then \
 	            $$ehc --code=java t.eh > /dev/null ; \
 	            rm -f t.class ; \
@@ -32,7 +32,7 @@ test-expect test-regress: test-lists
 	              echo "== java execution ==" >> $${th} ; \
 	              ../bin/jr t >> $${th} 2>&1 ; \
 	            fi \
-	          elif test -x $$gri -a "x$(CORE_TARG)" = "xgrin" ; \
+	          elif test -x $$gri -a "x$(CORE_TARG_SUFFIX)" = "xgrin" ; \
 	          then \
 	            rm -f t.grin ; \
 	            $$ehc --code=grin t.eh > /dev/null ; \
