@@ -1,6 +1,6 @@
 % $Id$
 
-TODO: Left unit not implemented, right unit not correctly (should be a left unit probably)
+TODO: Complete Left unit implementation
 
 %%[0
 %include lhs2TeX.fmt
@@ -60,11 +60,10 @@ SEM GrExpr
 %%% Right Unit law %%%
 %%%%%%%%%%%%%%%%%%%%%%
 
-removes terms like '\x -> unit x'
+change terms like '<m>; \x -> unit x' => '<m>'
 
-two forms possible:
+one form possible:
     seq v x (unit x)           => v
-    seq v x (seq (unit x) p e) => seq v p e[p/x]
 
 example:    
     seq f 8 (seq (unit 8) 13 (seq (unit 13) p e))
@@ -75,41 +74,42 @@ example:
 We give the v and x to the next element. 
 
 %%[8.rightUnit hs
-makeRightUnitExpr seqPat unitVal seqExpr newExpr   = 
+makeRightUnitExpr seqPat unitVal seqExpr = 
     do { p <- seqPat
        ; e <- seqExpr
        ; v <- unitVal
        ; let vvf vn pn          = if vn == pn
-                                  then Just $ newExpr e
+                                  then Just e
                                   else Nothing
              nnf vt vls pt pls  = let sameArgs     = zipWith sameArg vls pls
                                       sameArg v p  = case v of
                                                          GrVal_Var n -> n == p
                                                          otherwise   -> False
                                   in if vt == pt && and sameArgs
-                                     then Just $ newExpr e
+                                     then Just e
                                      else Nothing
              vnf vn     pt pls  = Nothing
-             nvf vt vls vn      = Nothing
+             nvf vt vls pn      = Nothing
        ; genInfo v p nnf nvf vnf vvf Nothing
        }
 %%]
+
+seqExpr ; \seqPat -> body  --- seqExpr and seqPat are given to the body.
 
 %%[8.rightUnit
 ATTR GrExpr [ seqExpr: {Maybe GrExpr}  seqPat: {Maybe GrPat} | | rightTrf: {Maybe GrExpr} ]
 
 SEM GrExpr
-  |  Seq   lhs   .  rightTrf  =  makeRightUnitExpr @lhs.seqPat @expr.unitInfo
-                                                   @lhs.seqExpr (\e -> GrExpr_Seq e @pat.grTrf @body.grTrf)
-                 .  grTrf     =  maybe @grTrf id @body.rightTrf
-                 .  isTrf     =  isJust @body.rightTrf || @expr.isTrf || @body.isTrf
-           body  .  seqExpr   =  Just @expr.grTrf
-                 .  seqPat    =  Just @pat.grTrf
-           expr  .  seqExpr   =  Nothing
-                 .  seqPat    =  Nothing
-  |  Unit  lhs   .  rightTrf  =  makeRightUnitExpr @lhs.seqPat @unitInfo 
-                                                    @lhs.seqExpr id
-  | * - Seq Unit  lhs  .  rightTrf = Nothing
+  |  Seq   lhs   .  grTrf       =  maybe @fromLeftUnit id @body.rightTrf
+                 .  isTrf       =  @isRightTrf || @expr.isTrf || @body.isTrf || @isLeftTrf
+           body  .  seqExpr     =  Just @expr.grTrf
+                 .  seqPat      =  Just @pat.grTrf
+           expr  .  seqExpr     =  Nothing
+                 .  seqPat      =  Nothing
+           loc   .  isRightTrf  =  isJust @body.rightTrf
+  |  Unit  lhs   .  rightTrf    =  makeRightUnitExpr @lhs.seqPat @unitInfo 
+                                                   @lhs.seqExpr
+  | * - Unit  lhs  .  rightTrf = Nothing
 
 SEM GrAlt
   | Alt   expr  .  seqExpr  = Nothing
@@ -125,21 +125,59 @@ SEM GrBind
 
 
 unit (t a1 an); \(t' a1' an') -> e => [t/t' a1/a1' an/an']
-unit (t a1 an); \v'           -> e => [(t a1 an)/v']
 unit v        ; \(t' a1' an') -> e => Do not propogate, only if a1 .. an do not occur in e. (do we lose tag info in that case?)
+unit (t a1 an); \v'           -> e => [(t a1 an)/v']
 unit v        ; \v'           -> e => [v/v']
 
 
 %%[8 hs import("qualified Data.Map as Map")
-type ValueMap = Map.Map GrVal GrVal
+type ValueMap = (Map.Map HsName GrVal, Map.Map HsName GrTag)
 %%]
 
 %%[8.leftUnit
-ATTR AllGrExpr [ valueMap: ValueMap | | ]
+ATTR AllExpr [ valueMap: ValueMap | | ]
 
 SEM GrBind
-  | Bind  expr  .  valueMap  =  Map.empty
+  | Bind  expr  .  valueMap  =  (Map.empty, Map.empty)
+%%]
 
+%%[8.leftUnit hs
+addLeftUnitSubst seqPat unitVal (valMap, tagMap) =
+    do { let p = seqPat
+       ; v <- unitVal
+       ; let vvf vn pn          = Just (Map.insert pn (GrVal_Var vn) valMap, tagMap)
+             nnf vt vls pt pls  = Nothing
+             vnf vn     pt pls  = Nothing
+             nvf vt vls pn      = Just (Map.insert pn (GrVal_Node vt vls) valMap, tagMap)
+             e                  = Nothing
+       ; genInfo v p nnf nvf vnf vvf e
+       }
+%%]
+
+%%[8.leftUnit
+SEM GrExpr
+  | Seq  loc   .  leftSubst     = addLeftUnitSubst @pat.grTrf @expr.unitInfo @lhs.valueMap
+               .  isLeftTrf     = isJust @leftSubst
+               .  fromLeftUnit  = if @isLeftTrf then @body.grTrf else @grTrf
+         body  .  valueMap      = maybe @lhs.valueMap id @leftSubst
+%%]
+
+%%[8.applySubstitutions
+SEM GrVal
+  | Var  lhs  .  grTrf  =  Map.findWithDefault @grTrf @nm (fst @lhs.valueMap)
+SEM GrTag
+  | Var  lhs  .  grTrf  =  Map.findWithDefault @grTrf @nm (snd @lhs.valueMap)
+SEM GrExpr
+  | Fetch Update  loc  .  mbVal     =  Map.lookup @nm (fst @lhs.valueMap)
+                       .  mbName  =  do { n <- @mbVal
+                                        ; case n of
+                                              GrVal_Var v -> Just v
+                                              _           -> Nothing
+                                        }
+                       . name     = maybe @nm id @mbName
+
+  | Fetch   lhs  . grTrf  = GrExpr_Fetch  @name @mbOffset
+  | Update  lhs  . grTrf  = GrExpr_Update @name @val.grTrf
 %%]
 
 % vim:ts=4:et:ai:

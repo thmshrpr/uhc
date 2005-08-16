@@ -41,7 +41,7 @@ SEM GrAlt
   | Alt   lhs  .  isPossible  =  @pat.tag `elem` @lhs.possibleTags
 
 SEM GrExpr
-  | Case  altL  .  possibleTags  =  map fst (getNodes . getEnvVar @lhs.hptMap $ @val.varId)
+  | Case  altL  .  possibleTags  =  getTags . getEnvVar @lhs.hptMap $ @val.varId
 %%]
 
 %%[8.tag

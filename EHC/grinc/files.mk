@@ -66,8 +66,7 @@ GRINC_TRF_UTILS_BASE := GrCAFNames GrLastExpr
 
 GRINC_AG_FROM_CAG += $(GRINC_TRF_SRC_AG) $(patsubst %,$(GRIN_BLD_VARIANT_PREFIX)%.ag, $(GRINC_TRF_UTILS_BASE))
 GRINC_HS_FROM_AG  += $(GRINC_TRF_SRC_HS)
-GRINC_SRC         += $(GRINC_TRF_SRC_CAG) $(patsubst %,$(GRINC_SRC_PREFIX)%.cag,$(GRINC_TRF_UTILS_BASE))
-GRINC_HS_SRC      += $(GRINC_TRF_SRC_HS)
+GRINC_ALL_SRC     += $(GRINC_TRF_SRC_CAG) $(patsubst %,$(GRINC_SRC_PREFIX)%.cag,$(GRINC_TRF_UTILS_BASE))
 
 #every transformation depends on GrinCodeAbsSyn.ag and GrinCode.hs
 $(GRINC_TRF_SRC_HS): $(GRIN_BLD_VARIANT_PREFIX)GrinCodeAbsSyn.ag $(GRIN_BLD_VARIANT_PREFIX)GrinCode.hs

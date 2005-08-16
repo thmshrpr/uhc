@@ -91,7 +91,7 @@ mergeRenameMap (a,m) rm = (a,foldl addToMap m rm)
 %% Heap Points To Analysis Result %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%[8.analysis import(HeapPointsToFixpoint, Data.Array, Data.Monoid) export(HptMap, getEnvVar, getHeapLoc, absFetch, addEnvVar, addEnvVars, getNodes, AbstractValue(..), listInsert)
+%%[8.analysis import(HeapPointsToFixpoint, Data.Array, Data.Monoid) export(HptMap, getEnvVar, getHeapLoc, absFetch, addEnvVar, addEnvVars, getTags, getNodes, AbstractValue(..), listInsert)
 type HptMap        = ((Array Int AbstractEnvElement, Array Int AbstractHeapElement), Map.Map Int AbstractValue)
 getEnvVar :: HptMap -> Int -> AbstractValue
 getEnvVar ((ea, _),m) i  | snd (bounds ea) >= i = aeBaseSet (ea ! i)
@@ -106,6 +106,10 @@ absFetch a (HNPos i) = case getEnvVar a i of
                              AV_Error s     -> error $ "analysis error: " ++ s
                              AV_Basic       -> error $ "variable " ++ show i ++ " is a basic value"
                              AV_Nodes _     -> error $ "variable " ++ show i ++ "is a node variable"
+
+getTags av = case av of
+                 AV_Tags  ts -> ts
+                 _           -> map fst (getNodes av)
 
 getNodes av = case av of
                   AV_Nodes n  -> n

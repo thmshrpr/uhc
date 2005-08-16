@@ -252,9 +252,10 @@ caLowerGrin = do
     hptMap <- gets csHptMap
     unique <- gets csUnique
     varMap <- gets csOrigNms
-    (uniq, renMap, code) <- return $ lowerGrin hptMap unique code
+    (hptMap, uniq, renMap, code) <- return $ lowerGrin hptMap unique code
     modify (\s -> s { csMbOrigNms  = Just $ mergeRenameMap varMap renMap
                     , csUnique     = unique
+                    , csMbHptMap   = Just hptMap
                     , csMbCode     = Just code
                     }
            )
@@ -307,7 +308,7 @@ doCompileRun fn opts = let input     = mkTopLevelFPath "grin" fn
                                , csMsgInfo    = initMsgInfo
                                }
                            putErrs (CompileError e) = putStrLn e >> return ()
-                       in drive initState putErrs (caLoad >> caAnalyse >> caNormalize >> caOutput)
+                       in drive initState putErrs (caLoad >> caAnalyse >> caNormalize >> caOptimize >> caOutput)
 
 caLoad = task_ VerboseNormal "Loading" 
     ( do { caParseGrin
@@ -337,26 +338,26 @@ caAnalyse = task_ VerboseNormal "Analysing"
                                             ; printArray "env:"  newVar aeBaseSet env
                                             ; printArray "heap:" id ahBaseSet heap
                                             }
+                              ; caWriteGrin "debug.analyzed"
                               }
                           )
-         ; debugging <- gets (optDebug . csOpts)
-         ; when debugging (caWriteGrin "debug.inlined-pre")
          }
     )
     
 caNormalize = task_ VerboseNormal "Normalizing" 
     ( do { caInlineEA
          ; caRightSkew
+         ; caLowerGrin
          ; debugging <- gets (optDebug . csOpts)
-         ; when debugging (caWriteGrin "debug.inlined")
-         ; caSparseCase
+         ; when debugging (caWriteGrin "debug.normalized")
+         }
+    )     
+caOptimize = task_ VerboseNormal "Optimizing"
+    ( do { caSparseCase
          ; caEliminateCases
-         ; debugging <- gets (optDebug . csOpts)
-         ; when debugging (caWriteGrin "debug.with-copies")
-         ; caCopyPropagation 
+         ; caCopyPropagation
          ; debugging <- gets (optDebug . csOpts)
          ; when debugging (caWriteGrin "debug.optimized")
-         ; caLowerGrin
          }
     )
     

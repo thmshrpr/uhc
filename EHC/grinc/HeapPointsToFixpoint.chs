@@ -54,12 +54,13 @@ instance Ord GrTag where
                                                  otherwise         -> GT
 %%]
 
-%%[8.AbstractValue export(AbstractValue(..), AbstractNode, Location, Variable)
+%%[8.AbstractValue import(Data.List) export(AbstractValue(..), AbstractNode, Location, Variable)
 data AbstractValue
   = AV_Nothing
   | AV_Basic
   | AV_Locations ![Location]
   | AV_Nodes ![AbstractNode]
+  | AV_Tags  ![GrTag]
   | AV_Error !String
 	deriving (Eq, Ord)
 
@@ -69,6 +70,7 @@ instance Show AbstractValue where
                   AV_Basic        -> "{BAS}"
                   AV_Locations ls -> "{" ++ concatMap ((++", ").show) ls ++ "}"
                   AV_Nodes     ns -> "{" ++ concatMap (\(t,fs) -> show (ppGrTag' t) ++ show fs ++ ", ") ns ++ "}"
+                  AV_Tags      ts -> "{" ++ concatMap (show . ppGrTag') ts ++ "}"
                   AV_Error     s  -> "E: " ++ s
 
 type AbstractNode = (GrTag, [AbstractValue]) -- an AV_Nodes can not occur inside a AbstractNode
@@ -77,16 +79,17 @@ type Location = Int
 type Variable = Int
 
 instance Monoid AbstractValue where
-	mempty  = AV_Nothing
-	mappend a          AV_Nothing = a
-	mappend AV_Nothing b          = b
-	mappend a          b          = case (a,b) of
-	                                  (AV_Basic       , AV_Basic       ) -> AV_Basic
-	                                  (AV_Locations al, AV_Locations bl) -> AV_Locations (al `mergeLocations` bl)
-	                                  (AV_Nodes     an, AV_Nodes     bn) -> AV_Nodes (an `mergeNodes` bn)
-	                                  (AV_Error     _ , _              ) -> a
-	                                  (_              , AV_Error     _ ) -> b
-	                                  otherwise                          -> AV_Error $ "Wrong variable usage: Location, node or basic value mixed"
+    mempty  = AV_Nothing
+    mappend a          AV_Nothing = a
+    mappend AV_Nothing b          = b
+    mappend a          b          = case (a,b) of
+                                      (AV_Basic       , AV_Basic       ) -> AV_Basic
+                                      (AV_Locations al, AV_Locations bl) -> AV_Locations (al `mergeLocations` bl)
+                                      (AV_Nodes     an, AV_Nodes     bn) -> AV_Nodes (an `mergeNodes` bn)
+                                      (AV_Tags      at, AV_Tags      bt) -> AV_Tags (at `union` bt)
+                                      (AV_Error     _ , _              ) -> a
+                                      (_              , AV_Error     _ ) -> b
+                                      otherwise                          -> AV_Error $ "Wrong variable usage: Location, node or basic value mixed"
 
 mergeLocations   al bl = sort $ union al bl -- TODO: painfully slow
 mergeNodes an bn = let compareNode x y                = fst x == fst y
@@ -325,7 +328,6 @@ isChanged old new = old /= new
                     --  (AV_Locations ol, AV_Locations nl) -> not $ nl <=! ol
                     --  (AV_Nodes     on, AV_Nodes nn    ) -> not $ nn <=! on
                     --  otherwise                          -> old /= new
-		      
 %%]
 
 % vim:ts=4:et:ai:
