@@ -16,8 +16,12 @@ ATTR GrAGItf GrModule [ entryNm: HsName | | cmmUnit : CmmUnit ]
 
 SEM GrModule
   | Mod          loc . cmmUnit  = let addTl mtl             = maybe emptyBuilder id mtl
-                                      externals             = addTl @imports ~> addTl @exports 
+                                      externals             = addTl @imports ~> addTl @exports ~> exports [ ( "@TAG_InfoTable"
+                                                                                                              , Just "TAG_InfoTable"
+                                                                                                            )
+                                                                                                          ]
                                       cafNodes              = @sectionCAFNodes :: CmmToplevelBuilder
+                                      tagInfo               = @sectionTagInfo :: CmmToplevelBuilder
                                       unitTypedefs          = typedefs bits32 ["@ptr", "@val"]
                                       unitTarget            = target 8 LittleEndian 32 32
 				      heapPointer           = globalVarDecl False "address" bits32 [("@hp", Nothing)]
@@ -25,7 +29,7 @@ SEM GrModule
                                       tagConstants          = fst $ foldr buildTagConst (emptyBuilder,0) @tags
                                       buildTagConst (n,_) (r,i) = (constant (Just valType) n (int i) ~> r, i+1)
                                   in CmmUnit_Unit (  build $ unitTarget ~> unitTypedefs ~> heapPointer
-                                                  ~> externals ~> tagConstants ~> cafNodes ~> @strings
+                                                  ~> externals ~> tagConstants ~> cafNodes ~> tagInfo ~> @strings
                                                   ~> grin_main ~> @bindL.cmmProcs
                                                   )
 %%]
@@ -69,9 +73,9 @@ the Grin code.
 ATTR GrExpr    [ | | cmmBody USE {~>} {emptyBuilder}: {CmmBodyBuilder} ]
 
 SEM GrBind
-  | Bind        loc . declaredVars = @tmpVars ~> nreg2varDef (noDups @expr.allUsedNames)
+  | Bind        loc . declaredVars = @tmpVars' ~> nreg2varDef (noDups @expr.allUsedNames)
                 loc . cmmBody      = @traceStm ~> @declaredVars ~> @expr.cmmBody
-		loc . tmpVars      = foldr (\i f -> varDecl False "" valType [("@tmp" ++ show i, Nothing)] ~> f) emptyBuilder [1..4]
+                loc . tmpVars'      = foldr (\i f -> varDecl False "" valType [("@tmp" ++ show i, Nothing)] ~> f) emptyBuilder [1..4]
 %%]
 
 %%%%%%%%%%%%%%%%%%%
@@ -82,6 +86,8 @@ The sequence operation does not generate code by itself, but does the chaining
 of commands.  The left hand side must create its result in the variables named
 in the pattern in this bind operation. This is the main task of GrExpr_Seq.
 
+TODO: refactor CmmNameRegister - a map would be better for lookup
+      CmmVars.cag might be a good location for the attribute, and it's threading
 %%[8.Seq
 ATTR AllGrExpr [ targetNames: {CmmNameRegister} | | allUsedNames USE {++} {[]}: {CmmNameRegister} ]
 
@@ -243,6 +249,20 @@ SEM GrExpr
 We assume cmmExpressions gives us the correct code
 note: Store and Update cannot occur at return spine. Fetch can!
 
+generic fetch code:
+tag   = fetch p;
+size  = bits32[tag_info+tag] - 4;
+f_0   = bits32[p];
+f_1   = bits32[p + 4];
+f_2   = bits32[p + 8];
+if (size > 0) {
+  p = bits32[p +12];
+  for(i = 0; i < size; i++) {
+    f_i = bits32[p + i*4];
+} else {
+  f_3 = bits32[p + 12];
+}
+return (tag f_0 .. f_size);
 
 %%[8.MO
 SEM GrExpr
@@ -250,23 +270,38 @@ SEM GrExpr
 
   | Fetch  loc  . cmmBody     = buildFetch @nm $ if @isLastExpr 
                                                  then Right (fromJust @mbOffset)
-						 else Left  (nreg2names @lhs.targetNames)
+                                                 else Left  (nreg2names @lhs.targetNames)
 
   | Update loc  . cmmBody     = buildUpdate @nm @val.cmmExpressions
 
 %%]
-TODO: make length etc correct
-%%[8.MO hs
-buildStore nms [p] = let grow          = 4 * max 4 (length nms)
-                         alloc         = [ (varUpdate p, cmmVar "@hp") 
-                                         , (varUpdate "@hp", cmmVar "@hp" <+> int grow)
-                                         ]
-                         assign e tf i = let hd = (memUpdate valType (cmmVar p) i, e)
-			                     tl = tf (i+4)
-                                         in hd:tl
-                         store         = foldr assign (const []) nms 0
-                     in updates alloc ~> updates store
 
+
+TODO: gc alloc in two blocks (if gc maintains a list of free blocks)
+%%[8.MO hs
+buildStore nms [p] = let (first4, others)  = splitAt 4 nms
+                         (snms, overflow)  = if null others then (first4, []) else splitAt 3 first4
+                         bnms              = overflow ++ others
+                         bigsize       = length bnms
+                         grow          = (4 + bigsize) * 4
+                         biggrow       = if bigsize > 0 then Just (4 * bigsize) else Nothing
+                         alloc         = [ (varUpdate p, cmmVar "@hp")
+                                         , (varUpdate "@hp", cmmVar "@hp" <+> int grow)
+                                         ] ++ (if bigsize > 0
+                                               then [ (varUpdate "@tmp1", cmmVar "@hp" <+> int (4*4))]
+                                               else []
+                                              )
+                         assign v e tf i = let hd = (memUpdate valType (cmmVar v) i, e)
+                                               tl = tf (i+4)
+                                           in hd:tl
+                         bigStore      = if bigsize > 0 then
+                                         foldr (assign "@tmp1") (const [(memUpdate ptrType (cmmVar p) (3*4), cmmVar "@tmp1")]) bnms 0
+                                         else []
+                         store         = foldr (assign p) (const bigStore) snms 0
+                         oldStore         = foldr (assign p) (const []) nms 0 -- TODO: remove this for dual layout mode
+                     in updates alloc ~> updates oldStore -- TODO: change this to store for dual layout mode 
+
+-- TODO: allow Fetch to cope with multiple layouts
 -- just load as much as possible
 buildFetch p (Right count) = cmmReturn "" (take count $ map (\i ->  ptrArg $ fetch (cmmVar' p) i) [0,4..])
 buildFetch p (Left nms   ) = let assign n tf i = let hd = (varUpdate n, fetch (cmmVar' p) i)
@@ -275,7 +310,7 @@ buildFetch p (Left nms   ) = let assign n tf i = let hd = (varUpdate n, fetch (c
                                  fetches       = foldr assign (const []) nms 0
                              in updates fetches
 
--- TODO: fix Update
+-- TODO: allow update to cope with multiple layouts (big node over small nodes)
 -- just store the values (do not take space as a problem)
 buildUpdate p nms = let assign e tf i = let hd = (memUpdate valType (cmmVar' p) i, e)
                                             tl = tf (i+4)
@@ -283,3 +318,5 @@ buildUpdate p nms = let assign e tf i = let hd = (memUpdate valType (cmmVar' p) 
                         stores        = foldr assign (const []) nms 0
                     in updates stores
 %%]
+
+% vim:et:ts=4:

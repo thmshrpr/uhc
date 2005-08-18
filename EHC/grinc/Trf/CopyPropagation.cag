@@ -27,6 +27,13 @@ ATTR GrAGItf [ | | grTrf: GrModule  isTrf: Bool                   ]
 ATTR AllGrNT [ | | grTrf: SELF      isTrf USE {||} {False}: Bool  ]
 %%]
 
+
+%%[8.order
+SEM GrExpr
+  | Seq lhs   .  grTrf       =  if @isLeftTrf then @body.grTrf else maybe @grTrf id @rightTrf
+              .  isTrf       =  @expr.isTrf || @body.isTrf || @isLeftTrf || @isRightTrf
+%%]
+
 %%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Value Information %%%
 %%%%%%%%%%%%%%%%%%%%%%%%%
@@ -51,10 +58,11 @@ genInfo v p nnf nvf vnf vvf e = case (v,p) of
 ATTR GrExpr [ | | unitInfo : {Maybe GrVal} ]
 
 SEM GrExpr
-  | Unit          loc  .  unitInfo = Just @val.grTrf
-  | Seq           loc  .  unitInfo = @expr.unitInfo
-  | * - Unit Seq  loc  .  unitInfo = Nothing
+  | Unit       loc  .  unitInfo = Just @val.grTrf
+  | * - Unit   loc  .  unitInfo = Nothing
 %%]
+
+
 
 %%%%%%%%%%%%%%%%%%%%%%
 %%% Right Unit law %%%
@@ -75,48 +83,29 @@ We give the v and x to the next element.
 
 %%[8.rightUnit hs
 makeRightUnitExpr seqPat unitVal seqExpr = 
-    do { p <- seqPat
-       ; e <- seqExpr
-       ; v <- unitVal
+    do { v <- unitVal
        ; let vvf vn pn          = if vn == pn
-                                  then Just e
+                                  then Just seqExpr
                                   else Nothing
              nnf vt vls pt pls  = let sameArgs     = zipWith sameArg vls pls
                                       sameArg v p  = case v of
                                                          GrVal_Var n -> n == p
                                                          otherwise   -> False
                                   in if vt == pt && and sameArgs
-                                     then Just e
+                                     then Just seqExpr
                                      else Nothing
              vnf vn     pt pls  = Nothing
              nvf vt vls pn      = Nothing
-       ; genInfo v p nnf nvf vnf vvf Nothing
+       ; genInfo v seqPat nnf nvf vnf vvf Nothing
        }
 %%]
 
 seqExpr ; \seqPat -> body  --- seqExpr and seqPat are given to the body.
 
 %%[8.rightUnit
-ATTR GrExpr [ seqExpr: {Maybe GrExpr}  seqPat: {Maybe GrPat} | | rightTrf: {Maybe GrExpr} ]
-
 SEM GrExpr
-  |  Seq   lhs   .  grTrf       =  maybe @fromLeftUnit id @body.rightTrf
-                 .  isTrf       =  @isRightTrf || @expr.isTrf || @body.isTrf || @isLeftTrf
-           body  .  seqExpr     =  Just @expr.grTrf
-                 .  seqPat      =  Just @pat.grTrf
-           expr  .  seqExpr     =  Nothing
-                 .  seqPat      =  Nothing
-           loc   .  isRightTrf  =  isJust @body.rightTrf
-  |  Unit  lhs   .  rightTrf    =  makeRightUnitExpr @lhs.seqPat @unitInfo 
-                                                   @lhs.seqExpr
-  | * - Unit  lhs  .  rightTrf = Nothing
-
-SEM GrAlt
-  | Alt   expr  .  seqExpr  = Nothing
-                .  seqPat   = Nothing
-SEM GrBind
-  | Bind  expr  .  seqExpr  = Nothing
-                .  seqPat   = Nothing
+  |  Seq   loc   .  isRightTrf  =  isJust @rightTrf
+           loc   .  rightTrf    =  makeRightUnitExpr @pat.grTrf @body.unitInfo @expr.grTrf
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%
@@ -125,7 +114,7 @@ SEM GrBind
 
 
 unit (t a1 an); \(t' a1' an') -> e => [t/t' a1/a1' an/an']
-unit v        ; \(t' a1' an') -> e => Do not propogate, only if a1 .. an do not occur in e. (do we lose tag info in that case?)
+unit v        ; \(t' a1' an') -> e => Do not propogate, only if a1 .. an do not occur in e. (do we lose tag info in that case?) this case should not occur after vectorisation
 unit (t a1 an); \v'           -> e => [(t a1 an)/v']
 unit v        ; \v'           -> e => [v/v']
 
@@ -146,7 +135,11 @@ addLeftUnitSubst seqPat unitVal (valMap, tagMap) =
     do { let p = seqPat
        ; v <- unitVal
        ; let vvf vn pn          = Just (Map.insert pn (GrVal_Var vn) valMap, tagMap)
-             nnf vt vls pt pls  = Nothing
+             nnf vt vls pt pls  = let valMap'  = foldl (\m (p,v) -> Map.insert p v m) valMap (zip pls vls)
+                                      tagMap'  = case pt of
+                                                     GrTag_Var ptn  -> Map.insert ptn vt tagMap
+                                                     _              -> tagMap
+                                  in Just (valMap', tagMap')
              vnf vn     pt pls  = Nothing
              nvf vt vls pn      = Just (Map.insert pn (GrVal_Node vt vls) valMap, tagMap)
              e                  = Nothing
@@ -158,8 +151,17 @@ addLeftUnitSubst seqPat unitVal (valMap, tagMap) =
 SEM GrExpr
   | Seq  loc   .  leftSubst     = addLeftUnitSubst @pat.grTrf @expr.unitInfo @lhs.valueMap
                .  isLeftTrf     = isJust @leftSubst
-               .  fromLeftUnit  = if @isLeftTrf then @body.grTrf else @grTrf
          body  .  valueMap      = maybe @lhs.valueMap id @leftSubst
+%%]
+
+%%[8.getHsName hs
+getHsName nm valueMap = let  mbVal     =  Map.lookup nm (fst valueMap)
+                             mbName  =  do { n <- mbVal
+                                           ; case n of
+                                                 GrVal_Var v -> Just v
+                                                 _           -> Nothing
+                                           }
+                        in maybe nm id mbName
 %%]
 
 %%[8.applySubstitutions
@@ -168,16 +170,9 @@ SEM GrVal
 SEM GrTag
   | Var  lhs  .  grTrf  =  Map.findWithDefault @grTrf @nm (snd @lhs.valueMap)
 SEM GrExpr
-  | Fetch Update  loc  .  mbVal     =  Map.lookup @nm (fst @lhs.valueMap)
-                       .  mbName  =  do { n <- @mbVal
-                                        ; case n of
-                                              GrVal_Var v -> Just v
-                                              _           -> Nothing
-                                        }
-                       . name     = maybe @nm id @mbName
-
-  | Fetch   lhs  . grTrf  = GrExpr_Fetch  @name @mbOffset
-  | Update  lhs  . grTrf  = GrExpr_Update @name @val.grTrf
+  | Fetch   lhs  .  grTrf  = GrExpr_Fetch  (getHsName @nm @lhs.valueMap) @mbOffset
+  | Update  lhs  .  grTrf  = GrExpr_Update (getHsName @nm @lhs.valueMap) @val.grTrf
+  | FFI     lhs  .  grTrf  = GrExpr_FFI @nm (map (flip getHsName @lhs.valueMap) @argL)
 %%]
 
 % vim:ts=4:et:ai:

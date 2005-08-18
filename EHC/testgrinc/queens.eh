@@ -6,7 +6,6 @@ let foreign import jazy "primAddInt" add :: Int -> Int -> Int
     foreign import jazy "primSubInt" substract :: Int -> Int -> Int
     foreign import jazy "primGtInt"  gt :: Int -> Int -> Bool
     foreign import jazy "primEqInt"  eq :: Int -> Int -> Bool
-    foreign import jazy "primLtInt"  lt :: Int -> Int -> Bool
 in
 let not = \b -> case b of
                     True -> False

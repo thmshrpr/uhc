@@ -66,7 +66,7 @@ isLocation :: HptMap -> HsName -> Bool
 isLocation hptMap name = case getEnvVar hptMap (getNr name) of
                              AV_Locations _  -> True
                              AV_Nodes     _  -> False
-                             AV_Nothing      -> error "isLocation: AV_Nothing"
+                             AV_Nothing      -> error $ "dead variable " ++ show name ++ " node or pointer?"
                              AV_Error     e  -> error $ "analysis errror: " ++ e
                              
 fromJust :: String -> Maybe a -> a
@@ -147,9 +147,11 @@ SEM GrVal
                  . node        = maybe @grTrf id @maybeNode
 
 SEM GrExpr
-  | Eval     loc . maybeNode   = Map.lookup @nm @lhs.grNodeSubst
-                 . newName     = maybe @nm (\(GrVal_Var nm) -> nm) @maybeNode
-             lhs . grTrf       = GrExpr_Eval @newName
+  | Fetch Update Eval  loc . maybeNode   = Map.lookup @nm @lhs.grNodeSubst
+                           . newName     = maybe @nm (\(GrVal_Var nm) -> nm) @maybeNode
+  | Fetch    lhs  .  grTrf  = GrExpr_Fetch @newName (Just @nodeSize)
+  | Update   lhs  .  grTrf  = GrExpr_Update @newName @val.grTrf
+  | Eval     lhs  .  grTrf  = GrExpr_Eval @newName
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%
@@ -184,7 +186,7 @@ SEM GrVal
   | Node          loc  . node     = @grTrf
   | Var Node      lhs  . grTrf    = let tag = case @node of
                                                 GrVal_Node t _ -> GrVal_Tag t
-                                                otherwise        -> error $ "Not a node in case: " ++ (show @node)
+                                                otherwise      -> error $ "Not a node in case: " ++ (show @node)
                                     in if @lhs.isInCase then tag else @node
 
 -- replace pattern in alternatives with Tag only
@@ -228,8 +230,7 @@ NB: Cmm/FromGrin/ReturnSize.cag depend on this transformation
 
 %%[8
 SEM GrExpr
-  | Fetch  lhs  .  grTrf  = let nodeSize = maxNodeSize . getNodes $ absFetch @lhs.hptMap @nm
-                            in GrExpr_Fetch @nm (Just nodeSize)
+  | Fetch  loc  .  nodeSize  =  maxNodeSize . getNodes $ absFetch @lhs.hptMap @nm
 %%]
 
 % vim:ts=4:et:ai:

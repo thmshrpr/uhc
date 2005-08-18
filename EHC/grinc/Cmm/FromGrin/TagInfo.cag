@@ -16,15 +16,45 @@ Small layout for nodes which fit in 4 words
 
 %%[8 hs
 data TagLayout = SmallLayout | BigLayout
-	deriving (Eq,Show)
-type TagEnv    = [(CmmName, TagLayout)]
+	deriving (Ord,Eq,Show)
+data Bit          = Zero | One
+	deriving (Ord,Eq,Show)
+type FieldPattern = [Bit]
+type FieldSize    = Int
+type TagInfo      = (TagLayout, FieldSize, FieldPattern)
+type TagEnv       = [(CmmName, TagInfo)]
 
 tagLit2cmmName (GrTag_Lit c _ n) = '@' : categStr c ++ cmmName' n
+
+bits2ints _  [] = []
+bits2ints bs l  = int (bits2int bits) : bits2ints bs overflowBits
+    where
+    (bits, overflowBits) = splitAt bs l
+    bits2int = snd . foldr foo (0, 0)
+        where foo b (i,v) = (case b of
+                                Zero -> v
+                                One  -> setBit v i
+                            , i+1
+                            )
 %%]
 
 %%[8.tagConstants
 ATTR AllGrNT [ | | tags USE {++} {[]}: {TagEnv} ]
 SEM GrModule
-  | Mod  loc . tags    = let chooseLayout ((t, s), _) = (tagLit2cmmName t, if (s+1) < 4 then SmallLayout else BigLayout)
-                         in map chooseLayout @evalTagMp
+  | Mod  loc  .  tags    = let chooseLayout ((t, s), _) = ( tagLit2cmmName t
+                                                          , ( if (s+1) < 4 
+                                                              then SmallLayout
+                                                              else BigLayout
+                                                            , (s+1)
+                                                            , [Zero] -- TODO: fix dummy values
+                                                            )
+                                                          )
+                           in map chooseLayout @evalTagMp
+              . sectionTagInfo = let data2section d          = lift (CmmToplevel_Section "data") [CmmSectionElement_Data d]
+                                     cmmTagInfo (_,(_,s,p))  = reserve (1 + ceiling (toRational s / 32)) 
+                                                                       valType 
+                                                                       (listInit (int s : bits2ints 32 p))
+                                      in  data2section ( CmmDatum_Label "@TAG_InfoTable" : map cmmTagInfo @tags )
 %%]
+
+% vim:et:ts=4:ai:

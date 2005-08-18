@@ -167,6 +167,7 @@ SEM GrVal
 
 SEM GrTag
   | Var  lhs  .  grTrf  = GrTag_Var (findNewVar @lhs.var2id @nm)
+  | Lit  lhs  .  grTrf  = GrTag_Lit (if @categ == GrTagPApp 0 then GrTagFun else @categ) @int @nm  -- BUGFIX of ehc output
 
 SEM GrExpr
   | App Eval Fetch Update  loc  .  newName  =  findNewVar @lhs.var2id @nm

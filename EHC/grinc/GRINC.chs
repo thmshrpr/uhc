@@ -313,7 +313,6 @@ doCompileRun fn opts = let input     = mkTopLevelFPath "grin" fn
 caLoad = task_ VerboseNormal "Loading" 
     ( do { caParseGrin
          ; caDropUnusedBindings
-         ; caDropUnusedTags
          ; caNumberIdents
          ; caAddLazyApplySupport
          ; debugging <- gets (optDebug . csOpts)
@@ -353,10 +352,13 @@ caNormalize = task_ VerboseNormal "Normalizing"
          }
     )     
 caOptimize = task_ VerboseNormal "Optimizing"
-    ( do { caSparseCase
+    ( do { debugging <- gets (optDebug . csOpts)
+         ; caSparseCase
+         ; when debugging (caWriteGrin "debug.optimized1")
          ; caEliminateCases
+         ; when debugging (caWriteGrin "debug.optimized2")
          ; caCopyPropagation
-         ; debugging <- gets (optDebug . csOpts)
+         ; when debugging (caWriteGrin "debug.optimized3")
          ; when debugging (caWriteGrin "debug.optimized")
          }
     )

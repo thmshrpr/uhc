@@ -17,7 +17,7 @@ grin2cmm e cafMap gr = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf gr))
 
 %%[8 hs import("EHCommon hiding ((<+>))") 
 %%]
-%%[8 hs import("qualified Data.Map as Map")
+%%[8 hs import("qualified Data.Map as Map", "Data.Bits")
 %%]
 
 %%[8.wrapper
@@ -43,6 +43,9 @@ WRAPPER GrAGItf
 %%]
 
 %%[8 import("FromGrin/CAFs")
+%%]
+
+%%[8 import("FromGrin/TempVars")
 %%]
 
 %%[8 import("FromGrin/ToCmm")

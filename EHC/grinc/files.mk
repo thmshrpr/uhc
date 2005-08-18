@@ -32,7 +32,7 @@ GRINC_ALL_SRC                                           += $(GRINC_SRC_PREFIX)GR
 # files from grini and ehc used by grinc
 
 GRINC_ALL_HS_SRC  := $(GRINC_MAIN_HS) $(GRIN_BLD_VARIANT_PREFIX)GRIParser.hs \
-                     $(addprefix $(EHC_BLD_VARIANT_PREFIX),EHCommon.hs EHScanner.hs) \
+                     $(addprefix $(EHC_BLD_VARIANT_PREFIX),EHCommon.hs EHScanner.hs EHScannerMachine.hs) \
                      $(addprefix $(GRIN_BLD_VARIANT_PREFIX),GrinCode.hs GrinCodePretty.hs) \
 
 # Just to start the compilation depend on all 'real' files of ehc and grini

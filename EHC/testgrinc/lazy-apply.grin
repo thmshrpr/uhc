@@ -12,10 +12,6 @@ module "lazy-apply"
         store (#0/C/$Int  1 1) ; \$s3 ->
         $twice $s2 $s3
       } 
-; ap $a4 $a5
-    = { eval $a4 ; \$e2 ->
-        apply $e2 $a5
-      }
 }
 
 ctags
@@ -28,7 +24,6 @@ evalmap
 ; #0/F/$id    1 -> $id
 ; #0/F/$twice 2 -> $twice
 ; #0/F/main   0 -> main
-; #0/A/apply  2 -> ap
 }
 
 applymap

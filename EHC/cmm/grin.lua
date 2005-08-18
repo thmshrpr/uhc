@@ -15,7 +15,7 @@ function CMD.compilertab[".grin"](file)
   local grinc    = Frontends.GRIN.file("grinc")
   local options  = "-v0"
   --if Frontends.GRINC.aOption then options = "..." end -- allow options
-  CMD.exec(grinc .. " " .. options .. " " .. file)
+  CMD.exec(grinc .. " " .. options .. " \"" .. file .. "\"")
   return out
 end
 

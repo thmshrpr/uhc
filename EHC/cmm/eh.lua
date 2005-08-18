@@ -14,7 +14,7 @@ function CMD.compilertab[".eh"](file)
   local ehc      = Frontends.GRIN.file("ehc")
   local options  = "-v1 -cgrin"
   --if Frontends.GRINC.aOption then options = "..." end -- allow options
-  CMD.exec(ehc .. " " .. options .. " " .. file)
+  CMD.exec(ehc .. " " .. options .. " \"" .. file .. "\"")
   return out
 end
 
