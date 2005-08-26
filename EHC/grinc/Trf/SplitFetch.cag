@@ -1,0 +1,204 @@
+% $Id$
+
+Split fetch operation and right hoist the fetch operation until it does not
+load an undefined value.
+
+%%[0
+%include lhs2TeX.fmt
+%include afp.fmt
+%%]
+
+%%[8 import("../GrinCodeAbsSyn")
+%%]
+
+%%[8.wrapper
+WRAPPER GrAGItf
+%%]
+
+%%[8 hs module Trf.SplitFetch import(EHCommon, GRINCCommon, GrinCode) export(splitFetch)
+splitFetch :: HptMap -> Int -> GrModule -> (Int, GrModule)
+splitFetch hptMap uniq grmod = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod))
+                                                    (Inh_GrAGItf { hptMap_Inh_GrAGItf  =  hptMap
+                                                                 , uniq_Inh_GrAGItf    =  uniq
+                                                                 }
+                                                    )
+                               in (uniq_Syn_GrAGItf t, grTrf_Syn_GrAGItf t)
+%%]
+
+%%[8
+ATTR GrAGItf [ hptMap: HptMap | uniq: Int | grTrf: GrModule ]
+ATTR AllGrNT [ hptMap: HptMap | uniq: Int | grTrf: SELF ]
+%%]
+
+%%%%%%%%%%%%%%%%
+%% Node sizes %%
+%%%%%%%%%%%%%%%%
+
+%%[8.nodeSizes
+ATTR AllBind AllGrExpr [ nodeSizes: {Map.Map GrTag Int} | | ]
+
+SEM GrModule
+  | Mod  loc  .  nodeSizes = Map.fromList (map fst @evalTagMp)
+%%]
+
+%%%%%%%%%%%%%%%%%%
+%%% SplitFetch %%%
+%%%%%%%%%%%%%%%%%%
+
+TODO: what when fetch is already split?
+
+%%[8.fetchInfo
+
+SEM GrExpr [ | | fetchPointer: {Maybe HsName} ]
+  | Fetch      lhs  .  fetchPointer  =  Just @nm
+  | * - Fetch  lhs  .  fetchPointer  =  Nothing
+
+
+SEM GrPat [ | | mbTag: {Maybe GrTag} names: {[HsName]} ]
+  |     Tag Node  lhs  .  mbTag  =  Just @tag.grTrf
+  | * - Tag Node  lhs  .  mbTag  =  Nothing
+  | Node  lhs  .  names  =  @fldL
+  | Var   lhs  .  names  =  [ @nm ]
+  | Tag Empty  LitInt  lhs  .  names  =  []
+
+SEM GrExpr
+  | Seq   loc  .  fetches  = do { p <- @expr.fetchPointer
+                                ; t <- @pat.mbTag
+                                ; let (withTag, offset, tagInfo) = case t of
+                                                                       GrTag_Var n -> ((n:), 0, Nothing)
+                                                                       otherwise   -> (id  , 1, Just t )
+                                      buildFetchInfo v l o = (v, GrExpr_Fetch p (Just o) tagInfo) : l (o+1)
+                                ; return $ foldr buildFetchInfo (const []) (withTag @pat.names) offset
+                                }
+%%]
+
+%%%%%%%%%%%%%%%%
+%% RightHoist %%
+%%%%%%%%%%%%%%%%
+
+invariant: a field will only be used after the tag is used.  invariant: a fetch
+is followed by a case wich scrutenizes the tag variable or tag is known at compile time.
+
+We will not check the usage of variables, just search for a case in which the
+tag variable is scrutinized.
+
+%%[8.rightHoist
+
+ATTR AllGrExpr [ floatingFetches : FetchEnv | | ]
+
+SEM GrBind
+  | Bind  expr  .  floatingFetches = Map.empty
+
+SEM GrExpr
+  | Seq  loc  .  isLit         = maybe False isTagLiteral @pat.mbTag
+              .  fetchesInfo   = do { p <- @expr.fetchPointer
+                                    ; l <- @fetches
+                                    ; let mbTag             = checkSingleTag @lhs.hptMap p
+                                          (h:t)             = l
+                                          tagVar            = fst h
+                                          buildFetches tag  = (tagVar, GrExpr_Unit (GrVal_Tag tag))
+                                                              : map (specializeFetch' tag) t
+                                          knownFetches = if @isLit 
+                                                         then l
+                                                         else maybe [h] buildFetches mbTag
+                                          unknownFetches = if @isLit || isJust mbTag then [] else t
+                                    ; return (knownFetches, (tagVar, unknownFetches))
+                                    }
+         lhs   .  grTrf             = maybe @grTrf (buildSeqs @body.grTrf . fst) @fetchesInfo
+         body  .  floatingFetches   = maybe @lhs.floatingFetches (addFetchInfo @lhs.floatingFetches) @fetchesInfo
+  | Case  loc  .  (mbRes, newMap)   = Map.updateLookupWithKey (const . const $ Nothing) (getName @val.grTrf) @lhs.floatingFetches
+               .  mbFetches         = @mbRes
+               .  floatingFetches   = @newMap
+          lhs  .  grTrf             = @grTrf
+
+ATTR AllAlt [ mbFetches: {Maybe [(HsName, GrExpr)]} | | ]
+
+SEM GrAlt
+  | Alt  loc  .  mbExpr  =  do { f <- @lhs.mbFetches
+                               ; t <- @pat.mbTag
+                               ; f <- return $ take (nodeSize t @lhs.nodeSizes)  f
+                               ; return $ buildSeqs @expr.grTrf (map (specializeFetch' t) f)
+                               }
+         lhs  .  grTrf   =  maybe @grTrf (GrAlt_Alt @pat.grTrf) @mbExpr
+%%]
+
+%%[8.lastFetch import("../GrLastExpr")
+SEM GrExpr
+  | Fetch  loc  .  mbKnownTag  =  checkSingleTag @lhs.hptMap @nm
+                .  knownTag    =  fromJust @mbKnownTag
+                .  size        =  nodeSize @knownTag @lhs.nodeSizes
+                .  fetches     =  let buildFetchInfo o  =  Just (GrExpr_Fetch @nm (Just o) (@mbKnownTag), o+1)
+                                  in take @size $ unfoldr buildFetchInfo 1
+                .  names       =  map HNPos [@lhs.uniq .. @uniq  - 1]
+                .  uniq        =  if @isLastExpr then @lhs.uniq + @size else @lhs.uniq
+                .  node        =  GrVal_Node @knownTag (map GrVal_Var @names)
+           lhs  .  grTrf       =  if @isLastExpr
+                                  then buildSeqs (GrExpr_Unit @node) (zip @names @fetches)
+                                  else @grTrf
+%%]
+
+%%[8 hs import("qualified Data.Map as Map", Data.Maybe, Data.List)
+type FetchEnv = Map.Map HsName [(HsName, GrExpr)]
+
+fromJust' s Nothing = error $ "fromJust':" ++ s
+fromJust' _ (Just v) = v
+
+nodeSize t nodeSizes = (1 + Map.findWithDefault 0 t nodeSizes)
+
+getName (GrVal_Var    v               )  =  v
+getName (GrVal_Tag   (GrTag_Var v)    )  =  v
+getName (GrVal_Node  (GrTag_Var v)  [])  =  v
+getName v             = error $ "getName: value not a variable: '" ++ show v ++ "'"
+
+addFetchInfo ffm (_, (v, unknownFetches)) = if null unknownFetches
+                                            then ffm
+                                            else Map.insert v unknownFetches ffm
+
+isTagLiteral t = case t of
+                     GrTag_Var _ -> False
+                     otherwise   -> True
+
+buildSeqs body = foldr buildSeq body
+    where
+    buildSeq (v, e) b = GrExpr_Seq e (GrPat_Var v) b
+
+checkSingleTag hptMap p = if singleton nodes
+                          then Just (fst $ head nodes)
+                          else Nothing
+    where
+    nodes = getNodes (absFetch hptMap p)
+
+singleton [a] = True
+singleton _   = False
+
+specializeFetch' tag (v, fetch) = (v, specializeFetch tag fetch)
+
+specializeFetch tag fetch = case fetch of
+                                GrExpr_Fetch nm mbOffset mbTag -> GrExpr_Fetch nm mbOffset (Just tag)
+                                otherwise                      -> error "specializeFetch: GrExpr is not a fetch"
+%%]
+
+%%[8 hs
+-- not used at the moment
+smallestNode hptMap p = fst $ inBetweenLength (map snd nodes) 0
+    where
+    nodes = getNodes (absFetch hptMap p)
+
+inBetweenLength list n = if allHaveMore 
+                         then inBetweenLength newList (n+1)
+                         else (n, n + foldl (flip $ max . length) 0 list)
+    where 
+    (newList, allHaveMore) = all' hasMore list
+
+hasMore []     =  ([], False)
+hasMore (h:t)  =  (t , True )
+
+all' f []     =  ([], True)
+all' f (h:t)  =  (h':t', b && b')
+    where
+    (h', b)  = f h
+    (t', b') = all' f t
+
+%%]
+
+% vim:ts=4:et:ai:

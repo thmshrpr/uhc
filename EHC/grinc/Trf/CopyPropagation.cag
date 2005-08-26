@@ -130,6 +130,8 @@ SEM GrBind
   | Bind  expr  .  valueMap  =  (Map.empty, Map.empty)
 %%]
 
+remember to update tagMap when mapping a node without fields on a value. Because: a GrVal_Tag t == GrVal_Node t []
+
 %%[8.leftUnit hs
 addLeftUnitSubst seqPat unitVal (valMap, tagMap) =
     do { let p = seqPat
@@ -141,7 +143,9 @@ addLeftUnitSubst seqPat unitVal (valMap, tagMap) =
                                                      _              -> tagMap
                                   in Just (valMap', tagMap')
              vnf vn     pt pls  = Nothing
-             nvf vt vls pn      = Just (Map.insert pn (GrVal_Node vt vls) valMap, tagMap)
+             nvf vt vls pn      = let valMap'  = Map.insert pn (GrVal_Node vt vls) valMap
+                                      tagMap'  = if null vls then Map.insert pn vt tagMap else tagMap
+                                  in Just (valMap', tagMap')
              e                  = Nothing
        ; genInfo v p nnf nvf vnf vvf e
        }
@@ -170,8 +174,8 @@ SEM GrVal
 SEM GrTag
   | Var  lhs  .  grTrf  =  Map.findWithDefault @grTrf @nm (snd @lhs.valueMap)
 SEM GrExpr
-  | Fetch   lhs  .  grTrf  = GrExpr_Fetch  (getHsName @nm @lhs.valueMap) @mbOffset
-  | Update  lhs  .  grTrf  = GrExpr_Update (getHsName @nm @lhs.valueMap) @val.grTrf
+  | Fetch   lhs  .  grTrf  = GrExpr_Fetch  (getHsName @nm @lhs.valueMap) @mbOffset @mbTag
+  | Update  lhs  .  grTrf  = GrExpr_Update (getHsName @nm @lhs.valueMap) @val.grTrf @mbTag
   | FFI     lhs  .  grTrf  = GrExpr_FFI @nm (map (flip getHsName @lhs.valueMap) @argL)
 %%]
 

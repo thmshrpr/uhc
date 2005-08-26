@@ -125,7 +125,9 @@ SEM GrExpr
   | Unit        lhs         .   pp          =   "unit" >#< @val.pp
   | Store       lhs         .   pp          =   "store" >#< @val.pp
   | Fetch       lhs         .   pp          =   "fetch" >#< @lhs.ppGrNm @nm >#< maybe empty pp @mbOffset
+                                                                            >#< maybe empty (ppGrTag @lhs.ppGrNm) @mbTag
   | Update      lhs         .   pp          =   "update" >#< @lhs.ppGrNm @nm >#< @val.pp
+                                                                             >#< maybe empty (ppGrTag @lhs.ppGrNm) @mbTag
 
 SEM GrAlt
   | Alt         lhs         .   pp          =   @pat.pp >-< indent 4 ("->" >#< ppCurly @expr.pp)

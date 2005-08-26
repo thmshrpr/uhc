@@ -49,8 +49,10 @@ DATA GrExpr
   | Store       val             : GrVal
   | Fetch       nm              : {HsName}
                 mbOffset        : {Maybe Int}
+                mbTag           : {Maybe GrTag}
   | Update      nm              : {HsName}
                 val             : GrVal
+                mbTag           : {Maybe GrTag}
 
 DATA GrAlt
   | Alt         pat             : GrPat

@@ -55,7 +55,7 @@ GRINC_HS_FROM_CHS  += $(GRINC_UTILS_SRC_HS)
 
 # base names of all transformations
 TRFS := NumberIdents NormForHPT RightSkew NameIdents LowerGrin DropUnusedBindings GrInline CaseElimination \
-        SparseCase CopyPropagation BuildAppBindings DropUnusedTags
+        SparseCase CopyPropagation BuildAppBindings DropUnusedTags SplitFetch
 
 #sourcefiles of all transformations
 GRINC_TRF_SRC_CAG := $(patsubst %,$(GRINC_SRC_PREFIX)Trf/%.cag,$(TRFS))
@@ -76,6 +76,7 @@ $(GRIN_BLD_VARIANT_PREFIX)Trf/DropUnusedBindings.hs: $(GRIN_BLD_VARIANT_PREFIX)G
 $(GRIN_BLD_VARIANT_PREFIX)Trf/DropUnusedTags.hs: $(GRIN_BLD_VARIANT_PREFIX)GrCAFNames.ag
 
 $(GRIN_BLD_VARIANT_PREFIX)Trf/NormForHPT.hs: $(GRIN_BLD_VARIANT_PREFIX)GrLastExpr.ag
+$(GRIN_BLD_VARIANT_PREFIX)Trf/SplitFetch.hs: $(GRIN_BLD_VARIANT_PREFIX)GrLastExpr.ag
 
 
 ### Analysis ###

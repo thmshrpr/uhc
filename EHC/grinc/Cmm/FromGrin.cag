@@ -45,7 +45,7 @@ WRAPPER GrAGItf
 %%[8 import("FromGrin/CAFs")
 %%]
 
-%%[8 import("FromGrin/TempVars")
+%%[8 import("FromGrin/CmmVars")
 %%]
 
 %%[8 import("FromGrin/ToCmm")

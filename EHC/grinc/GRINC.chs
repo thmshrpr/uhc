@@ -261,6 +261,18 @@ caLowerGrin = do
            )
 %%]
 
+%%[8.splittingFetch import(Trf.SplitFetch)
+caSplitFetch :: CompileAction ()
+caSplitFetch = do
+    putMsg VerboseALot "Splitting and specializing fetch operations" Nothing
+    code   <- gets csGrinCode
+    hptMap <- gets csHptMap
+    unique <- gets csUnique
+    (unqie, code) <- return $ splitFetch hptMap unique code
+    modify (csUpdateGrinCode code)
+    modify (csUpdateUnique unique)
+%%]
+
 %%[8.writeCmm import(Cmm.FromGrin, Cmm.CmmCodePretty)
 caGrin2Cmm :: CompileAction CmmUnit
 caGrin2Cmm = do
@@ -308,8 +320,18 @@ doCompileRun fn opts = let input     = mkTopLevelFPath "grin" fn
                                , csMsgInfo    = initMsgInfo
                                }
                            putErrs (CompileError e) = putStrLn e >> return ()
-                       in drive initState putErrs (caLoad >> caAnalyse >> caNormalize >> caOptimize >> caOutput)
+                       in drive initState putErrs ( do { caLoad             -- from phd boquist (fig 4.1)
+                                                       ; caAnalyse          
+                                                       ; caKnownCalls       -- part I
+                                                       ; caOptimizePartly   -- optimisations (small subset)
+                                                       ; caNormalize        -- part II
+                                                       ; caOptimize         -- optimisations
+                                                       ; caFinalize         -- part III
+                                                       ; caOutput
+                                                       }
+                                                  )
 
+-- create initial GRIN
 caLoad = task_ VerboseNormal "Loading" 
     ( do { caParseGrin
          ; caDropUnusedBindings
@@ -320,6 +342,7 @@ caLoad = task_ VerboseNormal "Loading"
          }
     )
 
+-- create HPT info
 caAnalyse = task_ VerboseNormal "Analysing"
     ( do { caNormForHPT
          ; caRightSkew
@@ -343,28 +366,49 @@ caAnalyse = task_ VerboseNormal "Analysing"
          }
     )
     
-caNormalize = task_ VerboseNormal "Normalizing" 
-    ( do { caInlineEA
+-- simplification part I
+caKnownCalls = task_ VerboseNormal "Removing unknown calls"
+    ( do { debugging <- gets (optDebug . csOpts)
+         ; caInlineEA
          ; caRightSkew
+         ; when debugging (caWriteGrin "debug.knownCalls")
+         }
+    )     
+-- optionsations part I
+caOptimizePartly = task_ VerboseNormal "Optimizing (partly)"
+    ( do { debugging <- gets (optDebug . csOpts)
+         ; caSparseCase
+         ; caEliminateCases
+         ; when debugging (caWriteGrin "debug.partlyOptimized")
+         }
+    )
+-- simplification part II
+caNormalize = task_ VerboseNormal "Normalizing" 
+    ( do { debugging <- gets (optDebug . csOpts)
          ; caLowerGrin
-         ; debugging <- gets (optDebug . csOpts)
          ; when debugging (caWriteGrin "debug.normalized")
          }
     )     
-caOptimize = task_ VerboseNormal "Optimizing"
+
+-- optionsations part II
+caOptimize = task_ VerboseNormal "Optimizing (full)"
     ( do { debugging <- gets (optDebug . csOpts)
-         ; caSparseCase
-         ; when debugging (caWriteGrin "debug.optimized1")
-         ; caEliminateCases
-         ; when debugging (caWriteGrin "debug.optimized2")
          ; caCopyPropagation
-         ; when debugging (caWriteGrin "debug.optimized3")
          ; when debugging (caWriteGrin "debug.optimized")
          }
     )
-    
+
+-- simplification part III
+caFinalize = task_ VerboseNormal "Finalizing"
+    ( do { debugging <- gets (optDebug . csOpts)
+         ; caSplitFetch
+         ; caNameIdents
+         }
+    )
+
+-- write final code
 caOutput = task_ VerboseNormal "Writing code"
-    ( do { caNameIdents
+    ( do { debugging <- gets (optDebug . csOpts)
          ; outputGrin <- gets (optWriteGrin . csOpts)
          ; maybe (return ()) caWriteGrin outputGrin
          ; caWriteCmm

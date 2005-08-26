@@ -74,7 +74,9 @@ pExpr           =    GrExpr_Unit    <$  pKey "unit"         <*> pVal
                 <|>  GrExpr_Store   <$  pKey "store"        <*> pVal
                 <|>  GrExpr_Eval    <$  pGrKey hsnGrEval    <*> pGrNm
                 <|>  GrExpr_Fetch   <$  pKey "fetch"        <*> pGrNm   <*>  (Just <$> pInt `opt` Nothing)
+                                                                        <*>  (Just <$> pTag `opt` Nothing)
                 <|>  GrExpr_Update  <$  pKey "update"       <*> pGrNm   <*>  pVal
+                                                                        <*>  (Just <$> pTag `opt` Nothing)
                 <|>  GrExpr_Case    <$  pKey "case"         <*> pVal    <*   pKey "of" <*> pCurly_pSemics pAlt
                 <|>  GrExpr_App     <$  pGrKey hsnGrApply   <*> pGrNm   <*>  pSValL
                 <|>  GrExpr_FFI     <$  pKey "ffi"          <*> pId     <*>  pGrNmL

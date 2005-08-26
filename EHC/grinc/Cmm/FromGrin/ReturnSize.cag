@@ -74,8 +74,8 @@ SEM GrExpr
                                        else error "ffi as last expression"
                                   else 0
   
-  | Store Update loc . returnSize = if @isLastExpr then 1 else 0
-  | Fetch        loc . returnSize = if @isLastExpr then maybe (error "fetch at return spine") id @mbOffset else 0
+  | Store Fetch  loc  .  returnSize  =  if @isLastExpr then 1 else 0
+  | Update       loc  .  returnSize  =  0
 %%]
 
 %%[8.valueSize

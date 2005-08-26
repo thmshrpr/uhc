@@ -149,8 +149,8 @@ SEM GrVal
 SEM GrExpr
   | Fetch Update Eval  loc . maybeNode   = Map.lookup @nm @lhs.grNodeSubst
                            . newName     = maybe @nm (\(GrVal_Var nm) -> nm) @maybeNode
-  | Fetch    lhs  .  grTrf  = GrExpr_Fetch @newName (Just @nodeSize)
-  | Update   lhs  .  grTrf  = GrExpr_Update @newName @val.grTrf
+  | Fetch    lhs  .  grTrf  = GrExpr_Fetch @newName @mbOffset @mbTag
+  | Update   lhs  .  grTrf  = GrExpr_Update @newName @val.grTrf @mbTag
   | Eval     lhs  .  grTrf  = GrExpr_Eval @newName
 %%]
 
@@ -219,18 +219,6 @@ SEM GrAlt
                                            newNode          = GrVal_Node t (zipWith const l @pat.patFieldL)
                                            addVectorMap  fm = maybe fm (\n -> Map.insert n newNode fm) @lhs.varName
                                        in addVectorMap $ @lhs.grNodeSubst `Map.union` mappings
-%%]
-
-%%%%%%%%%%%%%%%%%%%
-%%% Fetch sizes %%%
-%%%%%%%%%%%%%%%%%%%
-
-We annotate each fetch with the maximum size of the node.
-NB: Cmm/FromGrin/ReturnSize.cag depend on this transformation
-
-%%[8
-SEM GrExpr
-  | Fetch  loc  .  nodeSize  =  maxNodeSize . getNodes $ absFetch @lhs.hptMap @nm
 %%]
 
 % vim:ts=4:et:ai:

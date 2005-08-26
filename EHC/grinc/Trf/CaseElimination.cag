@@ -4,6 +4,10 @@ Elimintate redundent case statments:
     - Trivial: A case with one alternative
     - Evaluated: A case with all alternatives of the form 'unit v' with v the scrutinizer of the case
 
+note: Evaluated case elimination is disabled. This form is the result of eval
+inlining, but later the fetch splitting will re-introduce one just like it to
+specialize the fetch statements which preceeded an evaluated case.
+
 %%[0
 %include lhs2TeX.fmt
 %include afp.fmt
@@ -36,7 +40,7 @@ ATTR AllGrNT [ | | grTrf: SELF ]
 
 %%[8.ordering
 SEM GrExpr
-  | Case  lhs  .  grTrf               =  @evaluatedCase
+  | Case  lhs  .  grTrf               =  @trivialCase -- @evaluatedCase
           loc  .  evaluatedCaseFails  =  @trivialCase
                .  trivialCaseFails    =  @grTrf
 %%]
@@ -67,6 +71,7 @@ SEM GrExpr
   | Case  altL  .  scrutinizer  =  @val.grTrf
           loc   .  trivialCase  =  if @altL.count == 1 then @altL.newBody else @trivialCaseFails
 %%]
+
 
 %%%%%%%%%%%%%%%%%%%%%%
 %%% Evaluated Case %%%
