@@ -1,4 +1,6 @@
 module "primSubstractInt"
+{ main    <- store (#0/F/main 0)
+}
 { $substract $x $y
     = { eval $x ; \(#0/C/$_Int $__ $x') ->
         eval $y ; \(#0/C/$_Int $__ $y') ->

@@ -1,4 +1,7 @@
 module "sample"
+{ main  <- store (#0/F/main  0)
+; $list <- store (#0/F/$list 0)
+}
 { $add $x $y
     = { eval $x ; \(#0/C/$Int $__ $x' ) ->
         eval $y ; \(#0/C/$Int $__ $y' ) ->

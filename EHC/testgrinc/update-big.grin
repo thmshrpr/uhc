@@ -1,9 +1,18 @@
 module "update-big"
-{ $fst8 $t
+{ main   <- store (#0/F/main   0)
+; $tuple <- store (#0/F/$tuple 0)
+}
+{ $add $x $y
+    = { eval $x ; \(#0/C/$Int $__ $x') ->
+        eval $y ; \(#0/C/$Int $__ $y') ->
+        ffi primAddInt $x' $y' ; \(#U $z') ->
+        unit (#0/C/$Int 1 $z')
+      }
+; $fst8 $t
     = { eval $t ; \$e1 ->
         case $e1 of
           { (#0/C/$Tuple8 $__ $a $b $c $d $e $f $g $h)
-                -> { eval $h
+                -> { eval $a
                    }
           }
       }
@@ -19,7 +28,8 @@ module "update-big"
         unit (#0/C/$Tuple8 8 $s1 $s2 $s3 $s4 $s5 $s6 $s7 $s8)
       }
 ; main
-    = { $fst8 $tuple
+    = { store (#0/F/$fst8 1 $tuple) ; \$s9 ->
+        add $s9 $s9
       }
 }
 
@@ -30,6 +40,7 @@ ctags
 evalmap
 { #0/C/$Int     1 -> unit
 ; #0/C/$Tuple8  8 -> unit
+; #0/F/$add     2 -> $add
 ; #0/F/$fst8    1 -> $fst8
 ; #0/F/$tuple   0 -> $tuple
 ; #0/F/main     0 -> main

@@ -12,9 +12,9 @@
 %%[8 hs module Cmm.CmmCode import (GRINCCommon)
 %%]
 
-%%[8 hs export(CmmUnit(..), CmmToplevel(..), CmmSectionElement(..), CmmDatum(..), CmmSize(..), CmmInitString(..), CmmDeclaration(..), CmmProcedure(..), CmmBody, CmmBodyElement(..), CmmStatement(..), CmmExpression(..), CmmActual(..), CmmLValue(..), CmmAlternative(..), CmmRange(..))
+%%[8 hs export(CmmUnit(..), CmmToplevel(..), CmmSectionElement(..), CmmDatum(..), CmmSize(..), CmmInitString(..), CmmDeclaration(..), CmmProcedure(..), CmmBody, CmmBodyElement(..), CmmStatement(..), CmmExpression(..), CmmActual(..), CmmLValue(..), CmmAlternative(..), CmmRange(..), CmmFlowElement(..))
 %%]
-%%[8 hs export(CmmToplevels, CmmSection, CmmData, CmmExpressions,  CmmActuals, CmmAlternatives, CmmRanges, CmmLValues)
+%%[8 hs export(CmmToplevels, CmmSection, CmmData, CmmExpressions,  CmmActuals, CmmAlternatives, CmmRanges, CmmLValues, CmmFlow)
 %%]
 
 %%[8 hs export(CmmName, CmmNames, CmmExternalName, CmmExternalNames, CmmHwName, CmmHwNames, CmmType(..), CmmOptionalType, CmmKind, CmmFormal, CmmFormals, CmmTargetSpec(..), CmmByteOrder(..), CmmCallConv, CmmKindedName, CmmKindedNames)

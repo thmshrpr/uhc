@@ -78,8 +78,7 @@ DATA CmmBodyElement
   | Statement     statement    : CmmStatement
 
 -- MISSING: Recoverable assignment of primitive operations
--- MISSING: Targets, Flow, Alias information on Call
--- MISSING: Continuation support
+-- MISSING: Targets on Call, TailCall and Goto
 DATA CmmStatement
   | Nop
   | If            condition    : CmmExpression
@@ -98,6 +97,7 @@ DATA CmmStatement
                   fun          : CmmExpression
 		  args         : CmmActuals
                   recievers    : {CmmKindedNames}
+                  flow         : CmmFlow
   | TailCall      callConv     : {CmmCallConv}
                   fun          : CmmExpression
 		  args         : CmmActuals
@@ -105,7 +105,11 @@ DATA CmmStatement
                   args         : CmmActuals
   | Label         name         : {CmmName}
   | GoTo          target       : CmmExpression
-
+  | Continuation  name         : {CmmName}
+                  args         : {CmmKindedName}
+  | CutTo         cont         : CmmExpression
+                  args         : CmmActuals
+                  flow         : CmmFlow
 
 -- TODO: Better Float representation
 -- MISSING: Assertions on MemRef
@@ -144,6 +148,15 @@ DATA CmmRange
  | Ranged        from          : CmmExpression
                  to            : CmmExpression
 
+DATA CmmFlowElement
+  | Aborts
+  | NoReturn
+  | Cuts         names         : {CmmNames}
+  | Unwinds      names         : {CmmNames}
+  | Returns      names         : {CmmNames}
+
+
+TYPE CmmFlow            = [CmmFlowElement]
 TYPE CmmToplevels       = [CmmToplevel]
 TYPE CmmSection         = [CmmSectionElement]
 TYPE CmmData            = [CmmDatum]
@@ -156,6 +169,7 @@ TYPE CmmBody            = [CmmBodyElement]
 %%]
 
 %%[8
+SET AllFlow               = CmmFlowElement CmmFlow
 SET AllAlternatives       = CmmAlternative CmmAlternatives
 SET AllData               = CmmDatum CmmData
 SET AllToplevels          = CmmToplevel CmmToplevels
@@ -169,6 +183,6 @@ SET AllBody               = CmmBodyElement CmmBody
 SET AllNT                 = AllAlternatives AllData AllToplevels AllCmmSection
                             AllCmmExpressions AllCmmActuals AllCmmRanges AllCmmLValues
                             AllBody CmmSize CmmInitString CmmDeclaration CmmProcedure
-                            CmmStatement
+                            CmmStatement AllFlow
 SET All                   = AllNT CmmUnit
 %%]

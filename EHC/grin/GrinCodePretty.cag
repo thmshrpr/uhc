@@ -92,6 +92,7 @@ ATTR GrAGItf AllGrNT [ | | pp USE {>-<} {empty}: PP_Doc ]
 
 SEM GrModule
   | Mod         lhs         .   pp          =   "module" >#< show (show @baseName)
+                                                >-< ppCurlyV @globalL.ppL
                                                 >-< ppCurlyV @bindL.ppL
                                                 >-< "ctags"
                                                 >-< ppCurlyV
@@ -107,6 +108,9 @@ SEM GrModule
                                                 >-< ppEvApTagMp @lhs.ppGrNm @evalTagMp
                                                 >-< "applymap"
                                                 >-< ppEvApTagMp @lhs.ppGrNm @applyTagMp
+
+SEM GrGlobal
+  | Global      lhs         .   pp          =   @lhs.ppGrNm @nm >#< "<-" >#< "store" >#< @val.pp
 
 SEM GrBind
   | Bind        lhs         .   pp          =   @lhs.ppGrNm @nm >#< ppSpaced (map @lhs.ppGrNm @argNmL) >-<
@@ -161,7 +165,11 @@ SEM GrTag
 %%]
 
 %%[8
-ATTR GrBindL GrAltL GrPatL GrValL GrAdaptL GrSplitL [ | | ppL: PP_DocL ]
+ATTR GrGlobalL GrBindL GrAltL GrPatL GrValL GrAdaptL GrSplitL [ | | ppL: PP_DocL ]
+
+SEM GrGlobalL
+  | Cons        lhs         .   ppL         =   @hd.pp : @tl.ppL
+  | Nil         lhs         .   ppL         =   []
 
 SEM GrBindL
   | Cons        lhs         .   ppL         =   @hd.pp : @tl.ppL

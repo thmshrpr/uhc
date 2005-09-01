@@ -1,4 +1,6 @@
 module "lazy-apply"
+{ main <- store (#0/F/main 0)
+}
 { $id $a1
     = { eval $a1
       }

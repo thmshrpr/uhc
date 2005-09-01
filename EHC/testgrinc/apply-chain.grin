@@ -1,4 +1,6 @@
 module "apply-chain"
+{ main <- store (#0/F/main 0)
+}
 { $app2 $f $a $b
     = { eval $f ; \$e ->
         apply $e $a $b

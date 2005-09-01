@@ -1,4 +1,6 @@
 module "test"
+{ main <- store (#0/F/main 0)
+}
 { $_EQ 
     = { unit (#0/C/$_EQ 0)} 
 ; $_False 

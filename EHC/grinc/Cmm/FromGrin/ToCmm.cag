@@ -39,7 +39,7 @@ buildDriver nm env = procedure callConv "@grin_main" [] (vars ~> callMain ~> end
     where
     callConv = "" -- error $ "size=" ++ show (lookup name env)
     vars     = varDecl False "" valType [("@tmp", Nothing), ("@result", Nothing)]
-    callMain = cmmCall "" (cmmVar name) [] recievers
+    callMain = cmmCall "" (cmmVar name) [] recievers []
     endGrin  = cmmReturn callConv [valArg $ cmmVar resultVar]
     name = cmmName' nm
     recievers = padWith (const tmpVar) [tmpVar, tmpVar, ("", resultVar)] (fromJust' ("entrypoint not found: " ++ show name) $ lookup name env)
@@ -196,19 +196,22 @@ SEM GrExpr
   | Call   loc  . realRecievers = nreg2knames @lhs.targetNames
                 . argsReturned  = fromJust' ("Call: " ++ show @nm) $ lookup (cmmName' @nm) @lhs.returnSizeEnv
                 . recievers     = padWith mkTempVar @realRecievers @argsReturned
-                . cmmBody     = call' @isLastExpr @nm @argL.cmmFunctionArgs @recievers
+                . mbFlow        = if @isLastExpr then Nothing else Just []
+                . cmmBody       = call' @mbFlow @nm @argL.cmmFunctionArgs @recievers
 
   | App    loc  . realRecievers = nreg2knames @lhs.targetNames
                 . argsReturned  = fromJust' ("Apply: " ++ show @appArgs) $ lookup apply @lhs.returnSizeEnv
                 . recievers     = padWith mkTempVar @realRecievers @argsReturned
                 . evalReturnCount = fromJust $ lookup eval @lhs.returnSizeEnv
                 . appArgs       = map (valArg. cmmVar') (newNames @nm @evalReturnCount)
-                . cmmBody       = call @isLastExpr apply (@appArgs ++ @argL.cmmFunctionArgs) @recievers
+                . mbFlow        = if @isLastExpr then Nothing else Just []
+                . cmmBody       = call @mbFlow apply (@appArgs ++ @argL.cmmFunctionArgs) @recievers
 
   | Eval   loc  . realRecievers = nreg2knames @lhs.targetNames
                 . argsReturned  = fromJust' ("Eval: " ++ show @nm) $ lookup eval @lhs.returnSizeEnv
                 . recievers     = padWith mkTempVar @realRecievers @argsReturned
-                . cmmBody     = call @isLastExpr eval [arg' @nm] @recievers
+                . mbFlow        = if @isLastExpr then Nothing else Just []
+                . cmmBody     = call @mbFlow eval [arg' @nm] @recievers
 
 -- Collect function arguments 
 ATTR GrValL [ | | cmmFunctionArgs : {CmmActuals} ]
@@ -234,7 +237,7 @@ note that a C call cannot be handled as a last expression, this might change.
 SEM GrExpr
   | FFI    loc  . recievers   = nreg2knames @lhs.targetNames
                 . primStm     = @primStmF (map cmmName' @argL) (nreg2names @lhs.targetNames)
-                . callStm     = cmmCall "C" (cmmVar $ cmmName @nm) (map (valArg . cmmVar') @argL) @recievers
+                . callStm     = cmmCall "C" (cmmVar $ cmmName @nm) (map (valArg . cmmVar') @argL) @recievers []
                 . cmmBody     = if @isPrim then @primStm
                                 else if not @isLastExpr then @callStm
                                 else error "FFI as last expression"
@@ -269,7 +272,7 @@ SEM GrExpr
 
   | Fetch  loc  . cmmBody     = buildFetch @nm (fromJust @mbOffset) @mbTag @lhs.allTags (nreg2names @lhs.targetNames)
 
-  | Update loc  . cmmBody     = cmmNop -- buildUpdate @nm @val.cmmExpressions -- TODO: update is broken!
+  | Update loc  . cmmBody     = buildUpdate @nm @val.cmmExpressions
 
 %%]
 
@@ -333,12 +336,22 @@ buildFetch p offset mbTag tags targetNames = let loadSingle = fetch (cmmVar' p) 
 --     p[i] = $(i-1) -- field nr (i-1)
 -- p[0] = t
 
--- just store the values (do not take space as a problem)
-buildUpdate p nms = let assign e tf i = let hd = (memUpdate valType (cmmVar' p) i, e)
-                                            tl = tf (i+4)
-                                        in hd:tl
-                        stores        = foldr assign (const []) nms 0
-                    in updates stores
+--dummy update, allocate the maximum needed size. It might write some undefined values to the heap.
+buildUpdate p es = let (first4, others)  = splitAt 4 es
+                       (ses, overflow)   = if null others then (first4, []) else splitAt 3 first4
+                       bes               = overflow ++ others
+                       bigsize       = length bes
+                       alloc         =  [ (varUpdate "@tmp1", cmmVar "@hp")
+                                        , (varUpdate "@hp", cmmVar "@hp" <+> int (4*bigsize))
+                                        ]
+                       assign v e tf i = let hd = (memUpdate valType (cmmVar v) i, e)
+                                             tl = tf (i+4)
+                                         in hd:tl
+                       bigStore      = if bigsize > 0 then
+                                       foldr (assign "@tmp1") (const [(memUpdate ptrType (cmmVar' p) (3*4), cmmVar "@tmp1")]) bes 0
+                                       else []
+                       store         = foldr (assign (cmmName' p)) (const bigStore) ses 0
+                    in if bigsize > 0 then updates alloc ~> updates store else updates store
 %%]
 
 % vim:et:ts=4:

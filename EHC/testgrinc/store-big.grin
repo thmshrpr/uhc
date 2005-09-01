@@ -1,4 +1,6 @@
 module "store-big"
+{ main <- store (#0/F/main 0)
+}
 { $fst8 $t
     = { eval $t ; \$e1 ->
         case $e1 of

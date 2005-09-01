@@ -63,7 +63,7 @@ TODO: how to know which apply tags are needed (when apply is not inlined)
 
 %%[8.remveUnusedTags
 SEM GrModule
-  | Mod  lhs  .  grTrf        =  GrModule_Mod @baseName @bindL.grTrf @ctagsMp' @evalTagMp' @applyTagMp'
+  | Mod  lhs  .  grTrf        =  GrModule_Mod @baseName @globalL.grTrf @bindL.grTrf @ctagsMp' @evalTagMp' @applyTagMp'
          loc  .  ctagsMp'     =  @ctagsMp
               .  evalTagMp'   =  filter (\ ((t,_),_) -> Set.member t @usedTags) @evalTagMp 
               .  applyTagMp'  =  @applyTagMp

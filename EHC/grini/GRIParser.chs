@@ -25,9 +25,9 @@ scanOpts
                                     , "ctags", "applymap", "evalmap"
                                     , "C", "F", "P", "A", "R", "H", "U"
                                     ]
-        ,   scoKeywordsOps      =   [ "->", "=", "+=", "-=", ":=", "-" ]
+        ,   scoKeywordsOps      =   [ "<-", "->", "=", "+=", "-=", ":=", "-" ]
         ,   scoSpecChars        =   "();{}#/\\|,"
-        ,   scoOpChars          =   "->:=+"
+        ,   scoOpChars          =   "<->:=+"
         ,   scoDollarIdent      =   True
         }
 %%]
@@ -41,10 +41,17 @@ type GRIParser       gp     =    IsParser p Token => p gp
 
 pModule         ::   GRIParser GrModule
 pModule         =    GrModule_Mod <$ pKey "module" <*> (HNm <$> pString)
+                     <*> pGlobalL
                      <*> pBindL
                      <*  pKey "ctags"     <*> pCTags
                      <*  pKey "evalmap"   <*> pEvApTagMp
                      <*  pKey "applymap"  <*> pEvApTagMp
+
+pGlobalL        ::   GRIParser GrGlobalL
+pGlobalL        =    pCurly_pSemics pGlobal
+
+pGlobal         ::   GRIParser GrGlobal
+pGlobal         =    GrGlobal_Global <$> pGrNm <* pKey "<-" <* pKey "store" <*> pVal
 
 pBindL          ::   GRIParser GrBindL
 pBindL          =    pCurly_pSemics pBind

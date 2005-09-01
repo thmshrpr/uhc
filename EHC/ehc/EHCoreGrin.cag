@@ -240,6 +240,7 @@ SEM CModule
                                                      )
                                                      @evalAltL
                 lhs         .   grMod       =   GrModule_Mod (HNm @baseName)
+                                                    [] -- TODO: this should contain all the caf variables
                                                     (@expr.grBindL ++ [@applyBind,@evalBind])
                                                     @allCTags @evalTagMp @applyTagMp
 %%]

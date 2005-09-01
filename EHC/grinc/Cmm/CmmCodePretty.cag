@@ -69,12 +69,13 @@ SEM CmmStatement
   | Span            loc . pp    = "span" >#< @key.pp >#< @value.pp >-< pp_braces @body.pp
   | Assign          loc . pp    = @lvals.pp >#< "=" >#< ppListComma id @expressions.pps              >|< ";"
   | Call            loc . ppLHS = ppListComma ppReciever @recievers
-                    loc . ppRHS = ppCallConv @callConv >|< @fun.pp >|< pp_parens @args.pp            >|< ";"
+                    loc . ppRHS = ppCallConv @callConv >|< @fun.pp >|< pp_parens @args.pp >#< @flow.pp >|< ";"
                     loc . pp    = if null @recievers then @ppRHS else @ppLHS >#< "=" >#< @ppRHS
   | TailCall        loc . pp    = ppCallConv @callConv >|< "jump" >#< @fun.pp >|< pp_parens @args.pp >|< ";"
   | Return          loc . pp    = ppCallConv @callConv >|< "return" >#< pp_parens @args.pp           >|< ";"
   | Label           loc . pp    = pp @name >|< ":"
   | GoTo            loc . pp    = "goto" >#< pp @target                                              >|< ";"
+  | CutTo           loc . pp    = "cut to" >#< @cont.pp >|< pp_parens @args.pp  >#< @flow.pp         >|< ";"
 
 SEM CmmExpression
   | Int             loc . pp    = pp   @val >|< ppTypeAnn @type
@@ -111,6 +112,16 @@ SEM CmmRanges
 
 SEM CmmRange
   | Ranged          loc . pp    = @from.pp >#< ".." >#< @to.pp
+
+SEM CmmFlow
+  | Cons            loc . pp    = @hd.pp >#< @tl.pp
+
+SEM CmmFlowElement
+  | Aborts         loc . pp     = pp "also aborts"
+  | NoReturn       loc . pp     = pp "never returns"
+  | Cuts           loc . pp     = "also cuts to"    >#< ppListComma pp @names
+  | Unwinds        loc . pp     = "also unwinds to" >#< ppListComma pp @names
+  | Returns        loc . pp     = "also returns to" >#< ppListComma pp @names
 %%]
 
 

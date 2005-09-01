@@ -116,7 +116,7 @@ cmmIfThenElse i t e   = lift body $ CmmStatement_IfElse i t e
 cmmIfThen     i t     = lift body $ CmmStatement_If i t
 cmmSwitch     e a     = lift body $ CmmStatement_Switch e a
 cmmAssign     l e     = lift body $ CmmStatement_Assign l e
-cmmCall       c f a r = lift body $ CmmStatement_Call c f a r
+cmmCall       c f a r fl = lift body $ CmmStatement_Call c f a r fl
 cmmTailcall   c f a   = lift body $ CmmStatement_TailCall c f a
 cmmReturn     c a     = lift body $ CmmStatement_Return c a
 cmmLabel      l       = lift body $ CmmStatement_Label l
@@ -182,8 +182,8 @@ cmmName' = cmmName . show
 
 cmmName :: String -> CmmName
 cmmName s = '$' : concatMap escapeChar s
-	where
-	escapeChar c | isAlphaNum c || c `elem` "_$" = [c]
+    where
+    escapeChar c | isAlphaNum c || c `elem` "_$" = [c]
                      | c == '@'                      = ['@','@']
                      | otherwise                     = '@' : (show (ord c) ++ "@")
 
@@ -218,12 +218,12 @@ values. Note that we request CmmKindedNames to be exactly the number of return
 values in the called function.
 
 %%[8.calls export(call,call',apply,eval)
-call :: Bool -> CmmName -> CmmActuals -> CmmKindedNames -> CmmBodyBuilder
-call tail name = fcall "" (cmmVar name)
-	where
-	fcall = case tail of
-                  True   -> (\a b c d -> cmmTailcall a b c)
-                  False  -> cmmCall
+call :: Maybe CmmFlow -> CmmName -> CmmActuals -> CmmKindedNames -> CmmBodyBuilder
+call flow name = fcall "" (cmmVar name)
+    where
+    fcall = case flow of
+                  Nothing   -> (\a b c d   -> cmmTailcall a b c)
+                  Just fl   -> (\a b c d   -> cmmCall a b c d fl)
 
 call' ctype name = call ctype (cmmName' name)
 
@@ -237,9 +237,9 @@ eval                 = "$eval"
 
 %%[8.reservations export(reserve,many,one,noInit,strInit,ustrInit,listInit)
 reserve s t i = CmmDatum_Reserve t size i
-	where
-	size = if s > 0
-	       then if s == 1
+    where
+    size = if s > 0
+           then if s == 1
                     then CmmSize_Single
                     else CmmSize_Sized (int s)
                else CmmSize_Many
@@ -289,10 +289,10 @@ nreg2names = map fst
 
 nreg2varDef :: CmmNameRegister -> CmmBodyBuilder
 nreg2varDef = foldr makeDecls emptyBuilder
-	where
-	makeDecls nre decls      = nrege2varDef nre ~> decls
-	nrege2varDef :: CmmNameRegisterElement -> CmmBodyBuilder
-	nrege2varDef (n, (t, k)) = varDecl False k t [(n, Nothing)]
+    where
+    makeDecls nre decls      = nrege2varDef nre ~> decls
+    nrege2varDef :: CmmNameRegisterElement -> CmmBodyBuilder
+    nrege2varDef (n, (t, k)) = varDecl False k t [(n, Nothing)]
 
 --noDups :: CmmNameRegister -> CmmNameRegister
 noDups :: (Eq a) => [(a,b)] -> [(a,b)]
@@ -301,3 +301,24 @@ noDups = nubBy (\x y -> fst x == fst y)
 tagVar n = (n, (valType, ""))
 elemVar n = (n, (valType, ""))
 %%]
+
+%% -----------------------------
+
+%%[8
+heapPointer = cmmVar "@hp"
+heapLimit = cmmVar "@heapLimit"
+
+allocates (n:nl) = let f = uncurry allocate
+                   in foldr ((~>) . f) (f n) nl
+
+allocate p n = let newHp    = heapPointer <+> int n
+                   allocate = updates [ (varUpdate p, heapPointer)
+                                      , (varUpdate "@hp", newHp)
+                                      ]
+                   ensureSpace   = cmmNop
+                   --ensureSpace = it (prim $ "lt" [newHp, heapLimit])
+                   --                 (cmmCall "C" (cmmVar "grin_gc") [int n] [] [])
+               in ensureSpace ~> allocate
+%%]
+
+% vim:et:ts=4:ai:

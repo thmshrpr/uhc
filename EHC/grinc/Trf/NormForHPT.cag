@@ -10,6 +10,8 @@ Normalisation for the Heap-points-to analysis
     - After an eval or apply call 
     - After a case statement
 
+- do we need it after an FFI?
+
 wildcard = 0
 eval     = 1
 apply    = 2    
@@ -109,8 +111,8 @@ Which expressions need a simple pattern after the statement
 
 %%[8.needSimplePattern
 SEM GrExpr [ | |  needsSimplePattern : Bool ]
-  | Case Eval App FFI      lhs  . needsSimplePattern = True
-  | * - Case Eval App FFI  lhs  . needsSimplePattern = False
+  | Case Eval App      lhs  . needsSimplePattern = True
+  | * - Case Eval App  lhs  . needsSimplePattern = False
 %%]
 
 %%[8.isSimplePattern

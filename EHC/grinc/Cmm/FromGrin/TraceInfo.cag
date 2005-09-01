@@ -14,7 +14,7 @@ ATTR AllBind [ | | traces USE {++} {[]}: {[(CmmName, String)]} ]
 SEM GrBind
   | Bind      loc . traceName     = cmmName' @nm
                   . traceAddress  = "@trace_" ++ @traceName
-                  . traceStm'     = cmmCall "C" (cmmVar "puts") [ ptrArg $ cmmVar @traceAddress ] []
+                  . traceStm'     = cmmCall "C" (cmmVar "puts") [ ptrArg $ cmmVar @traceAddress ] [] []
                   . doTrace       = @nm /= HNm "eval" && False
               lhs . importedNames = if @doTrace
                                     then ("puts", Nothing) : @expr.importedNames

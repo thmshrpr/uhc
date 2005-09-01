@@ -172,6 +172,9 @@ SEM GrExpr
 SEM GrVal
   | Node     fldL . isInCase = False
 
+SEM GrGlobal
+  | Global   loc  . isInCase = False
+
 -- TODO: what must stand here?
 SEM GrSplit
   | Sel      loc  . isInCase = False
