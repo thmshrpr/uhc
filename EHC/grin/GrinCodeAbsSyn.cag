@@ -60,6 +60,10 @@ DATA GrExpr
   | Update      nm              : {HsName}
                 val             : GrVal
                 mbTag           : {Maybe GrTag}
+  | Throw       nm              : {HsName}
+  | Catch       body            : GrExpr
+                arg             : {HsName}
+                handler         : GrExpr
 
 DATA GrAlt
   | Alt         pat             : GrPat

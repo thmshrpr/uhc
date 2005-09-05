@@ -22,7 +22,7 @@ scanOpts
   =  defaultScanOpts
         {   scoKeywordsTxt      =   [ show hsnGrEval, show hsnGrApply
                                     , "module", "update", "fetch", "store", "unit", "of", "rec", "case", "ffi"
-                                    , "ctags", "applymap", "evalmap"
+                                    , "throw", "try", "catch", "ctags", "applymap", "evalmap"
                                     , "C", "F", "P", "A", "R", "H", "U"
                                     ]
         ,   scoKeywordsOps      =   [ "<-", "->", "=", "+=", "-=", ":=", "-" ]
@@ -87,6 +87,9 @@ pExpr           =    GrExpr_Unit    <$  pKey "unit"         <*> pVal
                 <|>  GrExpr_Case    <$  pKey "case"         <*> pVal    <*   pKey "of" <*> pCurly_pSemics pAlt
                 <|>  GrExpr_App     <$  pGrKey hsnGrApply   <*> pGrNm   <*>  pSValL
                 <|>  GrExpr_FFI     <$  pKey "ffi"          <*> pId     <*>  pGrNmL
+                <|>  GrExpr_Throw   <$  pKey "throw"        <*> pGrNm
+                <|>  GrExpr_Catch   <$  pKey "try"          <*> pCurly pExprSeq
+                                    <*  pKey "catch"        <*> pParens pGrNm <*> pCurly pExprSeq
                 <|>  GrExpr_Call                            <$> pGrNm   <*>  pSValL
 
 pSVal           ::   GRIParser GrVal

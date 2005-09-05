@@ -132,6 +132,11 @@ SEM GrExpr
                                                                             >#< maybe empty (ppGrTag @lhs.ppGrNm) @mbTag
   | Update      lhs         .   pp          =   "update" >#< @lhs.ppGrNm @nm >#< @val.pp
                                                                              >#< maybe empty (ppGrTag @lhs.ppGrNm) @mbTag
+  | Throw       lhs         .   pp          =   "throw" >#< @lhs.ppGrNm @nm
+  | Catch       lhs         .   pp          =   "try" >-<
+                                                indent 2 (ppCurly @body.pp) >-<
+                                                "catch" >|< pp_parens (@lhs.ppGrNm @arg) >-<
+                                                indent 2 (ppCurly @handler.pp)
 
 SEM GrAlt
   | Alt         lhs         .   pp          =   @pat.pp >-< indent 4 ("->" >#< ppCurly @expr.pp)

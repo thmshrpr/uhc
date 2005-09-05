@@ -74,7 +74,7 @@ DATA CmmProcedure
 
 DATA CmmBodyElement
   | Declaration   declaration  : CmmDeclaration
-  | StackReserve  data         : CmmData
+  | StackData     data         : CmmData
   | Statement     statement    : CmmStatement
 
 -- MISSING: Recoverable assignment of primitive operations
@@ -106,7 +106,7 @@ DATA CmmStatement
   | Label         name         : {CmmName}
   | GoTo          target       : CmmExpression
   | Continuation  name         : {CmmName}
-                  args         : {CmmKindedName}
+                  args         : {CmmKindedNames}
   | CutTo         cont         : CmmExpression
                   args         : CmmActuals
                   flow         : CmmFlow

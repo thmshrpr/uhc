@@ -3,6 +3,8 @@
 Split fetch operation and right hoist the fetch operation until it does not
 load an undefined value.
 
+TODO: rewrite split fetch to do transformation on Fetch instead on Seq followed by the RightSkew transformation.
+
 %%[0
 %include lhs2TeX.fmt
 %include afp.fmt
@@ -76,8 +78,10 @@ SEM GrExpr
 %% RightHoist %%
 %%%%%%%%%%%%%%%%
 
-invariant: a field will only be used after the tag is used.  invariant: a fetch
-is followed by a case wich scrutenizes the tag variable or tag is known at compile time.
+invariant: a field will only be used after the tag is used.  
+
+invariant: a fetch is followed by a case wich scrutenizes the tag variable or
+tag is known at compile time. (is this truly the case?)
 
 We will not check the usage of variables, just search for a case in which the
 tag variable is scrutinized.
@@ -124,6 +128,7 @@ SEM GrAlt
 
 %%[8.lastFetch import("../GrLastExpr")
 SEM GrExpr
+  | Catch  loc  . hasNext      =  False
   | Fetch  loc  .  mbKnownTag  =  checkSingleTag @lhs.hptMap @nm
                 .  knownTag    =  fromJust @mbKnownTag
                 .  size        =  nodeSize @knownTag @lhs.nodeSizes
@@ -137,7 +142,7 @@ SEM GrExpr
                                   else @grTrf
 %%]
 
-%%[8 hs import("qualified Data.Map as Map", Data.Maybe, Data.List)
+%%[8 hs import("qualified Data.Map as Map", Data.Maybe, Data.List, Debug.Trace)
 type FetchEnv = Map.Map HsName [(HsName, GrExpr)]
 
 fromJust' s Nothing = error $ "fromJust':" ++ s

@@ -30,10 +30,10 @@ instance PP CmmUnit where
 ATTR All [ | | pp USE {>-<} {empty} : PP_Doc ]
 
 SEM CmmToplevel
-  | Section         lhs . pp    = "section" >#< (ppString @name) >|< pp_braces @body.pp
+  | Section         lhs . pp    = "section" >#< (ppString @name) >#< pp_braces @body.pp
 
 SEM CmmSectionElement
-  | Span            loc . pp    = "span" >#< @key.pp >#< @value.pp >|< pp_braces @body.pp
+  | Span            loc . pp    = "span" >#< @key.pp >#< @value.pp >#< pp_braces @body.pp
 
 SEM CmmDatum
   | Label           loc . pp    = pp @name >|< ":"
@@ -61,6 +61,9 @@ SEM CmmDeclaration
 SEM CmmProcedure
   | Procedure       loc . pp    = ppCallConv @callConv >|< pp @name >|< pp_parens (ppListComma ppFormal @args) >-< pp_braces @body.pp
 
+SEM CmmBodyElement
+  | StackData       loc . pp    = "stackdata" >#< pp_braces @data.pp
+
 SEM CmmStatement
   | Nop             loc . pp    = pp ";"
   | If              loc . pp    = "if" >#< @condition.pp >-< pp_braces @body.pp
@@ -76,6 +79,7 @@ SEM CmmStatement
   | Label           loc . pp    = pp @name >|< ":"
   | GoTo            loc . pp    = "goto" >#< pp @target                                              >|< ";"
   | CutTo           loc . pp    = "cut to" >#< @cont.pp >|< pp_parens @args.pp  >#< @flow.pp         >|< ";"
+  | Continuation    loc . pp    = "continuation" >#< pp @name >|< pp_parens (ppListComma ppReciever @args) >|< ":"
 
 SEM CmmExpression
   | Int             loc . pp    = pp   @val >|< ppTypeAnn @type

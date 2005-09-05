@@ -22,6 +22,6 @@ SEM GrExpr
              body . hasNext = @lhs.hasNext
 
 SEM GrExpr
-  | * - Seq Case  loc . isLastExpr = not @lhs.hasNext
-  | Seq Case      loc . isLastExpr = False
+  | * - Seq Case Catch  loc . isLastExpr = not @lhs.hasNext
+  |     Seq Case Catch  loc . isLastExpr = False
 %%]

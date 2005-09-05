@@ -122,7 +122,7 @@ caNumberIdents = task VerboseALot "Numbering identifiers"
     ( do { code   <- gets csGrinCode
          ; unique <- gets csUnique
          ; entry <- gets csEntry
-         ; (unique, entry, code, varMap, cafMap) <- return $ numberIdents unique entry code
+         ; (unique, entry, code, varMap, cafMap, idents) <- return $ numberIdents unique entry code
          ; modify (\s -> s { csMbOrigNms = Just varMap
                            , csMbCafMap = Just cafMap
                            , csMbCode = Just code
@@ -130,8 +130,7 @@ caNumberIdents = task VerboseALot "Numbering identifiers"
                            , csUnique = unique
                            }
                   )
-         ; let (low, high) = bounds $ fst varMap
-         ; return (high - low)
+         ; return idents
          }
     ) (\i -> Just $ show i ++ " identifiers")
 %%]

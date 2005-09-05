@@ -64,13 +64,15 @@ SEM GrTag
   | Var  lhs  .  grTrf  = GrTag_Var (findNewVar @lhs.names @nm)
 
 SEM GrExpr
-  | App Eval Call Fetch Update  loc  .  newName  =  findNewVar @lhs.names @nm
-  | App                         lhs  .  grTrf    =  GrExpr_App     @newName @argL.grTrf
-  | Eval                        lhs  .  grTrf    =  GrExpr_Eval    @newName
-  | Call                        lhs  .  grTrf    =  GrExpr_Call    @newName @argL.grTrf
-  | Fetch                       lhs  .  grTrf    =  GrExpr_Fetch   @newName @mbOffset @mbTag
-  | Update                      lhs  .  grTrf    =  GrExpr_Update  @newName @val.grTrf @mbTag
-  | FFI                         lhs  .  grTrf    =  GrExpr_FFI     @nm (map (findNewVar @lhs.names) @argL)
+  | App Eval Call Fetch Update Throw  loc  .  newName  =  findNewVar @lhs.names @nm
+  | App                               lhs  .  grTrf    =  GrExpr_App     @newName @argL.grTrf
+  | Eval                              lhs  .  grTrf    =  GrExpr_Eval    @newName
+  | Call                              lhs  .  grTrf    =  GrExpr_Call    @newName @argL.grTrf
+  | Fetch                             lhs  .  grTrf    =  GrExpr_Fetch   @newName @mbOffset @mbTag
+  | Update                            lhs  .  grTrf    =  GrExpr_Update  @newName @val.grTrf @mbTag
+  | FFI                               lhs  .  grTrf    =  GrExpr_FFI     @nm (map (findNewVar @lhs.names) @argL)
+  | Throw                             lhs  .  grTrf    =  GrExpr_Throw   @newName
+  | Catch                             lhs  .  grTrf    =  GrExpr_Catch   @body.grTrf (findNewVar @lhs.names @arg) @handler.grTrf
 
 SEM GrModule
   | Mod  lhs  . grTrf         = GrModule_Mod @baseName @globalL.grTrf @bindL.grTrf @ctagsMp @newEvalTagMp @newAppTagMp

@@ -15,11 +15,13 @@ export printInt;
 const HEAP_SIZE = 1024;
 
 bits32 @hp;
+bits32 @eh;
 
 section "data" {
 	heapsize_var      : bits8[] "GRIN_HEAPSIZE\0";
 	heapsize_msg      : bits8[] "heapsize %d KB\naddress space ranges from %p upto %p\n\0";
 	int_msg           : bits8[] "int: %d\n\0";
+    error_msg         : bits8[] "error: exception at %p with tag %d\n\0";
 }
 
 section "data" {
@@ -56,11 +58,19 @@ foreign "C" main(bits32 argc, "address" bits32 argv) {
 	bits32[argument_count] = argc;
 	bits32[argument_array] = argv;
 
+    //install default exception handler
+    @eh = defaultHandler;
+
 	//call main function
-	result = grin_main();
+	result = grin_main() also cuts to defaultHandler;
 	printInt(result);
 
 	foreign "C" return (0);
+
+    bits32 e;
+    continuation defaultHandler("address" e):
+    printf("address" error_msg, e, bits32[e]);
+    foreign "C" return (1);
 }
 
 /*

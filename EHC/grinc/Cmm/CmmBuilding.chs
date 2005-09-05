@@ -317,8 +317,10 @@ allocate p n = let newHp    = heapPointer <+> int n
                                       ]
                    ensureSpace   = cmmNop
                    --ensureSpace = it (prim $ "lt" [newHp, heapLimit])
-                   --                 (cmmCall "C" (cmmVar "grin_gc") [int n] [] [])
+                   --                 (ffCall "grin_gc" [int n] [])
                in ensureSpace ~> allocate
+
+ffCall name args recievers = cmmCall "C" (cmmVar name) args recievers []
 %%]
 
 % vim:et:ts=4:ai:

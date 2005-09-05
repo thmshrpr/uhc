@@ -6,6 +6,9 @@ primitves) as well as the eval and apply function names.
 To rename efficient we can use the fact that the scope of a variable is local
 to a binding, but it's easier not to.
 
+Note: after each binding we skip one number (as a binding needs two result variables)
+
+
 %%[0
 %include lhs2TeX.fmt
 %include afp.fmt
@@ -20,15 +23,16 @@ WRAPPER GrAGItf
 
 %%[8 hs module Trf.NumberIdents import(GRINCCommon, EHCommon, GrinCode, Data.Array.IArray, "qualified Data.Map as Map", Data.Maybe) export(numberIdents)
 
-numberIdents :: Int -> HsName -> GrModule -> (Int, HsName, GrModule, IdentNameMap, CafMap)
-numberIdents u entry grmod = let t        = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod))
-                                                         (Inh_GrAGItf { unique_Inh_GrAGItf = u, entry_Inh_GrAGItf = entry })
-                                 newU     = unique_Syn_GrAGItf t
-                                 newGrMod = grTrf_Syn_GrAGItf  t
-                                 varMap   = varMap_Syn_GrAGItf t
-                                 cafMap   = cafMap_Syn_GrAGItf t
-                                 newEntry = entry_Syn_GrAGItf  t
-                             in (newU, newEntry, newGrMod, varMap, cafMap)
+numberIdents :: Int -> HsName -> GrModule -> (Int, HsName, GrModule, IdentNameMap, CafMap, Int)
+numberIdents u entry grmod = let t          = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod))
+                                                           (Inh_GrAGItf { unique_Inh_GrAGItf = u, entry_Inh_GrAGItf = entry })
+                                 nrOfBinds  = nrOfBinds_Syn_GrAGItf t
+                                 newU       = unique_Syn_GrAGItf t
+                                 newGrMod   = grTrf_Syn_GrAGItf  t
+                                 varMap     = varMap_Syn_GrAGItf t
+                                 cafMap     = cafMap_Syn_GrAGItf t
+                                 newEntry   = entry_Syn_GrAGItf  t
+                             in (newU, newEntry, newGrMod, varMap, cafMap, newU - u - nrOfBinds)
 %%]
 
 %%[8.lookup hs
@@ -86,7 +90,7 @@ SEM GrAGItf
            loc     .  bind2id      = @module.bind2idFrag
                    .  bind2idList  = Map.toList @module.bind2idFrag
                    .  var2idList   = Map.toList @module.var2id
-                   .  bindMapping  = [ (i, n) | (n, HNPos i) <- @bind2idList, not (n `elem` [applyNm, evalNm]) ]
+                   .  bindMapping  = concat [ [(i, n), (i+1, n)] | (n, HNPos i) <- @bind2idList, not (n `elem` [applyNm, evalNm]) ] -- ugly
                    .  varMapping   = let changeCaf n = if Map.member n @module.cafVar then hsnSuffix n "_caf" else n
                                      in [ (i, changeCaf n) | (n, HNPos i) <- @var2idList ]
                    .  varMap       = (array (@low, @high-1) (@bindMapping ++ @varMapping), Map.empty)
@@ -108,7 +112,7 @@ SEM GrBind
   | Bind  loc  .  isCaf        = null @argNmL
                .  cafName      = if @isCaf then Just $ HNPos @lhs.cafUniq    else Nothing
                .  cafVarName   = if @isCaf then Just $ HNPos @lhs.cafVarUniq else Nothing
-               .  cafUniq      = if @isCaf then @lhs.cafUniq+1               else @lhs.cafUniq
+               .  cafUniq      = if @isCaf then @lhs.cafUniq+2               else @lhs.cafUniq
                .  cafVarUniq   = if @isCaf then @lhs.cafVarUniq+1            else @lhs.cafVarUniq
                .  cafMap       = addMbToMap @lhs.cafMap @cafName   @cafVarName
                .  cafVar       = addMbToMap @lhs.cafVar (Just @nm) @cafVarName
@@ -122,7 +126,7 @@ SEM GrBind
                                           then (applyNr          , @lhs.unique  )
                                           else if @nm == evalNm
                                           then (evalNr           , @lhs.unique  )
-                                          else (HNPos @lhs.unique, @lhs.unique+1)
+                                          else (HNPos @lhs.unique, @lhs.unique+2)
                .  bind2idFrag          = if isSpecialBind @nm
                                          then @lhs.bind2idFrag
                                          else Map.insert @nm @bindName @lhs.bind2idFrag
@@ -139,12 +143,17 @@ SEM GrPat
   | Node       loc  .  (var2id', newNames, unique') = addList @lhs.unique @lhs.var2id @fldL
   | Tag        loc  .  var2id'  = @lhs.var2id
                     .  unique'  = @unique'
-  | Var        lhs  .  var2id   = Map.insert @nm (HNPos @lhs.unique) @lhs.var2id
+  | Var        lhs  .  var2id   = Map.insert @nm @newName @lhs.var2id
                     .  unique   = @lhs.unique + 1
                loc  .  newName  = HNPos @lhs.unique
   | Node Tag   loc  .  (var2id , unique )  = addMaybe @unique' @var2id' @tag.varName
                loc  .  newTag              = maybe @tag.grTrf GrTag_Var @tag.varName
-    
+
+SEM GrExpr
+  | Catch      handler  .  var2id   = Map.insert @arg @newName @body.var2id
+                        .  unique   = @body.unique + 1
+               loc      .  newName  = HNPos @body.unique
+ 
 SEM GrBind
   | Bind      loc   .  (var2id', newNames, unique'')  =  addList @unique' @lhs.var2id @argNmL
               expr  .  var2id                         =  @var2id'
@@ -170,19 +179,27 @@ SEM GrTag
   | Lit  lhs  .  grTrf  = GrTag_Lit (if @categ == GrTagPApp 0 then GrTagFun else @categ) @int @nm  -- BUGFIX of ehc output
 
 SEM GrExpr
-  | App Eval Fetch Update  loc  .  newName  =  findNewVar @lhs.var2id @nm
-  | App                    lhs  .  grTrf    =  GrExpr_App     @newName @argL.grTrf
-  | Eval                   lhs  .  grTrf    =  GrExpr_Eval    @newName
-  | Call                   loc  .  newName  =  findNewVar @lhs.bind2id @nm
-                           lhs  .  grTrf    =  GrExpr_Call    @newName @argL.grTrf
-  | Fetch                  lhs  .  grTrf    =  GrExpr_Fetch   @newName @mbOffset @mbTag
-  | Update                 lhs  .  grTrf    =  GrExpr_Update  @newName @val.grTrf @mbTag
-  | FFI                    lhs  .  grTrf    =  GrExpr_FFI     @nm (map (findNewVar @lhs.var2id) @argL)
+  | App Eval Fetch Update Throw  loc  .  newName  =  findNewVar @lhs.var2id @nm
+  | App                          lhs  .  grTrf    =  GrExpr_App     @newName @argL.grTrf
+  | Eval                         lhs  .  grTrf    =  GrExpr_Eval    @newName
+  | Call                         loc  .  newName  =  findNewVar     @lhs.bind2id @nm
+                                 lhs  .  grTrf    =  GrExpr_Call    @newName @argL.grTrf
+  | Fetch                        lhs  .  grTrf    =  GrExpr_Fetch   @newName @mbOffset @mbTag
+  | Update                       lhs  .  grTrf    =  GrExpr_Update  @newName @val.grTrf @mbTag
+  | FFI                          lhs  .  grTrf    =  GrExpr_FFI     @nm (map (findNewVar @lhs.var2id) @argL)
+  | Throw                        lhs  .  grTrf    =  GrExpr_Throw   @newName
+  | Catch                        lhs  .  grTrf    =  GrExpr_Catch   @body.grTrf @newName @handler.grTrf
 
 SEM GrModule
   | Mod  lhs  . grTrf         = GrModule_Mod @baseName @globalL.grTrf @bindL.grTrf @ctagsMp @newEvalTagMp @newAppTagMp
          loc  . newEvalTagMp  = map (newMap @lhs.bind2id) @evalTagMp
               . newAppTagMp   = map (newMap @lhs.bind2id) @applyTagMp
+%%]
+
+%%[8
+ATTR GrAGItf GrModule AllBind [ | | nrOfBinds USE {+} {1}: {Int} ]
+SEM GrBindL
+  | Nil  lhs  .  nrOfBinds  =  0
 %%]
 
 %%[8 hs

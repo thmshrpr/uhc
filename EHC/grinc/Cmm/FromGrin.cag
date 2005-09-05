@@ -48,6 +48,9 @@ WRAPPER GrAGItf
 %%[8 import("FromGrin/CmmVars")
 %%]
 
+%%[8 import("FromGrin/ExceptionHandlers")
+%%]
+
 %%[8 import("FromGrin/ToCmm")
 %%]
 

@@ -3,9 +3,6 @@
 Some transformations are needed to allow easy code generation for GRIN
   - variables can refer only to pointers or basic values (tags or integers)
   - case statement on tag only (not on a complete node)
-later:
-  - fetch must have offset attached
-  - update need to have a known tag
 
 %%[0
 %include lhs2TeX.fmt

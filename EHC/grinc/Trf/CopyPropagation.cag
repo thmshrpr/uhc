@@ -30,7 +30,7 @@ ATTR AllGrNT [ | | grTrf: SELF      isTrf USE {||} {False}: Bool  ]
 
 %%[8.order
 SEM GrExpr
-  | Seq lhs   .  grTrf       =  if @isLeftTrf then @body.grTrf else maybe @grTrf id @rightTrf
+  | Seq lhs   .  grTrf       =  if @isLeftTrf then @body.grTrf else maybe @grTrf (trace (show @pat.grTrf) $ id) @rightTrf
               .  isTrf       =  @expr.isTrf || @body.isTrf || @isLeftTrf || @isRightTrf
 %%]
 
@@ -63,12 +63,19 @@ SEM GrExpr
 %%]
 
 
+%%[8.catchInfo
+ATTR GrExpr [ | | isCatch: Bool ]
+SEM GrExpr
+  | Catch          lhs  .  isCatch  =  True
+  | Seq            lhs  .  isCatch  =  @body.isCatch
+  | * - Seq Catch  lhs  .  isCatch  =  False
+%%]
 
 %%%%%%%%%%%%%%%%%%%%%%
 %%% Right Unit law %%%
 %%%%%%%%%%%%%%%%%%%%%%
 
-change terms like '<m>; \x -> unit x' => '<m>'
+change terms like '<m>; \x -> unit x' => '<m>' where '<m>' does not end with a Catch!
 
 one form possible:
     seq v x (unit x)           => v
@@ -81,7 +88,7 @@ example:
 
 We give the v and x to the next element. 
 
-%%[8.rightUnit hs
+%%[8.rightUnit hs import(Debug.Trace)
 makeRightUnitExpr seqPat unitVal seqExpr = 
     do { v <- unitVal
        ; let vvf vn pn          = if vn == pn
@@ -105,7 +112,9 @@ seqExpr ; \seqPat -> body  --- seqExpr and seqPat are given to the body.
 %%[8.rightUnit
 SEM GrExpr
   |  Seq   loc   .  isRightTrf  =  isJust @rightTrf
-           loc   .  rightTrf    =  makeRightUnitExpr @pat.grTrf @body.unitInfo @expr.grTrf
+           loc   .  rightTrf    =  if @expr.isCatch 
+                                   then Nothing
+                                   else makeRightUnitExpr @pat.grTrf @body.unitInfo @expr.grTrf
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%
@@ -113,7 +122,7 @@ SEM GrExpr
 %%%%%%%%%%%%%%%%%%%%%
 
 
-unit (t a1 an); \(t' a1' an') -> e => [t/t' a1/a1' an/an']
+unit (t a1 an); \(t' a1' an') -> e => [t/t' a1/a1' an/an'] -- we might lose tag info... (t' is known tag, but is t?)
 unit v        ; \(t' a1' an') -> e => Do not propogate, only if a1 .. an do not occur in e. (do we lose tag info in that case?) this case should not occur after vectorisation
 unit (t a1 an); \v'           -> e => [(t a1 an)/v']
 unit v        ; \v'           -> e => [v/v']
