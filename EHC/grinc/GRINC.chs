@@ -278,7 +278,8 @@ caGrin2Cmm = do
     code <- gets csGrinCode
     entry <- gets csEntry
     cafMap <- gets csCafMap
-    return (grin2cmm entry cafMap code)
+    doTrace <- gets (optTrace . csOpts)
+    return (grin2cmm entry cafMap code doTrace)
 
 caWriteCmm :: CompileAction ()
 caWriteCmm = do

@@ -10,12 +10,14 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%[8
+ATTR AllGrNT GrAGItf [ doFunctionTrace: Bool | | ]
 ATTR AllBind [ | | traces USE {++} {[]}: {[(CmmName, String)]} ]
+
 SEM GrBind
   | Bind      loc . traceName     = cmmName' @nm
                   . traceAddress  = "@trace_" ++ @traceName
                   . traceStm'     = cmmCall "C" (cmmVar "puts") [ ptrArg $ cmmVar @traceAddress ] [] []
-                  . doTrace       = @nm /= HNm "eval" && False
+                  . doTrace       = @nm /= HNm "eval" && @lhs.doFunctionTrace
               lhs . importedNames = if @doTrace
                                     then ("puts", Nothing) : @expr.importedNames
                                     else @expr.importedNames
@@ -28,7 +30,7 @@ SEM GrBind
                                     else cmmNop 
 
 SEM GrModule
-  | Mod       loc . doTrace       = False
+  | Mod       loc . doTrace       = @lhs.doFunctionTrace
                   . strings       = if @doTrace
                                     then let data2section d  = lift (CmmToplevel_Section "data") 
                                                                     [CmmSectionElement_Data d]

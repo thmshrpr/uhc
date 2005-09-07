@@ -30,7 +30,7 @@ ATTR AllGrNT [ | | grTrf: SELF      isTrf USE {||} {False}: Bool  ]
 
 %%[8.order
 SEM GrExpr
-  | Seq lhs   .  grTrf       =  if @isLeftTrf then @body.grTrf else maybe @grTrf (trace (show @pat.grTrf) $ id) @rightTrf
+  | Seq lhs   .  grTrf       =  if @isLeftTrf then @body.grTrf else maybe @grTrf id @rightTrf
               .  isTrf       =  @expr.isTrf || @body.isTrf || @isLeftTrf || @isRightTrf
 %%]
 
@@ -88,7 +88,7 @@ example:
 
 We give the v and x to the next element. 
 
-%%[8.rightUnit hs import(Debug.Trace)
+%%[8.rightUnit hs
 makeRightUnitExpr seqPat unitVal seqExpr = 
     do { v <- unitVal
        ; let vvf vn pn          = if vn == pn

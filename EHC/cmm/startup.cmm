@@ -69,7 +69,7 @@ foreign "C" main(bits32 argc, "address" bits32 argv) {
 
     bits32 e;
     continuation defaultHandler("address" e):
-    printf("address" error_msg, e, bits32[e]);
+    foreign "C" printf("address" error_msg, e, bits32[e]);
     foreign "C" return (1);
 }
 

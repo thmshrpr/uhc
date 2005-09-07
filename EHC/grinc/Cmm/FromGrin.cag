@@ -9,10 +9,14 @@
 %%]
 
 %%[8 hs module Cmm.FromGrin import(GRINCCommon, Data.List(nub), Data.Maybe, GrinCode, Cmm.CmmBuilding) export(grin2cmm,CmmUnit(..))
-grin2cmm :: HsName -> CafMap -> GrModule -> CmmUnit
-grin2cmm e cafMap gr = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf gr))
-                                     (Inh_GrAGItf { entryNm_Inh_GrAGItf = e, cafMap_Inh_GrAGItf = cafMap })
-                in cmmUnit_Syn_GrAGItf t
+grin2cmm :: HsName -> CafMap -> GrModule -> Bool -> CmmUnit
+grin2cmm e cafMap gr emitTraceInfo = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf gr))
+                                                          (Inh_GrAGItf { entryNm_Inh_GrAGItf = e
+                                                                       , cafMap_Inh_GrAGItf = cafMap
+                                                                       , doFunctionTrace_Inh_GrAGItf = emitTraceInfo
+                                                                       }
+                                                          )
+                                     in cmmUnit_Syn_GrAGItf t
 %%]
 
 %%[8 hs import("EHCommon hiding ((<+>))") 

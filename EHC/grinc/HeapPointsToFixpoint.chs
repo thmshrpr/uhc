@@ -187,9 +187,9 @@ envChangeSet am env heap applyMap = case am of
                                                               in mapM valAbsEnv vs >>= return . mconcat >>= maybe return addApplyArgument mbS
                                         EnvEval     v ev     -> valAbsEnv v >>= evalChangeSet ev
                                         EnvApp      f a ev   -> do { pnodes  <- valAbsEnv f 
-                                                                 ; argsVal <- mapM (\(Left v) -> valAbsEnv v) a
-                                                                 ; applyChangeSet pnodes argsVal
-                                                                 }
+                                                                   ; argsVal <- mapM (\(Left v) -> valAbsEnv v) a
+                                                                   ; applyChangeSet pnodes argsVal ev
+                                                                   }
                                         EnvLazyApp  f a    -> return AV_Nothing -- valAbsEnv f >>= evalChangeSet >>= flip applyChangeSet a >> return AV_Nothing
                                         EnvSelect   v n i  -> valAbsEnv v >>= return . selectChangeSet n i
                                         EnvTag      t f r  -> tagChangeSet t f r
@@ -244,14 +244,19 @@ envChangeSet am env heap applyMap = case am of
                                ; maybe (return newNodes) (\v -> valAbsEnv v >>= return . mappend newNodes) r
                                }
     --applyChangeSet :: AbstractValue -> [AbstractValue] -> ST s AbstractValue
-    applyChangeSet f argsVal = foldM applyChangeSet1 f argsVal
+    applyChangeSet f argsVal exceptVar = foldM applyChangeSet1 f argsVal
         where
         --applyChangeSet1 :: AbstractValue -> AbstractValue -> ST s AbstractValue
         applyChangeSet1 f arg = let partialApplicationNodes = [ node | node@((GrTag_Lit (GrTagPApp _) _ _), _) <- getNodes f ]
                                     --getNewNode :: GrTag -> [AbstractValue] -> ST s AbstractValue
                                     getNewNode tag args       = let newArgs = args ++ [arg]
                                                                 in either (\tag' -> return $ AV_Nodes [(tag', newArgs)])
-                                                                          (\var -> appendApplyArg env (AV_Nodes [(GrTag_Var (HNPos var), newArgs)]) >> valAbsEnv var)
+                                                                          (\var -> do { appendApplyArg env (AV_Nodes [(GrTag_Var (HNPos var), newArgs)])
+                                                                                      ; e <- valAbsEnv (var+1)
+                                                                                      ; appendExceptions env exceptVar e
+                                                                                      ; valAbsEnv var
+                                                                                      }
+                                                                          )
                                                                           (fromJust' ("tag missing in applyMap: " ++ show tag) $ lookup tag applyMap)
                                 in mapM (uncurry getNewNode) partialApplicationNodes >>= return . mconcat
 %%]

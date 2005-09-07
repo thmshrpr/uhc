@@ -23,7 +23,7 @@ scanOpts
         {   scoKeywordsTxt      =   [ show hsnGrEval, show hsnGrApply
                                     , "module", "update", "fetch", "store", "unit", "of", "rec", "case", "ffi"
                                     , "throw", "try", "catch", "ctags", "applymap", "evalmap"
-                                    , "C", "F", "P", "A", "R", "H", "U"
+                                    , "C", "F", "P", "A", "R", "H", "U", "W"
                                     ]
         ,   scoKeywordsOps      =   [ "<-", "->", "=", "+=", "-=", ":=", "-" ]
         ,   scoSpecChars        =   "();{}#/\\|,"
@@ -154,6 +154,7 @@ pTagCateg       =    GrTagCon       <$ pKey "C"
                 <|>  GrTagApp       <$ pKey "A"
                 <|>  GrTagFun       <$ pKey "F"
                 <|>  GrTagPApp      <$ pKey "P" <* pKey "/" <*> pInt
+                <|>  GrTagWorld     <$ pKey "W"
 
 pGrNmL          ::   GRIParser [HsName]
 pGrNmL          =    pList pGrNm
