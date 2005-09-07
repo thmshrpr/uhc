@@ -56,6 +56,7 @@ data GrTagCateg
   |  GrTagApp
   |  GrTagFun
   |  GrTagPApp {grtgNeeds :: Int}
+  |  GrTagWorld
   deriving (Show,Eq,Ord)
 
 instance PP GrTagCateg where
@@ -73,7 +74,7 @@ instance PP GrTagCateg where
 
 %%[8 hs
 type EvApTagKey   = (GrTag,Int)
-data EvApTagElt   = EvApTagTag GrTag | EvApTagVar HsName | EvApTagUnit deriving (Eq,Show)
+data EvApTagElt   = EvApTagTag GrTag | EvApTagVar HsName | EvApTagUnit | EvApTagThrow deriving (Eq,Show)
 type EvApTagMp    = AssocL EvApTagKey EvApTagElt
 %%]
 

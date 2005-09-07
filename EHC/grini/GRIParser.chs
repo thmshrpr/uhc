@@ -70,7 +70,7 @@ pEvApTagMp      ::   GRIParser EvApTagMp
 pEvApTagMp      =    pCurly_pSemics
                         ((\t a ea -> ((t,a),ea))
                         <$> pTag <*> pInt <* pKey "->"
-                            <*> (EvApTagTag <$> pTag <|> EvApTagUnit <$ pKey "unit" <|> EvApTagVar <$> pGrOrSpecialNm)
+                            <*> (EvApTagTag <$> pTag <|> EvApTagUnit <$ pKey "unit" <|> EvApTagVar <$> pGrOrSpecialNm <|> EvApTagThrow <$ pKey "throw")
                         )
 
 pExprSeq        ::   GRIParser GrExpr

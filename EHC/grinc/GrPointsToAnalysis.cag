@@ -334,7 +334,7 @@ eval(l); -> \(Tag e1 .. en) => @eval@l:
 %%[8.eval
 SEM GrExpr
   | Eval   loc . fillEnv = case @lhs.targetInfo of
-                             Left  n           -> @lhs.setEnvVar n AV_Nothing (EnvEval $ getNr @nm)
+                             Left  n           -> @lhs.setEnvVar n AV_Nothing (EnvEval (getNr @nm) @lhs.exceptVar)
                              Right (tag,names) -> error "NormForHPT not executed"
 %%]
 
@@ -527,7 +527,7 @@ SEM GrExpr
                                                       mkAppInfo l = case l of
                                                                         Left  v  -> Left v
                                                                         Right n  -> error $ "Node in apply argument not implemented: " ++ show n
-                                                  in @lhs.setEnvVar nm AV_Nothing (EnvApp (getNr @nm) (makeAppArgInfo @argL.valsInfo))
+                                                  in @lhs.setEnvVar nm AV_Nothing (EnvApp (getNr @nm) (makeAppArgInfo @argL.valsInfo) @lhs.exceptVar)
 
 %%]
 
@@ -581,21 +581,25 @@ SEM GrExpr
 %%[8.catch
 SEM GrExpr
   | Catch  body    . exceptions  =  []
+                   . exceptVar   =  @handlerVar
            handler . exceptions  =  @lhs.exceptions
            lhs     . exceptions  =  @handler.exceptions
-           loc     . exceptEq    =  @lhs.setEnvVar (getNr @arg) AV_Nothing (EnvUnion @body.exceptions Nothing)
+           loc     . exceptEq    =  @lhs.setEnvVar @handlerVar AV_Nothing (EnvUnion @body.exceptions Nothing)
+                   . handlerVar  =  getNr @arg
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Non local exceptions %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%
 
-Exceptions not caught in the same binding
+Exceptions not caught in the same binding, and support for exceptions which can only found while analysing (eval calls)
 
 %%[8.catch
+ATTR AllGrExpr [ exceptVar: Variable | | ]
 SEM GrBind
   | Bind  expr    . exceptions  =  []
-          loc     . exceptEq    =  @lhs.setEnvVar (@resultVar + 1) AV_Nothing (EnvUnion @expr.exceptions Nothing)
+          loc     . exceptVar   = @resultVar + 1
+          loc     . exceptEq    =  @lhs.setEnvVar @exceptVar AV_Nothing (EnvUnion @expr.exceptions Nothing)
 %%]
 
 

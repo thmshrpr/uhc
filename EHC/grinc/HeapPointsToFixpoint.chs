@@ -137,9 +137,9 @@ instance Show AbstractEnvElement where
 data AbstractEnvModifier
   = EnvNoChange
   | EnvUnion ![Variable] (Maybe AbstractEnvModifier) -- The Maybe contains only EnvSelect which is used for the apply function calls
-  | EnvEval Variable
+  | EnvEval Variable Variable
   | EnvLazyApp Variable [ApplyArg]
-  | EnvApp Variable [ApplyArg]
+  | EnvApp Variable [ApplyArg] Variable
   | EnvSelect Variable GrTag Int
   | EnvTag GrTag [Maybe Variable] (Maybe Variable)
 	deriving (Show, Eq)
@@ -157,12 +157,26 @@ updateEnvElement ee env heap applyMap = do
 %%[8.heapChangeSet
 heapChangeSet :: AbstractHeapModifier -> AbstractEnv s -> ST s AbstractValue
 heapChangeSet ((tag, deps), resultDep) env = do
-    { resCS <- getBaseSet resultDep
-    ; locs  <- mapM getBaseSet deps
-    ; return (AV_Nodes [(tag, locs)] `mappend` resCS)
+    { locs  <- mapM getBaseSet deps
+    ; if isShared
+      then do { resCS                   <- getBaseSet resultDep
+              ; exceptPtrs <- getBaseSet (resultDep >>= return . (+1))
+              ; let exceptNode = case exceptPtrs of
+                                    AV_Nothing      -> AV_Nothing
+                                    AV_Locations [] -> AV_Nothing
+                                    otherwise       -> AV_Nodes [(throwTag, [AV_Basic, exceptPtrs])]
+              ; return ( AV_Nodes [ (tag         , locs                  )
+                                  --, (blackholeTag, [AV_Basic]            ) -- TODO: implement blackholes
+                                  ] `mappend` exceptNode `mappend` resCS
+                       )
+              }
+      else return (AV_Nodes [(tag, locs)])
     }
 	where
-    getBaseSet = maybe (return AV_Nothing) (\v -> lookupEnv env v >>= (return . aeBaseSet))
+    isShared      =  True -- TODO: implement sharing analysis
+    throwTag      =  GrTag_Lit GrTagFun 0 (HNm "rethrow")
+    blackholeTag  =  GrTag_Lit GrTagHole 0 (HNm "blackhole")
+    getBaseSet    =  maybe (return AV_Nothing) (\v -> lookupEnv env v >>= return . aeBaseSet)
 %%]
 
 %%[8.envChangeSet
@@ -171,8 +185,8 @@ envChangeSet am env heap applyMap = case am of
                                         EnvNoChange        -> return AV_Nothing
                                         EnvUnion    vs mbS -> let addApplyArgument s av = envChangeSet s env heap applyMap >>= return . flip mappend av
                                                               in mapM valAbsEnv vs >>= return . mconcat >>= maybe return addApplyArgument mbS
-                                        EnvEval     v      -> valAbsEnv v >>= evalChangeSet
-                                        EnvApp      f a    -> do { pnodes  <- valAbsEnv f 
+                                        EnvEval     v ev     -> valAbsEnv v >>= evalChangeSet ev
+                                        EnvApp      f a ev   -> do { pnodes  <- valAbsEnv f 
                                                                  ; argsVal <- mapM (\(Left v) -> valAbsEnv v) a
                                                                  ; applyChangeSet pnodes argsVal
                                                                  }
@@ -185,10 +199,12 @@ envChangeSet am env heap applyMap = case am of
         { elem <- lookupEnv env v
         ; return (aeBaseSet elem)
         }
-    --valAbsHeap :: Location -> ST s AbstractValue
+    --valAbsHeap :: Location -> ST s (AbstractValue, AbstractValue)
     valAbsHeap l = do
         { elem <- lookupHeap heap l
-        ; return (ahBaseSet elem)
+        ; let resultVar = snd (ahMod elem)
+        ; exceptions <- maybe (return Nothing) (\v -> valAbsEnv (v+1) >>= return . Just) resultVar
+        ; return (ahBaseSet elem, exceptions)
         }
     evalFilter (AV_Nodes nodes) = let isValueTag t = case t of
                                                          GrTag_Unboxed      -> True
@@ -205,11 +221,17 @@ envChangeSet am env heap applyMap = case am of
                                   in if null newNodes then AV_Nothing else AV_Nodes newNodes
     evalFilter av               = av
     --evalChangeSet :: AbstractValue -> ST s AbstractValue
-    evalChangeSet av = case av of
-                         AV_Nothing      -> return av
-                         AV_Locations ls -> mapM valAbsHeap ls >>= return . mconcat . map evalFilter
-                         AV_Error _      -> return av
-                         otherwise       -> return $ AV_Error "Variable passed to eval is not a location"
+    evalChangeSet exceptVar av = case av of
+                                   AV_Nothing      -> return av
+                                   AV_Locations ls -> do { res <- mapM valAbsHeap ls
+                                                         ; let (vs,es)  = unzip res
+                                                               v        = mconcat . map evalFilter $ vs
+                                                               e        = mconcat [ x | (Just x) <- es ]
+                                                         ; appendExceptions env exceptVar e
+                                                         ; return v
+                                                         }
+                                   AV_Error _      -> return av
+                                   otherwise       -> return $ AV_Error "Variable passed to eval is not a location"
     selectChangeSet :: GrTag -> Int -> AbstractValue -> AbstractValue
     selectChangeSet nm idx av = case av of
                                   AV_Nothing    -> av
@@ -232,6 +254,12 @@ envChangeSet am env heap applyMap = case am of
                                                                           (\var -> appendApplyArg env (AV_Nodes [(GrTag_Var (HNPos var), newArgs)]) >> valAbsEnv var)
                                                                           (fromJust' ("tag missing in applyMap: " ++ show tag) $ lookup tag applyMap)
                                 in mapM (uncurry getNewNode) partialApplicationNodes >>= return . mconcat
+%%]
+
+The heap contains throw nodes if its exception variable contains exceptions, and the heap is shared. Also, it might contain 
+
+%%[8.fixHeap
+fixHeap env heap = mapArray heap
 %%]
 
 %%[8 import(Data.Either) export(lookupEnv)
@@ -261,6 +289,13 @@ appendApplyArg env av = let (applyArgIdx, _) = bounds env
                                     newElem  = elem { aeBaseSet = av `mappend` applyArg }
                               ; writeArray env applyArgIdx newElem
                               }
+
+appendExceptions :: AbstractEnv s -> Variable -> AbstractValue -> ST s ()
+appendExceptions env handlerVar av = do { elem <- readArray env handlerVar
+                                        ; let exceptions = aeBaseSet elem
+                                              newElem  = elem { aeBaseSet = av `mappend` exceptions }
+                                        ; writeArray env handlerVar newElem
+                                        }
 %%]
 
 %%[8.partialOrder

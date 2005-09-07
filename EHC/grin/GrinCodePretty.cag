@@ -73,9 +73,10 @@ ppGrNm n
 ppEvApTagElt :: (HsName -> PP_Doc) -> EvApTagElt -> PP_Doc
 ppEvApTagElt ppGrNm e
   =  case e of
-    	EvApTagTag t -> ppGrTag ppGrNm t
-    	EvApTagVar n -> ppGrNm n
-    	EvApTagUnit  -> pp "unit"
+    	EvApTagTag t  -> ppGrTag ppGrNm t
+    	EvApTagVar n  -> ppGrNm n
+    	EvApTagUnit   -> pp "unit"
+    	EvApTagThrow  -> pp "throw"
 
 ppEvApTagMp :: (HsName -> PP_Doc) -> EvApTagMp -> PP_Doc
 ppEvApTagMp ppGrNm m

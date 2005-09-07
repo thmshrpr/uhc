@@ -41,6 +41,7 @@ buildAlternative t (_:av) arity rhsElem unique uf vf tf =
         patNames        = map (\(i,_) -> HNPos i) elems
         unique'         =  unique + arity
         (newU, h, rhs)  = case rhsElem of
+                              EvApTagThrow -> (unique', [], GrExpr_Throw (head patNames))
                               EvApTagUnit  -> uf unique' patNames
                               EvApTagVar f -> vf unique' patNames f
                               EvApTagTag t -> tf unique' patNames t

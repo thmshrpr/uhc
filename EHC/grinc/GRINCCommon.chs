@@ -71,8 +71,16 @@ getNr :: HsName -> Int
 getNr (HNPos i) = i
 getNr a         = error $ "not a numbered name: " ++ show a
 
+--note: this is copied to HeapPointsToFixpoint.chs
+blackholeTag  =  GrTag_Lit GrTagHole  0 (HNm "backhole")
+throwTag      =  GrTag_Lit GrTagFun   0 (HNm "rethrow")
+
+
 -- CafMap :: Binding name -> Variable Name
 type CafMap = Map.Map HsName HsName
+%%]
+
+%%[8 import(GrinCode)
 %%]
 
 %%[8 export(IdentNameMap, IdentOneToMany, RenameMap, mergeRenameMap)
