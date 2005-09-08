@@ -8,11 +8,11 @@ module "update-big"
         ffi primAddInt $x' $y' ; \(#U $z') ->
         unit (#0/C/$Int 1 $z')
       }
-; $fst8 $t
+; $lst8 $t
     = { eval $t ; \$e1 ->
         case $e1 of
           { (#0/C/$Tuple8 $__ $a $b $c $d $e $f $g $h)
-                -> { eval $a
+                -> { eval $h
                    }
           }
       }
@@ -28,7 +28,7 @@ module "update-big"
         unit (#0/C/$Tuple8 8 $s1 $s2 $s3 $s4 $s5 $s6 $s7 $s8)
       }
 ; main
-    = { store (#0/F/$fst8 1 $tuple) ; \$s9 ->
+    = { store (#0/F/$lst8 1 $tuple) ; \$s9 ->
         add $s9 $s9
       }
 }
@@ -41,7 +41,7 @@ evalmap
 { #0/C/$Int     1 -> unit
 ; #0/C/$Tuple8  8 -> unit
 ; #0/F/$add     2 -> $add
-; #0/F/$fst8    1 -> $fst8
+; #0/F/$lst8    1 -> $lst8
 ; #0/F/$tuple   0 -> $tuple
 ; #0/F/main     0 -> main
 }

@@ -1,7 +1,7 @@
 module "store-big"
 { main <- store (#0/F/main 0)
 }
-{ $fst8 $t
+{ $lst8 $t
     = { eval $t ; \$e1 ->
         case $e1 of
           { (#0/C/$Tuple8 $__ $a $b $c $d $e $f $g $h)
@@ -30,7 +30,7 @@ ctags
 evalmap
 { #0/C/$Int    1 -> unit
 ; #0/C/$Tuple8 8 -> unit
-; #0/F/$fst8   1 -> $fst8
+; #0/F/$lst8   1 -> $lst8
 ; #0/F/main    0 -> main
 }
 

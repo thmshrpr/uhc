@@ -27,7 +27,7 @@ SEM GrModule
               loc . cafNodeNames    = let foo (b,v) = (cmmName' v, cafNode4name . cmmName' . fromJust' ("no caf var for " ++ show b) $ lookup b @bind2tagname)
 	                              in map foo $ Map.toList @lhs.cafMap
                   . sectionCAFNodes = let data2section d    = lift (CmmToplevel_Section "data") [CmmSectionElement_Data d]
-                                          zeros             = replicate 3 (int 0)
-                                          cmmCAFNode (i,n)  = [ CmmDatum_Label i, reserve 4 valType $ listInit (cmmVar n : zeros)]
+                                          zeros             = replicate 4 (int 0)
+                                          cmmCAFNode (i,n)  = [ CmmDatum_Label i, reserve 5 valType $ listInit (cmmVar n : zeros)]
                                       in  data2section (CmmDatum_Label "@CAF_Nodes" : concatMap cmmCAFNode @cafNodeNames)
 %%]

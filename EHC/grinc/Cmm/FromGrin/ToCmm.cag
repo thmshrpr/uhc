@@ -279,43 +279,52 @@ SEM GrExpr
 
 
 TODO: gc alloc in two blocks (usefull only if gc maintains a list of free blocks)
+
+current layout is:
+tag, field1, field2, field3, pointer  -> field4 ... fieldn
+
+better layout would be something like:
+smaller or equal to 4: tag, field1, field2, field3
+bigger than 4        : tag, field1, field2, pointer -> field4 ... fieldn
+
+but this means that update must be specialized
+
 %%[8.MO hs
 buildStore nms [p] = let (first4, others)  = splitAt 4 nms
-                         (snms, overflow)  = if null others then (first4, []) else splitAt 3 first4
+                         (snms, overflow)  = (first4, []) -- if null others then (first4, []) else splitAt 3 first4
                          bnms              = overflow ++ others
                          bigsize       = length bnms
-                         grow          = (4 + bigsize) * 4
-                         biggrow       = if bigsize > 0 then Just (4 * bigsize) else Nothing
+                         grow          = (5 + bigsize) * 4
+                         --biggrow       = if bigsize > 0 then Just (4 * bigsize) else Nothing
                          alloc         = [ (varUpdate p, cmmVar "@hp")
                                          , (varUpdate "@hp", cmmVar "@hp" <+> int grow)
                                          ] ++ (if bigsize > 0
-                                               then [ (varUpdate "@tmp1", cmmVar "@hp" <+> int (4*4))]
+                                               then [ (varUpdate "@tmp1", cmmVar "@hp" <+> int (5*4))]
                                                else []
                                               )
                          assign v e tf i = let hd = (memUpdate valType (cmmVar v) i, e)
                                                tl = tf (i+4)
                                            in hd:tl
                          bigStore      = if bigsize > 0 then
-                                         foldr (assign "@tmp1") (const [(memUpdate ptrType (cmmVar p) (3*4), cmmVar "@tmp1")]) bnms 0
+                                         foldr (assign "@tmp1") (const [(memUpdate ptrType (cmmVar p) (4*4), cmmVar "@tmp1")]) bnms 0
                                          else []
                          store         = foldr (assign p) (const bigStore) snms 0
                      in updates alloc ~> updates store
 
 buildFetch p offset mbTag tags targetNames = let loadSingle = fetch (cmmVar' p) (offset*4)
-                                                 loadPtr    = cmmAssign [varUpdate "@tmp1"] [fetch (cmmVar' p) (3*4)]
-                                                 loadDouble = fetch (cmmVar "@tmp1") ((offset-3)*4)
+                                                 loadPtr    = cmmAssign [varUpdate "@tmp1"] [fetch (cmmVar' p) (4*4)]
+                                                 loadDouble = fetch (cmmVar "@tmp1") ((offset-4)*4)
                                                  tagLayout = do { t <- mbTag
                                                                 ; let cmmTagName = tagLit2cmmName t
                                                                 ; (layout, _, _) <- Map.lookup cmmTagName tags
                                                                 ; return layout
                                                                 }
-                                                 isSingle = if offset < 3 then True
-                                                            else case fromJust tagLayout of
-                                                                     SmallLayout -> True
-                                                                     BigLayout   -> False
+                                                 isSingle = offset < 4 -- || case fromJust tagLayout of
+                                                                       --       SmallLayout -> True
+                                                                       --       BigLayout   -> False
                                                  loadArg = if isSingle then loadSingle else loadDouble
                                                  load = case targetNames of
-                                                            []   -> cmmReturn "" [ptrArg loadArg]
+                                                            []   -> cmmReturn "" [valArg loadArg]
                                                             [n]  -> cmmAssign [varUpdate n] [loadArg]
                                                             _    -> error "multiple variables after fetch!"
                                              in if isSingle then load else loadPtr ~> load
@@ -337,9 +346,9 @@ buildFetch p offset mbTag tags targetNames = let loadSingle = fetch (cmmVar' p) 
 --     p[i] = $(i-1) -- field nr (i-1)
 -- p[0] = t
 
---dummy update, allocate the maximum needed size. It might write some undefined values to the heap.
+--update allocates the maximum needed size. It might write some undefined values to the heap.
 buildUpdate p es = let (first4, others)  = splitAt 4 es
-                       (ses, overflow)   = if null others then (first4, []) else splitAt 3 first4
+                       (ses, overflow)   = (first4, []) -- if null others then (first4, []) else splitAt 3 first4
                        bes               = overflow ++ others
                        bigsize       = length bes
                        alloc         =  [ (varUpdate "@tmp1", cmmVar "@hp")
@@ -349,7 +358,7 @@ buildUpdate p es = let (first4, others)  = splitAt 4 es
                                              tl = tf (i+4)
                                          in hd:tl
                        bigStore      = if bigsize > 0 then
-                                       foldr (assign "@tmp1") (const [(memUpdate ptrType (cmmVar' p) (3*4), cmmVar "@tmp1")]) bes 0
+                                       foldr (assign "@tmp1") (const [(memUpdate ptrType (cmmVar' p) (4*4), cmmVar "@tmp1")]) bes 0
                                        else []
                        store         = foldr (assign (cmmName' p)) (const bigStore) ses 0
                     in if bigsize > 0 then updates alloc ~> updates store else updates store

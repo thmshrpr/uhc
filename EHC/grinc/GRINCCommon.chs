@@ -61,7 +61,7 @@ cmdLineOpts
          oTrace          o = o { optTrace      = True }
 %%]
 
-%%[8 export(wildcardNm, wildcardNr, evalNm, evalNr,  applyNm, applyNr, isSpecialBind, CafMap, getNr)
+%%[8 export(wildcardNm, wildcardNr, evalNm, evalNr,  applyNm, applyNr, isSpecialBind, CafMap, getNr, throwTag, blackholeTag)
 wildcardNm = HNm "__"
 wildcardNr = HNPos (0)
 

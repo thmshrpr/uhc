@@ -130,7 +130,7 @@ SEM GrAlt
 SEM GrExpr
   | Catch  loc  . hasNext      =  False
   | Fetch  loc  .  mbKnownTag  =  checkSingleTag @lhs.hptMap @nm
-                .  knownTag    =  fromJust @mbKnownTag
+                .  knownTag    =  fromJust' ("unknown tag in returning fetch " ++ show @nm ++ " tags can be " ++ show (getNodes (absFetch @lhs.hptMap @nm))) @mbKnownTag
                 .  size        =  nodeSize @knownTag @lhs.nodeSizes
                 .  fetches     =  let buildFetchInfo o  =  Just (GrExpr_Fetch @nm (Just o) (@mbKnownTag), o+1)
                                   in take @size $ unfoldr buildFetchInfo 1

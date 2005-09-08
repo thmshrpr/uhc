@@ -21,7 +21,7 @@ lowerGrin :: HptMap -> Int -> GrModule -> (HptMap, Int, RenameMap, GrModule)
 lowerGrin hptMap uniq grmod = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod))
                                                           (Inh_GrAGItf { hptMap_Inh_GrAGItf  = hptMap
                                                                        , uniq_Inh_GrAGItf    = uniq
-			                                                           }
+                                                                       }
                                                           )
                                   mapping =  nameMapping_Syn_GrAGItf t
                                   grmod'  =  grTrf_Syn_GrAGItf t 
@@ -30,8 +30,8 @@ lowerGrin hptMap uniq grmod = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf g
                               in (hptMap', uniq', mapping, grmod')
 
 addHptInfo hptMap (orig, newNames) = let (tags,fields) = unzip . getNodes $ getEnvVar hptMap orig
-                                         padding = AV_Error "no more args"
-                                         av_vars = map (mconcat . takeWhile (padding /=)) (transpose $ map (++ repeat padding) fields)
+                                         padding = AV_Nothing
+                                         av_vars = map mconcat (transpose $ map (++ repeat padding) fields)
                                          avs     = AV_Tags tags : av_vars
                                      in addEnvVars hptMap (zip newNames avs)
 %%]
@@ -49,7 +49,7 @@ SEM GrAGItf
 %% Vectorisation %%
 %%%%%%%%%%%%%%%%%%%
 
-%%[8 hs import(Debug.Trace)
+%%[8 hs
 newNames :: HptMap -> Int -> HsName -> (Int, [HsName], IdentOneToMany)
 newNames hptMap uniq (HNPos v) = case getEnvVar hptMap v of
                                      AV_Locations _ -> (uniq, repeat $ error "no new names for locations", error "no new mapping for locations")
