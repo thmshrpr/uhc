@@ -12,4 +12,4 @@ out="../${1%.*}"
 shift
 
 cd cmm
-${cmmc} eh.lua grin.lua peephole.lua -globals startup.cmm "${in}" -o "${out}" "$@"
+${cmmc} eh.lua grin.lua peephole.lua -globals startup.cmm "${in}" -o "${out}" -lgc "$@"

@@ -29,5 +29,8 @@ SEM GrModule
                   . sectionCAFNodes = let data2section d    = lift (CmmToplevel_Section "data") [CmmSectionElement_Data d]
                                           zeros             = replicate 4 (int 0)
                                           cmmCAFNode (i,n)  = [ CmmDatum_Label i, reserve 5 valType $ listInit (cmmVar n : zeros)]
-                                      in  data2section (CmmDatum_Label "@CAF_Nodes" : concatMap cmmCAFNode @cafNodeNames)
+                                          startLabel        = CmmDatum_Label "@CAF_Nodes" 
+                                          endLabel          = CmmDatum_Label "@CAF_Nodes_End" 
+                                          cafInfo           = (startLabel : concatMap cmmCAFNode @cafNodeNames) ++ [endLabel]
+                                      in  data2section cafInfo 
 %%]

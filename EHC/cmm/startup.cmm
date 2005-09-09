@@ -6,15 +6,15 @@ import getenv;
 import atoi;
 
 //GC
-//import gc_init;
-import malloc;
+//import malloc;
+import GC_init;
 
 export main;
 export printInt;
 
 const HEAP_SIZE = 1024;
 
-bits32 @hp;
+//bits32 @hp;
 bits32 @eh;
 
 section "data" {
@@ -40,6 +40,7 @@ foreign "C" main(bits32 argc, "address" bits32 argv) {
 	bits32 heapsize;
 	bits32 env_var;
 	
+/*
 	//init heap (load from environment var GRIN_HEAPSIZE)
 	env_var = foreign "C" getenv("address" heapsize_var);
 	if (env_var == 0) {
@@ -50,10 +51,11 @@ foreign "C" main(bits32 argc, "address" bits32 argv) {
 
 
 	//no GC yet - just allocate the memory and hope we will not allocate to much
-	@hp = foreign "C" malloc(heapsize * 1024);
+	//@hp = foreign "C" malloc(heapsize * 1024);
 	foreign "C" printf("address" heapsize_msg, heapsize, @hp, @hp + (heapsize * 1024));
 	//@hp = foreign "C" gc_init(heapsize * 1024);
-
+*/
+	foreign "C" GC_init();
 	//save argument positions
 	bits32[argument_count] = argc;
 	bits32[argument_array] = argv;

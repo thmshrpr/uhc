@@ -86,7 +86,7 @@ SEM GrVal
 
 %%[8.buildAppBinding hs
 buildAppBinding unique size = let funcNr  = unique
-                                  minArg  = funcNr + 1
+                                  minArg  = funcNr + 2
                                   maxArg  = minArg + size
                                   unique' = maxArg + 2
                                   funcName                  = HNPos funcNr

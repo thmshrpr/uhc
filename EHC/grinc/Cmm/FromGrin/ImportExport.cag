@@ -16,7 +16,7 @@ ATTR GrModule [ | | imports: {Maybe CmmToplevelBuilder} ]
 ATTR AllGrNT [ | | importedNames USE {++} {[]}: {CmmExternalNames} ]
 
 SEM GrModule
-  | Mod           loc . importedNames = nub @bindL.importedNames
+  | Mod           loc . importedNames = ("@alloc", Just "GC_malloc") : ("@roots", Just "GC_add_roots") : nub @bindL.importedNames
                   loc . imports       = if null @importedNames
                                         then Nothing
                                         else Just $ imports @importedNames

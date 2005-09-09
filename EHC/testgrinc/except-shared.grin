@@ -26,7 +26,6 @@ ctags
 
 evalmap 
 { #0/C/$Int     1 -> unit
-; #0/F/rethrow  1 -> throw
 ; #0/F/$top     0 -> $top
 ; #0/F/main     0 -> main
 }

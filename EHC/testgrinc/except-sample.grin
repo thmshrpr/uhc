@@ -71,7 +71,6 @@ evalmap
 ; #0/P/1/$add    1 -> unit
 ; #0/P/2/$bar    0 -> unit
 ; #0/P/1/$bar    1 -> unit
-; #0/F/rethrow   1 -> throw
 ; #0/A/apply1    2 -> app1
 ; #0/F/$add      2 -> $add
 ; #0/F/$foldl    3 -> $foldl

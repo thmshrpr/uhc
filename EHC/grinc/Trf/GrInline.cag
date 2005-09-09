@@ -55,16 +55,34 @@ buildEvalAlt l s t av evalMap hptMap u = buildAlternative t av arity rhs u uf vf
     (arity, rhs) = fromJust' ("tag not found: " ++ show t) (lookup t evalMap)
     tf u args t  = error "no tag at the right hand side of eval map expected"
     uf u args    = (u, [], GrExpr_Unit $ GrVal_Var s)
-    vf u args v  = let var     = HNPos u
-                       val     = GrVal_Var var
-                       absVal  = getEnvVar hptMap (getNr v)
-                       code    = GrExpr_Seq (GrExpr_Call v $ map GrVal_Var args)
-                                            (GrPat_Var var)
-                                            (GrExpr_Seq (GrExpr_Update l val Nothing)
-                                                        (GrPat_Empty)
-                                                        (GrExpr_Unit val)
-                                            )
-                   in (u+1, [(u, absVal)], code)
+    vf u args v  = let var      = HNPos u
+                       val      = GrVal_Var var
+                       absVal   = getEnvVar hptMap (getNr v)
+                       callExp  = GrExpr_Seq (GrExpr_Call v $ map GrVal_Var args)
+                                             (GrPat_Var var)
+                                             (GrExpr_Seq (GrExpr_Update l val Nothing)
+                                                         (GrPat_Empty)
+                                                         (GrExpr_Unit val)
+                                             )
+                       eVar     = HNPos $ u+1
+                       eNode    = GrVal_Node throwTag [GrVal_LitInt 1, GrVal_Var eVar]
+                       eCode    = GrExpr_Catch callExp eVar (GrExpr_Seq (GrExpr_Update l eNode Nothing)
+                                                                        (GrPat_Empty)
+                                                                        (GrExpr_Throw eVar)
+                                                            )
+                       eAbsVal  = getEnvVar hptMap (getNr v + 1)
+                       hasE     = case eAbsVal of
+                                      AV_Nothing      -> False
+                                      AV_Locations l  -> not (null l)
+                                      otherwise       -> error $ "wrong content of exception variable of binding " ++ show v
+                       code     = if hasE
+                                  then GrExpr_Seq eCode
+                                                  (GrPat_Var (HNPos $ u+2))
+                                                  (GrExpr_Unit $ GrVal_Var (HNPos $ u+2))
+                                  else callExp
+                       newU     = if hasE then u+3 else u+1 
+                       maps     = (u, absVal) : if hasE then [(u+1, eAbsVal), (u+2, AV_Nothing)] else []
+                   in (newU, maps, code)
 
 evalCode unique evalMap hptMap loc = let unique'                    = unique+1
                                          fetchVar                   = HNPos unique
