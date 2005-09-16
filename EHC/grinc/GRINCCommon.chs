@@ -20,6 +20,7 @@
 data Opts  = Options  {  optHelp           ::  Bool
                       ,  optDebug          ::  Bool
                       ,  optTrace          ::  Bool
+                      ,  optTimeCompile    ::  Bool
                       ,  optWriteGrin      ::  Maybe String
                       ,  optSearchPath     ::  [String]
                       ,  optVerbosity      ::  Verbosity
@@ -30,6 +31,7 @@ data Opts  = Options  {  optHelp           ::  Bool
 defaultOpts  = Options  {  optHelp           =   False
                         ,  optDebug          =   False
                         ,  optTrace          =   False
+                        ,  optTimeCompile    =   False
                         ,  optWriteGrin      =   Nothing
                         ,  optSearchPath     =   []
                         ,  optVerbosity      =   VerboseQuiet
@@ -38,15 +40,17 @@ defaultOpts  = Options  {  optHelp           =   False
 
 %%[8
 cmdLineOpts  
-  =  [  Option "d"  ["debug"]         (NoArg oDebug)
+  =  [  Option "d"  ["debug"]             (NoArg oDebug)
           "include debug info, for now: print extra progress/debug info"
-     ,  Option "h"  ["help"]          (NoArg oHelp)
+     ,  Option "h"  ["help"]              (NoArg oHelp)
           "output this help"
-     ,  Option "g"  ["write-grin"]       (OptArg oGrin "BASENAME")
+     ,  Option "g"  ["write-grin"]        (OptArg oGrin "BASENAME")
           "Write grin code after transformation"
-     ,  Option "t"  ["trace"]            (NoArg oTrace)
+     ,  Option "t"  ["trace"]             (NoArg oTrace)
           "Emit trace info into C-- code"
-     ,  Option "v"  ["verbose"]       (OptArg oVerbose "0|1|2")
+     ,  Option "T"  ["time-compilation"]  (NoArg oTimeCompile)
+          "Show CPU usage for each compilation phase"
+     ,  Option "v"  ["verbose"]           (OptArg oVerbose "0|1|2")
           "be verbose, 0=quiet 1=normal 2=noisy, default=1"
      ]
   where  oHelp           o =  o { optHelp          = True    }
@@ -57,8 +61,9 @@ cmdLineOpts
                                 Just "2"    -> o { optVerbosity     = VerboseALot        }
                                 Nothing     -> o { optVerbosity     = VerboseNormal      }
                                 _           -> o
-         oGrin       ms  o = o { optWriteGrin  = maybe (Just "") (const ms) ms }
-         oTrace          o = o { optTrace      = True }
+         oGrin       ms  o = o { optWriteGrin    = maybe (Just "") (const ms) ms }
+         oTrace          o = o { optTrace        = True }
+         oTimeCompile    o = o { optTimeCompile  = True }
 %%]
 
 %%[8 export(wildcardNm, wildcardNr, evalNm, evalNr,  applyNm, applyNr, isSpecialBind, CafMap, getNr, throwTag, blackholeTag)

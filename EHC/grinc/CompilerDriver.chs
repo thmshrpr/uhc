@@ -69,8 +69,8 @@ harden_  :: (MonadError e m) => m() -> m ()
 harden_  =  harden ()
 %%]
 
-%%[8.messages
-initMsgInfo :: (Int, Bool) -- indent, FirstMessageInLevel
+%%[8.messages import(System.CPUTime, Numeric)
+initMsgInfo :: (Int, Bool) -- indent, FirstMessageInLevel, CPUTime
 initMsgInfo = (0, False)
 
 putLn = putStrLn ""
@@ -93,8 +93,8 @@ task_ minVerbosity td ca = task minVerbosity td ca (const Nothing)
 task :: Verbosity -> String -> CompileAction a -> (a -> Maybe String) -> CompileAction ()
 task minVerbosity taskDesc ca f = do 
     { startMsg minVerbosity taskDesc
-    ; r <- ca
-    ; finishMsg minVerbosity (f r)
+    ; (cpuTime, r) <- cpuUsage ca
+    ; finishMsg minVerbosity (f r) cpuTime
     }
     where
     startMsg :: Verbosity -> String -> CompileAction ()
@@ -107,15 +107,57 @@ task minVerbosity taskDesc ca f = do
         liftIO $ putStr message
         modify (\s -> s { csMsgInfo = (indent+4, True) })
     
-    finishMsg :: Verbosity -> Maybe String -> CompileAction ()
-    finishMsg minVerbosity mbMsg =  harden_ $ do
-        currentVerbosity <- gets (optVerbosity . csOpts)
-        guard (currentVerbosity >= minVerbosity)
-        (oldIndent, first) <- gets csMsgInfo
-        let indent = oldIndent - 4
-            outputMsg m = putStrLn $ if first then " (" ++ m ++ ")" else replicate indent ' ' ++ m
-        liftIO $ maybe (if first then putLn else return ()) outputMsg mbMsg
-        modify (\s -> s { csMsgInfo = (indent, False) })
+    finishMsg :: Verbosity -> Maybe String -> Integer -> CompileAction ()
+    finishMsg minVerbosity mbMsg cpuUsage =  harden_ $ do
+        { currentVerbosity <- gets (optVerbosity . csOpts)
+        ; guard (currentVerbosity >= minVerbosity)
+        ; (oldIndent, first) <- gets csMsgInfo
+        ; doTiming <- gets (optTimeCompile . csOpts)
+        ; let indent       =  oldIndent - 4
+              timeMsgOld   =  show (cpuUsage `div` fst cpuUsageInfo) ++ " " ++ snd cpuUsageInfo
+              timeMsg      =  showFFloat (Just 2) (fromInteger cpuUsage / 1000000000000) " seconds"
+              
+              formatMsg m  | doTiming   =  if first
+                                           then " (" ++ m ++ ", " ++ timeMsg ++ ")"
+                                           else replicate indent ' ' ++ m ++ " (" ++ timeMsg ++ ")"
+                           | otherwise  =  if first
+                                           then " (" ++ m ++ ")"
+                                           else replicate indent ' ' ++ m
+              defaultMsg   | doTiming   =  if first
+                                           then " (" ++ timeMsg ++ ")"
+                                           else replicate indent ' ' ++ timeMsg
+                           | otherwise  =  ""
+
+        ; when (doTiming || first) $ liftIO (putStrLn $ maybe defaultMsg formatMsg mbMsg)
+        ; modify (\s -> s { csMsgInfo = (indent, False) })
+        }
+
+cpuUsage :: CompileAction a -> CompileAction (Integer, a)
+cpuUsage ca = do
+    { start   <- liftIO getCPUTime
+    ; result  <- ca
+    ; end     <- liftIO getCPUTime
+    ; return (end - start, result)
+    }
+
+
+{- returns - a value to remove all tailing zero's. Devide the CPU timing 
+             to change the precision so that no decimal point is needed but
+             without needless zeros are included (folowing SI-prefixes)
+           - a string reprenstation of the precision of the resulting devision
+-}
+cpuUsageInfo = (\(a, b) -> (10^a, b)) closest
+    where
+    closest  =  head $ dropWhile (\a -> fst a > prec) table
+    prec     =  floor (log (fromInteger cpuTimePrecision) / log 10)
+    table    =  [ (12, "seconds")
+--                , (11, "deci seconds")
+--                , (10, "centi seconds")
+                , (9, "milli seconds")
+                , (6, "micro seconds")
+                , (3, "nano seconds")
+                , (0, "pico seconds")
+                ]
 %%]
 
 %%[8.fixpoint
