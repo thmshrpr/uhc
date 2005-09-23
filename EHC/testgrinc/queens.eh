@@ -1,6 +1,5 @@
 let data List a = Nil | Cons a (List a)
     data Bool = False | True
-    data Ordering = LT | EQ | GT
 in
 let foreign import jazy "primAddInt" add :: Int -> Int -> Int
     foreign import jazy "primSubInt" substract :: Int -> Int -> Int

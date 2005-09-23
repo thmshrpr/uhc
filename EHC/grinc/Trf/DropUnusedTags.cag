@@ -48,7 +48,7 @@ SEM GrTag
 
 %%[8.CAFs import("../GrCAFNames")
 SEM GrModule
-  | Mod  loc  .  usedTags = foldl nm2tag @bindL.usedTags @bindL.cafNames
+  | Mod  loc  .  usedTags = foldl nm2tag @bindL.usedTags @cafNames
 %%]
 
 %%[8.name2tag hs

@@ -21,7 +21,7 @@ SEM GrModule
                                                                         , Just "TAG_InfoTable"
                                                                         )
                                                                       ]
-                                      cafNodes              = @sectionCAFNodes :: CmmToplevelBuilder
+                                      globalNodes           = @sectionGlobals :: CmmToplevelBuilder
                                       tagInfo               = @sectionTagInfo :: CmmToplevelBuilder
                                       unitTypedefs          = typedefs bits32 ["@ptr", "@val"]
                                       unitTarget            = target 8 LittleEndian 32 32
@@ -30,7 +30,7 @@ SEM GrModule
                                       tagConstants          = fst $ foldr buildTagConst (emptyBuilder,0) @tags
                                       buildTagConst (n,_) (r,i) = (constant (Just valType) n (int i) ~> r, i+1)
                                   in CmmUnit_Unit (  build $ unitTarget ~> unitTypedefs ~> heapPointer
-                                                  ~> externals ~> tagConstants ~> cafNodes ~> tagInfo ~> @strings
+                                                  ~> externals ~> tagConstants ~> globalNodes ~> tagInfo ~> @strings
                                                   ~> grin_main ~> @bindL.cmmProcs
                                                   )
 %%]
@@ -41,7 +41,7 @@ buildDriver nm env = procedure callConv "@grin_main" [] (vars ~> registerRoots ~
     callConv = "" -- error $ "size=" ++ show (lookup name env)
     vars     = varDecl False "" valType [("@tmp", Nothing), ("@result", Nothing)]
     callMain = cmmCall "" (cmmVar name) [] recievers []
-    registerRoots = cmmCall "C" (cmmVar "@roots") [ptrArg $ cmmVar "@CAF_Nodes", ptrArg $ cmmVar "@CAF_Nodes_End"] [] []
+    registerRoots = cmmCall "C" (cmmVar "@roots") [ptrArg $ cmmVar "@Global_Nodes", ptrArg $ cmmVar "@Global_Nodes_End"] [] []
     endGrin  = cmmReturn callConv [valArg $ cmmVar resultVar]
     name = cmmName' nm
     recievers = padWith (const tmpVar) [tmpVar, tmpVar, ("", resultVar)] (fromJust' ("entrypoint not found: " ++ show name) $ lookup name env)

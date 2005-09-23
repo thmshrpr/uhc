@@ -84,6 +84,14 @@ caParseGrin = do
     modify (csUpdateGrinCode code)
 %%]
 
+%%[8.addGloabls import(Trf.AddGlobals)
+caAddGlobals :: CompileAction ()
+caAddGlobals = do
+    putMsg VerboseALot "Add global variables" Nothing
+    code <- gets csGrinCode
+    code <- return $ addGlobals code
+    modify (csUpdateGrinCode code)
+%%]
 
 %%[8.dropEvalAndApply import(Trf.DropUnusedBindings)
 caDropUnusedBindings :: CompileAction ()
@@ -122,9 +130,8 @@ caNumberIdents = task VerboseALot "Numbering identifiers"
     ( do { code   <- gets csGrinCode
          ; unique <- gets csUnique
          ; entry <- gets csEntry
-         ; (unique, entry, code, varMap, cafMap, idents) <- return $ numberIdents unique entry code
+         ; (unique, entry, code, varMap, idents) <- return $ numberIdents unique entry code
          ; modify (\s -> s { csMbOrigNms = Just varMap
-                           , csMbCafMap = Just cafMap
                            , csMbCode = Just code
                            , csEntry = entry
                            , csUnique = unique
@@ -141,10 +148,8 @@ caNameIdents = do
     putMsg VerboseALot "Naming identifiers" Nothing
     code  <- gets csGrinCode
     vm    <- gets csOrigNms
-    cafMap <- gets csCafMap
-    (cafMap, code)  <- return $ nameIdents vm cafMap code
+    code  <- return $ nameIdents vm code
     modify (\s -> s { csEntry     = fst vm ! getNr (csEntry s)
-                    , csMbCafMap  = Just cafMap
                     , csMbCode    = Just code
                     }
            )
@@ -169,9 +174,7 @@ caRightSkew1 = do
     code <- gets csGrinCode
     (code, changed) <- return $ rightSkew code
     modify (csUpdateGrinCode code)
-    let msg = if changed then "Changes" else "No change"
-    debugging <- gets (optDebug . csOpts)
-    when debugging (liftIO $ putStrLn msg)
+    putDebugMsg (if changed then "Changes" else "No change")
     return changed
 
 caRightSkew :: CompileAction ()
@@ -182,8 +185,7 @@ caRightSkew = task VerboseALot "Unskewing" (caFix caRightSkew1) (\i -> Just $ sh
 caHeapPointsTo :: (Int, Int) -> CompileAction ()
 caHeapPointsTo bounds = task VerboseALot "Heap-points-to analysis" 
     ( do { code    <- gets csGrinCode
-         ; cm      <- gets csCafMap
-         ; (c,e,h) <- liftIO $ heapPointsToAnalysis bounds cm code
+         ; (c,e,h) <- liftIO $ heapPointsToAnalysis bounds code
          ; modify (\s -> s { csMbHptMap = Just ((e,h), Map.empty) })
          ; return c
          }
@@ -233,9 +235,7 @@ caCopyPropagation1 :: CompileAction Bool
 caCopyPropagation1 = do
     code <- gets csGrinCode
     (changed, code) <- return $ propagate code
-    let msg = if changed then "Changes" else "No change"
-    debugging <- gets (optDebug . csOpts)
-    when debugging (liftIO $ putStrLn msg)
+    putDebugMsg (if changed then "Changes" else "No change")
     modify (csUpdateGrinCode code)
     return changed
 
@@ -277,9 +277,8 @@ caGrin2Cmm :: CompileAction CmmUnit
 caGrin2Cmm = do
     code <- gets csGrinCode
     entry <- gets csEntry
-    cafMap <- gets csCafMap
     doTrace <- gets (optTrace . csOpts)
-    return (grin2cmm entry cafMap code doTrace)
+    return (grin2cmm entry code doTrace)
 
 caWriteCmm :: CompileAction ()
 caWriteCmm = do
@@ -295,14 +294,19 @@ caWriteCmm = do
     -- fpathBase
 
 %%[8.writeGrin import(GrinCodePretty)
-caWriteGrin :: String -> CompileAction ()
-caWriteGrin fn = do
-    input <- gets csPath
-    let output =  fpathSetBase (if null fn then fpathBase input ++ "-out" else fn) input 
-    putMsg VerboseALot ("Writing " ++ fpathToStr output) Nothing
-    code <- gets csGrinCode
-    options <- gets csOpts
-    liftIO $ writePP (ppGrModule Nothing) code output options
+caWriteGrin :: Bool -> String -> CompileAction ()
+caWriteGrin debug fn = harden_ $ do -- bug: when writePP throws an exeption harden will block it
+    { when debug (gets (optDebug . csOpts) >>= guard)
+    ; input <- gets csPath
+    ; let prefix     = if debug then "debug." else ""
+          fileName   = prefix ++ if null fn then fpathBase input ++ "-out" else fn
+          output   =  fpathSetBase fileName input 
+          message  =  "Writing " ++ fpathToStr output
+    ; if debug then putDebugMsg message else putMsg VerboseALot message Nothing
+    ; code <- gets csGrinCode
+    ; options <- gets csOpts
+    ; liftIO $ writePP (ppGrModule Nothing) code output options
+    }
 %%]
 
 %%[8 import("qualified Data.Map as Map", HeapPointsToFixpoint)
@@ -313,7 +317,6 @@ doCompileRun fn opts = let input     = mkTopLevelFPath "grin" fn
                                , csMbCode     = Nothing
                                , csEntry      = HNm "main"
                                , csMbOrigNms  = Nothing
-                               , csMbCafMap   = Nothing
                                , csMbHptMap   = Nothing
                                , csPath       = input
                                , csOpts       = opts
@@ -334,11 +337,11 @@ doCompileRun fn opts = let input     = mkTopLevelFPath "grin" fn
 -- create initial GRIN
 caLoad = task_ VerboseNormal "Loading" 
     ( do { caParseGrin
+         ; caAddGlobals
          ; caDropUnusedBindings
          ; caNumberIdents
          ; caAddLazyApplySupport
-         ; debugging <- gets (optDebug . csOpts)
-         ; when debugging (caWriteGrin "debug.loaded")
+         ; caWriteGrin True "0-loaded"
          }
     )
 
@@ -348,19 +351,17 @@ caAnalyse = task_ VerboseNormal "Analysing"
          ; caRightSkew
          ; high <- gets csUnique
          ; caHeapPointsTo (3,high-1)
-
          ; debugging <- gets (optDebug . csOpts)
          ; when debugging (do { ((env, heap),_) <- gets csHptMap
                               ; vm    <- gets csOrigNms
                               ; let newVar i = (i, findNewVar vm (HNPos i))
-                              ; liftIO $ do { putStrLn "*** Equations ***"
-                                            ; printArray "env:"  newVar aeMod env
-                                            ; printArray "heap:" id ahMod heap
-                                            ; putStrLn "*** Abstract Values ***"
-                                            ; printArray "env:"  newVar aeBaseSet env
-                                            ; printArray "heap:" id ahBaseSet heap
-                                            }
-                              ; caWriteGrin "debug.analyzed"
+                              ; putDebugMsg "*** Equations ***"
+                              ; printArray "env:"  newVar aeMod env
+                              ; printArray "heap:" id ahMod heap
+                              ; putDebugMsg "*** Abstract Values ***"
+                              ; printArray "env:"  newVar aeBaseSet env
+                              ; printArray "heap:" id ahBaseSet heap
+                              ; caWriteGrin True "0-analyzed"
                               }
                           )
          }
@@ -368,56 +369,53 @@ caAnalyse = task_ VerboseNormal "Analysing"
     
 -- simplification part I
 caKnownCalls = task_ VerboseNormal "Removing unknown calls"
-    ( do { debugging <- gets (optDebug . csOpts)
-         ; caInlineEA
+    ( do { caInlineEA
          ; caRightSkew
-         ; when debugging (caWriteGrin "debug.knownCalls")
+         ; caWriteGrin True "1-knownCalls"
          }
     )     
 -- optionsations part I
 caOptimizePartly = task_ VerboseNormal "Optimizing (partly)"
-    ( do { debugging <- gets (optDebug . csOpts)
-         ; caSparseCase
+    ( do { caSparseCase
          ; caEliminateCases
-         ; when debugging (caWriteGrin "debug.partlyOptimized")
+         ; caWriteGrin True "2-partlyOptimized"
          }
     )
 -- simplification part II
 caNormalize = task_ VerboseNormal "Normalizing" 
-    ( do { debugging <- gets (optDebug . csOpts)
-         ; caLowerGrin
-         ; when debugging (caWriteGrin "debug.normalized")
+    ( do { caLowerGrin
+         ; caWriteGrin True "3-normalized"
          }
     )     
 
 -- optionsations part II
 caOptimize = task_ VerboseNormal "Optimizing (full)"
-    ( do { debugging <- gets (optDebug . csOpts)
-         ; caCopyPropagation
-         ; when debugging (caWriteGrin "debug.optimized")
+    ( do { caCopyPropagation
+         ; caWriteGrin True "4-optimized"
          }
     )
 
 -- simplification part III
 caFinalize = task_ VerboseNormal "Finalizing"
-    ( do { debugging <- gets (optDebug . csOpts)
-         ; caSplitFetch
+    ( do { caSplitFetch
          ; caNameIdents
+         ; caWriteGrin True "5-final"
          }
     )
 
 -- write final code
 caOutput = task_ VerboseNormal "Writing code"
-    ( do { debugging <- gets (optDebug . csOpts)
-         ; outputGrin <- gets (optWriteGrin . csOpts)
-         ; maybe (return ()) caWriteGrin outputGrin
+    ( do { outputGrin <- gets (optWriteGrin . csOpts)
+         ; maybe (return ()) (caWriteGrin False) outputGrin
          ; caWriteCmm
          }
     )
 
-printArray s f g a = do
-    { putStrLn s 
-    ; mapM_ (\(k, v) -> putStrLn ("  " ++ show (f k) ++ " = " ++ show (g v))) (assocs a)
+printArray s f g a = harden_ $ do
+    { isDebugging <- gets (optDebug . csOpts)
+    ; guard isDebugging
+    ; putDebugMsg s 
+    ; mapM_ (\(k, v) -> putDebugMsg ("  " ++ show (f k) ++ " = " ++ show (g v))) (assocs a)
     }
 %%]
 

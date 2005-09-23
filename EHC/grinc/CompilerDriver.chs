@@ -14,7 +14,6 @@ data CompileState = CompileState
 	, csMbCode    :: Maybe GrModule 
 	, csEntry     :: !HsName
     , csMbOrigNms :: Maybe IdentNameMap
-    , csMbCafMap  :: Maybe CafMap
     , csMbHptMap  :: Maybe HptMap
 	, csPath      :: FPath
 	, csOpts      :: Opts
@@ -23,7 +22,6 @@ data CompileState = CompileState
 
 csGrinCode           = fromJust . csMbCode
 csOrigNms            = fromJust . csMbOrigNms
-csCafMap             = fromJust . csMbCafMap
 csHptMap             = fromJust . csMbHptMap
 csIsParsed           = isJust   . csMbCode
 csUpdateGrinCode c s = s { csMbCode = Just c }
@@ -74,6 +72,15 @@ initMsgInfo :: (Int, Bool) -- indent, FirstMessageInLevel, CPUTime
 initMsgInfo = (0, False)
 
 putLn = putStrLn ""
+ 
+putDebugMsg :: String -> CompileAction ()
+putDebugMsg msg = harden_ $ do
+    { isDebugging <- gets (optDebug . csOpts)
+    ; guard isDebugging
+    ; (indent, first) <- gets csMsgInfo
+    ; when first (liftIO putLn >> modify (\s -> s { csMsgInfo = (indent, False) }))
+    ; liftIO $ putStrLn ("[D] " ++ replicate (indent-4) ' ' ++ msg)
+    }
 
 putMsg :: Verbosity -> String -> (Maybe String) -> CompileAction ()
 putMsg minVerbosity msg mbMsg =  harden_ $ do

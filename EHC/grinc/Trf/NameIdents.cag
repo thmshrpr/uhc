@@ -16,11 +16,10 @@ WRAPPER GrAGItf
 
 %%[8 hs module Trf.NameIdents import(GRINCCommon, EHCommon, GrinCode, Data.Array.IArray, "qualified Data.Map as Map") export(nameIdents)
 
-nameIdents :: IdentNameMap -> CafMap -> GrModule -> (CafMap, GrModule)
-nameIdents m cafMap grmod = let t        = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod))
+nameIdents :: IdentNameMap -> GrModule -> GrModule
+nameIdents m grmod = let t        = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod))
                                                         (Inh_GrAGItf { names_Inh_GrAGItf = m })
-                                cafMap' = Map.fromList . map (\(k,v) -> (findNewVar m k, findNewVar m v)) $ Map.toList cafMap
-                     in (cafMap', grTrf_Syn_GrAGItf t)
+                     in grTrf_Syn_GrAGItf t
 %%]
 
 %%[8.lookup hs export(findNewVar)
@@ -47,6 +46,9 @@ ATTR AllGrNT [ | | grTrf: SELF     ]
 
 %%[8.rename
 ATTR GrAGItf AllGrNT  [ names: IdentNameMap | | ]
+
+SEM GrGlobal
+  | Global  lhs  .  grTrf  =  GrGlobal_Global (findNewVar @lhs.names @nm) @val.grTrf
 
 SEM GrPat
   | Node  lhs  .  grTrf     = GrPat_Node @tag.grTrf (map (findNewVar @lhs.names) @fldL)

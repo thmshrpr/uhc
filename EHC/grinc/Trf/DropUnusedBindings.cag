@@ -64,7 +64,7 @@ findBindName bindMap e = case e of
 
 %%[8.CAFs import("../GrCAFNames")
 SEM GrModule
-  | Mod  loc  .  usedBindings = foldl Set.addToSet @bindL.usedBindings (@lhs.entry : @bindL.cafNames)
+  | Mod  loc  .  usedBindings = foldl Set.addToSet @bindL.usedBindings (@lhs.entry : @cafNames)
 %%]
 
 %%[8.dropUnusedBindings

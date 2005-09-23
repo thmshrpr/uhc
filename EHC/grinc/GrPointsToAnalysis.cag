@@ -30,8 +30,8 @@ type HPTResult       = (Int, Array Int AbstractEnvElement, Array Int AbstractHea
 type SetEnv          = Variable -> AbstractValue -> AbstractEnvModifier -> Action
 type GetEnv          = Variable -> ST RealWorld AbstractEnvElement
 
-heapPointsToAnalysis :: (Int,Int) -> CafMap -> GrModule -> IO HPTResult
-heapPointsToAnalysis (low,high) cafMap grmod = stToIO $ do
+heapPointsToAnalysis :: (Int,Int) -> GrModule -> IO HPTResult
+heapPointsToAnalysis (low,high) grmod = stToIO $ do
     { let applyArg = low - 1 ;
     ; absEnv <- (newArray_ (applyArg,high) ) :: EnvAction
     ; foldM_ (\_ v -> writeArray absEnv v (error $ "no equation for variable " ++ show v)) () [applyArg..high]
@@ -39,8 +39,7 @@ heapPointsToAnalysis (low,high) cafMap grmod = stToIO $ do
     ; let getEnvVar v            = readArray absEnv v
           t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod))
                                         (Inh_GrAGItf
-                                            { cafMap_Inh_GrAGItf     = cafMap
-                                            , setEnvVar_Inh_GrAGItf  = setEnvVar
+                                            { setEnvVar_Inh_GrAGItf  = setEnvVar
                                             , getEnvVar_Inh_GrAGItf  = getEnvVar
                                             , tmpVar_Inh_GrAGItf     = applyArg
                                             }
@@ -57,7 +56,7 @@ heapPointsToAnalysis (low,high) cafMap grmod = stToIO $ do
 %%]
 
 %%[8.toplevelCombining
-ATTR GrAGItf AllGrNT [ cafMap: CafMap getEnvVar: GetEnv  setEnvVar: SetEnv tmpVar: Variable | | fillEnv USE {>>} {return ()}: {Action} ]
+ATTR GrAGItf AllGrNT [ getEnvVar: GetEnv  setEnvVar: SetEnv tmpVar: Variable | | fillEnv USE {>>} {return ()}: {Action} ]
 ATTR AllGrNT [ | heapList: {[(Location, AbstractHeapElement)]} | ]
 ATTR GrAGItf [ | | makeHeap: HeapAction ]
 
@@ -66,8 +65,7 @@ SEM GrAGItf
                                       ; mapM (uncurry $ writeArray arr ) @module.heapList
                                       ; return arr
                                       }
-                   .  fillEnv   =  @fillEnvCAF >> @module.fillEnv
-           module  . heapList   =  @absHeapCAF
+           module  . heapList   =  []
 
 SEM GrBind
   | Bind  loc  .  prune     = (@nm == evalNr) || (@nm == applyNr)
@@ -102,7 +100,7 @@ SEM GrVal
 %%[8.heapPointerfillEnv
 ATTR AllGrNT [ | heapPointer: Int | ]
 SEM GrAGItf
-  | AGItf  module . heapPointer = @afterCAFPointer
+  | AGItf  module . heapPointer = 0
 %%]
 
 %%%%%%%%%%%%%
@@ -317,7 +315,7 @@ makeStore setEnvVar ftag2resultVar heapPointer valInfo targetInfo
 %%%%%%%%%%
 
 eval(l); -> \n              => n:
-                                 absVal = Nothing
+                                 absVal = AV_Nodes []
                                  envMod = Eval l
 
 the next is not needed because of normalisation:
@@ -334,7 +332,7 @@ eval(l); -> \(Tag e1 .. en) => @eval@l:
 %%[8.eval
 SEM GrExpr
   | Eval   loc . fillEnv = case @lhs.targetInfo of
-                             Left  n           -> @lhs.setEnvVar n AV_Nothing (EnvEval (getNr @nm) @lhs.exceptVar)
+                             Left  n           -> @lhs.setEnvVar n (AV_Nodes []) (EnvEval (getNr @nm) @lhs.exceptVar)
                              Right (tag,names) -> error "NormForHPT not executed"
 %%]
 
@@ -356,7 +354,7 @@ foo a1 ..an; -> \(Tag e1 .. en) => e1:
 SEM GrExpr
   | Call  loc  .  resultVar   =  getNr @nm
                .  fillEnv     =  case @lhs.targetInfo of
-                                     Left  n           -> @lhs.setEnvVar n AV_Nothing (EnvUnion [@resultVar] Nothing)
+                                     Left  n           -> @lhs.setEnvVar n (AV_Nodes []) (EnvUnion [@resultVar] Nothing)
                                      Right (tag,names) -> buildSelectElems @lhs.setEnvVar @resultVar tag names
                .  exceptions  =  @resultVar + 1 : @lhs.exceptions
 %%]
@@ -519,15 +517,14 @@ eval (Fapply a b)
 
 %%[8.apply
 SEM GrExpr
-  | App    loc . err      = error "apply support not implemented yet"
-               . fillEnv  = case @lhs.targetInfo of
+  | App    loc . fillEnv  = case @lhs.targetInfo of
                               Right (tag, nms) -> error "Apply bound to pattern?!"
                               Left  nm         -> let makeAppArgInfo = map mkAppInfo
                                                       mkAppInfo :: NodeInfo (Maybe Int) -> Either Variable AbstractEnvModifier
                                                       mkAppInfo l = case l of
                                                                         Left  v  -> Left v
                                                                         Right n  -> error $ "Node in apply argument not implemented: " ++ show n
-                                                  in @lhs.setEnvVar nm AV_Nothing (EnvApp (getNr @nm) (makeAppArgInfo @argL.valsInfo) @lhs.exceptVar)
+                                                  in @lhs.setEnvVar nm (AV_Nodes []) (EnvApp (getNr @nm) (makeAppArgInfo @argL.valsInfo) @lhs.exceptVar)
 
 %%]
 
@@ -584,7 +581,7 @@ SEM GrExpr
                    . exceptVar   =  @handlerVar
            handler . exceptions  =  @lhs.exceptions
            lhs     . exceptions  =  @handler.exceptions
-           loc     . exceptEq    =  @lhs.setEnvVar @handlerVar AV_Nothing (EnvUnion @body.exceptions Nothing)
+           loc     . exceptEq    =  @lhs.setEnvVar @handlerVar (AV_Locations []) (EnvUnion @body.exceptions Nothing)
                    . handlerVar  =  getNr @arg
 %%]
 
@@ -599,7 +596,7 @@ ATTR AllGrExpr [ exceptVar: Variable | | ]
 SEM GrBind
   | Bind  expr    . exceptions  =  []
           loc     . exceptVar   = @resultVar + 1
-          loc     . exceptEq    =  @lhs.setEnvVar @exceptVar AV_Nothing (EnvUnion @expr.exceptions Nothing)
+          loc     . exceptEq    =  @lhs.setEnvVar @exceptVar (AV_Locations []) (EnvUnion @expr.exceptions Nothing)
 %%]
 
 
@@ -632,23 +629,22 @@ SEM GrBind
                      .  applySelect  = EnvSelect @lhs.tmpVar (GrTag_Var @nm)
 %%]
 
-%%%%%%%%%
-%% CAF %%
-%%%%%%%%%
+%%%%%%%%%%%%%
+%% Globals %%
+%%%%%%%%%%%%%
 
-for each CAF there exist a variable. Which looks like a store to that variable
+The globals look like the expression
 
-store (FCAF); \bla ->
+store (Tag f1 fn); \bla ->
 
-
-%%[8.CAF import(GrCAFNames)
-SEM GrAGItf
-  | AGItf   loc . mergeCAF = \n (p, e, h) -> let resVar       = getNr n
-                                                 cafVar       = getCafVar @lhs.cafMap n
-                                                 tag          = fromJust' "resVar" $ revLookup @module.tag2resultVar resVar
-                                                 (p', e', h') = makeStore @lhs.setEnvVar (const . Just $ resVar) p (Right (tag, [Nothing])) (Left cafVar)
-                                             in (p', e' >> e, h' : h)
-                . (afterCAFPointer, fillEnvCAF, absHeapCAF)  = foldr @mergeCAF (0, return (), []) @module.cafNames
+%%[8.global
+SEM GrGlobal
+  | Global  loc  .  (heapPointer, fillEnv, heapElem)  =  makeStore @lhs.setEnvVar
+                                                                (flip lookup @lhs.tag2resultVar)
+                                                                @lhs.heapPointer
+                                                                @val.valInfo
+                                                                (Left $ getNr @nm)
+            lhs  .  heapList                          =  @heapElem : @lhs.heapList
 %%]
 
 

@@ -66,7 +66,7 @@ cmdLineOpts
          oTimeCompile    o = o { optTimeCompile  = True }
 %%]
 
-%%[8 export(wildcardNm, wildcardNr, evalNm, evalNr,  applyNm, applyNr, isSpecialBind, CafMap, getNr, throwTag, blackholeTag)
+%%[8 export(wildcardNm, wildcardNr, evalNm, evalNr,  applyNm, applyNr, isSpecialBind, getNr, throwTag, blackholeTag)
 wildcardNm = HNm "__"
 wildcardNr = HNPos (0)
 
@@ -84,10 +84,6 @@ getNr a         = error $ "not a numbered name: " ++ show a
 --note: this is copied to HeapPointsToFixpoint.chs
 blackholeTag  =  GrTag_Lit GrTagHole  0 (HNm "backhole")
 throwTag      =  GrTag_Lit GrTagFun   0 (HNm "rethrow")
-
-
--- CafMap :: Binding name -> Variable Name
-type CafMap = Map.Map HsName HsName
 %%]
 
 %%[8 import(GrinCode)

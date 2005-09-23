@@ -14,8 +14,10 @@ named the same as GRIN function that maps to a FNode. Which, if evaluated,
 calls the corresponding GRIN function.
 
 %%[8
-ATTR GrModule AllBind [ | | cafNames USE {++} {[]}: {[HsName]}    ]
-
+ATTR GrModule  [ | | cafNames              : {[HsName]}              ]
+ATTR AllBind   [ | | cafNamesF USE {.} {id}: {[HsName]->[HsName]}    ]
+SEM GrModule
+  | Mod         loc . cafNames   =  @bindL.cafNamesF []
 SEM GrBind
-  | Bind        loc . cafNames = if null @argNmL then [@nm] else []
+  | Bind        loc . cafNamesF  =  if null @argNmL then (@nm:) else id
 %%]

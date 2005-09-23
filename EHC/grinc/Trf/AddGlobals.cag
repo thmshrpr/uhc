@@ -1,0 +1,41 @@
+% $Id$
+
+This file introduces global variables, make the implicit store statements explicit. Each
+binding without arguments must have a corresponding global variable. (CAF's)
+
+Note: This is a bug fix. EHC does not introduce these identifiers yet.
+
+%%[0
+%include lhs2TeX.fmt
+%include afp.fmt
+%%]
+
+%%[8 import("../GrinCodeAbsSyn")
+%%]
+
+%%[8.wrapper
+WRAPPER GrAGItf
+%%]
+
+%%[8 hs module Trf.AddGlobals import(GRINCCommon, EHCommon, GrinCode) export(addGlobals)
+
+addGlobals :: GrModule -> GrModule
+addGlobals grmod = let t          = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod))
+                                                 (Inh_GrAGItf)
+                   in grTrf_Syn_GrAGItf  t
+%%]
+
+%%[8.grTrf
+ATTR GrAGItf [ | | grTrf: GrModule ]
+ATTR AllGrNT [ | | grTrf: SELF     ]
+%%]
+
+%%[8.caf import("../GrCAFNames")
+SEM GrModule
+  | Mod  lhs  .  grTrf  =  let buildGlobalVar n  =  GrGlobal_Global n (GrVal_Node (GrTag_Lit GrTagFun 0 n) [GrVal_LitInt 0])
+                               globalL           =  map buildGlobalVar @cafNames
+                               newGlobals        =  if null @globalL.grTrf then globalL else @globalL.grTrf
+                           in GrModule_Mod @baseName globalL @bindL.grTrf @ctagsMp @evalTagMp @applyTagMp
+%%]
+
+% vim:ts=4:et:ai:
