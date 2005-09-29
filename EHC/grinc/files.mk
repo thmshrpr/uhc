@@ -43,13 +43,15 @@ GRINC_ALL_SRC += $(EHC_ALL_SRC) $(GRINI_ALL_SRC)
 ### Utils ###
 
 # base names of all utils
-GRINC_UTILS := CompilerDriver GRINCCommon
+GRINC_UTILS := CompilerDriver GRINCCommon Primitives
 
 GRINC_ALL_SRC      += $(patsubst %,$(GRINC_SRC_PREFIX)%.chs,$(GRINC_UTILS))
 GRINC_UTILS_SRC_HS := $(patsubst %,$(GRIN_BLD_VARIANT_PREFIX)%.hs,$(GRINC_UTILS))
 
 GRINC_HS_FROM_CHS  += $(GRINC_UTILS_SRC_HS)
 
+#deps
+$(GRIN_BLD_VARIANT_PREFIX)Primitives.hs: $(patsubst %,$(GRIN_BLD_VARIANT_PREFIX)%.hs,HeapPointsToFixpoint GrinCode EHCommon Cmm/CmmCode)
 
 ### GRIN Transformations ###
 
@@ -88,7 +90,7 @@ GRINC_HS_FROM_AG   += $(GRIN_BLD_VARIANT_PREFIX)GrPointsToAnalysis.hs
 GRINC_HS_FROM_CHS  += $(GRIN_BLD_VARIANT_PREFIX)HeapPointsToFixpoint.hs
 
 #points to analysis dependencies
-$(GRIN_BLD_VARIANT_PREFIX)GrPointsToAnalysis.hs: $(GRIN_BLD_VARIANT_PREFIX)GrCAFNames.ag
+$(GRIN_BLD_VARIANT_PREFIX)GrPointsToAnalysis.hs: $(GRIN_BLD_VARIANT_PREFIX)GrCAFNames.ag $(GRIN_BLD_VARIANT_PREFIX)Primitives.hs
 
 ### C-- ###
 
@@ -107,7 +109,7 @@ GRINC_HS_DATA_FROM_AG  += $(GRIN_BLD_VARIANT_PREFIX)Cmm/CmmCode.hs
 GRINC_CMM_AST := $(GRIN_BLD_VARIANT_PREFIX)Cmm/CmmCodeAbsSyn.ag
 
 #deps
-$(GRIN_BLD_VARIANT_PREFIX)Cmm/FromGrin.hs: $(GRINC_CMM_FROMGRIN_AG) $(GRINC_CMM_AST)
+$(GRIN_BLD_VARIANT_PREFIX)Cmm/FromGrin.hs: $(GRINC_CMM_FROMGRIN_AG) $(GRINC_CMM_AST) $(GRIN_BLD_VARIANT_PREFIX)Primitives.hs
 $(patsubst %,$(GRIN_BLD_VARIANT_PREFIX)Cmm/%.hs,CmmCode CmmCodePretty): $(GRINC_CMM_AST)
 
 

@@ -11,61 +11,10 @@
 
 builtin primitives (like plus and compare on integers)
 
-%%[8 hs
--- primitivesTable: list of (name, (return size, required imports, CAFnames -> arguments -> result variables -> primitve))
-primitivesTable :: [(String, (Int, [String], CmmNames -> CmmNames -> CmmBodyBuilder))]
-primitivesTable
-  = [ ("primAddInt"  , (1, [], emitPrimAddInt))
-    , ("primSubInt"  , (1, [], emitPrimSubInt))
-    , ("primCmpInt"  , (2, [], emitPrimCmpInt))
-    , ("primEqInt"   , (2, [], emitPrimEqInt ))
-    , ("primLtInt"   , (2, [], emitPrimLtInt ))
-    , ("primGtInt"   , (2, [], emitPrimGtInt ))
-    ]
-
---buildin datatype
-true_tag   = cmmVar "@C$_True"
-false_tag  = cmmVar "@C$_False"
-eq_tag     = cmmVar "@C$_EQ"
-lt_tag     = cmmVar "@C$_LT"
-gt_tag     = cmmVar "@C$_GT"
-
-true_node   = [true_tag , int 0]
-false_node  = [false_tag, int 0]
-eq_node     = [eq_tag   , int 0]
-lt_node     = [lt_tag   , int 0]
-gt_node     = [gt_tag   , int 0]
-
-emitPrimAddInt (l:r:[]) tn = assignOrReturn tn [(cmmVar l <+> cmmVar r)]
-emitPrimSubInt (l:r:[]) tn = assignOrReturn tn [(cmmVar l <-> cmmVar r)]
-
-
-emitPrimGtInt = booleanCompare "gt"
-emitPrimLtInt = booleanCompare "lt"
-emitPrimEqInt = booleanCompare "eq"
-
-booleanCompare s (l:r:[]) tn = ite (prim s [valArg $ cmmVar l, valArg $ cmmVar r])
-                                   (assignOrReturn tn true_node)
-                                   (assignOrReturn tn false_node)
-
-emitPrimCmpInt (l:r:[]) tn 
-  = ite (prim "gt" [valArg $ cmmVar l,valArg $ cmmVar r])
-        (assignOrReturn tn gt_node)
-        (ite (prim "lt" [valArg $ cmmVar l,valArg $ cmmVar r])
-             (assignOrReturn tn lt_node)
-             (assignOrReturn tn eq_node)
-        )
-
-assignOrReturn tn expr = if null tn
-                         then cmmReturn "" (map valArg expr)
-                         else updates (zipWith (\l r -> (varUpdate l,r)) tn expr)
-%%]
-
 Prepare the primitive information in a FFI
 
 %%[8.FFI
 SEM GrExpr
-  | FFI    loc  . mbPrim                = lookup @nm primitivesTable
-                . isPrim                = isJust @mbPrim
-                . (primSize, primImports, primStmF)  = fromJust @mbPrim
+  | FFI    loc  . isPrim                = isPrim @nm
+                . (primSize, primImports, primStmF)  = codeGenInfo @nm
 %%]

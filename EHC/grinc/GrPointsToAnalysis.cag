@@ -456,7 +456,7 @@ ffi "foo"; \(Tag e1 e2)      => note: (Tag == Unboxed)
 
 %%[8.ffi
 SEM GrExpr
-  | FFI  loc . primAbsVal = getPrimAbsVal @nm
+  | FFI  loc . primAbsVal = primAV @nm
              . prim       = case @lhs.targetInfo of
                               Left nm          -> @lhs.setEnvVar nm @primAbsVal EnvNoChange
                               Right (tag, nms) -> let (AV_Nodes nodes) = @primAbsVal
@@ -472,26 +472,7 @@ SEM GrExpr
 Note: we have the ctable, can we do something with that?
       e.g. we could get the result Tags from it. If we save result type for a FFI.
 
-%%[8.prim hs
-
-getPrimAbsVal :: String -> AbstractValue
-getPrimAbsVal n = maybe (error $ "primitve '" ++ n ++ "' not found") id (lookup n primTable)
-        where
-        primTable = [ ("primAddInt"  , makeUnboxedAV [AV_Basic])
-                    , ("primSubInt"  , makeUnboxedAV [AV_Basic])
-                    , ("primGtInt"   , booleanNodes)
-                    , ("primEqInt"   , booleanNodes)
-                    , ("primLtInt"   , booleanNodes)
-                    , ("primCmpInt"  , AV_Nodes [ (GrTag_Lit GrTagCon 0 (HNm "_EQ"), [AV_Basic])
-                                                , (GrTag_Lit GrTagCon 1 (HNm "_GT"), [AV_Basic])
-                                                , (GrTag_Lit GrTagCon 2 (HNm "_LT"), [AV_Basic])
-                                                ]
-                      )
-                    ]
-
-makeUnboxedAV vals = AV_Nodes [(GrTag_Unboxed, vals)]
-booleanNodes = AV_Nodes [ (GrTag_Lit GrTagCon 0 (HNm "_False"), [AV_Basic])
-                        , (GrTag_Lit GrTagCon 1 (HNm "_True" ), [AV_Basic])]
+%%[8.prim hs import(Primitives)
 %%]
 
 %%%%%%%%%%%
@@ -661,8 +642,6 @@ fromJust' _ (Just a ) = a
 fromJust' m (Nothing) = error $ "fromJust: " ++ m
 
 makeHeapElem l initial eq = (l, AbstractHeapElement { ahBaseSet = initial, ahMod = eq})
-isPrim (a:b:c:d:_) = ("prim" == a:b:c:d:[])
-isPrim _           = False
 %%]
 
 % vim:et:ts=4:ai:

@@ -69,7 +69,7 @@ valType = CmmName "@val" -- type for node elements
 
 %%]
 
-%%[8.expressions export(int,char,cmmVar,prim,memRef,fetch,"(<*>)","(</>)","(<+>)","(<->)")
+%%[8.expressions export(int,char,cmmVar,prim,memRef,fetch,"(<%>)","(<*>)","(</>)","(<+>)","(<->)")
 -- simple expressions
 int   v = CmmExpression_Int v Nothing
 char  v = CmmExpression_Char v Nothing
@@ -82,9 +82,10 @@ fetch :: CmmExpression -> Int -> CmmExpression
 fetch l i = memRef valType (if i == 0 then l else l <+> int i)
 
 -- basic calculations
-infixl 7 <*>, </>
+infixl 7 <%>, <*>, </>
 infixl 6 <+>, <->
 
+a <%> b = prim "mod" [CmmActual_Actual "" a, CmmActual_Actual "" b]
 a <*> b = prim "mul" [CmmActual_Actual "" a, CmmActual_Actual "" b]
 a </> b = prim "div" [CmmActual_Actual "" a, CmmActual_Actual "" b]
 a <+> b = prim "add" [CmmActual_Actual "" a, CmmActual_Actual "" b]
