@@ -57,7 +57,7 @@ $(GRIN_BLD_VARIANT_PREFIX)Primitives.hs: $(patsubst %,$(GRIN_BLD_VARIANT_PREFIX)
 
 # base names of all transformations
 TRFS := NumberIdents NormForHPT RightSkew NameIdents LowerGrin DropUnusedBindings GrInline CaseElimination \
-        SparseCase CopyPropagation BuildAppBindings DropUnusedTags SplitFetch AddGlobals
+        SparseCase CopyPropagation BuildAppBindings DropUnusedTags SplitFetch AddGlobals CleanupPass
 
 #sourcefiles of all transformations
 GRINC_TRF_SRC_CAG := $(patsubst %,$(GRINC_SRC_PREFIX)Trf/%.cag,$(TRFS))
@@ -74,7 +74,7 @@ GRINC_ALL_SRC     += $(GRINC_TRF_SRC_CAG) $(patsubst %,$(GRINC_SRC_PREFIX)%.cag,
 $(GRINC_TRF_SRC_HS): $(GRIN_BLD_VARIANT_PREFIX)GrinCodeAbsSyn.ag $(GRIN_BLD_VARIANT_PREFIX)GrinCode.hs
 
 #some transformations depend on some extra files
-$(GRIN_BLD_VARIANT_PREFIX)Trf/DropUnusedBindings.hs: $(GRIN_BLD_VARIANT_PREFIX)GrCAFNames.ag
+$(GRIN_BLD_VARIANT_PREFIX)Trf/CleanupPass.hs: $(GRIN_BLD_VARIANT_PREFIX)GrCAFNames.ag
 $(GRIN_BLD_VARIANT_PREFIX)Trf/DropUnusedTags.hs: $(GRIN_BLD_VARIANT_PREFIX)GrCAFNames.ag
 $(GRIN_BLD_VARIANT_PREFIX)Trf/AddGlobals.hs: $(GRIN_BLD_VARIANT_PREFIX)GrCAFNames.ag
 

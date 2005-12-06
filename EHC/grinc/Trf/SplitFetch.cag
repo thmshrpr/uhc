@@ -24,7 +24,9 @@ splitFetch hptMap uniq grmod = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf 
                                                                  , uniq_Inh_GrAGItf    =  uniq
                                                                  }
                                                     )
-                               in (uniq_Syn_GrAGItf t, grTrf_Syn_GrAGItf t)
+                                   uniq'  = uniq_Syn_GrAGItf t
+                                   grmod' = grTrf_Syn_GrAGItf t
+                               in (uniq', grmod')
 %%]
 
 %%[8
@@ -47,7 +49,9 @@ SEM GrModule
 %%% SplitFetch %%%
 %%%%%%%%%%%%%%%%%%
 
-TODO: what when fetch is already split?
+When a fetch is already split then the pattern will be a single variable and no
+tag. This case results in the signal 'no fetches' in the local attribute
+'fetches' in GrExpr.Seq.
 
 %%[8.fetchInfo
 
@@ -60,7 +64,7 @@ SEM GrPat [ | | mbTag: {Maybe GrTag} names: {[HsName]} ]
   |     Tag Node  lhs  .  mbTag  =  Just @tag.grTrf
   | * - Tag Node  lhs  .  mbTag  =  Nothing
   | Node  lhs  .  names  =  @fldL
-  | Var   lhs  .  names  =  [ @nm ]
+  | Var   lhs  .  names  =  error "SplitFetch.ag: GrPat.Var: should never this should never be called"
   | Tag Empty  LitInt  lhs  .  names  =  []
 
 SEM GrExpr
@@ -80,11 +84,12 @@ SEM GrExpr
 
 invariant: a field will only be used after the tag is used.  
 
-invariant: a fetch is followed by a case wich scrutenizes the tag variable or
+invariant: a fetch is followed by a case which scrutenizes the tag variable or
 tag is known at compile time. (is this truly the case?)
 
 We will not check the usage of variables, just search for a case in which the
-tag variable is scrutinized.
+tag variable is scrutinized. To prevent duplicate names we must rename each
+variable when we 
 
 %%[8.rightHoist
 
@@ -110,7 +115,7 @@ SEM GrExpr
                                     }
          lhs   .  grTrf             = maybe @grTrf (buildSeqs @body.grTrf . fst) @fetchesInfo
          body  .  floatingFetches   = maybe @lhs.floatingFetches (addFetchInfo @lhs.floatingFetches) @fetchesInfo
-  | Case  loc  .  (mbRes, newMap)   = Map.updateLookupWithKey (const . const $ Nothing) (getName @val.grTrf) @lhs.floatingFetches
+  | Case  loc  .  (mbRes, newMap)   = Map.updateLookupWithKey (\k v -> Nothing) (getName @val.grTrf) @lhs.floatingFetches
                .  mbFetches         = @mbRes
                .  floatingFetches   = @newMap
           lhs  .  grTrf             = @grTrf

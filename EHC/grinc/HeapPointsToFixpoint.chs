@@ -91,7 +91,14 @@ instance Monoid AbstractValue where
                                       (_              , AV_Error     _ ) -> b
                                       otherwise                          -> AV_Error $ "Wrong variable usage: Location, node or basic value mixed"
 
-mergeLocations   al bl = sort $ union al bl -- TODO: painfully slow
+mergeSortedSet   [] bl = bl
+mergeSortedSet   al [] = al
+mergeSortedSet   al@(ah:at) bl@(bh:bt) | ah < bh   = ah : mergeSortedSet at bl
+                                       | bh < ah   = bh : mergeSortedSet al bt
+                                       | otherwise = ah : mergeSortedSet at bt
+
+mergeLocations   al bl = mergeSortedSet al bl
+
 mergeNodes an bn = let compareNode x y                = fst x == fst y
                        mergeNode1 nodes node@(nm,avs) = case h of
                                                          []        -> insert node nodes'

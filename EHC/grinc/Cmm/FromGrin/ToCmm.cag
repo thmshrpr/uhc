@@ -75,7 +75,7 @@ the Grin code.
 ATTR GrExpr    [ | | cmmBody USE {~>} {emptyBuilder}: {CmmBodyBuilder} ]
 
 SEM GrBind
-  | Bind        loc . declaredVars = @tmpVars' ~> nreg2varDef (noDups @expr.allUsedNames)
+  | Bind        loc . declaredVars = @tmpVars' -- ~> nreg2varDef (noDups @expr.allUsedNames)
                 loc . cmmBody      = @traceStm ~> @declaredVars ~> @expr.cmmBody ~> @expr.handlers
                 loc . tmpVars'      = foldr (\i f -> varDecl False "" valType [("@tmp" ++ show i, Nothing)] ~> f) emptyBuilder [1..4]
 %%]
@@ -85,8 +85,9 @@ SEM GrBind
 %%%%%%%%%%%%%%%%%%%
 
 The sequence operation does not generate code by itself, but does the chaining
-of commands.  The left hand side must create its result in the variables named
-in the pattern in this bind operation. This is the main task of GrExpr_Seq.
+of commands. The left hand side must create its result in the variables named
+in the pattern in this bind operation which must be defined earlier. This is
+the main task of GrExpr_Seq.
 
 TODO: refactor CmmNameRegister - a map would be better for lookup
       CmmVars.cag might be a good location for the attribute, and it's threading
@@ -96,6 +97,7 @@ ATTR AllGrExpr [ targetNames: {CmmNameRegister} | | allUsedNames USE {++} {[]}: 
 SEM GrExpr
   | Seq      expr . targetNames  = @pat.definedNames
              body . targetNames  = @lhs.targetNames
+             lhs  . cmmBody      = nreg2varDef @pat.definedNames ~> @expr.cmmBody ~> @body.cmmBody
 
 SEM GrExpr  
   | Seq      lhs  . allUsedNames = @expr.allUsedNames ++ @pat.definedNames ++ @body.allUsedNames

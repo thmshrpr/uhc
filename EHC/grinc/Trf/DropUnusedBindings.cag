@@ -1,9 +1,8 @@
 % $Id$
 
-TODO: to remove recursive bindings we need the names of recursive binding group
-which should be ignored if a call to there is made. lazy calls are more subtle.
-
-TODO: The use of a caf variable should keep the caf (needs a caf map - if available) for now keep all cafs
+This transformation drops all not directly called functions. Because only
+direct calls are counted, this should be used after inlining eval and apply
+calls. (When no hidden function calls exists anymore.)
 
 %%[0
 %include lhs2TeX.fmt
@@ -17,67 +16,47 @@ TODO: The use of a caf variable should keep the caf (needs a caf map - if availa
 WRAPPER GrAGItf
 %%]
 
-%%[8 hs module Trf.DropUnusedBindings import("qualified Data.Set as Set")
+%%[8 hs module Trf.DropUnusedBindings import("qualified Data.Set as Set",Data.Graph)
+type EdgeF = [Edge] -> [Edge]
 %%]
 
 %%[8 hs import(EHCommon, GRINCCommon, GrinCode) export(dropUnusedBindings)
-dropUnusedBindings :: Bool -> HsName -> GrModule -> GrModule
-dropUnusedBindings ds e grmod = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod))
-                                                    (Inh_GrAGItf { dropSpecial_Inh_GrAGItf = ds, entry_Inh_GrAGItf = e })
-                                in grTrf_Syn_GrAGItf t
+dropUnusedBindings :: HsName -> GrModule -> GrModule
+dropUnusedBindings e grmod = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod))
+                                                  (Inh_GrAGItf { entry_Inh_GrAGItf = e })
+                             in grTrf_Syn_GrAGItf t
 %%]
 
 %%[8
 ATTR GrAGItf [ | | grTrf: GrModule ]
 ATTR AllGrNT [ | | grTrf: SELF ]
 
-ATTR GrAGItf GrModule [ dropSpecial: Bool entry: HsName | | ]
+ATTR GrAGItf GrModule [ entry: HsName | | ]
 %%]
 
-%%[8.retrieveUsedBindings
-ATTR AllBind AllGrExpr [ tag2binding: {[(GrTag, HsName)]} | usedBindings: {Set.Set HsName} | ]
+%%[8.graphInfo
+ATTR AllBind            [ | | biggest USE {`max`} {minBound}: Int  smallest USE {`min`} {maxBound}: Int ]
+ATTR AllGrExpr          [ bindNr: Int | | ]
+ATTR AllBind AllGrExpr  [ | | edges USE {.} {id}: EdgeF ]
 
-SEM GrModule
-  | Mod  loc    .  evalMap       =  [ (k, v)                         | ((k, _), EvApTagVar v) <- @evalTagMp  ]
-                .  applyMap      =  [ (k, findBindName @searchMap a) | ((k, _), a           ) <- @applyTagMp ]
-                .  searchMap     =  [ (k, v)                         | ((k, _), v)            <- @applyTagMp ]
-         bindL  .  tag2binding   =  @applyMap ++ @evalMap
-                .  usedBindings  =  Set.emptySet
+SEM GrBind
+  | Bind  loc   .  bindNr    = getNr @nm
+          lhs   .  smallest  = @bindNr
+                .  biggest   = @bindNr
 
 SEM GrExpr
-  | Call         lhs  .  usedBindings  =  Set.addToSet @lhs.usedBindings @nm
-  | Store Unit   loc  .  mbBindName    =  @val.mbTag >>= flip lookup @lhs.tag2binding
-                 lhs  .  usedBindings  =  maybe @lhs.usedBindings (Set.addToSet @lhs.usedBindings) @mbBindName
-
-SEM GrVal [ | | mbTag: {Maybe GrTag} ]
-  | Node Tag      lhs  .  mbTag         = Just @tag.grTrf
-  | * - Node Tag  lhs  .  mbTag         = Nothing
-%%]
-
-
-%%[8.findBindName hs
-findBindName bindMap e = case e of
-    EvApTagTag  t ->  maybe (error $ "could not find bind name for tag " ++ show t) (findBindName bindMap) (lookup t bindMap)
-    EvApTagVar  v ->  v
-    EvApTagUnit   ->  error "unit tag not expected"
-%%]
-
-%%[8.CAFs import("../GrCAFNames")
-SEM GrModule
-  | Mod  loc  .  usedBindings = foldl Set.addToSet @bindL.usedBindings (@lhs.entry : @cafNames)
+  | Call         lhs  .  edges  =  ((@lhs.bindNr, getNr @nm) :)
 %%]
 
 %%[8.dropUnusedBindings
-ATTR AllBind [ allUsedBindings: {Set.Set HsName} | | ]
+ATTR AllBind [ lifeBindings: {Set.Set Int} | | ]
 
 SEM GrModule
-  | Mod  loc    .  specialNames     =  [evalNm, evalNr,  applyNm, applyNr]
-                .  modifier         =  if @lhs.dropSpecial then Set.delFromSet else Set.addToSet
-                .  allUsedBindings  =  foldl @modifier @usedBindings @specialNames
-         bindL  .  allUsedBindings  =  @allUsedBindings
+  | Mod  loc    .  graph         =  buildG (@bindL.smallest, @bindL.biggest) (@bindL.edges [])
+                .  lifeBindings  =  Set.fromList $ reachable @graph (getNr @lhs.entry)
          
 SEM GrBind [ | | dropBinding: Bool ]
-  | Bind  lhs  . dropBinding  =  not $ Set.elementOf @nm @lhs.allUsedBindings
+  | Bind  lhs  . dropBinding  =  not (@bindNr `Set.elementOf` @lhs.lifeBindings)
   | Rec   lhs  . dropBinding  =  @bindL.count == 0
 
 

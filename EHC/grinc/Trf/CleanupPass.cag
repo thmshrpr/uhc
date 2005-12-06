@@ -1,0 +1,90 @@
+% $Id: DropUnusedBindings.cag 286 2005-09-23 20:26:25Z cddouma $
+
+TODO: Fix this file - this should cleanup some parts of GRIN output from EHC.
+But it is currently the same as DropUnusedBindings.cag at rev 286
+
+%%[0
+%include lhs2TeX.fmt
+%include afp.fmt
+%%]
+
+%%[8 import("../GrinCodeAbsSyn")
+%%]
+
+%%[8.wrapper
+WRAPPER GrAGItf
+%%]
+
+%%[8 hs module Trf.CleanupPass import("qualified Data.Set as Set")
+%%]
+
+%%[8 hs import(EHCommon, GRINCCommon, GrinCode) export(cleanupPass)
+cleanupPass :: Bool -> HsName -> GrModule -> GrModule
+cleanupPass ds e grmod = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod))
+                                              (Inh_GrAGItf { dropSpecial_Inh_GrAGItf = ds, entry_Inh_GrAGItf = e })
+                         in grTrf_Syn_GrAGItf t
+%%]
+
+%%[8
+ATTR GrAGItf [ | | grTrf: GrModule ]
+ATTR AllGrNT [ | | grTrf: SELF ]
+
+ATTR GrAGItf GrModule [ dropSpecial: Bool entry: HsName | | ]
+%%]
+
+%%[8.retrieveUsedBindings
+ATTR AllBind AllGrExpr [ tag2binding: {[(GrTag, HsName)]} | usedBindings: {Set.Set HsName} | ]
+
+SEM GrModule
+  | Mod  loc    .  evalMap       =  [ (k, v)                         | ((k, _), EvApTagVar v) <- @evalTagMp  ]
+                .  applyMap      =  [ (k, findBindName @searchMap a) | ((k, _), a           ) <- @applyTagMp ]
+                .  searchMap     =  [ (k, v)                         | ((k, _), v)            <- @applyTagMp ]
+         bindL  .  tag2binding   =  @applyMap ++ @evalMap
+                .  usedBindings  =  Set.emptySet
+
+SEM GrExpr
+  | Call         lhs  .  usedBindings  =  Set.addToSet @lhs.usedBindings @nm
+  | Store Unit   loc  .  mbBindName    =  @val.mbTag >>= flip lookup @lhs.tag2binding
+                 lhs  .  usedBindings  =  maybe @lhs.usedBindings (Set.addToSet @lhs.usedBindings) @mbBindName
+
+SEM GrVal [ | | mbTag: {Maybe GrTag} ]
+  | Node Tag      lhs  .  mbTag         = Just @tag.grTrf
+  | * - Node Tag  lhs  .  mbTag         = Nothing
+%%]
+
+
+%%[8.findBindName hs
+findBindName bindMap e = case e of
+    EvApTagTag  t ->  maybe (error $ "could not find bind name for tag " ++ show t) (findBindName bindMap) (lookup t bindMap)
+    EvApTagVar  v ->  v
+    EvApTagUnit   ->  error "unit tag not expected"
+%%]
+
+%%[8.CAFs import("../GrCAFNames")
+SEM GrModule
+  | Mod  loc  .  usedBindings = foldl Set.addToSet @bindL.usedBindings (@lhs.entry : @cafNames)
+%%]
+
+%%[8.dropUnusedBindings
+ATTR AllBind [ allUsedBindings: {Set.Set HsName} | | ]
+
+SEM GrModule
+  | Mod  loc    .  specialNames     =  [evalNm, evalNr,  applyNm, applyNr]
+                .  modifier         =  if @lhs.dropSpecial then Set.delFromSet else Set.addToSet
+                .  allUsedBindings  =  foldl @modifier @usedBindings @specialNames
+         bindL  .  allUsedBindings  =  @allUsedBindings
+         
+SEM GrBind [ | | dropBinding: Bool ]
+  | Bind  lhs  . dropBinding  =  not $ Set.elementOf @nm @lhs.allUsedBindings
+  | Rec   lhs  . dropBinding  =  @bindL.count == 0
+
+
+SEM GrBindL [ | | count: Int ]
+  | Cons  lhs  .  grTrf  =  if @hd.dropBinding
+                            then @tl.grTrf
+                            else @hd.grTrf : @tl.grTrf
+               .  count  =  if @hd.dropBinding then @tl.count else 1 + @tl.count
+  | Nil   lhs  .  count  =  0
+%%]
+
+% vim:ts=4:et:ai:

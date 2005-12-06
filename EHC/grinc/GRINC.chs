@@ -93,13 +93,22 @@ caAddGlobals = do
     modify (csUpdateGrinCode code)
 %%]
 
-%%[8.dropEvalAndApply import(Trf.DropUnusedBindings)
+%%[8.dropEvalAndApply import(Trf.CleanupPass)
+caCleanupPass :: CompileAction ()
+caCleanupPass = do
+    putMsg VerboseALot "Cleanup pass" Nothing
+    code <- gets csGrinCode
+    entry <- gets csEntry
+    code <- return $ cleanupPass True entry code
+    modify (csUpdateGrinCode code)
+%%]
+%%[8.dropUnusedBindings import(Trf.DropUnusedBindings)
 caDropUnusedBindings :: CompileAction ()
 caDropUnusedBindings = do
     putMsg VerboseALot "Remove unused function bindings" Nothing
     code <- gets csGrinCode
     entry <- gets csEntry
-    code <- return $ dropUnusedBindings True entry code
+    code <- return $ dropUnusedBindings entry code
     modify (csUpdateGrinCode code)
 %%]
 
@@ -338,7 +347,7 @@ doCompileRun fn opts = let input     = mkTopLevelFPath "grin" fn
 caLoad = task_ VerboseNormal "Loading" 
     ( do { caParseGrin
          ; caAddGlobals
-         ; caDropUnusedBindings
+         ; caCleanupPass
          ; caNumberIdents
          ; caAddLazyApplySupport
          ; caWriteGrin True "0-loaded"
@@ -376,7 +385,8 @@ caKnownCalls = task_ VerboseNormal "Removing unknown calls"
     )     
 -- optionsations part I
 caOptimizePartly = task_ VerboseNormal "Optimizing (partly)"
-    ( do { caSparseCase
+    ( do { caDropUnusedBindings
+         ; caSparseCase
          ; caEliminateCases
          ; caWriteGrin True "2-partlyOptimized"
          }
