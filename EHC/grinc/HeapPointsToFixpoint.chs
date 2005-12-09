@@ -232,7 +232,7 @@ envChangeSet am env heap applyMap = case am of
                                    AV_Nothing      -> return av
                                    AV_Locations ls -> do { res <- mapM valAbsHeap ls
                                                          ; let (vs,es)  = unzip res
-                                                               v        = mconcat . map evalFilter $ vs
+                                                               v        = mconcat (map evalFilter vs)
                                                                e        = mconcat [ x | (Just x) <- es ]
                                                          ; appendExceptions env exceptVar e
                                                          ; return v

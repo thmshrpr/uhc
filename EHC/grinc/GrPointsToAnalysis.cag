@@ -214,7 +214,7 @@ unit node;           -> \n              => n:
                                              absVal = Nothing
                                              envMod = Union [node]
 unit (Tag e1 .. en); -> \n              => n:
-                                             absVal = Tag[(absVal e1), .., (absVal en)]  |_| resultVar(Tag)
+                                             absVal = Tag[(absVal e1), .., (absVal en)]
                                              envMod = Tag[(depVar e1), .., (depVar en)]
 unit node;           -> \(Tag e1 .. en) => e1:
                                              absVal = Nothing
@@ -239,7 +239,7 @@ SEM GrExpr
                                                   resultVar = lookup tag @lhs.tag2resultVar
                                                   env       = @lhs.setEnvVar t
                                                                           (AV_Nodes [(tag, absVals)])
-                                                                          (EnvTag tag names resultVar)
+                                                                          (EnvTag tag names Nothing)
                                               in env
                . fVar2Node  = buildSelectElems @lhs.setEnvVar
                . fNode2Node = \st snms tt tnms -> let sn2mod = maybe EnvNoChange (\x -> EnvUnion [x] Nothing)

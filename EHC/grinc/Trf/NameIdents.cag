@@ -22,23 +22,6 @@ nameIdents m grmod = let t        = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grm
                      in grTrf_Syn_GrAGItf t
 %%]
 
-%%[8.lookup hs export(findNewVar)
-findNewVar (names, map) nm@(HNPos i) = if wildcardNr == nm
-                                       then wildcardNm
-                                       else if applyNr == nm
-                                       then applyNm
-                                       else if evalNr == nm
-                                       then evalNm
-                                       else findNewVar' i ""
-    where
-    inBetween n (l, h) = n >= l && n <= h
-    findNewVar' v suffix = if v `inBetween` bounds names 
-                           then hsnSuffix (names ! v) suffix 
-                           else maybe (hsnSuffix (HNPos v) suffix) id (Map.lookup v map >>= return . flip findNewVar' ("_" ++ show v ++ suffix))
-
-findNewVar _  nm = error $ "findNewVar: Not a number: " ++ show nm
-%%]
-
 %%[8.grTrf
 ATTR GrAGItf [ | | grTrf: GrModule ]
 ATTR AllGrNT [ | | grTrf: SELF     ]
@@ -48,33 +31,33 @@ ATTR AllGrNT [ | | grTrf: SELF     ]
 ATTR GrAGItf AllGrNT  [ names: IdentNameMap | | ]
 
 SEM GrGlobal
-  | Global  lhs  .  grTrf  =  GrGlobal_Global (findNewVar @lhs.names @nm) @val.grTrf
+  | Global  lhs  .  grTrf  =  GrGlobal_Global (getName' @lhs.names @nm) @val.grTrf
 
 SEM GrPat
-  | Node  lhs  .  grTrf     = GrPat_Node @tag.grTrf (map (findNewVar @lhs.names) @fldL)
-  | Var   lhs  .  grTrf     = GrPat_Var  (findNewVar @lhs.names @nm)
+  | Node  lhs  .  grTrf     = GrPat_Node @tag.grTrf (map (getName' @lhs.names) @fldL)
+  | Var   lhs  .  grTrf     = GrPat_Var  (getName' @lhs.names @nm)
 
 SEM GrBind
-  | Bind  loc  .  bindName  = findNewVar @lhs.names @nm
-               .  newNames  = map (findNewVar @lhs.names) @argNmL
+  | Bind  loc  .  bindName  = getName' @lhs.names @nm
+               .  newNames  = map (getName' @lhs.names) @argNmL
           lhs  .  grTrf     = GrBind_Bind @bindName @newNames @expr.grTrf
 
 SEM GrVal
-  | Var  lhs  .  grTrf  = GrVal_Var (findNewVar @lhs.names @nm)
+  | Var  lhs  .  grTrf  = GrVal_Var (getName' @lhs.names @nm)
 
 SEM GrTag
-  | Var  lhs  .  grTrf  = GrTag_Var (findNewVar @lhs.names @nm)
+  | Var  lhs  .  grTrf  = GrTag_Var (getName' @lhs.names @nm)
 
 SEM GrExpr
-  | App Eval Call Fetch Update Throw  loc  .  newName  =  findNewVar @lhs.names @nm
+  | App Eval Call Fetch Update Throw  loc  .  newName  =  getName' @lhs.names @nm
   | App                               lhs  .  grTrf    =  GrExpr_App     @newName @argL.grTrf
   | Eval                              lhs  .  grTrf    =  GrExpr_Eval    @newName
   | Call                              lhs  .  grTrf    =  GrExpr_Call    @newName @argL.grTrf
   | Fetch                             lhs  .  grTrf    =  GrExpr_Fetch   @newName @mbOffset @mbTag
   | Update                            lhs  .  grTrf    =  GrExpr_Update  @newName @val.grTrf @mbTag
-  | FFI                               lhs  .  grTrf    =  GrExpr_FFI     @nm (map (findNewVar @lhs.names) @argL)
+  | FFI                               lhs  .  grTrf    =  GrExpr_FFI     @nm (map (getName' @lhs.names) @argL)
   | Throw                             lhs  .  grTrf    =  GrExpr_Throw   @newName
-  | Catch                             lhs  .  grTrf    =  GrExpr_Catch   @body.grTrf (findNewVar @lhs.names @arg) @handler.grTrf
+  | Catch                             lhs  .  grTrf    =  GrExpr_Catch   @body.grTrf (getName' @lhs.names @arg) @handler.grTrf
 
 SEM GrModule
   | Mod  lhs  . grTrf         = GrModule_Mod @baseName @globalL.grTrf @bindL.grTrf @ctagsMp @newEvalTagMp @newAppTagMp
@@ -83,7 +66,7 @@ SEM GrModule
 %%]
 
 %%[8 hs
-newMap map (k, EvApTagVar nm) = (k, EvApTagVar $ findNewVar map nm)
+newMap map (k, EvApTagVar nm) = (k, EvApTagVar $ getName' map nm)
 newMap map x                  = x
 %%]
 

@@ -80,7 +80,7 @@ $(GRIN_BLD_VARIANT_PREFIX)Trf/AddGlobals.hs: $(GRIN_BLD_VARIANT_PREFIX)GrCAFName
 
 $(GRIN_BLD_VARIANT_PREFIX)Trf/NormForHPT.hs: $(GRIN_BLD_VARIANT_PREFIX)GrLastExpr.ag
 $(GRIN_BLD_VARIANT_PREFIX)Trf/SplitFetch.hs: $(GRIN_BLD_VARIANT_PREFIX)GrLastExpr.ag
-
+$(GRIN_BLD_VARIANT_PREFIX)Trf/DropUnusedBindings.hs: $(GRIN_BLD_VARIANT_PREFIX)GrLastExpr.ag
 
 ### Analysis ###
 GRINC_ALL_SRC      += $(addprefix $(GRINC_SRC_PREFIX),HeapPointsToFixpoint.chs GrPointsToAnalysis.cag)

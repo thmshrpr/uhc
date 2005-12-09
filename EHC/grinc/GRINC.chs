@@ -59,10 +59,12 @@ openFPath fp mode | fpathIsEmpty fp = case mode of
                                         return (fNm,h)
 
 
-writePP ::  (a -> PP_Doc) -> a -> FPath -> Opts -> IO ()
-writePP f text fp opts
+writePP ::  (a -> PP_Doc) -> a -> FPath -> IO ()
+writePP f text fp = writeToFile (show.f $ text) fp
+
+writeToFile str fp 
   = do { (fn, fh) <- openFPath fp WriteMode
-       ; hPutStrLn fh (show.f $ text)
+       ; hPutStrLn fh str
        ; hClose fh
        }
 %%]
@@ -102,14 +104,25 @@ caCleanupPass = do
     code <- return $ cleanupPass True entry code
     modify (csUpdateGrinCode code)
 %%]
+
 %%[8.dropUnusedBindings import(Trf.DropUnusedBindings)
 caDropUnusedBindings :: CompileAction ()
 caDropUnusedBindings = do
-    putMsg VerboseALot "Remove unused function bindings" Nothing
-    code <- gets csGrinCode
-    entry <- gets csEntry
-    code <- return $ dropUnusedBindings entry code
-    modify (csUpdateGrinCode code)
+    { putMsg VerboseALot "Remove unused function bindings" Nothing
+    ; code  <- gets csGrinCode
+    ; entry <- gets csEntry
+    ; vm    <- gets csOrigNms
+    ; (code, dot) <- return $ dropUnusedBindings entry vm code
+    ; modify (csUpdateGrinCode code)
+    ; outputCallGraph <- gets (optWriteCallGraph . csOpts)
+    ; when outputCallGraph
+        (do { input <- gets csPath
+            ; let output = fpathSetSuff "dot" input
+            ; putMsg VerboseALot ("Writing call graph to " ++ fpathToStr output) Nothing
+            ; liftIO $ writeToFile dot output
+            }
+        )
+    }
 %%]
 
 %%[8.dropUnusedTags import(Trf.DropUnusedTags)
@@ -296,7 +309,7 @@ caWriteCmm = do
     options <- gets csOpts
     putMsg VerboseALot ("Writing " ++ fpathToStr output) Nothing
     cmm <- caGrin2Cmm
-    liftIO $ writePP pp cmm output options
+    liftIO $ writePP pp cmm output
 %%]
 
     -- fpathToStr
@@ -314,7 +327,7 @@ caWriteGrin debug fn = harden_ $ do -- bug: when writePP throws an exeption hard
     ; if debug then putDebugMsg message else putMsg VerboseALot message Nothing
     ; code <- gets csGrinCode
     ; options <- gets csOpts
-    ; liftIO $ writePP (ppGrModule Nothing) code output options
+    ; liftIO $ writePP (ppGrModule Nothing) code output
     }
 %%]
 
@@ -363,13 +376,13 @@ caAnalyse = task_ VerboseNormal "Analysing"
          ; debugging <- gets (optDebug . csOpts)
          ; when debugging (do { ((env, heap),_) <- gets csHptMap
                               ; vm    <- gets csOrigNms
-                              ; let newVar i = (i, findNewVar vm (HNPos i))
+                              ; let newVar i = show (i, getName vm i)
                               ; putDebugMsg "*** Equations ***"
                               ; printArray "env:"  newVar aeMod env
-                              ; printArray "heap:" id ahMod heap
+                              ; printArray "heap:" show ahMod heap
                               ; putDebugMsg "*** Abstract Values ***"
                               ; printArray "env:"  newVar aeBaseSet env
-                              ; printArray "heap:" id ahBaseSet heap
+                              ; printArray "heap:" show ahBaseSet heap
                               ; caWriteGrin True "0-analyzed"
                               }
                           )
@@ -425,7 +438,7 @@ printArray s f g a = harden_ $ do
     { isDebugging <- gets (optDebug . csOpts)
     ; guard isDebugging
     ; putDebugMsg s 
-    ; mapM_ (\(k, v) -> putDebugMsg ("  " ++ show (f k) ++ " = " ++ show (g v))) (assocs a)
+    ; mapM_ (\(k, v) -> putDebugMsg ("  " ++ f k ++ " = " ++ show (g v))) (assocs a)
     }
 %%]
 

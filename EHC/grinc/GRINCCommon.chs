@@ -17,24 +17,26 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%[8
-data Opts  = Options  {  optHelp           ::  Bool
-                      ,  optDebug          ::  Bool
-                      ,  optTrace          ::  Bool
-                      ,  optTimeCompile    ::  Bool
-                      ,  optWriteGrin      ::  Maybe String
-                      ,  optSearchPath     ::  [String]
-                      ,  optVerbosity      ::  Verbosity
+data Opts  = Options  {  optHelp            ::  Bool
+                      ,  optDebug           ::  Bool
+                      ,  optTrace           ::  Bool
+                      ,  optTimeCompile     ::  Bool
+                      ,  optWriteCallGraph  ::  Bool
+                      ,  optWriteGrin       ::  Maybe String
+                      ,  optSearchPath      ::  [String]
+                      ,  optVerbosity       ::  Verbosity
                       }
 %%]
 
 %%[8
-defaultOpts  = Options  {  optHelp           =   False
-                        ,  optDebug          =   False
-                        ,  optTrace          =   False
-                        ,  optTimeCompile    =   False
-                        ,  optWriteGrin      =   Nothing
-                        ,  optSearchPath     =   []
-                        ,  optVerbosity      =   VerboseQuiet
+defaultOpts  = Options  {  optHelp            =   False
+                        ,  optDebug           =   False
+                        ,  optTrace           =   False
+                        ,  optTimeCompile     =   False
+                        ,  optWriteCallGraph  =   False
+                        ,  optWriteGrin       =   Nothing
+                        ,  optSearchPath      =   []
+                        ,  optVerbosity       =   VerboseQuiet
                         }
 %%]
 
@@ -44,6 +46,8 @@ cmdLineOpts
           "include debug info, for now: print extra progress/debug info"
      ,  Option "h"  ["help"]              (NoArg oHelp)
           "output this help"
+     ,  Option ""  ["call-graph"]        (NoArg oWriteCallGraph)
+          "Write call graph as dot file"
      ,  Option "g"  ["write-grin"]        (OptArg oGrin "BASENAME")
           "Write grin code after transformation"
      ,  Option "t"  ["trace"]             (NoArg oTrace)
@@ -61,9 +65,10 @@ cmdLineOpts
                                 Just "2"    -> o { optVerbosity     = VerboseALot        }
                                 Nothing     -> o { optVerbosity     = VerboseNormal      }
                                 _           -> o
-         oGrin       ms  o = o { optWriteGrin    = maybe (Just "") (const ms) ms }
-         oTrace          o = o { optTrace        = True }
-         oTimeCompile    o = o { optTimeCompile  = True }
+         oGrin       ms  o = o { optWriteGrin       = maybe (Just "") (const ms) ms }
+         oTrace          o = o { optTrace           = True }
+         oTimeCompile    o = o { optTimeCompile     = True }
+         oWriteCallGraph o = o { optWriteCallGraph  = True }
 %%]
 
 %%[8 export(wildcardNm, wildcardNr, evalNm, evalNr,  applyNm, applyNr, isSpecialBind, getNr, throwTag, blackholeTag)
@@ -89,7 +94,7 @@ throwTag      =  GrTag_Lit GrTagFun   0 (HNm "rethrow")
 %%[8 import(GrinCode)
 %%]
 
-%%[8 export(IdentNameMap, IdentOneToMany, RenameMap, mergeRenameMap)
+%%[8 export(IdentNameMap, IdentOneToMany, RenameMap, mergeRenameMap, getName, getName')
 type IdentNameMap   = (Array Int HsName, Map.Map Int Int)
 type IdentOneToMany = (Int,  [Int])
 type RenameMap      = [(Int,  [Int])]
@@ -99,6 +104,23 @@ mergeRenameMap (a,m) rm = (a,foldl addToMap m rm)
     where
     addToMap m (orig,vars) = foldl (\m v -> Map.insert v orig m) m vars
 
+getName :: IdentNameMap -> Int -> String
+getName m i = show $ getName' m (HNPos i)
+
+getName' :: IdentNameMap -> HsName -> HsName
+getName' (names, m) nm@(HNPos i) = if wildcardNr == nm
+                                   then wildcardNm
+                                   else if applyNr == nm
+                                   then applyNm
+                                   else if evalNr == nm
+                                   then evalNm
+                                   else findNewVar' i ""
+    where
+    inBetween n (l, h) = n >= l && n <= h
+    findNewVar' v suffix = if v `inBetween` bounds names
+                           then hsnSuffix (names ! v) suffix
+                           else maybe (hsnSuffix (HNPos v) suffix) id (Map.lookup v m >>= return . flip findNewVar' ("_" ++ show v ++ suffix))
+getName' _  nm = error $ "findNewVar: Not a number: " ++ show nm
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
