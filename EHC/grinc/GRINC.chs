@@ -125,6 +125,26 @@ caDropUnusedBindings = do
     }
 %%]
 
+%%[8.dropUnusedCatch import(Trf.DropUnusedCatch)
+caDropUnusedCatch :: CompileAction ()
+caDropUnusedCatch = do
+    putMsg VerboseALot "Removing unused catch statements" Nothing
+    code <- gets csGrinCode
+    hptMap <- gets csHptMap
+    code <- return $ dropUnusedCatch hptMap code
+    modify (csUpdateGrinCode code)
+%%]
+
+
+%%[8.dropUnusedExpr import(Trf.DropUnusedExpr)
+caDropUnusedExpr :: CompileAction ()
+caDropUnusedExpr = do
+    putMsg VerboseALot "Remove unused expressions" Nothing
+    code <- gets csGrinCode
+    code <- return $ dropUnusedExpr code
+    modify (csUpdateGrinCode code)
+%%]
+
 %%[8.dropUnusedTags import(Trf.DropUnusedTags)
 caDropUnusedTags :: CompileAction ()
 caDropUnusedTags = do
@@ -398,9 +418,10 @@ caKnownCalls = task_ VerboseNormal "Removing unknown calls"
     )     
 -- optionsations part I
 caOptimizePartly = task_ VerboseNormal "Optimizing (partly)"
-    ( do { caDropUnusedBindings
-         ; caSparseCase
+    ( do { caSparseCase
          ; caEliminateCases
+         ; caDropUnusedCatch
+         ; caDropUnusedBindings
          ; caWriteGrin True "2-partlyOptimized"
          }
     )
@@ -414,6 +435,7 @@ caNormalize = task_ VerboseNormal "Normalizing"
 -- optionsations part II
 caOptimize = task_ VerboseNormal "Optimizing (full)"
     ( do { caCopyPropagation
+         ; caDropUnusedExpr
          ; caWriteGrin True "4-optimized"
          }
     )

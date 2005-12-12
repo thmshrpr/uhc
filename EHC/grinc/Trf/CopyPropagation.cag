@@ -127,6 +127,7 @@ unit v        ; \(t' a1' an') -> e => Do not propogate, only if a1 .. an do not 
 unit (t a1 an); \v'           -> e => [(t a1 an)/v']
 unit v        ; \v'           -> e => [v/v']
 
+Note: variables are never wildcards - so it does not matter that we store them in the substitution map
 
 %%[8 hs import("qualified Data.Map as Map")
 type ValueMap = (Map.Map HsName GrVal, Map.Map HsName GrTag)
@@ -176,12 +177,15 @@ getHsName nm valueMap = let  mbVal     =  Map.lookup nm (fst valueMap)
                                            }
                         in maybe nm id mbName
 %%]
-
+ 
 %%[8.applySubstitutions
 SEM GrVal
-  | Var  lhs  .  grTrf  =  Map.findWithDefault @grTrf @nm (fst @lhs.valueMap)
-SEM GrTag
-  | Var  lhs  .  grTrf  =  Map.findWithDefault @grTrf @nm (snd @lhs.valueMap)
+  | Var   lhs  .  grTrf  =  Map.findWithDefault @grTrf @nm (fst @lhs.valueMap)
+  | Tag   lhs  .  grTrf  =  GrVal_Tag @tag.tag
+  | Node  lhs  .  grTrf  =  GrVal_Node @tag.tag @fldL.grTrf
+SEM GrTag [ | | tag: GrTag ]
+  | Var      lhs  .  tag  =  Map.findWithDefault @grTrf @nm (snd @lhs.valueMap)
+  | * - Var  lhs . tag = @grTrf
 SEM GrExpr
   | Fetch   lhs  .  grTrf  = GrExpr_Fetch  (getHsName @nm @lhs.valueMap) @mbOffset @mbTag
   | Update  lhs  .  grTrf  = GrExpr_Update (getHsName @nm @lhs.valueMap) @val.grTrf @mbTag

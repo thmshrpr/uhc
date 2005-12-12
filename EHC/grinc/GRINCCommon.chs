@@ -127,7 +127,7 @@ getName' _  nm = error $ "findNewVar: Not a number: " ++ show nm
 %% Heap Points To Analysis Result %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%[8.analysis import(HeapPointsToFixpoint, Data.Array, Data.Monoid) export(HptMap, getEnvVar, getHeapLoc, absFetch, addEnvVar, addEnvVars, getTags, getNodes, AbstractValue(..), listInsert)
+%%[8.analysis import(HeapPointsToFixpoint, Data.Array, Data.Monoid) export(HptMap, getEnvVar, getHeapLoc, absFetch, addEnvVar, addEnvVars, getTags, getNodes, isBottom, AbstractValue(..), listInsert)
 type HptMap        = ((Array Int AbstractEnvElement, Array Int AbstractHeapElement), Map.Map Int AbstractValue)
 getEnvVar :: HptMap -> Int -> AbstractValue
 getEnvVar ((ea, _),m) i  | snd (bounds ea) >= i = aeBaseSet (ea ! i)
@@ -153,6 +153,13 @@ getNodes av = case av of
                   AV_Error s  -> error $ "analysis error: " ++  s
                   _           -> error $ "not a node: " ++ show av
 
+isBottom av = case av of
+                  AV_Nothing      ->  True
+                  AV_Locations l  ->  null l
+                  AV_Nodes n      ->  null n
+                  AV_Error s      ->  error $ "analysis error: " ++ s
+                  otherwise       ->  False
+                  
 addEnvVar :: HptMap -> Int -> AbstractValue -> HptMap
 addEnvVar (a,fm) i v = (a, Map.insert i v fm)
 

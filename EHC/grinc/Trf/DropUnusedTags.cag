@@ -39,10 +39,10 @@ TODO: which basic Tags should be availible
 ATTR AllBind AllExpr [ | usedTags: {Set.Set GrTag} | ]
 
 SEM GrModule
-  | Mod           bindL  .  usedTags  =  Set.emptySet
+  | Mod           bindL  .  usedTags  =  Set.empty
 
 SEM GrTag
-  | *            lhs  .  usedTags  =  Set.addToSet @lhs.usedTags @grTrf
+  | *            lhs  .  usedTags  =  Set.insert @grTrf @lhs.usedTags
 %%]
 
 
@@ -52,7 +52,7 @@ SEM GrModule
 %%]
 
 %%[8.name2tag hs
-nm2tag ts nm = Set.addToSet ts (GrTag_Lit GrTagFun 0 nm)
+nm2tag ts nm = Set.insert (GrTag_Lit GrTagFun 0 nm) ts
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%

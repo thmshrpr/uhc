@@ -56,8 +56,9 @@ $(GRIN_BLD_VARIANT_PREFIX)Primitives.hs: $(patsubst %,$(GRIN_BLD_VARIANT_PREFIX)
 ### GRIN Transformations ###
 
 # base names of all transformations
-TRFS := NumberIdents NormForHPT RightSkew NameIdents LowerGrin DropUnusedBindings GrInline CaseElimination \
-        SparseCase CopyPropagation BuildAppBindings DropUnusedTags SplitFetch AddGlobals CleanupPass
+TRFS := NumberIdents NormForHPT RightSkew NameIdents LowerGrin DropUnusedCatch DropUnusedBindings DropUnusedExpr \
+        GrInline CaseElimination SparseCase CopyPropagation BuildAppBindings DropUnusedTags SplitFetch \
+        AddGlobals CleanupPass
 
 #sourcefiles of all transformations
 GRINC_TRF_SRC_CAG := $(patsubst %,$(GRINC_SRC_PREFIX)Trf/%.cag,$(TRFS))

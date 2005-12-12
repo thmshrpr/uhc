@@ -29,7 +29,7 @@ apply    = 2
 WRAPPER GrAGItf
 %%]
 
-%%[8 hs module Trf.NormForHPT import(EHCommon, GrinCode, Debug.Trace) export(normForHPT)
+%%[8 hs module Trf.NormForHPT import(GRINCCommon, EHCommon, GrinCode, Debug.Trace) export(normForHPT)
 normForHPT :: Int -> GrModule -> (Int, GrModule)
 normForHPT unique grmod = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod)) 
                                                (Inh_GrAGItf { unique_Inh_GrAGItf = unique })
@@ -54,8 +54,8 @@ Change last expression of binding to last of alternative (or of catch body or ha
 
 %%[8.lastOfAlt import("../GrLastExpr")
 SEM GrExpr
-  | Case    altL . hasNext   = False
-  | Catch   loc  . hasNext   = False
+  | Case    altL . hasNext  = False
+  | Catch   loc  . hasNext  = False
 %%]
 
 Keep track if we are inside an alternative
