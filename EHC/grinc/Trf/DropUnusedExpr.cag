@@ -35,6 +35,11 @@ to a wildcard or constant pattern. Example:
 
 unit (T a1 ... an); \_ ->     ==>    'a1' t/m 'an' are unused in this expression.
 
+This can be generalized to all other constructs. (e.g when an expr is dead,
+don't count its variables as live) (shown in testgrinc/throw.grin)
+
+alternative solution: use current tranformation in fixpoint
+
 %%[8.retrieveUsedVariables
 ATTR AllExpr [ | usedVars: {Set.Set HsName} | ]
 
@@ -71,8 +76,8 @@ SEM GrAlt
 
 
 Remove expressions when its result is not bound to some variable and the
-possible side effect is useless without that result. (The only one always
-retained is update)
+possible side effect is useless without that result. (The ones 
+retained are update, throw and FFI)
 
 %%[8.removeUnusedSeqExpr
 ATTR GrTag GrPat GrPatL [ | | isDead : Bool ]
@@ -88,8 +93,10 @@ SEM GrTag
   | * - Var  lhs  .  isDead  =  True
  
 SEM GrExpr [ | | sideEffect : Bool ]
-  | Update FFI      lhs  .  sideEffect  =  True
-  | * - Update FFI  lhs  .  sideEffect  =  False
+  | Update FFI Throw      lhs  .  sideEffect  =  True
+  | * - Update FFI Throw  lhs  .  sideEffect  =  False
+
+SEM GrExpr
   | Seq  lhs  .  grTrf      =  if @isDead then @body.grTrf else @grTrf
          loc  .  isDead     =  @pat.isDead && not @expr.sideEffect
 %%]

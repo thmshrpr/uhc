@@ -19,6 +19,7 @@ let not      = \x -> if x then False else True
                            Cons h _  ->  l
     index    = \l i -> case l of
                            Cons h t  -> if eq i 0 then h else index t (sub i 1)
+    undefined = True
 in
 let isdivs      = \n x -> not (eq 0 (mod x n))
     the_filter  = \(Cons n ns) -> filter (isdivs n) ns

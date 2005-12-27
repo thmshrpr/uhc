@@ -1,9 +1,7 @@
 % $Id$
 
 Removes all the unused tags in the constructor, eval and apply maps.
-
-TODO: as long as we don't have global variables we need to find the CAFS. Which give rise to implicit variables which stores FNodes ...
-TODO: has to run before tag map (but should not need to) - since we build tags from cafs
+Note: run after inlining eval and apply.
 
 %%[0
 %include lhs2TeX.fmt
@@ -36,37 +34,32 @@ ATTR AllGrNT [ | | grTrf: SELF ]
 TODO: which basic Tags should be availible
 
 %%[8.retrieveUsedTags
-ATTR AllBind AllExpr [ | usedTags: {Set.Set GrTag} | ]
+ATTR AllBind AllGlobal AllExpr [ | usedTags: {Set.Set GrTag} | ]
 
 SEM GrModule
-  | Mod           bindL  .  usedTags  =  Set.empty
+  | Mod  globalL  .  usedTags  =  Set.empty
+         bindL    .  usedTags  =  @globalL.usedTags
+         loc      .  usedTags  =  @bindL.usedTags
 
 SEM GrTag
-  | *            lhs  .  usedTags  =  Set.insert @grTrf @lhs.usedTags
-%%]
-
-
-%%[8.CAFs import("../GrCAFNames")
-SEM GrModule
-  | Mod  loc  .  usedTags = foldl nm2tag @bindL.usedTags @cafNames
-%%]
-
-%%[8.name2tag hs
-nm2tag ts nm = Set.insert (GrTag_Lit GrTagFun 0 nm) ts
+  | *    lhs      .  usedTags  =  Set.insert @grTrf @lhs.usedTags
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Remove unused tags %%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%
 
-TODO: how to know which apply tags are needed (when apply is not inlined)
-
 %%[8.remveUnusedTags
 SEM GrModule
-  | Mod  lhs  .  grTrf        =  GrModule_Mod @baseName @globalL.grTrf @bindL.grTrf @ctagsMp' @evalTagMp' @applyTagMp'
-         loc  .  ctagsMp'     =  @ctagsMp
+  | Mod  lhs  .  grTrf        =  GrModule_Mod @baseName
+                                              @globalL.grTrf
+                                              @bindL.grTrf
+                                              @ctagsMp'
+                                              @evalTagMp'
+                                              @applyTagMp'
+         loc  .  ctagsMp'     =  @ctagsMp   -- keep ordening info in tact
               .  evalTagMp'   =  filter (\ ((t,_),_) -> Set.member t @usedTags) @evalTagMp 
-              .  applyTagMp'  =  @applyTagMp
+              .  applyTagMp'  =  filter (\ ((t,_),_) -> Set.member t @usedTags) @applyTagMp
 %%]
 
 % vim:ts=4:et:ai:

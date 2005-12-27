@@ -30,6 +30,8 @@ changeSet based on the previous values. This is only possible if we update all e
 Note: we can implement the heap and environment as an array. With constant
 lookup times.
 
+TODO: Shared set and Unique set instead base and shared part
+
 %%[8 import(Data.Maybe, Data.List, Data.Monoid, Data.Array.ST, Control.Monad.ST, Control.Monad, EHCommon, GrinCode)
 %%]
 
@@ -111,22 +113,28 @@ mergeNodes an bn = let compareNode x y                = fst x == fst y
 %%[8.Heap export(AbstractHeap, AbstractHeapElement(..), AbstractHeapModifier, AbstractNodeModifier)
 type AbstractHeap s = STArray s Location AbstractHeapElement
 data AbstractHeapElement = AbstractHeapElement
-    { ahBaseSet   :: !AbstractValue
-    , ahMod       :: !AbstractHeapModifier
+    { ahBaseSet    ::  !AbstractValue
+    , ahSharedSet  ::  !(Maybe AbstractValue)
+    , ahMod        ::  !AbstractHeapModifier
     }
 	deriving (Eq)
 	
 instance Show AbstractHeapElement where
-	show (AbstractHeapElement b m) = "base = " ++ show b ++ ";\t" ++ "mod = " ++ show m
+	show (AbstractHeapElement b s m) =    "unique = "       ++ show b 
+                                       ++ ";\tshared = "  ++ show s
+                                       ++ ";\tmod = "     ++ show m
 
 type AbstractHeapModifier = (AbstractNodeModifier, Maybe Variable)
 type AbstractNodeModifier = (GrTag, [Maybe Variable]) --(tag, [fields])
 
 updateHeapElement :: AbstractHeapElement -> AbstractEnv s -> ST s AbstractHeapElement
 updateHeapElement he env = do 
-    { newChangeSet <- heapChangeSet (ahMod he) env
-    ; let newBaseSet   = newChangeSet `mappend` ahBaseSet he
-    ; return (he { ahBaseSet = newBaseSet })
+    { (baseChange, sharedChange) <- heapChangeSet (ahMod he) env
+    ; let  sharedSet       =  ahSharedSet he
+           newBaseSet'     =  baseChange   `mappend` ahBaseSet he
+           newBaseSet      =  maybe (sharedChange `mappend` newBaseSet') (const newBaseSet') sharedSet
+           newSharedSet    =  maybe Nothing (Just . mappend sharedChange) sharedSet
+    ; return (he { ahBaseSet = newBaseSet, ahSharedSet = newSharedSet })
     }
 %%]
 
@@ -134,18 +142,20 @@ updateHeapElement he env = do
 type AbstractEnv s = STArray s Variable AbstractEnvElement
 data AbstractEnvElement = AbstractEnvElement
     { aeBaseSet   :: !AbstractValue
+    , aeIsShared  :: !Bool
     , aeMod       :: !AbstractEnvModifier
     }
 	deriving (Eq)
 
 instance Show AbstractEnvElement where
-	show (AbstractEnvElement b m) = "base = " ++ show b ++ ";\t" ++ "mod = " ++ show m
+	show (AbstractEnvElement b s m) =  "base = " ++ show b 
+                                       ++ ";\tshared = " ++ show s
+                                       ++ ";\tmod = " ++ show m
 
 data AbstractEnvModifier
-  = EnvNoChange
+  = EnvSetAV !AbstractValue
   | EnvUnion ![Variable] (Maybe AbstractEnvModifier) -- The Maybe contains only EnvSelect which is used for the apply function calls
   | EnvEval Variable Variable
-  | EnvLazyApp Variable [ApplyArg]
   | EnvApp Variable [ApplyArg] Variable
   | EnvSelect Variable GrTag Int
   | EnvTag GrTag [Maybe Variable] (Maybe Variable)
@@ -161,26 +171,42 @@ updateEnvElement ee env heap applyMap = do
     }
 %%]
 
+%%[8.sharingAnalysis
+addSharingInfo :: AbstractEnv s -> AbstractHeap s -> ST s ()
+addSharingInfo env heap = getElems env >>= mapM_ (setSharingInfo heap)
+
+setSharingInfo heap v = case aeBaseSet v of
+                           AV_Locations ls  ->  when (aeIsShared v) (mapM_ (setShared heap) ls)
+                           otherwise        ->  return ()
+
+setShared heap l = do 
+    { he <- lookupHeap heap l
+    ; maybe (return ())  (\s -> do { let  baseSet  =  ahBaseSet he `mappend` s
+                                          newElem  =  he { ahBaseSet = baseSet
+                                                         , ahSharedSet = Nothing
+                                                         }
+                                   ; writeArray heap l newElem
+                                   }
+                         )
+                         (ahSharedSet he)
+    }
+%%]
+
 %%[8.heapChangeSet
-heapChangeSet :: AbstractHeapModifier -> AbstractEnv s -> ST s AbstractValue
+heapChangeSet :: AbstractHeapModifier -> AbstractEnv s -> ST s (AbstractValue, AbstractValue)
 heapChangeSet ((tag, deps), resultDep) env = do
-    { locs  <- mapM getBaseSet deps
-    ; if isShared
-      then do { resCS                   <- getBaseSet resultDep
-              ; exceptPtrs <- getBaseSet (resultDep >>= return . (+1))
-              ; let exceptNode = case exceptPtrs of
-                                    AV_Nothing      -> AV_Nothing
-                                    AV_Locations [] -> AV_Nothing
-                                    otherwise       -> AV_Nodes [(throwTag, [AV_Basic, exceptPtrs])]
-              ; return ( AV_Nodes [ (tag         , locs                  )
-                                  --, (blackholeTag, [AV_Basic]            ) -- TODO: implement blackholes
-                                  ] `mappend` exceptNode `mappend` resCS
-                       )
-              }
-      else return (AV_Nodes [(tag, locs)])
+    { locs        <- mapM getBaseSet deps
+    ; resCS       <- getBaseSet resultDep
+    ; exceptPtrs  <- getBaseSet (resultDep >>= return . (+1))
+    ; let exceptNode  =  case exceptPtrs of
+                            AV_Nothing      -> AV_Nothing
+                            AV_Locations [] -> AV_Nothing
+                            otherwise       -> AV_Nodes [(throwTag, [AV_Basic, exceptPtrs])]
+          uniqueAV    =  AV_Nodes [ (tag, locs) ]
+          sharedAV    =  exceptNode `mappend` resCS
+    ; return (uniqueAV, sharedAV)
     }
 	where
-    isShared      =  True -- TODO: implement sharing analysis
     throwTag      =  GrTag_Lit GrTagFun 0 (HNm "rethrow")
     blackholeTag  =  GrTag_Lit GrTagHole 0 (HNm "blackhole")
     getBaseSet    =  maybe (return AV_Nothing) (\v -> lookupEnv env v >>= return . aeBaseSet)
@@ -189,7 +215,7 @@ heapChangeSet ((tag, deps), resultDep) env = do
 %%[8.envChangeSet
 envChangeSet :: AbstractEnvModifier -> AbstractEnv s -> AbstractHeap s -> AssocL GrTag (Either GrTag Int) -> ST s AbstractValue
 envChangeSet am env heap applyMap = case am of
-                                        EnvNoChange        -> return AV_Nothing
+                                        EnvSetAV    av     -> return av
                                         EnvUnion    vs mbS -> let addApplyArgument s av = envChangeSet s env heap applyMap >>= return . flip mappend av
                                                               in mapM valAbsEnv vs >>= return . mconcat >>= maybe return addApplyArgument mbS
                                         EnvEval     v ev     -> valAbsEnv v >>= evalChangeSet ev
@@ -197,7 +223,6 @@ envChangeSet am env heap applyMap = case am of
                                                                    ; argsVal <- mapM (\(Left v) -> valAbsEnv v) a
                                                                    ; applyChangeSet pnodes argsVal ev
                                                                    }
-                                        EnvLazyApp  f a    -> return AV_Nothing -- valAbsEnv f >>= evalChangeSet >>= flip applyChangeSet a >> return AV_Nothing
                                         EnvSelect   v n i  -> valAbsEnv v >>= return . selectChangeSet n i
                                         EnvTag      t f r  -> tagChangeSet t f r
 	where
@@ -211,7 +236,7 @@ envChangeSet am env heap applyMap = case am of
         { elem <- lookupHeap heap l
         ; let resultVar = snd (ahMod elem)
         ; exceptions <- maybe (return Nothing) (\v -> valAbsEnv (v+1) >>= return . Just) resultVar
-        ; return (ahBaseSet elem, exceptions)
+        ; return (ahBaseSet elem `mappend` maybe AV_Nothing id (ahSharedSet elem), exceptions)
         }
     evalFilter (AV_Nodes nodes) = let isValueTag t = case t of
                                                          GrTag_Unboxed      -> True
@@ -266,12 +291,6 @@ envChangeSet am env heap applyMap = case am of
                                                                           )
                                                                           (fromJust' ("tag missing in applyMap: " ++ show tag) $ lookup tag applyMap)
                                 in mapM (uncurry getNewNode) partialApplicationNodes >>= return . mconcat
-%%]
-
-The heap contains throw nodes if its exception variable contains exceptions, and the heap is shared. Also, it might contain 
-
-%%[8.fixHeap
-fixHeap env heap = mapArray heap
 %%]
 
 %%[8 import(Data.Either) export(lookupEnv)
@@ -358,7 +377,7 @@ heapPointsTo env heap applyMap =
         f (Right i) = do
             { e  <- lookupHeap heap i
             ; e' <- updateHeapElement e env
-            ; let changed = isChanged (ahBaseSet e) (ahBaseSet e')
+            ; let changed = isChanged (ahBaseSet e) (ahBaseSet e') || isChanged (ahSharedSet e) (ahSharedSet e')
             ; when changed (writeArray heap i e')
             ; return changed
             }
@@ -366,10 +385,13 @@ heapPointsTo env heap applyMap =
         --                ; msg <- if c then either (\i -> lookupEnv env i >>= return . show) (\i -> lookupHeap heap i >>= return . show) l else return "nothing"
         --                ; trace ("step: " ++ show l ++ " changed: " ++ show msg) $ return r
         --                }
-    in fixpoint labels f
+    in do { count <- fixpoint labels f
+          ; addSharingInfo env heap
+          ; return count
+          }
 
-
-isChanged :: AbstractValue -> AbstractValue -> Bool
+--AbstractValue -> AbstractValue -> Bool
+isChanged :: Eq a => a -> a -> Bool
 isChanged old new = old /= new
                     --case (old, new) of
                     --  (AV_Locations ol, AV_Locations nl) -> not $ nl <=! ol

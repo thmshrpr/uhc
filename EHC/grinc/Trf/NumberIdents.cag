@@ -1,15 +1,12 @@
 % $Id$
 
-As we must travel the whole program anyway, we do here some bugfixes and
-replacements of exception primitives.
-
 Rename all identifiers to unique numbers. exceptions are the FFI names (and
-primitves) as well as the eval and apply function names.
+primitives) as well as the eval and apply function names (which do not exist anymore).
 
 To rename efficient we can use the fact that the scope of a variable is local
 to a binding, but it's easier not to.
 
-Note: after each binding we skip one number (as a binding needs two result variables)
+Note: after each binding we skip one number (binding needs two number in the HPTA)
 
 
 %%[0
@@ -40,7 +37,7 @@ numberIdents u entry grmod = let t          = wrap_GrAGItf (sem_GrAGItf (GrAGItf
 %%[8.lookup hs
 type LookupList = Map.Map HsName HsName
 
-findNewVar fm e = Map.findWithDefault (HNPos $ -999) e fm
+findNewVar fm e = Map.findWithDefault (error $ "undeclared variable " ++ show e) e fm
 
 addMaybe u fm = maybe (fm, u) addName
 	where
@@ -147,18 +144,13 @@ SEM GrExpr
  
 SEM GrBind
   | Bind      loc   .  (var2id', newNames, unique'')  =  addList @unique' @lhs.var2id @argNmL
-                    .  isCatch                        =  @nm == HNm "_catch"
-                    .  catchName                      = HNPos $ @unique''
-                    .  evalName                       = HNPos $ @unique'' + 1
-              expr  .  var2id                         =  if @isCatch then undefined else @var2id'
-                    .  unique                         =  if @isCatch then undefined else @unique''
-              lhs   .  unique                         =  if @isCatch then @unique'' + 2 else @expr.unique
-                    .  var2id                         =  if @isCatch
-                                                         then Map.insert @catchName @catchName (Map.insert @evalName @evalName @var2id')
-                                                         else @expr.var2id
+              expr  .  var2id                         =  @var2id'
+                    .  unique                         =  @unique''
+              lhs   .  unique                         =  @expr.unique
+                    .  var2id                         =  @expr.var2id
 %%]
 
-replacing every identifier with a number. Exception: eval and apply names are kept as they are
+replacing every identifier with a number
 
 %%[8.ReplaceIdents
 SEM GrGlobal
@@ -171,14 +163,13 @@ SEM GrPat
 
 SEM GrBind
   | Bind  lhs  .  grTrf    = GrBind_Bind @bindName @newNames @newExpr
-          loc  .  newExpr  = if @nm == HNm "_catch" then buildCatchExpr @unique'' @newNames else @expr.grTrf
+          loc  .  newExpr  = @expr.grTrf
 
 SEM GrVal
   | Var  lhs  .  grTrf  = GrVal_Var (findNewVar @lhs.var2id @nm)
 
 SEM GrTag
   | Var  lhs  .  grTrf  = GrTag_Var (findNewVar @lhs.var2id @nm)
-  | Lit  lhs  .  grTrf  = GrTag_Lit (if @categ == GrTagPApp 0 then GrTagFun else @categ) @int @nm  -- BUGFIX of ehc output
 
 SEM GrExpr
   | App Eval Fetch Update Throw  loc  .  newName  =  findNewVar @lhs.var2id @nm
@@ -190,13 +181,11 @@ SEM GrExpr
   | Update                       lhs  .  grTrf    =  GrExpr_Update  @newName @val.grTrf @mbTag
   | Throw                        lhs  .  grTrf    =  GrExpr_Throw   @newName
   | Catch                        lhs  .  grTrf    =  GrExpr_Catch   @body.grTrf @newName @handler.grTrf
-  | FFI                          lhs  .  grTrf    =  if @nm == "primThrow"
-                                                     then addThrow @lhs.var2id @argL
-                                                     else GrExpr_FFI @nm (map (findNewVar @lhs.var2id) @argL)
+  | FFI                          lhs  .  grTrf    =  GrExpr_FFI @nm (map (findNewVar @lhs.var2id) @argL)
 
 SEM GrModule
   | Mod  lhs  . grTrf         = GrModule_Mod @baseName @globalL.grTrf @bindL.grTrf @ctagsMp @newEvalTagMp @newAppTagMp
-         loc  . newEvalTagMp  = ((throwTag,1), EvApTagThrow) : map (newMap @lhs.bind2id) @evalTagMp
+         loc  . newEvalTagMp  = map (newMap @lhs.bind2id) @evalTagMp
               . newAppTagMp   = map (newMap @lhs.bind2id) @applyTagMp
 %%]
 
@@ -214,24 +203,6 @@ newMap mp (k, EvApTagVar nm)  =  let newNm = if applyNm == nm
                                              else findNewVar mp nm
                                  in (k, EvApTagVar newNm)
 newMap mp x                   =  x
-
--- this is a hack to transform the primThrow into the correct GRIN code
--- as grinc expect every function to return a node (and not an empty value) we finish with a (unreachable) unit statement.
-addThrow m [HNm e] = let unitExpr  = GrExpr_Unit  (GrVal_Var $ findNewVar m (HNm e))
-                         throwExpr = GrExpr_Throw (findNewVar m (HNm $ tail e))
-                     in GrExpr_Seq throwExpr GrPat_Empty unitExpr
-
-addThrow _ _   = error "primThrow should have one (named) argument"
-
---unique is good for two variables...
-buildCatchExpr unique [tryNm, handlerNm] = let  exceptNm = HNPos $ unique
-                                                evalNm   = HNPos $ unique + 1
-                                           in GrExpr_Catch (GrExpr_Eval tryNm)
-                                                           exceptNm
-                                                           (GrExpr_Seq (GrExpr_Eval handlerNm)
-                                                                       (GrPat_Var evalNm)
-                                                                       (GrExpr_App evalNm [GrVal_Var exceptNm])
-                                                           )
 %%]
 
 % vim:ts=4:et:ai:

@@ -28,8 +28,6 @@ inlineEA hptMap unique grmod = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf 
                                in (hptMap', unique', renameMap, grmod')
 %%]
 
-TODO: add apply inlining - what to do with vector apply?
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Eval code generation %%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%

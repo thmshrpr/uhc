@@ -100,8 +100,7 @@ caCleanupPass :: CompileAction ()
 caCleanupPass = do
     putMsg VerboseALot "Cleanup pass" Nothing
     code <- gets csGrinCode
-    entry <- gets csEntry
-    code <- return $ cleanupPass True entry code
+    code <- return $ cleanupPass code
     modify (csUpdateGrinCode code)
 %%]
 
@@ -293,7 +292,7 @@ caLowerGrin = do
     hptMap <- gets csHptMap
     unique <- gets csUnique
     varMap <- gets csOrigNms
-    (hptMap, uniq, renMap, code) <- return $ lowerGrin hptMap unique code
+    (hptMap, unique, renMap, code) <- return $ lowerGrin hptMap unique code
     modify (\s -> s { csMbOrigNms  = Just $ mergeRenameMap varMap renMap
                     , csUnique     = unique
                     , csMbHptMap   = Just hptMap
@@ -305,13 +304,19 @@ caLowerGrin = do
 %%[8.splittingFetch import(Trf.SplitFetch)
 caSplitFetch :: CompileAction ()
 caSplitFetch = do
-    putMsg VerboseALot "Splitting and specializing fetch operations" Nothing
-    code   <- gets csGrinCode
-    hptMap <- gets csHptMap
-    unique <- gets csUnique
-    (unqie, code) <- return $ splitFetch hptMap unique code
-    modify (csUpdateGrinCode code)
-    modify (csUpdateUnique unique)
+    { putMsg VerboseALot "Splitting and specializing fetch operations" Nothing
+    ; code   <- gets csGrinCode
+    ; hptMap <- gets csHptMap
+    ; varMap <- gets csOrigNms
+    ; unique <- gets csUnique
+    ; (hptMap, unique', renMap, code)   <- return $ splitFetch hptMap unique code
+    ; modify (\s -> s { csMbOrigNms  = Just $ mergeRenameMap varMap renMap
+                      , csUnique     = unique'
+                      , csMbHptMap   = Just hptMap
+                      , csMbCode     = Just code
+                      }
+             )
+    }
 %%]
 
 %%[8.writeCmm import(Cmm.FromGrin, Cmm.CmmCodePretty)
@@ -443,6 +448,8 @@ caOptimize = task_ VerboseNormal "Optimizing (full)"
 -- simplification part III
 caFinalize = task_ VerboseNormal "Finalizing"
     ( do { caSplitFetch
+         ; caDropUnusedExpr
+         ; caDropUnusedTags
          ; caNameIdents
          ; caWriteGrin True "5-final"
          }

@@ -293,7 +293,8 @@ nreg2varDef = foldr makeDecls emptyBuilder
     where
     makeDecls nre decls      = nrege2varDef nre ~> decls
     nrege2varDef :: CmmNameRegisterElement -> CmmBodyBuilder
-    nrege2varDef (n, (t, k)) = varDecl False k t [(n, Nothing)]
+    nrege2varDef (n, (t, k)) | n == "$__" = id
+                             | otherwise  = varDecl False k t [(n, Nothing)]
 
 --noDups :: CmmNameRegister -> CmmNameRegister
 noDups :: (Eq a) => [(a,b)] -> [(a,b)]

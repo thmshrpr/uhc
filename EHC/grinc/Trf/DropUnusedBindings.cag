@@ -101,17 +101,17 @@ SEM GrModule
 %%]
 
 %%[8.dot hs
-mkDot e n nodeEdges = let header     = (  (("digraph \"" ++ n ++ "\" {") :) 
+mkDot e n nodeEdges = let header     = (  (("digraph \"" ++ n ++ "\" {") :)
                                        .  ("margin = 0" :)
- --                                    .  ("rotate = 90" :)
-                                       .  ("ratio = \"fill\"" :)
                                        )
-                          entryNode  = ( (show e ++ " [ style = \"filled\" ]") :)
+                          entryNode  = ( (show e ++ " [ shape = diamond ]") :)
                           footer     = ( "}" :)
                       in (header . entryNode . nodeEdges . footer) []
 
 mkNodeEdges nm lns sf (n,es) = 
-    let  style  =  if n `Set.member` lns then ", color =\"green\"" else ""
+    let  style  =  if n `Set.elementOf` lns
+                   then ""
+                   else "color = gray, fontcolor = gray"
          node   =  ( (show n ++ " [ label = \"" ++ getName nm n ++ "\"" ++ style ++ "];") :)
     in Map.foldWithKey (mkEdge n) (sf . node) es
 

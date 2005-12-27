@@ -5,7 +5,7 @@
 %include afp.fmt
 %%]
 
-%%[8 import(Control.Monad.Error,Control.Monad.State, Data.Maybe)
+%%[8 import(Control.Monad.Error,Control.Monad.State, Control.Exception, Data.Maybe)
 %%]
 
 %%[8.State import(GRINCCommon, EHCommon, GrinCode, FPath)
@@ -65,6 +65,9 @@ ignoreErrors_ = ignoreErrors ()
 
 harden_  :: (MonadError e m) => m() -> m ()
 harden_  =  harden ()
+
+force :: a -> CompileAction a
+force = liftIO . evaluate 
 %%]
 
 %%[8.messages import(System.CPUTime, Numeric)
