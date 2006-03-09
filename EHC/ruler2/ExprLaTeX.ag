@@ -1,0 +1,38 @@
+-------------------------------------------------------------------------
+-- LaTeX PP for Expr
+-------------------------------------------------------------------------
+
+{
+module ExprLaTeX
+  ( exprFmtTeX
+  )
+  where
+
+import qualified Data.Map as Map
+import Utils
+import UU.Pretty
+import PPUtils
+import Common
+import Opts
+import LaTeXFmtUtils
+import Expr
+import WrKindGam
+}
+
+INCLUDE "ExprAbsSynAG.ag"
+INCLUDE "ExprOptsAG.ag"
+
+INCLUDE "ExprLaTeXAG.ag"
+
+WRAPPER AGExprItf
+
+{
+exprFmtTeX :: Opts -> Expr -> PP_Doc
+exprFmtTeX o e
+  = ppLaTeX_Syn_AGExprItf r2
+  where r1 = sem_AGExprItf (AGExprItf_AGItf e)
+        r2 = wrap_AGExprItf r1
+                (Inh_AGExprItf { opts_Inh_AGExprItf = o })
+
+}
+

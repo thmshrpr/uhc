@@ -1,4 +1,4 @@
-% $Id$
+% $Id: EHSubstitutable.chs 269 2005-08-14 12:49:00Z cddouma $
 
 %%[0
 %include lhs2TeX.fmt
@@ -19,6 +19,9 @@
 %%[2 import(Data.List, EHCommon, EHTy, EHCnstr,EHTySubst,EHTyFtv) export(Substitutable(..))
 %%]
 
+%%[4_2 export((|>>))
+%%]
+
 %%[9 import(qualified Data.Map as Map) export(fixTyVarsCnstr,tyFixTyVars)
 %%]
 
@@ -32,6 +35,13 @@ infixr 6 |=>
 class Substitutable s where
   (|=>)         ::  Cnstr -> s -> s
   ftv           ::  s -> TyVarIdL
+%%]
+
+%%[4_2.partialSubstApp
+infixr 6 |>>
+
+(|>>) :: Cnstr -> Cnstr -> Cnstr
+c1 |>> c2 = cnstrMapTy (const (c1 |=>)) c2
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

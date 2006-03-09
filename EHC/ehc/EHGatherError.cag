@@ -1,4 +1,4 @@
-% $Id$
+% $Id: EHGatherError.cag 269 2005-08-14 12:49:00Z cddouma $
 
 %%[0
 %include lhs2TeX.fmt
@@ -34,6 +34,10 @@ SEM Expr
                 lhs         .   errL        =   mkNestErr @pp (foErrL @fo_)
   | TypeAs      lhs         .   errL        =   mkNestErr @pp
                                                     (@expr.errL ++ @tyExpr.errL ++ foErrL @fo_)
+
+SEM PatExpr
+  | IConst CConst
+                lhs         .   errL        =   mkNestErr @pp (foErrL @fo_)
 %%]
 
 %%[1.GatherRest
@@ -52,7 +56,7 @@ SEM Expr
   | Con         lhs         .   errL        =   mkNestErr @pp (foErrL @fo_)
 
 SEM PatExpr
-  | AppTop      lhs         .   errL        :=  mkNestErr @pp (@patExpr.errL ++ @arityErrs ++ foErrL @fo_)
+  | AppTop      lhs         .   errL        :=  mkNestErr @pp (@patExpr.errL ++ @arityErrs ++ foErrL @fo_fitR_)
 
 SEM Decl
   | Val         lhs         .   errL        :=  @patExpr.errL ++ @expr.errL
@@ -63,9 +67,9 @@ SEM Expr
   | Con         lhs         .   errL        :=  mkNestErr @pp (@nmErrs ++ foErrL @fo_)
 
 SEM PatExpr
-  | Con         lhs         .   errL        =   mkNestErr @pp (@nmErrs ++ foErrL @fo_)
+  | Con         lhs         .   errL        =   mkNestErr @pp (@nmErrs ++ foErrL @fo_fitR_)
   | TypeAs      lhs         .   errL        =   mkNestErr @pp (@patExpr.errL ++ @tyExpr.errL ++ foErrL @fo_)
-  | AppTop      lhs         .   errL        :=  mkNestErr @pp (@patExpr.errL ++ @arityErrs ++ foErrL @fo_)
+  | AppTop      lhs         .   errL        :=  mkNestErr @pp (@patExpr.errL ++ @arityErrs ++ foErrL @fo_fitR_)
 %%]
   | AppTop      lhs         .   errL        :=  mkNestErr @pp (@patExpr.errL ++ @arityErrs ++ foErrL @fo_ ++ foErrL @patFunFo)
 
@@ -76,7 +80,11 @@ SEM Expr
                                                     (foErrL @fo_fitF_ ++ @arg.errL ++ @body.errL ++ @gamErrL)
 %%]
 
+-- should be removed later 
 %%[5
+SEM PatExpr
+  | IConst CConst
+                lhs         .   errL        :=  []
 %%]
 
 %%[5_1

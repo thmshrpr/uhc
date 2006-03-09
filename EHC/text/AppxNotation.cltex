@@ -1,51 +1,39 @@
-%%[termTableBegin
-\label{appx-eh-lang-terms}
-\begin{tabular}%
-%%]
-
-%%[termTableFigBegin
-\begin{TabularFigure}{EH terms}{appx-eh-lang-terms}%
-%%]
-
-%%[termTableFigBeginExplImpl
-\begin{TabularFigure}{EH terms (emphasized ones explained throughout the text)}{exim-eh-lang-terms}%
-%%]
-
-%%[typeTableBegin
-\label{appx-eh-lang-types}
-\begin{tabular}%
-%%]
-
-%%[typeTableFigBegin
-\begin{TabularFigure}{EH types}{appx-eh-lang-types}%
-%%]
-
-%%[typeTableFigBeginExplImpl
-\begin{TabularFigure}{EH types}{exim-eh-lang-types}
-%%]
-
-%%[typeTableFigBeginImpred
-\begin{TabularFigure}{EH types}{eh-impred-lang-types}
-%%]
-
-%%[termTableFigBeginImpred
-\begin{TabularFigure}{EH terms}{eh-impred-lang-terms}
-%%]
-
-%%[termTableEnd
-\end{tabular}
-%%]
-
-%%[termTableFigEnd
-\end{TabularFigure}
-%%]
 
 %%[termTableFormat
-{r@@{\;}c@@{\;}ll}
+{r@@{\ensuremath{\;}}c@@{\ensuremath{\;}}ll}
+%%]
+
+%%[termTableFormatPrev
+{rcll}
+%%]
+
+%%[notationTableFormat
+{ll}
+%%]
+
+%%[notationTableFormatHalf
+{lp{.31\linewidth}}
+%%]
+
+%%[notationTableHeader
+Notation & Meaning \\
+\hline
 %%]
 
 %%[exprHeader
-\multicolumn{4}{l}{Values (expressions, terms):} \\
+\multicolumn{4}{l}{Value expressions:} \\
+%%]
+
+%%[patexprHeader
+\multicolumn{4}{l}{Pattern expressions:} \\
+%%]
+
+%%[tyexprHeader
+\multicolumn{4}{l}{Type expressions:} \\
+%%]
+
+%%[typredHeader
+\multicolumn{4}{l}{Predicate expressions:} \\
 %%]
 
 %%[declHeader
@@ -65,7 +53,7 @@
 %%]
 
 %%[impredHeader
-\multicolumn{4}{l}{Types for impredicativity inferencing:} \\
+\multicolumn{4}{l}{Types for quantifier propagation:} \\
 %%]
 
 %%[termSeparator
@@ -78,7 +66,7 @@
  & literals
  \\
 & | || | &
-|identv|
+|ident|
  & program variable
  \\
 & | || | &
@@ -86,19 +74,43 @@
  & application
  \\
 & | || | &
-|\i -> e|
- & abstraction
- \\
-& | || | &
 |let Vec(d) in e|
  & local definitions
  \\
 %%]
 
+%%[exprTheUsual
+|e| & |::=| &
+|...|
+ & 
+ \\
+%%]
+
+%%[exprLamIdent
+& | || | &
+|\i -> e|
+ & abstraction
+ \\
+%%]
+
+%%[exprLamPat
+& | || | &
+|\p -> e|
+ & abstraction
+ \\
+%%]
+
 %%[exprTup
 & | || | &
-|(e,e)|
+|(e,...,e)|
  & tuple
+ \\
+%%]
+
+%%[exprAnn
+& | || | &
+|e :: t|
+ & type annotated expression
  \\
 %%]
 
@@ -126,12 +138,12 @@
  & record
  \\
 & | || | &
-|(e || lbl := e,...)|
- & record update
- \\
-& | || | &
 |e.lbl|
  & record selection
+ \\
+& | || | &
+|(e || lbl := e,...)|
+ & record update
  \\
 %%]
 
@@ -142,44 +154,162 @@
  \\
 %%]
 
+%%[exprCase
+& | || | &
+|case e of Vec(p -> e)|
+ & case expression
+ \\
+%%]
+
 %%[declBasic
 |d| & |::=| &
-|identv = e|
- & value binding
+|identv :: t|
+ & value type signature
  \\
-& | || | &
+%%]
+
+%%[declBasicTySigma
+|d| & |::=| &
 |identv :: sigma|
  & value type signature
  \\
 %%]
 
+%%[declValIdent
+& | || | &
+|identv = e|
+ & value binding
+ \\
+%%]
+
+%%[declValPat
+& | || | &
+|p = e|
+ & value binding
+ \\
+%%]
+
 %%[declDataType
 & | || | &
-|data sigma = Vec(identc ^^ Vec(sigma))|
+|data ^^ Vec(t) = Vec(identc ^^ Vec(t))|
  & data type
  \\
 %%]
 
 %%[declExplImpl
 & | || | &
-|class Vec(pi) => pi where Vec(d)|
+|class Vec(pr) => pr where Vec(d)|
  & class
  \\
 & | || | &
-|instance Vec(pi) => pi where Vec(d)|
+|instance Vec(pr) => pr where Vec(d)|
  & introduced instance
  \\
 & | || | &
-|instance identv <: Vec(pi) => pi where Vec(d)|
+|instance identv <: Vec(pr) => pr where Vec(d)|
  & \emph{named introduced instance}
  \\
 & | || | &
-|instance identv :: Vec(pi) => pi where Vec(d)|
+|instance identv :: Vec(pr) => pr where Vec(d)|
  & \emph{named instance}
  \\
 & | || | &
-|instance e <: pi|
+|instance e <: pr|
  & \emph{value introduced instance}
+ \\
+%%]
+
+%%[patexprBasic
+|p| & |::=| &
+|int || char |
+ & literals
+ \\
+& | || | &
+|identv|
+ & pattern variable
+ \\
+& | || | &
+|identv@p|
+ & pattern variable, with subpattern
+ \\
+& | || | &
+|(p,...,p)|
+ & tuple pattern
+ \\
+%%]
+
+%%[patexprAnn
+& | || | &
+|p :: t|
+ & type annotated pattern
+ \\
+%%]
+
+%%[patexprRec
+& | || | &
+|(r||l=p)|
+ & record pattern
+ \\
+%%]
+
+%%[tyexprBasic
+|t| & |::=| &
+|Int || Char |
+ & type constants
+ \\
+& | || | &
+|t -> t|
+ & function type
+ \\
+& | || | &
+|(t,...,t)|
+ & tuple type
+ \\
+%%]
+
+%%[tyexprTyVar
+& | || | &
+|identv|
+ & type variable
+ \\
+%%]
+
+%%[tyexprForall
+& | || | &
+|forall ^ identv . t|
+ & universal quantification
+ \\
+%%]
+
+%%[tyexprExists
+& | || | &
+|exists ^ identv . t|
+ & existential quantification
+ \\
+%%]
+
+%%[tyexprRec
+& | || | &
+|(lbl :: sigma,...)|
+ & record
+ \\
+%%]
+
+%%[typredBasic
+|pr| & |::=| &
+|identc ^^ Vec(t)|
+ & class predicate
+ \\
+& | || | &
+|pr => pr|
+ & predicate transformer/abstraction
+ \\
+%%]
+
+%%[typredRecLacks
+& | || | &
+|t \\ l|
+ & record lacks label predicate
  \\
 %%]
 
@@ -223,16 +353,19 @@
  & abstraction
  \\
 & | || | &
-|pi => sigma|
- & implicit abstraction
- \\
-& | || | &
 |sigma ^^ sigma|
  & type application
  \\
 & | || | &
 |forall ^ tvarv . sigma|
  & universally quantified type
+ \\
+%%]
+
+%%[typePred
+& | || | &
+|pi => sigma|
+ & implicit abstraction
  \\
 %%]
 
@@ -260,11 +393,18 @@
 %%[predBasic
 |pi| & |::=| &
 |identc ^^ Vec(sigma)|
- & predicate
+ & class predicate
  \\
 & | || | &
 |pi => pi|
  & predicate transformer/abstraction
+ \\
+%%]
+
+%%[predRecLacks
+& | || | &
+|sigma \\ l|
+ & record lacks label predicate
  \\
 %%]
 
@@ -274,12 +414,12 @@
  & 
  \\
 & | || | &
-|tvarv [Vec(talt)]|
+|isigma|
  & type alternatives
  \\
 |isigma| & |::=| &
-|sigma|
- & distinguishing notation for |sigma| with |tvarv [Vec(talt)]|
+|tvarv [Vec(talt)]|
+ & type alternatives
  \\
 %%]
 
@@ -289,7 +429,7 @@
  & 
  \\
 & | || | &
-|tvar /=/ sigma|
+|tvarv /=/ sigma|
  & both
  \\
 & | || | &
@@ -300,16 +440,24 @@
 
 %%[tyaltBasic
 |talt| & |::=| &
-|isigma :: tctxt|
+|sigma :: thard / tneed|
  & type alternative
  \\
-|tctxt| & |::=| &
-|tctxtH|
- & `hard' context
+|tneed| & |::=| &
+|tneedO|
+ & `offered' context
  \\
 & | || | &
-|tctxtS|
- & `soft' context
+|tneedR|
+ & `required' context
+ \\
+|thard| & |::=| &
+|thardH|
+ & `hard' constraint
+ \\
+& | || | &
+|thardS|
+ & `soft' constraint
  \\
 %%]
 
@@ -319,6 +467,9 @@
  \\
 |sigmak|
  & expected/known type
+ \\
+|ANY|
+ & any type
  \\
 |tvarv|
  & type variable
@@ -355,9 +506,39 @@
  \\
 %%]
 
+%%[notationRulerDemoBasic
+|sigma|
+ & type (possibly polymorphic)
+ \\
+|tau|
+ & type (monomorphic)
+ \\
+|Vec(x)|
+ & sequence of |x| (possibly empty)
+ \\
+|tvarv|
+ & type variable
+ \\
+|Gamma|
+ & |Vec(i :-> sigma)|, assumptions, environment, context
+ \\
+%%]
+
+%%[notationRulerDemoCnstr
+|Cnstr|
+ & |Vec(tvarv :-> tau)|, constraints, substitution
+ \\
+|<=>|
+ & type matching relation, unification
+ \\
+%%]
+
 %%[notationImpredA
 |sigmaQu|
  & |sigma| with a quantifier
+ \\
+|sigmaNQu|
+ & |sigma| without a quantifier
  \\
 |tvarf|
  & fixed type variable (a.k.a. skolem type)
@@ -369,13 +550,16 @@
 
 %%[notationImpredB
 |isigma|
- & |sigma| for impredicativity inferencing
+ & |sigma| for quantifier propagation
+ \\
+|sigmaQu|
+ & |sigma| with a quantifier
+ \\
+|sigmaNQu|
+ & |sigma| without a quantifier
  \\
 |ICnstr|
- & |Cnstr| for impredicativity inferencing
- \\
-|Cnstr|$_{k..l}$
- & constraint composition of |Cnstr|$_k ...$ |Cnstr|$_l$
+ & |Cnstr| for quantifier propagation
  \\
 |<+>|
  & meet of two types
@@ -386,14 +570,38 @@
 |<=>|
  & |<=|, |<+>| or |<->|
  \\
+|thard|
+ & type alternative hardness (hard or soft)
+ \\
+|thardH|
+ & hard type alternative
+ \\
+|thardS|
+ & soft type alternative
+ \\
+|tneed|
+ & type alternative need/context (offered or required)
+ \\
+|tneedO|
+ & offered type alternative
+ \\
+|tneedR|
+ & required type alternative
+ \\
 |talt|
  & type alternative
  \\
-|Vec(taltcx(tctxt))|
- & |[ talt || talt@(_::tctxt) <- Vec(talt)]|
+%%]
+
+%%[notationCoCo
+|coco|
+ & co-, contravariant context
  \\
-|Vec(taltcx(Qu))|
- & |[ talt || talt@(sigmaQu::_) <- Vec(talt)]|
+|cocoY|
+ & covariant context
+ \\
+|cocoN|
+ & contravariant context
  \\
 %%]
 
@@ -403,13 +611,161 @@
  \\
 %%]
 
-%%[XX
+%%[rulerTy
+|tau| & |::=| &
+|Int |
+ & literals
+ \\
+& | || | &
+|tvarv|
+ & variable
+ \\
+& | || | &
+|tau -> tau|
+ & abstraction
+ \\
+|sigma| & |::=| &
+|forall ^ Vec(tvarv) . tau|
+ & universally quantified type, |Vec(tvarv)| possibly empty
+ \\
 %%]
 
-%%[XX
+%%[rulerExpr
+|e| & |::=| &
+|int  |
+ & literals
+ \\
+& | || | &
+|i|
+ & program variable
+ \\
+& | || | &
+|e e|
+ & application
+ \\
+& | || | &
+|\i -> e|
+ & abstraction
+ \\
+& | || | &
+|let i = e in e|
+ & local definitions
+ \\
 %%]
 
-%%[XX
+%%[rulerSyntaxSetup
+%format <	= ^^ "\langle "
+%format >	= "\rangle " ^^
+%%]
+
+%%[rulerSyntaxBasic
+<ruler_prog>            ::=     (  <scheme_def> | <format_def> | <rewrite_def>
+                                |  <rules_def> | <viewhierarchy_def>
+                                |  <external_def>
+                                )*
+<scheme_def>            ::=     (scheme | relation) <nm> [<ag_nm>]
+                                    '='  <scm_view_def> *
+<scm_view_def>          ::=     view <vw_nm> '=' <hole_def> <shape_def> *
+<hole_def>              ::=     hole  '[' <hole_defs>
+                                      '|' <hole_defs>
+                                      '|' <hole_defs>
+                                      ']'
+<shape_def>             ::=     judgeuse [<target>] <rexpr>
+                          |     judgespec <rexpr>
+<target>                ::=     tex | ag | ...
+<hole_defs>             ::=     [thread] <hole_nm> ':' <hole_type>
+<hole_type>             ::=     <nm>
+<rules_def>             ::=     rules <nm> scheme <scm_nm> "info"
+                                    '='  <rule_def> *
+<rule_def>              ::=     rule <nm> [<ag_nm>] = <rl_view_def> *
+<rl_view_def>           ::=     view <vw_nm>
+                                    '='  <judge_rexpr> *
+                                         '-'
+                                         <judge_rexpr>
+<judge_rexpr>           ::=     judge [<nm> ':'] <scm_nm>
+                                    (  '=' <rexpr>
+                                    |  ('|' <hole_nm> '=' <rexpr>)*
+                                    )
+<rexpr>                 ::=     <rexpr_app> <op> <rexpr> | <rexpr_app>
+<rexpr_app>             ::=     <rexpr_app> <rexpr_base> | <rexpr_base> | epsilon
+<rexpr_base>            ::=     <nm> | <rexpr_parens> | unique
+                          |     `=` | `|` | `.` | `-`
+                          |     int | "string"
+<rexpr_parens>          ::=     '('  (  <rexpr>
+                                     |  <rexpr> '|' <hole_type>
+                                     |  node int = <rexpr>
+                                     |  text "string"
+                                     |  ( '|' | '.' | '=' | '-' | <keyword> )*
+                                     )
+                                ')' ('.' <rexpr_base>)*
+%%]
+
+%%[rulerSyntaxLexical
+<op>                    ::=     <op_base> ('.' <rexpr_base>)*
+<op_base>               ::=     ('!#$%&*+/<=>?@\^|-:;,[]{}~')*
+                                    - ('|'|'.'|'='|'-')
+<ag_nm>, <scm_nm>, <vw_nm>, <hole_nm>
+                        ::=     <nm>
+<nm>                    ::=     <nm_base> ('.' (<nm_base> | int))*
+<nm_base>               ::=     'a-zA-Z_' 'a-zA-Z_0-9'*
+<keyword>               ::=     (scheme | ...) - (unique)
+%%]
+
+%%[rulerSyntaxRest
+<format_def>            ::=     format [<target>]
+                                    <nm> '=' <rexpr>
+<rewrite_def>           ::=     rewrite [<target>] [def|use]
+                                    <rexpr> '=' <rexpr>
+<external_def>          ::=     external <nm>*
+<viewhierarchy_def>
+                        ::=     viewhierarchy <vw_nm> ('<' <vw_nm>)*
+%%]
+
+%%[rulerSyntaxFmtRelated
+%%]
+
+%%[rulerRulerAsideRuleBegin
+\begin{center}
+\begin{tabular}{cc}
+\begin{minipage}{.55\linewidth}
+%%]
+
+%%[rulerRulerAsideRuleSep
+\end{minipage}
+&
+\begin{minipage}{.35\linewidth}
+\[
+%%]
+
+%%[rulerRulerAsideRuleEnd
+\]
+\end{minipage}
+\end{tabular}
+\end{center}
+%%]
+
+%%[parserCombTableHead
+Combinator & Meaning & Result
+\\ \hline
+%%]
+
+%%[parserCombTableA
+|p <*> q|                       & |p| followed by |q|               & result of |p| applied to result of |q| \\
+|p <||> q|                      & |p| or |q|                        & result of |p| or result of |q| \\
+|pSucceed r|                    & empty input |epsilon|             & |r| \\
+|f <$> p|                       & |=== pSucceed f <*> p|            & \\
+|pKey "x"|                      & symbol/keyword x                  & |"x"| \\
+%%]
+
+%%[parserCombTableB
+|p <**> q|                      & |p| followed by |q|               & result of |q| applied to result of |p| \\
+|p `opt` r|                     & |=== p <||> pSucceed r|           & \\
+|p <??> q|                      & |=== p <**> q `opt` id|           & \\
+|p <* q|, |p *> q|, |f <$ p|    & \parbox[t]{.3\textwidth}{variants throwing away result of angle missing side}
+                                                                    & \\
+|pFoldr listAlg p|              & sequence of |p|'s                 & |foldr c n (|result of all |p|'s|)| \\
+|pList p|                       & |pFoldr ((:),[]) p|               & \\
+|pChainr s p|                   & |p|'s (|>1|) separated by |s|'s   & result of |s|'s applied to results of |p|'s aside \\
 %%]
 
 %%[XX

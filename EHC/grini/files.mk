@@ -6,9 +6,9 @@ GRINI_MKF								:= $(GRINI_SRC_PREFIX)files.mk
 
 # end products, binary, executable, etc
 GRINI_EXEC_NAME							:= grini
-GRINI_BLD_EXEC							:= $(GRIN_BLD_BIN_VARIANT_PREFIX)$(GRINI_EXEC_NAME)
-GRINI_ALL_PUB_EXECS						:= $(patsubst %,$(GRIN_BIN_PREFIX)%/grini,$(GRIN_PUB_VARIANTS))
-GRINI_ALL_EXECS							:= $(patsubst %,$(GRIN_BIN_PREFIX)%/grini,$(GRIN_VARIANTS))
+GRINI_BLD_EXEC							:= $(GRIN_BLD_BIN_VARIANT_PREFIX)$(GRINI_EXEC_NAME)$(EXEC_SUFFIX)
+GRINI_ALL_PUB_EXECS						:= $(patsubst %,$(GRIN_BIN_PREFIX)%/$(GRINI_EXEC_NAME)$(EXEC_SUFFIX),$(GRIN_PUB_VARIANTS))
+GRINI_ALL_EXECS							:= $(patsubst %,$(GRIN_BIN_PREFIX)%/$(GRINI_EXEC_NAME)$(EXEC_SUFFIX),$(GRIN_VARIANTS))
 
 # main + sources + dpds, for .chs
 GRINI_MAIN								:= GRI
@@ -52,7 +52,7 @@ $(patsubst %,grini-variant-%,$(GRIN_VARIANTS)): grini-variant-dflt
 
 grini-variant-dflt: $(GRINI_HS_ALL_DRV_HS) $(GRINI_AG_ALL_MAIN_DRV_HS) $(GRIN_AG_ALL_MAIN_DRV_HS) $(EHC_HS_ALL_DRV_HS)
 	mkdir -p $(dir $(GRINI_BLD_EXEC))
-	$(GHC) --make $(GHC_OPTS) -i$(GRIN_BLD_VARIANT_PREFIX) -i$(LIB_SRC_PREFIX) $(GRIN_BLD_VARIANT_PREFIX)$(GRINI_MAIN).hs -o $(GRINI_BLD_EXEC)
+	$(GHC) --make $(GHC_OPTS) $(GHC_OPTS_OPTIM) -i$(GRIN_BLD_VARIANT_PREFIX) -i$(LIB_SRC_PREFIX) $(GRIN_BLD_VARIANT_PREFIX)$(GRINI_MAIN).hs -o $(GRINI_BLD_EXEC)
 
 $(GRINI_AG_ALL_MAIN_DRV_AG) $(GRINI_AG_ALL_DPDS_DRV_AG): $(GRIN_BLD_VARIANT_PREFIX)%.ag: $(GRINI_SRC_PREFIX)%.cag $(SHUFFLE)
 	mkdir -p $(@D)

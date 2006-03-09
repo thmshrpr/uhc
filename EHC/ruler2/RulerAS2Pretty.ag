@@ -1,0 +1,89 @@
+-------------------------------------------------------------------------
+-- Pretty printing of ruler AST2
+-------------------------------------------------------------------------
+
+ATTR AllAS2 AGItf [ | | pp USE {>-<} {empty} : PP_Doc ]
+
+SEM Decls
+  | Cons            lhs     .   pp          =   @hd.pp >-< "" >-< @tl.pp
+
+SEM RlDecls
+  | Cons            lhs     .   pp          =   @hd.pp >-< "" >-< @tl.pp
+
+-------------------------------------------------------------------------
+-- Chunks
+-------------------------------------------------------------------------
+
+SEM RlDecl
+  | Chunk           lhs     .   pp          =   ppWrapShuffle @nm @rl.pp
+
+SEM Decl
+  | Chunk           lhs     .   pp          =   ppWrapShuffle @nm @decl.pp
+
+-------------------------------------------------------------------------
+-- General: ruleset
+-------------------------------------------------------------------------
+
+SEM RlDecl
+  | Rl              lhs     .   pp          =   @nm >#< ppCommaList [pp @pos,pp @mbAGStr]
+                                                >-< indent 2 (@preJds.pp >-< "---" >-< @postJds.pp)
+
+SEM Jd
+  | Ats             lhs     .   pp          =   @nm >#< pp_parens (pp @scNm) >|< ":" >#< @ats.pp
+
+SEM JdAt
+  | At              lhs     .   pp          =   @nm >#< "=" >#< @expr.pp
+
+-------------------------------------------------------------------------
+-- AG specific: ATTR decls
+-------------------------------------------------------------------------
+
+SEM AttrAGDecl
+  | Attr            lhs     .   pp          =   let mka g = ppListSep "" "" "  " [ n >|< ":" >#< t | (n,t) <- g ]
+                                                in  "ATTR" >#< @ndNm
+                                                    >#< pp_brackets (mka @inhAts >#< "|" >#< mka @inhsynAts >#< "|" >#< mka @synAts)
+
+-------------------------------------------------------------------------
+-- LaTeX specific: ruleset
+-------------------------------------------------------------------------
+
+SEM RlDecl
+  | LTX             lhs     .   pp          =   let
+                                                    r = "\\ehinfruleB" >|< ppCurly @rlNm >|< ppCurly @vwNm
+                                                        >-< ppListSepVV "{%" "}" "\\\\" @preJds.ppL
+                                                        >-< ppListSepVV "{%" "}" "\\\\" @postJds.ppL
+                                                in  mkCmdNmDef @nm r
+  | LTXAlias        lhs     .   pp          =   mkCmdNmDef @fullAliasNm (mkCmdNmUse @fullNm)
+
+SEM VwDecl
+  | LTX             lhs     .   pp          =   let meta = ensureTeXMath $ switchLaTeXLhs $ exprFmtTeX @lhs.opts @scmExpr.self
+                                                in  mkCmdNmDef @scMetaNm meta >-< @rlDecls.pp
+  | LTXFig          lhs     .   pp          =   let fig = "\\begin{RulesFigureB}" >|< ppCurly (mkCmdNmUse @scMetaNm) >|< ppCurly (pp @descr) >|< ppCurly @fullNm >|< (ppCurly @nm)
+                                                          >-< vlist (intersperse (pp "\\hspace{1ex}") . map mkCmdNmUse $ @rlFullNmL)
+                                                          >-< "\\end{RulesFigureB}"
+                                                in  mkCmdNmDef @fullNm fig
+
+SEM Jd
+  | LTX             lhs     .   pp          =   switchLaTeXLhs (exprFmtTeX @lhs.opts @expr.self)
+
+ATTR Jds [ | | ppL: {[PP_Doc]} ]
+
+SEM Jds
+  | Nil             lhs     .   ppL         =   []
+  | Cons            lhs     .   ppL         =   @hd.pp : @tl.ppL
+
+-------------------------------------------------------------------------
+-- Preamble
+-------------------------------------------------------------------------
+
+SEM Decl
+  | Preamble        lhs     .   pp          =   pp @preamble
+
+-------------------------------------------------------------------------
+-- Explain
+-------------------------------------------------------------------------
+
+SEM Decl
+  | ScVwExplain     lhs     .   pp          =   exprFmtTeX @lhs.opts @exExpr
+  | ScVwAtExplain   lhs     .   pp          =   vlist $ map (\(n,e) -> exprFmtTeX @lhs.opts n >#< "&" >#< exprFmtTeX @lhs.opts e >#< "\\\\") $ @atExprs
+

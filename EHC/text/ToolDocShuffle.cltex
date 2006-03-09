@@ -1,0 +1,263 @@
+%%[abstract
+|Shuffle| takes as input files containing versions of chunks of (sourcecode) text, producing
+a merged piece of text for a particular version.
+%%]
+
+%%[doc
+
+%{
+
+%format versionId	= "\texttt{<versionId>}"
+%format nameId		= "\texttt{<nameId>}"
+%format chunkName	= "\texttt{<chunkName>}"
+%format chunkId		= "\texttt{<chunkId>}"
+%format id			= "\texttt{<id>}"
+
+
+
+\subsection{Overview and command line invocation}
+
+When invoked by \verb'shuffle --help', |Shuffle| will answer with
+
+\begin{TTfootnotesize}
+%%1exec(bin/shuffle --help%%)
+\end{TTfootnotesize}
+
+\subsection{Version generation}
+
+|Shuffle| takes a chunked source file and produces on stdout the version specified by
+\verb'--gen=version'.
+Output can be generated in 3 different variants, for further processing by
+Haskell compilers (\verb'--hs'), for the AG system (\verb'--ag') and LaTeX (\verb'--latex').
+The produced output is assumed to be processed by |lhs2tex| [cite] first, unless the option
+\verb'--lhs2tex=no' is specified.
+
+For example the input
+
+\begin{TT}
+%%@[file:shuffle/test/tst2%%]
+\end{TT}
+
+gives the following variants when invoked with different parameters.
+
+\begin{Itemize}
+
+\item
+\verb'shuffle --gen=2 --ag shuffle/test/tst2'.
+Generate for version 2, AG system, to be processed first by |lhs2tex|.
+\begin{TT}
+%%1exec(bin/shuffle --gen=2 --ag shuffle/test/tst2%%)
+\end{TT}
+
+
+\item
+\verb'shuffle --gen=1 --hs --lhs2tex=no --base=Main shuffle/test/tst2'.
+Generate for version 1, Haskell, with name of module specified (instead of derived from the filename),
+not to be processed by |lhs2tex|.
+\begin{TT}
+%%1exec(bin/shuffle --gen=1 --hs --lhs2tex=no --base=Main shuffle/test/tst2%%)
+\end{TT}
+
+\item
+\verb'shuffle --gen=2 --latex shuffle/test/tst2'.
+Generate for version 2, LaTeX, to be processed first by |lhs2tex|.
+Text is wrapped inside macros for definition (\verb'\chunkCmdDef') and use (\verb'\chunkCmdUse')
+of a chunk, to be defined by the user.
+\begin{TT}
+%%1exec(bin/shuffle --gen=2 --latex shuffle/test/tst2%%)
+\end{TT}
+
+\end{Itemize}
+
+For now combinations of output nor multiple files are allowed.
+
+\subsubsection{Remaining options}
+
+\begin{Itemize}
+\item
+Generation of index entries is turned on by the option @--index@.
+An index entry complying to @makeindex@ syntax is passed to the \LaTeX\ command @\chunkIndex@.
+Words to be indexed are guessed based on AG and Haskell semantics but is crude in its approximation.
+A file with a blank separated list of strings not to be indexed can be passed via the option @--xref-except@.
+In the future all of this may be changed to allow for more fine-grained control or be removed because too
+many useless entries are created.
+\end{Itemize}
+
+\subsection{Input format}
+Chunks are defined by text of the following structure
+\begin{TT}
+ %%[<chunkName> <parameters>
+ <text>
+ %%]
+\end{TT}
+The delimiters \verb'%%[' and \verb'%%]' must start at the beginning of a new line.
+Chunk definitions may
+not be nested.
+Text between chunk definitions is ignored.
+The \verb'<text>' of a chunk may be empty.
+
+A |chunkName| can either be an integer for versioned chunks or an alphanumerical identifier for
+named chunks.
+
+\subsubsection{Named chunks}
+A named chunk is defined by
+\begin{TT}
+ %%[<alphaNumId>
+ <text>
+ %%]
+\end{TT}
+and can be referred to from inside a chunk by
+\begin{TT}
+ %%@<alphaNumId>
+\end{TT}
+A reference is replaced in the output by its corresponding definition.
+For example, the following input
+\begin{TT}
+%%1exec(cat shuffle/test/tst3%%)
+\end{TT}
+will give (for \verb'shuffle --gen=1 --ag --lhs2tex=no shuffle/test/tst3')
+\begin{TT}
+%%1exec(bin/shuffle --gen=1 --ag --lhs2tex=no shuffle/test/tst3%%)
+\end{TT}
+Named chunks on their own do not produce output, only when referred to from a versioned chunk.
+
+
+\subsubsection{Versioned chunks}
+A versioned chunk is defined by the following. The lines after @%%[@ and @<text>@ should be on one line
+but are not because of the limited amount of space on each line.
+\begin{TT}
+ %%[<versionId> [.<nameId>] [-(<chunkId>*)] [hs]
+                [module <id>] [import(<id>*)] [export(<id>*)]
+ <text>
+ %%]
+\end{TT}
+
+An |versionId| can be $0$ or a nonempty sequence of positive integers separated
+by an underscore character '@_@'.
+From within \LaTeX\ a dot '.' instead is used
+(because underscore would be inconvenient as it
+is already special for \LaTeX).
+The underscore specifies a nested version.
+The ordering between integers is used to provide for a default
+ordering of versions, for nesting the usual lexical ordering
+is used.
+
+Version $0$ is special in that it defines text to be always inserted in the output
+without any additional treatment.
+For example, this can be used to incorporate a |lhs2tex| preamble.
+
+The combination of |versionId| and |nameId| is called a |chunkId|, syntactically composed of
+the two components by a dot \verb|'.'| in between.
+For a chunk it is not necessary to specify a full |chunkId|, a |versionId| suffices to make it be
+included in the output for the version.
+If a full |chunkId| is specified
+\begin{Itemize}
+\item
+its content can be referred to from within \LaTeX\ by
+\begin{TT}
+\chunkCmdUse{<filename>.<chunkId>}
+\end{TT}
+\item
+it can be removed by a later version referring to it by |- chunkId|.
+\end{Itemize}
+
+The order in which chunks appear in the input file is preserved, except for \LaTeX\ generation
+(with option @--latex@) for which this is not guaranteed.
+
+\subsubsection{Chunk removal}
+A versioned chunk can be inhibited to produce output by a later version
+from within that later version by |- chunkId|.
+For example
+\begin{TT}
+%%@[file:shuffle/test/tst4%%]
+\end{TT}
+will give (for \verb'shuffle --gen=3 --ag --lhs2tex=no shuffle/test/tst4')
+\begin{TT}
+%%1exec(bin/shuffle --gen=3 --ag --lhs2tex=no shuffle/test/tst4%%)
+\end{TT}
+Note that only the chunk referred to is not included.
+Multiple chunks can be removed this way by specifying a (parenthesized, white separated) list of |chunkId|'s.
+
+\subsubsection{Chunk ordering}
+When combined and printed to output an ordering is used.
+The default ordering on versions is used to define which chunks should be printed
+on output.
+For example, if chunk |3| is requested and |1,2,3,4| are available only the
+chunks for |1,2,3| will produce output in that order.
+Nested chunks do not produce output.
+
+A more specific ordering, including nested versions, can be specified with the
+option @--order@. An ordering consists of a comma separated list
+of orders, where each order is a @'<'@ separated list of versions.
+The ordering specifies a graph which is used to determine which versions have a path
+(defined by the @'<'@)
+to the version for which output generation takes place.
+For example,
+\begin{TT}
+1 < 2 < 3, 2 < 2_1
+\end{TT}
+specifies the usual order for non-nested versions and an additional branch @2_1@ which
+is based upon version @2@. When generation is asked for @3@, text for |1, 2, 3| is included
+but not for @2_1@ and vice-versa
+if generation is requested for @2_1@.
+If instead
+\begin{TT}
+1 < 2 < 3, 2 < 2_1 < 3
+\end{TT}
+would have been specified all available chunks, including @2_1@ and @3@ would be included for
+both @--gen=3@ and @--gen=2_1@.
+Chunks with versions not included in the ordering are non-existent as far as generation of output
+is concerned.
+
+\subsubsection{Output specific behavior}
+The remaining optional parameters of a chunk definition only have meaning dependent on
+the output format chosen.
+For example
+\begin{TT}
+%%@[file:shuffle/test/tst5%%]
+\end{TT}
+will give 
+\begin{Itemize}
+\item for \verb'shuffle --gen=1 --ag --lhs2tex=no shuffle/test/tst5'
+\begin{TT}
+%%1exec(bin/shuffle --gen=1 --ag --lhs2tex=no shuffle/test/tst5%%)
+\end{TT}
+
+\item for \verb'shuffle --gen=1 --hs --lhs2tex=no shuffle/test/tst5'
+\begin{TT}
+%%1exec(bin/shuffle --gen=1 --hs --lhs2tex=no shuffle/test/tst5%%)
+\end{TT}
+\end{Itemize}
+
+To allow for incorporating Haskell inside AG the parameter \verb'hs' is specified, for example in
+\begin{TT}
+%%@[file:shuffle/test/tst6%%]
+\end{TT}
+will give (for \verb'shuffle --gen=1 --ag --lhs2tex=no shuffle/test/tst6')
+\begin{TT}
+%%1exec(bin/shuffle --gen=1 --ag --lhs2tex=no shuffle/test/tst6%%)
+\end{TT}
+
+Currently, none of this specific behavior is implemented for \LaTeX\ output.
+Generation for \LaTeX\ also ignores the @--gen@ flag by
+behaving as if @--gen=all@ were specified.
+
+\subsubsection{Interaction with \LaTeX}
+
+\begin{Itemize}
+\item
+Required macro's:
+\begin{TT}
+\newcommand{\chunkCmdDef}[1]{\expandafter\def\csname #1\endcsname}
+\newcommand{\chunkMetaDef}[1]{\expandafter\def\csname #1\endcsname}
+\newcommand{\chunkCmdUse}[1]{\csname #1\endcsname}
+\newcommand{\chunkIndex}[1]{\index{#1}}
+\end{TT}
+
+\item
+Each chunk has also a label defined, with the same name as the chunk name.
+\end{Itemize}
+
+%}
+
+%%]

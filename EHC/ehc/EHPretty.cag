@@ -1,4 +1,4 @@
-% $Id$
+% $Id: EHPretty.cag 269 2005-08-14 12:49:00Z cddouma $
 
 %%[0
 %include lhs2TeX.fmt
@@ -67,23 +67,22 @@ SEM AGItf
 %%[2.Wild.pp
 SEM TyExpr
   | Wild        loc     .   pp      =   pp "..."
-
-SEM Decl
-  | TySig       loc     .   tyPP    :=  if null @tyExpr.tyVarWildL
-                                        then  @tyExpr.pp
-                                        else  ppTy @finalTy
 %%]
 
 %%[3
 SEM TyExpr
   | Var         loc     .   pp      =   pp @nm
   | VarWild     loc     .   pp      =   "%" >|< pp @nm
+
+SEM Decl
+  | TySig       loc     .   tyPP    :=  if null @tyExpr.tyWildL
+                                        then  @tyExpr.pp
+                                        else  ppTy @finalTy
 %%]
 
 %%[4
 SEM Expr
-  | Impred      loc     .   pp      =   "~" >#< @expr.pp
-  | AppImpred   loc     .   argPP   =   "~" >#< @arg.pp
+  | AppImpred   loc     .   argPP   =   "~" >|< @arg.pp
                         .   pp      =   @func.pp >#< @argPP
 
 SEM PatExpr
@@ -91,6 +90,13 @@ SEM PatExpr
 
 SEM TyExpr
   | Quant       loc     .   pp      =   showTyQu @qu >#< @tyVar >#< "." >#< @tyExpr.pp
+%%]
+
+%%[5.Wild.pp
+SEM Decl
+  | TySig       loc     .   tyPP    :=  if null @tyExpr.tyVarWildL
+                                        then  @tyExpr.pp
+                                        else  ppTy @finalTy
 %%]
 
 %%[5
@@ -368,14 +374,19 @@ SEM Expr
   | Let         loc     .   ppExtra     :=  ppCmt (ppGam (@lhs.finTyCnstr |=> @quValGam_))
 %%]
 
+%%[4
+SEM Expr
+  | Let         loc     .   ppExtra     :=  ppCmt (ppGam (@lhs.finTyCnstr |=> @quValGam_ex_))
+%%]
+
 %%[6
 SEM Expr
-  | Let         loc     .   ppExtra     :=  ppCmt (ppGam @lQuTyGam) >-< ppCmt (ppGam (@lhs.finTyCnstr |=> @quValGam_))
+  | Let         loc     .   ppExtra     :=  ppCmt (ppGam @lQuTyGam) >-< ppCmt (ppGam (@lhs.finTyCnstr |=> @quValGam_ex_))
 %%]
 
 %%[9
 SEM Expr
-  | Let         loc     .   ppExtra     :=  ppCmt  (    ppGam @lQuTyGam   >-< ppGam (@lhs.finTyCnstr |=> @quValGam_)
+  | Let         loc     .   ppExtra     :=  ppCmt  (    ppGam @lQuTyGam   >-< ppGam (@lhs.finTyCnstr |=> @quValGam_ex_)
                                                    >-<  ppGam @lQuPrIGam  >-< ppTGam @prfCtxtId @decls.patPrElimTGam
                                                    )
 %%]

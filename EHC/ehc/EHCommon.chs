@@ -1,4 +1,4 @@
-% $Id$
+% $Id: EHCommon.chs 270 2005-08-14 18:38:07Z cddouma $
 
 %%[0
 %include lhs2TeX.fmt
@@ -27,7 +27,7 @@
 %%[1 export(ParNeed(..), ParNeedL, parNeedApp, ppParNeed)
 %%]
 
-%%[2 export(UID, mkNewLevUID, mkNewLevUID2, mkNewLevUID3, mkNewLevUID4, mkNewLevUID5, uidNext, mkNewUID, mkNewUIDL, uidStart)
+%%[2 export(UID, mkNewLevUID, mkNewLevUID2, mkNewLevUID3, mkNewLevUID4, mkNewLevUID5, mkNewLevUID6, uidNext, mkNewUID, mkNewUIDL, uidStart)
 %%]
 
 %%[2 export(assocLMapElt,assocLMapKey)
@@ -87,7 +87,7 @@
 %%[8 export(hsnUniqSupplyL,hsnLclSupplyL)
 %%]
 
-%%[8 export(CTag(..))
+%%[8 export(CTag(..),ctagChar,ctagInt)
 %%]
 
 %%[8 export(CTagsMp)
@@ -274,6 +274,7 @@ mkNewLevUID2 u = let { (u',u1)          = mkNewLevUID   u; (u'',u2)         = mk
 mkNewLevUID3 u = let { (u',u1,u2)       = mkNewLevUID2  u; (u'',u3)         = mkNewLevUID   u'} in (u'',u1,u2,u3)
 mkNewLevUID4 u = let { (u',u1,u2)       = mkNewLevUID2  u; (u'',u3,u4)      = mkNewLevUID2  u'} in (u'',u1,u2,u3,u4)
 mkNewLevUID5 u = let { (u',u1,u2)       = mkNewLevUID2  u; (u'',u3,u4,u5)   = mkNewLevUID3  u'} in (u'',u1,u2,u3,u4,u5)
+mkNewLevUID6 u = let { (u',u1,u2,u3)    = mkNewLevUID3  u; (u'',u4,u5,u6)   = mkNewLevUID3  u'} in (u'',u1,u2,u3,u4,u5,u6)
 
 uidStart :: UID
 uidStart = UID [0]
@@ -606,6 +607,9 @@ data CTag
   = CTagRec
   | CTag {ctagTyNm :: HsName, ctagNm :: HsName, ctagTag :: Int, ctagArity :: Int}
   deriving (Show,Eq,Ord)
+
+ctagInt  =  CTag hsnInt  hsnInt  0 1
+ctagChar =  CTag hsnChar hsnChar 0 1
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -718,7 +722,7 @@ instance PP FIMode where
 %%% Misc
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%[1.Misc
+%%[1.Misc.hdAndTl
 hdAndTl' :: a -> [a] -> (a,[a])
 hdAndTl' _ (a:as) = (a,as)
 hdAndTl' n []     = (n,[])

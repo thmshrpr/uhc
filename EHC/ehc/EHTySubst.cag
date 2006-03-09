@@ -1,4 +1,4 @@
-% $Id$
+% $Id: EHTySubst.cag 269 2005-08-14 12:49:00Z cddouma $
 
 %%[0
 %include lhs2TeX.fmt
@@ -41,7 +41,7 @@ tvRepl tv c isBound repl
 
 %%[2.TySubst
 ATTR TyAGItf AllTy  [ cnstr: Cnstr  | |             ]
-ATTR AllAllTy       [               | | repl: SELF  ]
+ATTR AllTyAndFlds   [               | | repl: SELF  ]
 ATTR TyAGItf        [               | | repl: Ty    ]
 
 SEM Ty

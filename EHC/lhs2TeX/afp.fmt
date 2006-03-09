@@ -4,16 +4,16 @@
 %let useSigplanconfSty = True
 %endif
 
-%if storyPHD || storyAfpTRUU1 || onlyCurrentWork
+%if False %% storyPHD || storyAfpTRUU1 || onlyCurrentWork
 %let inclChunkMarks	= True
 %else
 %let inclChunkMarks	= False
 %endif
 
-%if storyExplImpl
-%let chapAsArticle	= True
+%if storyExplImpl || storyImpred || storyRuler
+%let chapAsArticle  = True
 %else
-%let chapAsArticle	= False
+%let chapAsArticle  = False
 %endif
 
 %% end of configuration
@@ -48,43 +48,21 @@
 %include parsing.fmt
 %include pretty.fmt
 
-%if False
-%% compatibility with AFP04
-
-%format ValGam				= "TyGam"
-%format ValGamInfo			= "TyGamInfo"
-%format vgiTy				= "tgiTy"
-%format valGam				= "tyGam"
-%format finValGam			= "finTyGam"
-%format vgi					= "tgi"
-%format lValGam				= "lTyGam"
-%format gValGam				= "gTyGam"
-%format lSubsValGam			= "lSubsTyGam"
-%format gSubsValGam			= "gSubsTyGam"
-%format lQuValGam			= "lAbsTyGam"
-%format patValGam			= "patTyGam"
-%format valGamInst1Exists	= "tyGamInst1Exists"
-%format valGamQuantify		= "tyGamQuantify"
-%format valGamLookup		= "tyGamLookup"
-%format TyGam				= "KiGam"
-%format tyGam				= "kiGam"
-%format tyGamLookup			= "kiGamLookup"
-
-%% end of compatibility with AFP04
-%endif
-
 %% handling of `
 
 %format `   = "\backtick "
 
 %format forall      = "{\forall}"
 %format exists      = "{\exists}"
+%format nexists     = "{\not\exists}"
 
 %format ^ 			= " "
 %format ^^ 			= "\;"
 
 %format (Vec(x))    = "\overline{" x "}"
 %format (VecI(x)(i))    = x "^{\{" i "\}}"
+
+%format (Dot(x)(y)(z))	= "{" x "}_{" y "}^{" z "}"
 
 %format restr		= "\backslash "
 
@@ -94,10 +72,16 @@
 %format Gammab      = Gamma "^{b}"
 %format Gammasig    = Gamma "_{sig}"
 
+%format TGamma      = Delta
+%format KGamma      = Theta
+
 %format taua        = tau "_{a}"
+
+%format Forall		= "{\nabla}"
 
 %format sigmak      = sigma "^{k}"
 %format sigman      = sigma "_{n}"
+%format sigmam      = sigma "_{m}"
 %format sigmapk     = sigma "_{p}^{k}"
 %format sigmapf     = sigma "_{pf}"
 %format sigmaq      = sigma "^{q}"
@@ -115,12 +99,22 @@
 %format sigma2
 %format sigma3
 %format sigma4
+%format sigma1a		= sigma "^{a}_{1}"
+%format sigma2a		= sigma "^{a}_{2}"
+%format sigma1r		= sigma "^{r}_{1}"
+%format sigma2r		= sigma "^{r}_{2}"
 %format sigmaQu     = sigma "_{" Qu "}"
+%format sigmaNQu    = sigma "_{" nQu "}"
+%format sigmaHard   = sigma "_{" thardH "}"
+%format sigmaSoft   = sigma "_{" thardS "}"
 
 %format isigma      = "\mathbb{\bbsigma}"
+%format isigmaf     = isigma "_{f}"
+
 %format bsigma      = sigma "_{" /=/ "}"
 
 %format Cnstr       = "\mathcal{C}"
+%format Cnstre		= Cnstr "_{e}"
 %format Cnstra		= Cnstr "_{a}"
 %format Cnstrr		= Cnstr "_{r}"
 %format Cnstrp		= Cnstr "_{p}"
@@ -132,6 +126,7 @@
 %format ICnstrk		= ICnstr "^{k}"
 
 %format Qu          = "\mathcal{Q}"
+%format nQu         = "\neg" Qu
 
 %format ident       = iota
 %format identv      = "i"
@@ -143,6 +138,9 @@
 %format tvare       = tvarv
 %format tvarf       = f
 %format tvarf'
+%format tvarf1
+%format tvarf2
+%format tvarf3
 %format tvari       = tvarv "_i"
 %format tvar1
 %format tvar2
@@ -152,8 +150,21 @@
 %format tvarv2
 %format tvarv3
 %format tvarv4
+%format tvarv5
+%format tvarv6
 
 %format tcon        = c
+
+%format talt			= phi
+%format taltcx(cx)		= talt "_{" cx "}"
+
+%format thard			= "\mathbb{H}"
+%format thardH			= thard "_{h}"
+%format thardS			= thard "_{s}"
+
+%format tneed			= "\mathbb{N}"
+%format tneedO			= tneed "_{o}"
+%format tneedR			= tneed "_{r}"
 
 %format pvar        = "{\varpi}"
 %format pivar       = p
@@ -182,7 +193,9 @@
 %format // 	    		= "/"
 %format /^/ 	    	= "/"
 %format /=/ 	    	= "{\eqcirc}"
-%format |=>     		= "\Yright "
+%format |=>     		= "\oplus "
+%format |>>     		= "\ogreaterthan "
+%format |\>     		= "\backslash "
 %format :->         	= "\mapsto "
 %format ~>	         	= "\leadsto "
 %format :-  			= "\vdash "
@@ -191,9 +204,7 @@
 %format :~>   			= "\rightsquigarrow "
 %format <~:   			= "\leftsquigarrow "
 %format :>   			= "\rightsquigarrow "
-%format <:   			= "\leftsquigarrow "
 %format .    			= "."
-%format :=	 			= "\coloneqq "
 %format === 			= "\equiv "
 %format =/= 			= "\not\equiv "
 %format =@= 			= "{\varparallel}"
@@ -205,14 +216,22 @@
 %format <-> 			= "\mathrel{\triangledown}"
 % format +	 			= ","
 % format ++	 			= ","
+%if asSlides
+%format ::= 			= "::="
+%format :=	 			= ":="
+%format <:   			= "<:"
+%else
+%format ::= 			= "\mathrel{\Coloneqq}"
+%format :=	 			= "\coloneqq "
+%format <:   			= "\leftsquigarrow "
+%endif
 
-%format talt			= phi
-%format tctxt			= "\mathcal{X}"
-%format tctxtH			= tctxt "_{H}"
-%format tctxtS			= tctxt "_{S}"
-%format tctxtU			= tctxt "_{U}"
-%format tctxtL			= tctxt "_{L}"
-%format taltcx(cx)		= talt "_{" cx "}"
+%format downarrow		= "{\downarrow}"
+%format uparrow			= "{\uparrow}"
+%format updownarrow		= "{\updownarrow}"
+%format isPre			= "{\div}"
+%format Pre				= "{\dotdiv}"
+%format Post			= "{\divdot}"
 
 % format fiopt			= "{\xi}"
 %format fiopt			= "o"
@@ -220,6 +239,7 @@
 %format weakFIOpts		= fiopt "_{wk}"
 %format instFIOpts		= fiopt "_{inst}"
 %format instLFIOpts		= fiopt "_{inst-l}"
+%format instLRFIOpts	= fiopt "_{inst-lr}"
 %format predFIOpts		= fiopt "_{pred}"
 %format implFIOpts		= fiopt "_{impl}"
 %format unifyFIOpts		= fiopt "_{unify}"
@@ -255,8 +275,17 @@
 %format fioBindToTyAlts	= fioptBase "_{alt}"
 %format fioBindToTyAltsY	= fioBindToTyAlts "^{+}"
 %format fioBindToTyAltsN	= fioBindToTyAlts "^{-}"
+%format fioBindLBeforeR	= fioptBase "_{l,r}"
+%format fioBindLBeforeRY	= fioBindLBeforeR "^{+}"
+%format fioBindLBeforeRN	= fioBindLBeforeR "^{-}"
+%format fioDontBind		= fioptBase "_{bv}"
 
-%format coco        	= "\mathcal{V}"
+%format CoCo        	= "\mathcal{V}"
+%format coco        	= CoCo
+%format cocov	     	= coco
+%format cocoY			= coco "^{+}"
+%format cocoN			= coco "^{-}"
+%format cocoNo			= coco "^{.}"
 %format cocovar     	= coco
 
 %format CoVrCoOpp       = "\neg "
@@ -277,6 +306,7 @@
 %format emptyset		= "\emptyset "
 %format not		        = "not"
 %format ==		        = "=="
+%format frac(n)(d)		= "\frac{" n "}{" d "}"
 
 %format InstUnExists    = "inst^{" exists "}"
 
@@ -289,6 +319,7 @@
 %format Transl			= "{\vartheta}"
 %format Transl2
 %format Transl2pi		= Transl2 "^{" pi "}"
+%format Transla			= Transl "_{a}"
 %format lacks			= "\backslash "
 
 %format Coe         	= "{\delta}"

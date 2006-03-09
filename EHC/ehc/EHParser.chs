@@ -1,4 +1,4 @@
-% $Id$
+% $Id: EHParser.chs 269 2005-08-14 12:49:00Z cddouma $
 
 %%[0
 %include lhs2TeX.fmt
@@ -9,151 +9,13 @@
 %%% Main
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%[1 module EHParser import(IO, UU.Parsing, UU.Parsing.Offside, UU.Scanner.Position, UU.Scanner.GenToken, EHCommon, EHMainAG)
+%%[1 module EHParser import(IO, UU.Parsing, UU.Parsing.Offside, UU.Scanner.GenToken, EHCommon, EHScannerCommon, EHMainAG)
 %%]
 
-%%[1.Scanner import(UU.Scanner)
-%%]
-
-%%[1 export(pAGItf, offsideScanHandle)
+%%[1 export(pAGItf)
 %%]
 
 %%[4 import (EHTy)
-%%]
-
-%%[7.Scanner -1.Scanner import(EHScanner)
-%%]
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%% Scanner
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-%%[1.ScanOpts
-data ScanOpts
-  =  ScanOpts
-        {   scoKeywordsTxt      ::  [String]
-        ,   scoKeywordsOps      ::  [String]
-        ,   scoSpecChars        ::  String
-        ,   scoOpChars          ::  String
-        }
-%%]
-
-%%[1.scanOpts
-scanOpts :: ScanOpts
-scanOpts
-%%]
-%%[1.defaultScanOpts
-  =  ScanOpts
-%%]
-%%[7 -1.defaultScanOpts
-  =  defaultScanOpts
-%%]
-%%[1
-        {   scoKeywordsTxt      =   
-                [ "in"
-%%]
-%%[4
-                , "forall", "exists"
-%%]
-%%[5
-                , "data", "case", "if", "then", "else"
-%%]
-%%[8
-                , "foreign", "import", "jazy"
-%%]
-%%[9
-                , "class", "instance"
-%%]
-%%[1
-                ] ++ offsideTrigs
-        ,   scoKeywordsOps      =
-                [ "=", "\\", show hsnArrow, "::", "@"
-%%]
-%%[2
-                , "..."
-%%]
-%%[3
-                , "%"
-%%]
-%%[4
-                , ".", "~"
-%%]
-%%[5
-                , "|"
-%%]
-%%[6
-                , "*"
-%%]
-%%[7
-                , ":="
-%%]
-%%[9
-                , show hsnPrArrow, "<:"
-%%]
-%%[10
-                , show hsnDynVar
-%%]
-%%[1
-                ]
-        ,   scoSpecChars        =
-                "();,[]{}"
-        ,   scoOpChars          =
-                "!#$%&*+/<=>?@\\^|-:.~"
-%%]
-%%[7 -1.ScanOpts
-        ,   scoSpecPairs        =
-                [  show hsnORow, show hsnCRow
-                ,  show hsnOSum, show hsnCSum
-%%]
-%%[9
-                ,  show hsnOImpl, show hsnCImpl
-%%]
-%%[7
-                ]
-%%]
-%%[1
-        }
-%%]
-
-%%[1.offsideTrigs
-offsideTrigs  =  [ "let" ]
-%%]
-
-%%[5.offsideTrigs -1.offsideTrigs
-offsideTrigs  =  [ "let", "of" ]
-%%]
-
-%%[9.offsideTrigs -5.offsideTrigs
-offsideTrigs  =  [ "let", "of", "where" ]
-%%]
-
-%%[1.scanHandle
-scanHandle :: ScanOpts -> FilePath -> Handle -> IO [Token]
-scanHandle opts fn fh
-  = do  {  txt <- hGetContents fh
-        ;  return (scan (scoKeywordsTxt opts) (scoKeywordsOps opts) (scoSpecChars opts) (scoOpChars opts) (initPos fn) txt) 
-        }
-%%]
-
-%%[7 -1.scanHandle
-%%]
-
-%%[1.offsideScanHandle
-offsideScanHandle fn fh
-  = do  {  tokens <- scanHandle scanOpts fn fh
-        ;  return (scanOffside moduleT oBrace cBrace triggers tokens)
-        }
-  where   moduleT   = reserved "let" noPos
-          oBrace    = reserved "{" noPos
-          cBrace    = reserved "}" noPos
-          triggers  = [ reserved x noPos | x <- offsideTrigs ]
-%%]
-
-%%[1
-instance Position (Maybe Token) where
-  line    =  maybe (-1)  (line.position) 
-  column  =  maybe (-1)  (column.position)
-  file    =  maybe ""    (file.position)
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -237,7 +99,6 @@ pTyExpr, pTyExprBase        ::   EHParser T_TyExpr
 
 pInt                        ::   EHParser Int
 pChr                        ::   EHParser Char
-pKeyw                       ::   Show k => k -> EHParser String
 
 pCon                        ::   EHParser HsName
 pVar                        ::   EHParser HsName
@@ -293,7 +154,6 @@ pParenProd pE
 %%[1.scanWrappers
 pChr            =    head <$> pChar
 pInt            =    read <$> pInteger
-pKeyw k         =    pKey (show k)
 pCon            =    HNm <$> pConid
 pVar            =    HNm <$> pVarid
 %%]
@@ -313,31 +173,31 @@ pAGItf          =    sem_AGItf_AGItf <$> pExpr
 %%[1.pDecl
 pDecls          =    foldr sem_Decls_Cons sem_Decls_Nil
                                          <$>  pBlock pOCurly pSemi pCCurly pDecl
-pDecl           =    sem_Decl_Val        <$>  pPatExprBase  <*   pKey "="   <*> pExpr
-                <|>  sem_Decl_TySig      <$>  pVar          <*   pKey "::"  <*> pTyExpr
+pDecl           =    sem_Decl_Val        <$>  pPatExprBase  <*   pEQUAL   <*> pExpr
+                <|>  sem_Decl_TySig      <$>  pVar          <*   pDCOLON  <*> pTyExpr
 %%]
 %%[5.pDecl
-                <|>  sem_Decl_Data       <$   pKey "data"   <*>  pCon       <*> pTyVars
-                                                            <*   pKey "="   <*> pDataConstrs
+                <|>  sem_Decl_Data       <$   pDATA         <*>  pCon       <*> pTyVars
+                                                            <*   pEQUAL     <*> pDataConstrs
 %%]
 %%[6.pDecl
-                <|>  sem_Decl_KiSig      <$>  pCon          <*   pKey "::"  <*> pKiExpr
+                <|>  sem_Decl_KiSig      <$>  pCon          <*   pDCOLON    <*> pKiExpr
 %%]
 %%[8.pDecl
                 <|>  (\conv saf imp nm sig -> sem_Decl_FFI conv saf (if null imp then show nm else imp) nm sig)
-                     <$   pKey "foreign" <* pKey "import" <*> pKey "jazy"
-                     <*>  ((pKey "safe" <|> pKey "unsafe") `opt` "safe")
+                     <$   pFOREIGN <* pIMPORT <*> pV pJAZY
+                     <*>  (pV (pSAFE <|> pUNSAFE) `opt` "safe")
                      <*>  (pString `opt` "")
                      <*>  pVar
-                     <*   pKey "::" <*> pTyExpr
+                     <*   pDCOLON <*> pTyExpr
 %%]
 %%[9.pDecl
                 <|>  pDeclClass
                 <|>  pDeclInstance
 %%]
 %%[10.pDecl
-                <|>  sem_Decl_DynVal     <$>  pDynVar       <*   pKey "="   <*> pExpr
-                <|>  sem_Decl_DynTySig   <$>  pDynVar       <*   pKey "::"  <*> pTyExpr
+                <|>  sem_Decl_DynVal     <$>  pDynVar       <*   pEQUAL     <*> pExpr
+                <|>  sem_Decl_DynTySig   <$>  pDynVar       <*   pDCOLON    <*> pTyExpr
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -350,10 +210,12 @@ patExprAlg      =    (sem_PatExpr_Con,sem_PatExpr_App
                      ,sem_PatExpr_AppTop,sem_PatExpr_Parens)
 
 %%[1.pPatExprBase
-pPatExprBase    =    pVar <**>  (    flip sem_PatExpr_VarAs <$ pKey "@" <*> pPatExprBase
+pPatExprBase    =    pVar <**>  (    flip sem_PatExpr_VarAs <$ pAT <*> pPatExprBase
                                 <|>  pSucceed sem_PatExpr_Var
                                 )
-                <|>  sem_PatExpr_Con <$> pCon
+                <|>  sem_PatExpr_Con     <$>  pCon
+                <|>  sem_PatExpr_IConst  <$>  pInt
+                <|>  sem_PatExpr_CConst  <$>  pChr
 %%]
 %%[1.pPatExprBase.prod
                 <|>  pParenProd pPatExpr
@@ -368,7 +230,7 @@ pPatExprBase    =    pVar <**>  (    flip sem_PatExpr_VarAs <$ pKey "@" <*> pPat
 pPatExpr        =    pApp pPatExprBase
 %%]
 %%[4.patExpr
-                     <??> (sem_PatExpr_TypeAs <$ pKey "::" <*> pTyExpr)
+                     <??> (sem_PatExpr_TypeAs <$ pDCOLON <*> pTyExpr)
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -378,7 +240,7 @@ pPatExpr        =    pApp pPatExprBase
 %%[6
 pKiExpr, pKiExprBase        ::   EHParser T_KiExpr
 
-pKiExprBase     =    sem_KiExpr_Con <$> (pCon <|> HNm <$> pKey "*")
+pKiExprBase     =    sem_KiExpr_Con <$> (pCon <|> pHNm pSTAR)
                 <|>  sem_KiExpr_Var <$> pVar
                 <|>  pParens pKiExpr
 pKiExpr         =    pChainr (mk1Arrow <$ pKeyw hsnArrow) pKiExprBase
@@ -398,11 +260,11 @@ tyExprAlg       =    (sem_TyExpr_Con,sem_TyExpr_App
 pTyExprBase     =    sem_TyExpr_Con       <$>  pCon
 %%]
 %%[2.pTyExprBase
-                <|>  sem_TyExpr_Wild      <$   pKey "..."
+                <|>  sem_TyExpr_Wild      <$   pTDOT
 %%]
 %%[3.pTyExprBase
                 <|>  sem_TyExpr_Var       <$>  pVar
-                <|>  sem_TyExpr_VarWild   <$   pKey "%" <*> pVar
+                <|>  sem_TyExpr_VarWild   <$   pPERCENT <*> pVar
 %%]
 %%[1.pTyExprBase.prod
                 <|>  pParenProd pTyExpr
@@ -500,9 +362,6 @@ pExprBase       =    sem_Expr_IConst     <$>  pInt
 %%[1.pExprBaseParenProd
                 <|>  pParenProd pExpr
 %%]
-%%[4.pExprBase
-                <|>  sem_Expr_Impred     <$   pKey "~"    <*> pExprBase
-%%]
 %%[5.pExprBase
                 <|>  sem_Expr_Case       <$   pKey "case" <*> pExpr <* pKey "of" <*> pCaseAlts
 %%]
@@ -536,13 +395,11 @@ pExprApp        =    pApp pExprBase
 %%[4.pExprApp -1.pExprApp
 pExprApp        =    pE <??> ((\l e -> semAppTop (foldl (flip ($)) e l)) <$> pList1 pA)
 %%]
-                where  pA = flip semApp <$> pE <|> pImpred
 %%[4.pExprAppA
-                where  pA = flip semApp <$> pE
+                where  pA = flip semApp <$> pE <|> pImpred
 %%]
-                where  pA = flip semApp <$> pE <|> pImpred <|> pImpl
 %%[9.pExprAppA -4.pExprAppA
-                where  pA = flip semApp <$> pE <|> pImpl
+                where  pA = flip semApp <$> pE <|> pImpred <|> pImpl
 %%]
 %%[4.pExprAppE
                        pE = pExprBase
@@ -558,8 +415,8 @@ pExprApp        =    pE <??> ((\l e -> semAppTop (foldl (flip ($)) e l)) <$> pLi
 %%]
 
 %%[1.pExprPrefix
-pExprPrefix     =    sem_Expr_Let  <$ pKey "let"
-                     <*> pDecls    <* pKey "in"
+pExprPrefix     =    sem_Expr_Let  <$ pLET
+                     <*> pDecls    <* pIN
 %%]
 %%[5.pExprPrefix
                 <|>  (\c t e ->  sem_Expr_Case c
@@ -567,15 +424,15 @@ pExprPrefix     =    sem_Expr_Let  <$ pKey "let"
                                       (sem_CaseAlts_Cons (sem_CaseAlt_Pat (sem_PatExpr_Con (HNm "False")) e)
                                          sem_CaseAlts_Nil
                      )             )  )
-                     <$ pKey "if" <*> pExpr <* pKey "then" <*> pExpr <* pKey "else"
+                     <$ pIF <*> pExpr <* pTHEN <*> pExpr <* pELSE
 %%]
 %%[1.pExprPrefixLam
-                <|>  sem_Expr_Lam      <$ pKey "\\"
-                     <*> pPatExprBase  <* pKey "->"
+                <|>  sem_Expr_Lam      <$ pLAM
+                     <*> pPatExprBase  <* pRARROW
 %%]
 %%[7.pExprPrefixLam -1.pExprPrefixLam
-                <|>  (\ps -> \e -> foldr sem_Expr_Lam e ps)  <$ pKey "\\"
-                     <*> pList1 pPatExprBase                 <* pKey "->"
+                <|>  (\ps -> \e -> foldr sem_Expr_Lam e ps)  <$ pLAM
+                     <*> pList1 pPatExprBase                 <* pRARROW
 %%]
 %%[9.pExprPrefixLam -7.pExprPrefixLam
                 <|>  (flip (foldr ($)))

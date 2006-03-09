@@ -24,8 +24,7 @@
   \chunkCmdFrameUse{EHAbsSyn.1.Expr}
  \end{column}
  \begin{column}{.2\textwidth}
-  \SafeCode{%
-  \begin{code}
+%%[[wrap=safecode
   3
   'x'
   (...,...)
@@ -33,8 +32,7 @@
   f a
   let ... in ...
   \... -> ...
-  \end{code}
-  }
+%%]
  \end{column}
 \end{columns}
 \item
@@ -105,11 +103,9 @@
 \frametitle{Abstract syntax example}
 \begin{columns}[onlytextwidth,t]
  \begin{column}{.5\textwidth}
-  \SafeCode{%
-\begin{code}
-%%1srcfile(afp-eh/02.eh%%)
-\end{code}
-  }
+%%[[wrap=safecode
+%%@[file:afp-eh/02.eh%%]
+%%]
  \end{column}
  \begin{column}{.5\textwidth}
 \begin{TTtiny}
@@ -149,19 +145,15 @@
 \begin{itemize}
 \item Type signature may only define signature for top level identifier in pattern
 \item Ok
-\SafeCode{%
-\begin{code}
+%%[[wrap=safecode
 let  x        ::  ...
      x@(...)  =   ...
-\end{code}
-}
+%%]
 \item Not ok
-\SafeCode{%
-\begin{code}
+%%[[wrap=safecode
 let  x          ::  ...
      (..,x,..)  =   ...
-\end{code}
-}
+%%]
 \end{itemize}
 \end{itemize}
 }
@@ -215,8 +207,7 @@ of nodes/nonterminals
 \frametitle{Semantic functions}
 \begin{itemize}
 \item An (edited) example of an AG generated semantic function
-\SafeCode{%
-\begin{code}
+%%[[wrap=safecode
 data Expr    = Expr_IConst (Int)
              | ...
 type T_Expr  =  ... -> ... -> ... ->
@@ -231,8 +222,7 @@ sem_Expr_IConst (int_) =
     \ ... ... ... ... ... ... ->
        let  (_pp@_) = text (show int_)
        in   ( ..,..,..,..,_pp@_,..,..,.. )
-\end{code}
-}
+%%]
 \end{itemize}
 }
 
@@ -243,8 +233,8 @@ sem_Expr_IConst (int_) =
 \item Basic parser combinators
 \begin{center}
 \begin{tabular}{llp{.3\textwidth}}
-\ParserCombTableHead
-\ParserCombTableA
+%%@AppxNotation.parserCombTableHead
+%%@AppxNotation.parserCombTableA
 \end{tabular}
 \end{center}
 \end{itemize}
@@ -282,8 +272,7 @@ sem_Expr_IConst (int_) =
 \frametitle{Sidetrack: algebra example}
 \begin{itemize}
 \item |Expr| variation to show usual use of algebra's
-\SafeCode{%
-\begin{code}
+%%[[wrap=safecode
 data Expr  = Con String | App Expr Expr | Top Expr | Int Int
 
 type MkConApp t = (String -> t,t -> t -> t,t -> t,Int -> t)
@@ -300,8 +289,7 @@ c1 = eCata  (  id                      ,  \v1 v2 -> v1 ++ " " ++ v2
             ,  \v -> "(" ++ v ++ ")"   ,  show
             )
             e1
-\end{code}
-}
+%%]
 \item |c1| gives @"(+ 2 3)"@
 \end{itemize}
 }
@@ -333,8 +321,8 @@ c1 = eCata  (  id                      ,  \v1 v2 -> v1 ++ " " ++ v2
 \item Derived parser combinators
 \begin{center}
 \begin{tabular}{llp{.3\textwidth}}
-\ParserCombTableHead
-\ParserCombTableB
+%%@AppxNotation.parserCombTableHead
+%%@AppxNotation.parserCombTableB
 \end{tabular}
 \end{center}
 \end{itemize}
@@ -363,11 +351,9 @@ c1 = eCata  (  id                      ,  \v1 v2 -> v1 ++ " " ++ v2
 \begin{column}{.4\textwidth}
 \begin{itemize}
 \item Input
-\SafeCode{%
-\begin{code}
-%%1srcfile(test/1-all-fail2.eh%%)
-\end{code}
-}
+%%[[wrap=safecode
+%%@[file:test/1-all-fail2.eh%%]
+%%]
 \end{itemize}
 \end{column}
 \begin{column}{.6\textwidth}
@@ -434,7 +420,9 @@ c1 = eCata  (  id                      ,  \v1 v2 -> v1 ++ " " ++ v2
 (non type related) program text
 \end{itemize}
 \item Types are described by type language, here:
-\SafeCode{\EHCOneTyLangA}
+%%[[wrap=safecode
+\EHCOneTyLangA
+%%]
 \end{itemize}
 }
 %%]
@@ -445,7 +433,9 @@ c1 = eCata  (  id                      ,  \v1 v2 -> v1 ++ " " ++ v2
 \frametitle{Type language}
 \begin{itemize}
 \item .. or more general, alike the implementation
-\SafeCode{\EHCOneTyLangB}
+%%[[wrap=safecode
+\EHCOneTyLangB
+%%]
 \item AG type representation
 \chunkCmdFrameUse{EHTyAbsSyn.1}
 \item |Any| (also denoted by |ANY|) encodes ``don't know'' type
@@ -523,23 +513,19 @@ AG computations via semantic functions
 \item Rules partially describe an implementation
 \begin{itemize}
 \item Haskell:
-\SafeCode{
-\begin{code}
+%%[[wrap=safecode
 judgetype =  \construct ->
              \context -> ... (property,more_results)
-\end{code}
-}
+%%]
 \item AG:
-\SafeCode{
-\begin{code}
+%%[[wrap=safecode
 ATTR judgetype [  context: ... | |
                   property: ...  more_results: ... ]
 
 SEM judgetype
   |  construct
        lhs.(property,more_results) = ... @lhs.context ...
-\end{code}
-}
+%%]
 \end{itemize}
 \item Implementation in addition describes order in which constraints are to be enforced
 \end{itemize}
@@ -555,13 +541,11 @@ SEM judgetype
 \rulerCmdUse{rules3.E.expr.baseForEH1.e.app}
 \]
 \item corresponding AG structure:
-\SafeCode{
-\begin{code}
+%%[[wrap=safecode
 DATA Expr
   | App           func          : Expr
                   arg           : Expr
-\end{code}
-}
+%%]
 \item where |e1 = func, e2 = arg|
 \end{itemize}
 }
@@ -627,12 +611,10 @@ compute type of expression,
 \item |knTy| follows pattern, similar to |unfold|
 \PGFPatDeComposition
 \item where decomposition follows tree structure
-\SafeCode{%
-\begin{code}
+%%[[wrap=safecode
 decombine1 :: A -> (A,A,A)
 decombine2 :: A -> (A,A)
-\end{code}
-}
+%%]
 \item if decomposition fails: pass ``will do'' value
 \begin{itemize}
 \item here: |Ty_Any|
@@ -839,18 +821,14 @@ decombine2 :: A -> (A,A)
 \item is more complicated in the implementation
 \begin{itemize}
 \item Patterns allow introduction of |>1| identifier
-\SafeCode{%
-\begin{code}
+%%[[wrap=safecode
 let ab@(a,b) = ...
-\end{code}
-}
+%%]
 \item Definitions may be used mutually recursive
-\SafeCode{%
-\begin{code}
+%%[[wrap=safecode
 let  f = ... g ...
      g = ... f ...
-\end{code}
-}
+%%]
 \end{itemize}
 \item Solution:
 \begin{itemize}
@@ -940,14 +918,12 @@ both inherited and synthesized
 \]
 \item also requires |AGPat(State Gather)| to gather identifiers introduced in a pattern, e.g. for |a,b|:
 
-\SafeCode{%
-\begin{code}
+%%[[wrap=safecode
 let  v         ::  Int
      v         =   a
      ab        ::  (Int,Int)
      ab@(a,b)  =   ...
-\end{code}
-}
+%%]
 \end{itemize}
 }
 
@@ -1081,11 +1057,9 @@ bindings for identifiers (|AGPat(State Gather)| via |patValGam|) first, passing 
 \begin{itemize}
 \item For example the use of pretty printing a type as defined by an AG
 \item Define the AG
-\SafeCode{%
-\begin{code}
+%%[[wrap=safecode
 ...
-\end{code}
-} 
+%%]
 \item Tell AG to create a Haskell wrapper function
 \chunkCmdFrameUse{EHTyPretty.1.WRAPPER}
 \begin{itemize}
@@ -1128,11 +1102,9 @@ generated functions
 \begin{itemize}
 \item Type signature may be omitted
 \item For example
-\SafeCode{%
-\begin{code}
-%%2srcfile(test/1-sig-fail.eh%%)
-\end{code}
-} 
+%%[[wrap=safecode
+%%@[file:test/1-sig-fail.eh%%]
+%%]
 \item gives
 \begin{TT}
 %%2ppfile(test/1-sig-fail.eh%%)
@@ -1147,11 +1119,9 @@ generated functions
 \begin{itemize}
 \item Functions can only be used for one type, not many (polymorphism)
 \item For example
-\SafeCode{%
-\begin{code}
-%%2srcfile(test/2-demo1.eh%%)
-\end{code}
-}
+%%[[wrap=safecode
+%%@[file:test/2-demo1.eh%%]
+%%]
 \item infers
 \begin{TT}
 %%2ppfile(test/2-demo1.eh%%)
@@ -1165,11 +1135,9 @@ generated functions
 \begin{itemize}
 \item Polymorphic use leads to errors
 \item For example
-\SafeCode{%
-\begin{code}
-%%2srcfile(test/2-id-intchar.eh%%)
-\end{code}
-}
+%%[[wrap=safecode
+%%@[file:test/2-id-intchar.eh%%]
+%%]
 \item gives
 \begin{TT}
 %%2ppfile(test/2-id-intchar.eh%%)
@@ -1184,14 +1152,9 @@ generated functions
 \frametitle{Type language: type variables}
 \begin{itemize}
 \item Type language
-\SafeCode{%
-\begin{code}
-sigma  =  Int | Char
-       |  (sigma,...,sigma)
-       |  sigma -> sigma
-       |  tvarv
-\end{code}
-}
+%%[[wrap=safecode
+%%@SharedTypeLang.ehc2
+%%]
 \item Type variable |tvarv| represents yet unknown type
 \item AG extension of type structure:
 \chunkCmdFrameUse{EHTyAbsSyn.2}
@@ -1224,11 +1187,9 @@ sigma  =  Int | Char
 \frametitle{Constraints}
 \begin{itemize}
 \item New constraint for type variable
-\SafeCode{%
-\begin{code}
+%%[[wrap=safecode
 Cnstr                       =  [tvarv :-> sigma]
-\end{code}
-}
+%%]
 \begin{itemize}
 \item Set of bindings/mappings for type variables
 \item Usually called |Substitution|
@@ -1246,17 +1207,13 @@ Cnstr                       =  [tvarv :-> sigma]
 \item Replacement of type variables in a type
 \begin{itemize}
 \item Denoted
-\SafeCode{%
-\begin{code}
+%%[[wrap=safecode
 Cnstr |=> sigma
-\end{code}
-}
+%%]
 \item or even shorter as function application
-\SafeCode{%
-\begin{code}
+%%[[wrap=safecode
 Cnstr sigma
-\end{code}
-}
+%%]
 \end{itemize}
 \item Constraints/substitution can be applied to |Substitutable|
 \chunkCmdFrameUse{EHSubstitutable.2.Substitutable}
@@ -1410,14 +1367,12 @@ application
 \begin{itemize}
 \item<+-> Special case of |AGPat(Global Var)|
 \item Threaded counter solution
-\SafeCode{%
-\begin{code}
+%%[[wrap=safecode
 ATTR AllNT [ | gUniq: Int | ]
 SEM Expr
   | App  loc    .  lUniq    = @lhs.gUniq
          func   .  gUniq    = @lhs.gUniq + 1
-\end{code}
-}
+%%]
 \begin{itemize}
 \item Must be threaded through all functions needing unique value
 \item Additional input counter and tupled output counter
@@ -1474,14 +1429,12 @@ together with |AGPat(Multipass)|
 \end{itemize}
 \item AG can detect cycles
 \item AG can also be fooled into detecting cycles
-\SafeCode{%
-\begin{code}
+%%[[wrap=safecode
 ATTR AllNT [ | u1: Int ^^^ u2: Int| ]
 SEM Expr
   | App         lhs     .   (u1,u2)     = id (@func.u1,@func.u2)
   | AppTop      expr    .   u2          = @expr.u1
-\end{code}
-}
+%%]
 \begin{itemize}
 \item |u1| depends on |u2| and vice versa
 \item AG compiler does not analyse Haskell part of attribute definitions
@@ -1531,11 +1484,9 @@ constraints |tyCnstr| and |patTyCnstr|
 \begin{itemize}
 \item Function may be applied to arguments of different types
 \item E.g.
-\SafeCode{%
-\begin{code}
-%%srcfile(afp-eh/04.eh%%)
-\end{code}
-}
+%%[[wrap=safecode
+%%@[file:afp-eh/04.eh%%]
+%%]
 \item |a -> a| means |forall a . a -> a|
 \end{itemize}
 }
@@ -1546,17 +1497,13 @@ constraints |tyCnstr| and |patTyCnstr|
 \begin{itemize}
 \item Arguments may not be polymorphic
 \item Incorrect:
-\SafeCode{%
-\begin{code}
-%%3srcfile(test/3-mono-arg.eh%%)
-\end{code}
-}
+%%[[wrap=safecode
+%%@[file:test/3-mono-arg.eh%%]
+%%]
 \item Incorrect:
-\SafeCode{%
-\begin{code}
-%%3srcfile(test/3-mono-arg3.eh%%)
-\end{code}
-}
+%%[[wrap=safecode
+%%@[file:test/3-mono-arg3.eh%%]
+%%]
 \item Only identifiers bound by |let|
 \end{itemize}
 }
@@ -1567,19 +1514,15 @@ constraints |tyCnstr| and |patTyCnstr|
 \begin{itemize}
 \item<+-> Type inferencer deduces polymorphism at |let| bindings only
 \item Bindings can only be polymorphically used in body of |let|:
-\SafeCode{%
-\begin{code}
-%%3srcfile(test/3-mono-arg2.eh%%)
-\end{code}
-}
+%%[[wrap=safecode
+%%@[file:test/3-mono-arg2.eh%%]
+%%]
 \item Type of \alert<+>{|f :: %%3file(test/3-mono-arg2.eh%%)|}
 \onslide<+->
 \item If used in same group of bindings:
-\SafeCode{%
-\begin{code}
-%%3srcfile(test/3-mono-arg4.eh%%)
-\end{code}
-}
+%%[[wrap=safecode
+%%@[file:test/3-mono-arg4.eh%%]
+%%]
 \item Type of \alert<+>{|f :: %%3file(test/3-mono-arg4.eh%%)|}
 \item<+-> Analysis per \emph{binding group}
 \end{itemize}
@@ -1590,15 +1533,9 @@ constraints |tyCnstr| and |patTyCnstr|
 \frametitle{Type language}
 \begin{itemize}
 \item Additional variant for |forall|
-\SafeCode{%
-\begin{code}
-sigma  =  Int | Char
-       |  (sigma,...,sigma)
-       |  sigma -> sigma
-       |  tvarv | tvarf
-       |  forall ^ alpha . sigma
-\end{code}
-}
+%%[[wrap=safecode
+%%@SharedTypeLang.ehc4
+%%]
 \onslide
 \item AG:
 \chunkCmdFrameUse{EHTyAbsSyn.3}
@@ -1640,11 +1577,9 @@ sigma  =  Int | Char
 \frametitle{Records}
 \begin{itemize}
 \item
-\SafeCode{%
-\begin{code}
-%%7srcfile(test/7-all-ok.eh%%)
-\end{code}
-}
+%%[[wrap=safecode
+%%@[file:test/7-all-ok.eh%%]
+%%]
 \end{itemize}
 }
 %%]

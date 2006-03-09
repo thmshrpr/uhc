@@ -14,7 +14,7 @@ TEST_DIST_FILES						:= $(TEST_ALL_SRC) $(TEST_EXP_DRV) $(TEST_MKF)
 # rules
 test-lists:
 	@cd $(TEST_SRC_PREFIX) ; \
-	for v in $(EHC_PUB_VARIANTS) ; \
+	for v in $(EHC_VARIANTS) ; \
 	do \
 	  ehs= ; \
 	  vv=`echo $$v | sed -e 's/_[0-9]//'` ; \
@@ -28,8 +28,8 @@ test-expect test-regress: test-lists
 	for v in $(VERSIONS) ; \
 	do \
 	  echo "== version $$v ==" ; \
-	  ehc=../bin/$$v/$(EHC_EXEC_NAME) ; \
-	  gri=../bin/$$v/$(GRINI_EXEC_NAME) ; \
+	  ehc=../bin/$$v/$(EHC_EXEC_NAME)$(EXEC_SUFFIX) ; \
+	  gri=../bin/$$v/$(GRINI_EXEC_NAME)$(EXEC_SUFFIX) ; \
 	  if test -x $$ehc ; \
 	  then \
 	    for t in `cat $$v.lst` ; \

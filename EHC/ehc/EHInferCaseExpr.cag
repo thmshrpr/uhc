@@ -1,4 +1,4 @@
-% $Id$
+% $Id: EHInferCaseExpr.cag 269 2005-08-14 12:49:00Z cddouma $
 
 %%[0
 %include lhs2TeX.fmt
@@ -36,7 +36,7 @@ SEM CaseAlts
 %%[5_1
 SEM Expr
   | Case        loc         .   (ebTy,ebCnstr,ebErrs,_)
-                                                    =   tyElimAlts (mkElimAltsWrap @fe) joinFIOpts @lUniq (@expr.ty)
+                                                    =   tyElimAlts (mkFitsInWrap @fe) joinFIOpts @lUniq (@expr.ty)
                 alts        .   knPatTy             :=  @ebTy
                             .   patTyCnstr          :=  @ebCnstr |=> @expr.tyCnstr
 %%]

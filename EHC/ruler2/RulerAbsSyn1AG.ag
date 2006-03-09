@@ -1,0 +1,110 @@
+-------------------------------------------------------------------------
+-- Ruler AST, pass 1
+-------------------------------------------------------------------------
+
+-------------------------------------------------------------------------
+-- Declarations
+-------------------------------------------------------------------------
+
+DATA Decl
+  | Preamble            fmKind      : {FmKind}
+                        preamble    : {String}
+  | Extern              nms         : {[Nm]}
+  | Scheme              scKind      : {ScKind}
+                        nm          : {Nm}
+                        mbAGNm      : {Maybe String}
+                        decls       : Decls
+  | SchemeDeriv         scKind      : {ScKind}
+                        nm          : {Nm}
+                        scDeriv     : {ScDeriv}
+                        mbAGNm      : {Maybe String}
+                        decls       : Decls
+  | Fmt                 fmKind      : {FmKind}
+                        atIO        : {AtDir}
+                        matchExpr   : Expr
+                        expr        : Expr
+  | Rules               nm          : {Nm}
+                        schemeNm    : {Nm}
+                        viewSel     : ViewSel
+                        info        : {String}
+                        decls       : Decls
+  | RulesGroup          nm          : {Nm}
+                        schemeNm    : {Nm}
+                        viewSel     : ViewSel
+                        info        : {String}
+                        rlNms       : {[(Nm,Nm)]}
+  | Rule                pos         : {SPos}
+                        nm          : {Nm}
+                        mbBasedOnNm : {Maybe Nm}
+                        viewSel     : ViewSel
+                        mbAGNm      : {Maybe String}
+                        decls       : Decls
+  | RulView             nm          : {Nm}
+                        pre         : RExprs
+                        post        : RExprs
+  | ShpJudge            pos         : {SPos}
+                        fmKind      : {FmKind}
+                        expr        : Expr
+  | ShpDel              pos         : {SPos}
+                        fmKinds     : {[FmKind]}
+  | ScmView             nm          : {Nm}
+                        decls       : Decls
+  | ViewHierarchy       nmOrder     : {[[Nm]]}
+  | Attr                inhs        : AttrIntros
+                        inhsyns     : AttrIntros
+                        syns        : AttrIntros
+  | Explain				mbNm		: {Maybe Nm}
+                        expr 		: Expr
+
+TYPE Decls = [Decl]
+
+SET AllDecl = Decl Decls
+
+-------------------------------------------------------------------------
+-- Attr defs
+-------------------------------------------------------------------------
+
+DATA AttrIntro
+  | Intro               props       : {[AtProp]}
+                        nm          : {Nm}
+                        ty          : {Nm}
+
+TYPE AttrIntros = [AttrIntro]
+
+SET AllAttrIntro = AttrIntro AttrIntros
+
+-------------------------------------------------------------------------
+-- Rule expr's
+-------------------------------------------------------------------------
+
+DATA RExpr
+  | Judge               pos         : {SPos}
+                        mbRNm       : {Maybe Nm}
+                        schemeNm    : {Nm}
+                        eqns        : RExprEqn
+  | Del                 pos         : {SPos}
+                        nms         : {[Nm]}
+  | Sep
+
+DATA RExprEqn
+  | Attrs               eqns        : AttrEqns
+  | Expr                expr        : Expr
+
+TYPE RExprs = [RExpr]
+
+SET AllRExpr = RExpr RExprs
+
+DATA AttrEqn
+  | Eqn                 nm          : {Nm}
+                        expr        : Expr
+  | Del                 nm          : {Nm}
+
+TYPE AttrEqns = [AttrEqn]
+
+SET AllAttrEqn = RExprEqn AttrEqn AttrEqns
+
+-------------------------------------------------------------------------
+-- Sets of AST data's
+-------------------------------------------------------------------------
+
+SET AllAS1 = AllRExpr AllAttrEqn AllAttrIntro AllDecl

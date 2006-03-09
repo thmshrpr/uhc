@@ -1,0 +1,557 @@
+-------------------------------------------------------------------------
+-- Main for AG, pass 1
+-------------------------------------------------------------------------
+
+{
+module Main1AG
+  where
+
+import Data.Maybe
+import Data.Char
+import Data.List
+import qualified Data.Set as Set
+import qualified Data.Map as Map
+import UU.Pretty
+import FPath
+import Utils
+import Common
+import Opts
+import PPUtils
+import LaTeXFmtUtils
+import ExprUtils
+import ARuleUtils
+import ViewSelUtils
+import KeywParser
+import FmGam
+import RwExprGam
+import ECnstrGam
+import RulerAbsSyn1
+import qualified RulerAbsSyn2 as AS2
+import qualified Main2AG as M2 -- for now
+import RulerUtils
+import RulerAdmin
+import RulerMkAdmin
+}
+
+-------------------------------------------------------------------------
+-- Inclusion of split off parts
+-------------------------------------------------------------------------
+
+INCLUDE "RulerAbsSyn1AG.ag"
+INCLUDE "RulerAbsSynCommonAG.ag"
+INCLUDE "RulerAS1Misc.ag"
+INCLUDE "RulerAS1ViewDpd.ag"
+INCLUDE "RulerAS1Pretty.ag"
+INCLUDE "RulerAS1Gen.ag"
+INCLUDE "RulerAS1RlSel.ag"
+
+INCLUDE "RulerAS1GenAS2.ag"
+
+INCLUDE "ExprAbsSynAG.ag"
+INCLUDE "ExprIsRwAG.ag"
+INCLUDE "ExprNmSAG.ag"
+INCLUDE "ExprFmGamAG.ag"
+INCLUDE "ExprPrettyPrintAG.ag"
+INCLUDE "ExprSelfAG.ag"
+
+-------------------------------------------------------------------------
+-- Interfacing to AST
+-------------------------------------------------------------------------
+
+WRAPPER AGItf 
+
+-------------------------------------------------------------------------
+-- Error
+-------------------------------------------------------------------------
+
+ATTR AllDecl AllAttrEqn AllRExpr AGItf [ | | errL USE {++} {[]}: {[Err]} ]
+
+SEM RExpr
+  | Judge           lhs     .   errL        =   @errSc
+                                                ++ (if null @errSc
+                                                    then @errVwSc
+                                                         ++ (if null @errVwSc
+                                                             then @errRE
+                                                                  ++ (if null @errRE
+                                                                      then @eqns.errL
+                                                                      else []
+                                                                     )
+                                                             else []
+                                                            )
+                                                    else []
+                                                   )
+
+SEM RExprEqn
+  | Expr            lhs     .   errL        =   @errJd
+                                                ++ (if null @errJd
+                                                    then @errMt
+                                                    else []
+                                                   )
+
+SEM Decl
+  | ShpJudge        lhs     .   errL        =   @errVwSc
+                                                ++ (if null @errVwSc
+                                                    then @errUndefs
+                                                    else []
+                                                   )
+  | Rules           lhs     .   errL        =   @errUndefs ++ @decls.errL
+
+-------------------------------------------------------------------------
+-- Attr
+-------------------------------------------------------------------------
+
+ATTR AllAttrIntro AllDecl [ | | atGam USE {`Map.union`} {Map.empty}: AtGam ]
+ATTR AllAttrIntro [ atDirs: {[AtDir]} | | ]
+
+SEM AttrIntro
+  | Intro           loc     .   atGam       =   Map.singleton @nm (AtInfo @nm @lhs.atDirs @props @ty)
+
+SEM Decl
+  | Attr            inhs    .   atDirs      =   [AtInh]
+                    inhsyns .   atDirs      =   [AtInh,AtSyn]
+                    syns    .   atDirs      =   [AtSyn]
+
+-------------------------------------------------------------------------
+-- Externally declared identifiers
+-------------------------------------------------------------------------
+
+ATTR AllDecl [ extNmS: {Set.Set Nm} | | gathExtNmS USE {`Set.union`} {Set.empty}: {Set.Set Nm} ]
+
+SEM AGItf
+  | AGItf           loc     .   extNmS      =   @decls.gathExtNmS
+
+SEM Decl
+  | Extern          lhs     .   gathExtNmS  =   Set.fromList @nms
+
+-------------------------------------------------------------------------
+-- View (related to scheme)
+-------------------------------------------------------------------------
+
+ATTR AllDecl [ | | vwScGam USE {`Map.union`} {Map.empty}: {VwScGam Expr} ]
+ATTR AllDecl [ | | vwJdGam USE {`Map.union`} {Map.empty}: {JdGam Expr} ]
+
+SEM Decl
+  | ScmView         lhs     .   vwScGam     =   Map.singleton @nm (VwScInfo @nm @decls.vwJdGam @decls.atGam emptyGam @decls.explGam)
+  | ShpJudge        lhs     .   vwJdGam     =   Map.singleton @fmKind (JdInfo @expr.self)
+                    loc     .   cxStr       =   "judgement for view '" ++ show @lhs.viewNm ++ "' for scheme '" ++ show @lhs.scmNm ++ "'"
+                            .   (vwScInfo,errVwSc)
+                                            =   case scVwGamLookup @lhs.scmNm @lhs.viewNm @lhs.scGam of
+                                                    Just (_,i) -> (i,[])
+                                                    Nothing    -> (emptyVwScInfo,[Err_UndefNm @pos @cxStr "view" [@lhs.viewNm]])
+                            .   errUndefs   =   let nms = Map.keys (vwscFullAtGam @vwScInfo) \\ Set.toList @expr.nmS
+                                                in  [] -- if null nms then [] else [Err_UndefNm @pos @cxStr "hole" nms]
+  | ShpDel          lhs     .   vwJdGam     =   Map.fromList [ (k,JdDel) | k <- @fmKinds ]
+
+-------------------------------------------------------------------------
+-- Scheme, derived ones are expresses in terms of non-derived ones
+-------------------------------------------------------------------------
+
+{
+type MkDerivScInfo = (ScInfo Expr -> ScInfo Expr,ScGam Expr -> RsInfo Expr)
+type DrvGam = Gam Nm [MkDerivScInfo]
+
+drvGamUnion :: DrvGam -> DrvGam -> DrvGam
+drvGamUnion = Map.unionWith (++)
+}
+
+ATTR AllDecl [ drvGam: DrvGam | | gathDrvGam USE {`drvGamUnion`} {Map.empty}: DrvGam ]
+
+SEM Decl
+  | SchemeDeriv     lhs     .   gathDrvGam  =   let mkListSc si
+                                                      = siNw
+                                                      where siNw = ScInfo @nm @mbAGNm @scKind vGm
+                                                            vGm
+                                                              = Map.mapWithKey
+                                                                  (\nVw vi
+                                                                    -> let mbNdNm = atGamNode (vwscAtGam vi)
+                                                                           (aGm,ndRenmG)
+                                                                             = case mbNdNm of
+                                                                                 Just n -> (n `Map.delete` vwscAtGam vi,fmGamFromList [(n,Expr_Var @nm)])
+                                                                                 _      -> (vwscAtGam vi,emptyGam)
+                                                                           aNdGamNw
+                                                                             = if @firstVwNm == nVw
+                                                                               then Map.singleton @nm (AtInfo @nm [AtInh] [AtNode] (nmCapitalize @nm))
+                                                                               else emptyGam
+                                                                           jdG = Map.map (\i -> i {jdExpr = exprSubst @lhs.opts ndRenmG (jdExpr i)}) (vwscJdGam vi)
+                                                                       in  vi {vwscAtGam = aNdGamNw `Map.union` aGm, vwscJdGam = jdG}
+                                                                  )
+                                                                  (scVwGam si)
+                                                            mkNm n = n `nmStrApd` Nm "s"
+                                                    vwSels = vgVertices @lhs.vwDpdGr
+                                                    mkg mkn l = Map.fromList [ (mkn i,i) | i <- l ]
+                                                    mkRsInfo nl scGam
+                                                      = RsInfo (@nm `nmApd` Nm "base") @nm vwSels ("Rules for " ++ show @nm) (mkg rlNm [rl1])
+                                                      where rl1
+                                                              = RlInfo (@nm `nmApd` Nm "cons") emptySPos Nothing (Just "Cons") 0 vwSels (mkg vwrlNm [vw])
+                                                              where nHd = Nm "hd"
+                                                                    ndHd = @nm `nmApd` nHd
+                                                                    nTl = Nm "tl"
+                                                                    ndTl = @nm `nmApd` nTl
+                                                                    vw = VwRlInfo @firstVwNm (mkg reNm [j1,j2]) (mkg reNm [j3]) emptyGam emptyGam [] Nothing
+                                                                    j3 = REInfoJudge @nm @nm Set.empty Set.empty (mkg jaNm [a3])
+                                                                    a3 = JAInfo @nm e3 (exprNmS e3)
+                                                                    e3 = mkExprApp (Expr_ChildOrder 0 (Expr_Var ndHd))
+                                                                                   [Expr_ChildOrder 1 (Expr_Var ndTl)]
+                                                                    n2 = maybe nl id $ scVwGamNodeAt nl @firstVwNm scGam
+                                                                    j2 = REInfoJudge nHd nl Set.empty Set.empty (mkg jaNm [a2])
+                                                                    a2 = JAInfo n2 e2 (exprNmS e2)
+                                                                    e2 = Expr_Var ndHd
+                                                                    j1 = REInfoJudge nTl @nm Set.empty Set.empty (mkg jaNm [a1])
+                                                                    a1 = JAInfo @nm e1(exprNmS e1)
+                                                                    e1 = Expr_Var ndTl
+                                                in  case @scDeriv of
+                                                      ScList nl -> (Map.singleton nl [(mkListSc,mkRsInfo nl)])
+
+SEM AGItf
+  | AGItf           loc     .   drvGam      =   @decls.gathDrvGam
+
+-------------------------------------------------------------------------
+-- Scheme
+-------------------------------------------------------------------------
+
+{
+prevWRTDpd :: Nm -> DpdGr Nm -> Map.Map Nm v -> v -> v
+prevWRTDpd n g m v
+  = maybeHd v (\n -> maybe v id . Map.lookup n $ m) (vgDpdsOn g n)
+
+bldScInfo :: DpdGr Nm -> ScInfo Expr -> ScInfo Expr
+bldScInfo vwDpdGr si@(ScInfo nm mbAGNm scKind vwScGam)
+  = si {scVwGam = g}
+  where (g,_)
+          = foldr
+              (\nVw (vsg,agMp)
+                  -> let (ag,jdg,explg) = prevWRTDpd nVw vwDpdGr agMp (emptyGam,emptyGam,emptyGam)
+                         (vw,ag',jdg',explg')
+                            = case Map.lookup nVw vsg of
+                                  Just vw
+                                    -> (vw
+                                       ,new `Map.union` ag
+                                       ,vwscJdGam vw `jdgUnion` jdg
+                                       ,vwscExplGam vw `Map.union` explg
+                                       )
+                                    where new = Map.mapWithKey
+                                                  (\n a
+                                                     -> case atProps a `intersect` Map.elems propsSynInhMp of
+                                                          (_:_) -> [(ns,AtInfo ns [AtSyn] (atProps a) (atTy a))
+                                                                   ,(ni,AtInfo ni [AtInh] (atProps a) (atTy a))
+                                                                   ]
+                                                                where ns = nmSetSuff n "syn"
+                                                                      ni = nmSetSuff n "inh"
+                                                          _     -> [(n,a)]
+                                                  )
+                                                  (vwscAtGam vw)
+                                  Nothing
+                                    -> (emptyVwScInfo { vwscNm = nVw },ag,jdg,explg)
+                         vwag = Map.fromList . concat . Map.elems $ ag'
+                         agMp' = Map.insert nVw (ag',jdg',explg') agMp
+                     in  (Map.insert nVw (vw {vwscFullAtGam = vwag, vwscJdGam = jdg', vwscExplGam = explg'}) vsg,agMp')
+              )
+              (vwScGam,Map.empty)
+              (vgTopSort vwDpdGr)
+}
+
+ATTR AllDecl [ | | gathScGam USE {`Map.union`} {Map.empty}: {ScGam Expr} ]
+ATTR AllDecl AllRExpr [ scGam: {ScGam Expr} | | ]
+ATTR AGItf [ | | scGam: {ScGam Expr} ]
+
+SEM AGItf
+  | AGItf           loc     .   scGam       =   @decls.gathScGam
+
+SEM Decl
+  | Scheme          lhs     .   gathScGam   =   let scInfo = ScInfo @nm @mbAGNm @scKind @decls.vwScGam
+                                                    drvScInfoL = maybe [] (\l -> map (($ scInfo) . fst) l) $ Map.lookup @nm @lhs.drvGam
+                                                in  Map.fromList [ (scNm i,bldScInfo @lhs.vwDpdGr i) | i <- (scInfo : drvScInfoL) ]
+
+-------------------------------------------------------------------------
+-- Rule
+-------------------------------------------------------------------------
+
+ATTR AllAttrEqn [ | | jaGam USE {`Map.union`} {Map.empty}: {JAGam Expr} ]
+
+SEM AttrEqn
+  | Eqn             lhs     .   jaGam       =   Map.singleton @nm (JAInfo @nm @expr.self @expr.nmS)
+  | Del             lhs     .   jaGam       =   Map.singleton @nm (JAInfoDel @nm)
+
+ATTR RExprEqn [ vwScInfo: {VwScInfo Expr}  pos: SPos  cxStr: String  schemeNm: Nm | | ]
+
+SEM RExprEqn
+  | Expr            loc     .   (jdExpr,errJd)
+                                            =   gamTryLookups (Expr_Empty,[Err_NoJdSc @lhs.pos @lhs.cxStr [@lhs.schemeNm]])
+                                                              (\i -> (jdExpr i,[]))
+                                                              [FmSpec,FmTeX,FmAll] (vwscJdGam @lhs.vwScInfo)
+                            .   mt          =   exprMatch (@lhs.opts {optMatchROpOpnd = False}) emptyGam @expr.self @jdExpr
+                            .   errMt       =   if mtMatches @mt then [] else [Err_Match @lhs.pos @lhs.cxStr (pp @expr.self) (pp @jdExpr)]
+                    lhs     .   jaGam       =   fmGamToJaGam FmAll (mtFmGam @mt)
+
+ATTR AllRExpr [ | | reGam USE {`Map.union`} {Map.empty}: {REGam Expr} ]
+
+SEM RExpr
+  | Judge           eqns    .   pos         =   @pos
+                            .   schemeNm    =   @schemeNm
+                    loc     .   nm          =   maybe (Nm ("_" ++ show @lUniq)) id @mbRNm
+                            .   cxStr       =   "judgement for view '" ++ show @lhs.viewNm ++ "' for rule '" ++ show @lhs.ruleNm ++ "'"
+                            .   cxStr2      =   @cxStr ++ " for scheme '" ++ show @schemeNm ++ "'"
+                            .   (scInfo,errSc)
+                                            =   case Map.lookup @schemeNm @lhs.scGam of
+                                                    Just i -> (i,[])
+                                                    Nothing -> (emptyScInfo,[Err_UndefNm @pos @cxStr "scheme" [@schemeNm]])
+                            .   (vwScInfo,errVwSc)
+                                            =   case Map.lookup @lhs.viewNm (scVwGam @scInfo) of
+                                                    Just i -> (i,[])
+                                                    Nothing -> (emptyVwScInfo,[Err_UndefNm @pos @cxStr "view" [@lhs.viewNm]])
+                            .   (reInfo,errRE)
+                                            =   let aDirMp = Map.mapWithKey (\n _ -> maybe [] atDirs . Map.lookup n . vwscFullAtGam $ @vwScInfo) @eqns.jaGam
+                                                    aDirMissMp = Map.filter null aDirMp
+                                                in  (REInfoJudge @nm @schemeNm Set.empty Set.empty @eqns.jaGam
+                                                    ,[] -- if Map.null aDirMissMp then [] else [Err_UndefNm @pos @cxStr2 "hole" (Map.keys aDirMissMp)]
+                                                    )
+                    lhs     .   reGam       =   Map.singleton @nm @reInfo
+  | Del             lhs     .   reGam       =   Map.singleton (head @nms) (REInfoDel @nms)
+
+-------------------------------------------------------------------------
+-- Rules, names
+-------------------------------------------------------------------------
+
+ATTR AllRExpr AllDecl [ viewNm: Nm | | ]
+ATTR AllRExpr AllDecl [ ruleNm: Nm | | ]
+ATTR AllDecl [ scmNm: Nm | | ]
+
+SEM Decl
+  | Rule            loc     .   ruleNm      =   @nm
+
+SEM Decl
+  | Scheme          loc     .   scmNm       =   @nm
+
+SEM Decl
+  | RulView ScmView loc     .   viewNm      =   @nm
+
+SEM AGItf
+  | AGItf           decls   .   ruleNm      =   nmNone
+                            .   scmNm       =   nmNone
+                            .   viewNm      =   nmNone
+
+-------------------------------------------------------------------------
+-- Rules, views for rule
+-------------------------------------------------------------------------
+
+ATTR AllDecl [ | | vwRlGam USE {`Map.union`} {Map.empty}: {VwRlGam Expr} ]
+
+SEM Decl
+  | RulView         lhs     .   vwRlGam     =   Map.singleton @nm (VwRlInfo @nm @pre.reGam @post.reGam emptyGam emptyGam [] Nothing)
+
+-------------------------------------------------------------------------
+-- Rules, individual rules for rule set
+-------------------------------------------------------------------------
+
+ATTR AllDecl [ | | rlGam USE {`Map.union`} {Map.empty}: {RlGam Expr} ]
+
+SEM Decl
+  | Rule            lhs     .   rlGam       =   Map.singleton @nm (RlInfo @nm @pos @mbBasedOnNm @mbAGNm @lhs.rlSeqNr (viewSelNmS @lhs.vwDpdGr @viewSel) @decls.vwRlGam)
+
+-------------------------------------------------------------------------
+-- Rules, all rule sets
+-------------------------------------------------------------------------
+
+{
+-- build views of a rule by extending each view along view order dependency
+rlGamUpdVws :: Opts -> DpdGr Nm -> Set.Set Nm -> ScGam Expr -> RlGam Expr -> RsInfo Expr -> RlInfo Expr -> (RlInfo Expr,[Err])
+rlGamUpdVws opts vwDpdGr extNmS scGam rlGam rsInfo rlInfo
+  = let vwSel = rlInclVwS rlInfo `Set.intersection` rsInclVwS rsInfo
+        vwIsIncl n = n `Set.member` vwSel
+        doMarkChngForVw
+          = case optMbMarkChange opts of
+              Just vs
+                -> \vw -> (vw `Set.member` vs',vgIsFirst vwDpdGr vw vs')
+                where vs' = viewSelsNmS vwDpdGr vs `Set.intersection` vwSel
+              _ -> const (False,False)
+        mbOnVwRlInfo = maybe Nothing (\n -> Map.lookup n rlGam) (rlMbOnNm rlInfo)
+        (g,_,eg)
+            = foldr
+                (\nVw (vrg,prePostGamMp,errg)
+                  -> let -- info from previous view (in view hierarchy)
+                         (preg,postg,prevVwRlChs)   = prevWRTDpd nVw vwDpdGr prePostGamMp (emptyGam,emptyGam,emptyGam)
+                         vrgOfVwRlInfo      = Map.lookup nVw . rlVwGam
+                         dfltJaGam
+                           = case mbOnVwRlInfo of
+                               Just i  -> \sn jn -> maybe (jaGamDflt Expr_Var sn nVw scGam) reJAGam . Map.lookup jn $ g
+                                       where g = maybe emptyGam (\i -> vwrlFullPreGam i `Map.union` vwrlFullPostGam i) (vrgOfVwRlInfo i)
+                               Nothing -> \sn _  -> jaGamDflt Expr_Var sn nVw scGam
+                         (pregIncr ,pregDflt )      = reGamExtDflt' dfltJaGam nVw scGam preg
+                         (postgIncr,postgDflt)      = reGamExtDflt' dfltJaGam nVw scGam postg
+                         ext newG prevG     = reGamExtWithNew exprNmGam (exprSubst (defaultOpts {optSubstFullNm=False})) exprNmS dfltJaGam nVw scGam prevG newG
+                         (doMarkChng,isFstMarkChng) = doMarkChngForVw nVw
+                         -- updating pre/post judgements
+                         (vw,preg',postg')
+                           = case maybe Nothing vrgOfVwRlInfo mbOnVwRlInfo of
+                               Just i
+                                 -> case Map.lookup nVw vrg of
+                                      Just vw -> (vw                        ,ext (vwrlPreGam vw) preD,ext (vwrlPostGam vw) postD)
+                                      Nothing -> (emptyVwRlInfo {vwrlNm=nVw},ext emptyGam        preD,ext emptyGam         postD)
+                                 where preD  = ext (vwrlPreGam  i) pregDflt
+                                       postD = ext (vwrlPostGam i) postgDflt
+                               Nothing
+                                 -> case Map.lookup nVw vrg of
+                                      Just vw -> (vw                        ,ext (vwrlPreGam vw) pregDflt,ext (vwrlPostGam vw) postgDflt)
+                                      Nothing -> (emptyVwRlInfo {vwrlNm=nVw},ext emptyGam        pregDflt,ext emptyGam         postgDflt)
+                         vwRlChs
+                           = let pg  = preg `Map.union` postg
+                                 pg' = preg' `Map.union` postg'
+                                 pd  = pg' `Map.difference` pg
+                                 un  = Map.unionWith (\i1 i2 -> i1 {reJAGam = reJAGam i1 `Map.union` reJAGam i2})
+                                 pn  = (vwrlPreGam vw `Map.union` vwrlPostGam vw) `un` pregIncr `un` postgIncr
+                             in  Map.mapWithKey (\jn ji -> Map.mapWithKey (\an _ -> RlChInfo jn an) (maybe emptyGam id $ reMbJAGam ji))
+                                 $ pd `Map.union` (pn `Map.difference` pd)
+                         vwRlChsWtPrev = vwRlChs `rcGamUnion` prevVwRlChs
+                         prevVwRlChs' = if doMarkChng then emptyGam else vwRlChsWtPrev
+                         -- updating the view
+                         vw2 = vw {vwrlFullPreGam = reGamUpdInOut nVw scGam preg'
+                                  ,vwrlFullPostGam = reGamUpdInOut nVw scGam  postg'
+                                  ,vwrlMbChGam = if doMarkChng && not isFstMarkChng then Just vwRlChsWtPrev else Nothing
+                                  }
+                         vw3 = vwrlDelEmptyJd vw2
+                         vw4 = vw3 {vwrlPreScc = vwrlScc vw3}
+                         -- errors
+                         scInfo = maybe emptyScInfo fst $ scVwGamLookup (rsScNm rsInfo) nVw scGam
+                         cx = "ruleset '" ++ show (rsNm rsInfo) ++ "' view '" ++ show nVw ++ "' for rule '" ++ show (rlNm rlInfo) ++ "'"
+                         vwUndefs = vwrlUndefs vw3 `Set.difference` extNmS
+                         errUndefs = if Set.null vwUndefs then [] else [Err_UndefNm (rlPos rlInfo) cx "identifier" (Set.toList vwUndefs)]
+                         postOfScG = Map.filter (\i -> reScNm i == rsScNm rsInfo) (vwrlFullPostGam vw4)
+                         errPost
+                           = if (not . Map.null $ vwrlFullPostGam vw4) && Map.null postOfScG && scKind scInfo == ScJudge
+                             then [Err_RlPost (rlPos rlInfo) cx (rsScNm rsInfo)]
+                             else []
+                         errs = errUndefs ++ errPost
+                     in  (if vrwlIsEmpty vw4 then Map.delete nVw vrg else Map.insert nVw vw4 vrg
+                         ,Map.insert nVw (preg',postg',prevVwRlChs') prePostGamMp
+                         ,if null errs then errg else Map.insert nVw errs errg
+                         )
+                )
+                (rlVwGam rlInfo,Map.empty,emptyGam)
+                (vgTopSort vwDpdGr)
+        errs = concat . Map.elems . Map.filterWithKey (\n _ -> vwIsIncl n) $ eg
+    in  (rlInfo { rlVwGam = Map.filterWithKey (\n _ -> vwIsIncl n) g, rlInclVwS = vwSel },errs)
+
+bldRsInfo :: DpdGr Nm -> Set.Set Nm -> Opts -> ScGam Expr -> RsInfo Expr -> (RsInfo Expr,[Err])
+bldRsInfo vwDpdGr extNmS opts scGam rsInfo@(RsInfo nm schemeNm _ info rlGam)
+  = (rsInfo {rsRlGam = g},errs)
+  where (g,errs)
+          = foldr
+              (\rNm (rlGam,errs)
+                -> let (rlInfo,errs')
+                         = rlGamUpdVws opts vwDpdGr extNmS scGam rlGam rsInfo (maybe (panic "bldRsInfo") id . Map.lookup rNm $ rlGam)
+                   in  (Map.insert rNm rlInfo rlGam,errs' ++ errs)
+              )
+              (rlGam,[])
+              rlDpdTopsort
+        rlDpdTopsort
+          = vgTopSort dpdG
+          where dpdL = [ [n] | n <- Map.keys rlGam ]
+                       ++ [ [onNm,n] | i <- Map.elems rlGam, onNm <- maybeToList (rlMbOnNm i), let n = rlNm i ]
+                dpdG = mkVwDpdGr dpdL
+}
+
+ATTR AllDecl [ rsGam: {RsGam Expr} | | gathRsGam USE {`Map.union`} {Map.empty}: {RsGam Expr} ]
+
+SEM Decl
+  | Rules           (lhs.gathRsGam,loc.errUndefs)
+                                            =   let rsInfo = RsInfo @nm @schemeNm (viewSelNmS @lhs.vwDpdGr @viewSel) @info @decls.rlGam
+                                                    drvRsInfoL = maybe [] (\l -> map (($ @lhs.scGam) . snd) l) $ Map.lookup @schemeNm @lhs.drvGam
+                                                    (blds,errs)
+                                                      = unzip [ ((rsNm i',i'),e) | i <- (rsInfo : drvRsInfoL)
+                                                              , let (i',e) = bldRsInfo @lhs.vwDpdGr @lhs.extNmS @lhs.opts @lhs.scGam i
+                                                              ]
+                                                in  (Map.fromList blds,concat errs)
+  | RulesGroup      lhs     .   gathRsGam   =   Map.singleton @nm (RsInfoGroup @nm @schemeNm (viewSelNmS @lhs.vwDpdGr @viewSel) @info @rlNms)
+
+SEM AGItf
+  | AGItf           loc     .   rsGam       =   @decls.gathRsGam
+
+-------------------------------------------------------------------------
+-- Formats, rewrites
+-------------------------------------------------------------------------
+
+ATTR AllDecl [ | | gathFmGam USE {`fmGamUnion`} {Map.empty}: {FmGam Expr} ]
+ATTR AllDecl [ fmGam: {FmGam Expr} | | ]
+ATTR AGItf [ | | fmGam: {FmGam Expr} ]
+
+ATTR AllDecl [ | | gathRwGam USE {`rwGamUnion`} {Map.empty}: RwExprGam ]
+ATTR AllDecl [ rwGam: RwExprGam | | ]
+ATTR AGItf [ | | rwGam: RwExprGam ]
+
+SEM AGItf
+  | AGItf           loc     .   fmGam       =   @decls.gathFmGam
+                            .   rwGam       =   @decls.gathRwGam
+
+SEM Decl
+  | Fmt             lhs     .   (gathFmGam,gathRwGam)
+                                            =   case @matchExpr.exprIsRw of
+                                                  ExprIsRw  n  -> (emptyGam,rwSingleton n @fmKind @atIO (@matchExpr.self,@expr.self))
+                                                  ExprIsVar n  -> (fmSingleton n @fmKind @expr.self,emptyGam)
+                                                  ExprIsOther  -> (emptyGam,emptyGam)
+
+SEM RExprEqn
+  | Expr            loc     .   fmGam       =   emptyGam
+                            .   rwGam       =   emptyGam
+                            .   ecGam       =   emptyGam
+
+SEM AttrEqn
+  | Eqn             loc     .   fmGam       =   emptyGam
+                            .   rwGam       =   emptyGam
+                            .   ecGam       =   emptyGam
+
+SEM Decl
+  | Fmt ShpJudge Explain
+                    loc     .   fmGam       =   emptyGam
+                            .   rwGam       =   emptyGam
+                            .   ecGam       =   emptyGam
+
+-------------------------------------------------------------------------
+-- Explanations
+-------------------------------------------------------------------------
+
+ATTR AllDecl [ | | explGam USE {`Map.union`} {Map.empty}: {ExplGam Expr} ]
+
+SEM Decl
+  | Explain         lhs     .   explGam     =   Map.singleton (maybe nmNone id @mbNm) (ExplInfo @expr.self)
+
+-------------------------------------------------------------------------
+-- Preambles
+-------------------------------------------------------------------------
+
+ATTR AllDecl [ | | paGam USE {`Map.union`} {Map.empty}: {FmKdGam String} ]
+
+SEM Decl
+  | Preamble        lhs     .   paGam       =   Map.singleton @fmKind @preamble
+
+-------------------------------------------------------------------------
+-- Wrapping context (stack)
+-------------------------------------------------------------------------
+
+{-
+ATTR AllExpr [ wrKindStk: {[WrKind]} | | ]
+
+SEM Expr
+  | Wrap            expr    .   wrKindStk   =   @wrKind : @lhs.wrKindStk
+
+SEM AGExprItf
+  | AGItf           expr    .   wrKindStk   =   [WrNone]
+
+SEM Decl
+  | Fmt             loc     .   wrKindStk   =   [WrNone]
+
+SEM RExprEqn
+  | Expr            loc     .   wrKindStk   =   [WrNone]
+
+SEM AttrEqn
+  | Eqn             loc     .   wrKindStk   =   [WrNone]
+
+SEM AExpr
+  | Expr            loc     .   wrKindStk   =   [WrNone]
+
+SEM AEqn
+  | Err             loc     .   wrKindStk   =   [WrNone]
+
+SEM Decl
+  | Fmt ShpJudge Explain
+                    expr    .   wrKindStk   =   [WrNone]
+-}

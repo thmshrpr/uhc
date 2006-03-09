@@ -1,0 +1,39 @@
+-------------------------------------------------------------------------
+-- Pretty printing of ruler AST1
+-------------------------------------------------------------------------
+
+ATTR AllAS1 AGItf [ | | pp USE {>-<} {empty} : PP_Doc ]
+
+SEM AGItf
+  | AGItf           lhs     .   pp          =   @decls.pp
+                                                >-< "---------- rw gam" >-< ppRwGam @rwGam
+                                                >-< "---------- fm gam" >-< ppGam @fmGam
+                                                >-< "---------- scheme gam" >-< ppGam @scGam
+                                                >-< "---------- rule set gam" >-< ppGam @rsGam
+                                                >-< "---------- topsorted vw dpd graph" >-< ppCommas (vgTopSort @vwDpdGr)
+
+SEM Decl
+  | Scheme          lhs     .   pp          =   "scheme"        >#< @scKind >#< @nm >-< "=" >#< @decls.pp
+  | SchemeDeriv     lhs     .   pp          =   "scheme"        >#< @scKind >#< @nm >#< ":" >#< @scDeriv >-< "=" >#< @decls.pp
+  | Fmt             lhs     .   pp          =   "format"        >#< @fmKind >#< @matchExpr.pp >#< "=" >#< @expr.pp
+  | ScmView         lhs     .   pp          =   "view"          >#< @nm >-< "=" >#< @decls.pp
+  | RulView         lhs     .   pp          =   "view"          >#< @nm >-< "=" >#< (@pre.pp >-< "-" >-< @post.pp)
+  | Rules           lhs     .   pp          =   "rules"         >#< @nm >#< "scheme" >#< @schemeNm >-< "=" >#< @decls.pp
+  | RulesGroup      lhs     .   pp          =   "rulesgroup"    >#< @nm >#< "scheme" >#< @schemeNm >-< "=" >#< (vlist . map (\(rs,r) -> "rule" >#< rs >#< r) $ @rlNms)
+  | Rule            lhs     .   pp          =   "rule"          >#< @nm >#< "viewsel" >#< pp @viewSel >-< "=" >#< @decls.pp
+  | ViewHierarchy   lhs     .   pp          =   "viewhierarchy" >#< text (show @nmOrder)
+  | ShpJudge        lhs     .   pp          =   "judgeshape"    >#< @expr.pp
+  | ShpDel          lhs     .   pp          =   "judgeshape"    >#< "-" >#< ppCommas @fmKinds
+  | Attr            lhs     .   pp          =   "hole"          >#< ("inh" >#< @inhs.pp >-< "i+s" >#< @inhsyns.pp >-< "syn" >#< @syns.pp)
+  | Explain         lhs     .   pp          =   "explain"       >#< @mbNm >#< "=" >#< pp_parens @expr.pp
+
+SEM RExpr
+  | Judge           lhs     .   pp          =   "judge" >#< maybe empty (\n -> pp n >#< "=") @mbRNm >#< pp @schemeNm >#< @eqns.pp
+  | Del             lhs     .   pp          =   "judge" >#< "-" >#< ppCommas @nms
+
+SEM AttrIntro
+  | Intro           lhs     .   pp          =   pp @props >#< pp @nm >#< ":" >#< pp @ty
+
+SEM AttrEqn
+  | Eqn             lhs     .   pp          =   "|" >#< pp @nm >#< "=" >#< @expr.pp
+

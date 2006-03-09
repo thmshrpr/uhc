@@ -1,80 +1,63 @@
 -- $Id: EHTyFitsIn.chs 214 2005-05-28 17:52:29Z atze $
 
-module RulerAdmin where
+module RulerAdmin
+  ( module FmGam
+  , module JdGam
+  
+  , AtInfo(..), AtGam
+  , emptyAtInfo
+  , atGamNode, atMbSynInh
+  
+  , ExplInfo(..), ExplGam
+  
+  , VwScInfo(..), VwScGam
+  , emptyVwScInfo
+  
+  , ScInfo(..), ScGam
+  , emptyScInfo
+  , scVwGamLookup, scVwGamNodeAt
+  
+  , JAInfo(..), JAGam
+  , jaGamToFmGam, fmGamToJaGam
+  
+  , REInfo(..), REGam
+  , reMbJAGam
+  
+  , RlChInfo(..), RlChGam
+  , rcGamUnion
+  
+  , VwRlInfo(..), VwRlGam
+  , emptyVwRlInfo
+  , vwrlDelEmptyJd, vrwlIsEmpty, vwrlScc, vwrlUndefs
+  
+  , RlInfo(..), RlGam
+  , emptyRlInfo
+  , rlVwGamLookup
+  
+  , RsInfo(..), RsGam
+  , emptyRsInfo
+  , rsInfoIsPlain, rsInfoIsGroup
+  , rsRlOrder, rsInfoMbRlGam
+  )
+  where
 
-import IO
 import Data.Maybe
 import Data.Char
 import Data.List
-import Data.Graph
 import qualified Data.Set as Set
 import qualified Data.Map as Map
-import FPath
 import Utils
-import Nm
 import PPUtils
 import UU.Pretty
 import qualified UU.DData.Scc as Scc
-import UU.Scanner.Position( Pos )
-import RulerUtils
-
--------------------------------------------------------------------------
--- Gam
--------------------------------------------------------------------------
-
-type Gam k v = Map.Map k v
-
-emptyGam = Map.empty
-
-ppGam :: (PP k, PP v) => Gam k v -> PP_Doc
-ppGam = ppListSepV "[" "]" "," . map (\(k,v) -> pp k >#< ":->" >#< pp v) . Map.toList
-
-ppGam' :: (PP k, PP v) => Gam k v -> PP_Doc
-ppGam' = vlist . map (\(k,v) -> pp k >#< ":->" >#< pp v) . Map.toList
-
-dblGamLookup :: Ord k => (i1 -> Gam k i2) -> k -> k -> Gam k i1 -> Maybe (i1,i2)
-dblGamLookup gOf sn vn g
-  = case Map.lookup sn g of
-      Just si
-        -> fmap ((,) si) . Map.lookup vn . gOf $ si
-      _ -> Nothing
-
--------------------------------------------------------------------------
--- WrKind
--------------------------------------------------------------------------
-
-data WrKindInfo
-  = WrKindInfo
-      { wkBegCmd   :: Nm
-      , wkEndCmd   :: Nm
-      }
-
-instance Show WrKindInfo where
-  show _ = "WrKindInfo"
-
-instance PP WrKindInfo where
-  pp i = pp "WK"
-
-type WrKindGam = Gam WrKind WrKindInfo
-
-wrKindGam :: WrKindGam
-wrKindGam
-  = Map.fromList
-      [ (WrIsChanged,WrKindInfo nmCmdBegChng nmCmdEndChng)
-      , (WrIsSame   ,WrKindInfo nmCmdBegSame nmCmdEndSame)
-      ]
+import Common
+import Gam
+import FmGam
+import JdGam
 
 -------------------------------------------------------------------------
 -- Attr
 -------------------------------------------------------------------------
-
-data AtDir
-  = AtInh | AtSyn | AtIn | AtOut | AtInOut
-  deriving (Eq,Ord,Show)
-
-data AtProp
-  = AtNode | AtThread | AtUpdown | AtRetain
-  deriving (Eq,Ord,Show)
 
 data AtInfo
   = AtInfo
@@ -84,8 +67,8 @@ data AtInfo
       , atTy    :: Nm
       }
 
-instance PP AtProp where
-  pp = text . show
+emptyAtInfo :: AtInfo
+emptyAtInfo = AtInfo nmUnk [] []  nmUnk
 
 instance Show AtInfo where
   show _ = "AtInfo"
@@ -112,33 +95,21 @@ atMbSynInh i
   where n = atNm i
 
 -------------------------------------------------------------------------
--- Judgement formats
+-- Explanations
 -------------------------------------------------------------------------
 
-data JdInfo e
-  = JdInfo
-      { jdExpr  :: e
+data ExplInfo e
+  = ExplInfo
+      { explExpr  :: e
       }
-  | JdDel
 
-instance Show (JdInfo e) where
-  show _ = "JdInfo"
+instance Show (ExplInfo e) where
+  show _ = "ExplInfo"
 
-instance PP e => PP (JdInfo e) where
-  pp (JdInfo e) = "Jd" >#< pp e
-  pp (JdDel   ) = pp "JdDel"
+instance PP e => PP (ExplInfo e) where
+  pp (ExplInfo e) = "Expl" >#< pp e
 
-type JdGam e = FmKdGam (JdInfo e)
-
-jdgUnion :: JdGam e -> JdGam e -> JdGam e
-jdgUnion gn g
-  = Map.foldWithKey
-      (\fk i g
-        -> case i of
-             JdDel -> Map.delete fk g
-             _     -> Map.insert fk i g
-      )
-      g gn
+type ExplGam e = Gam Nm (ExplInfo e)
 
 -------------------------------------------------------------------------
 -- View (related to scheme)
@@ -150,15 +121,16 @@ data VwScInfo e
       , vwscJdGam       :: JdGam e
       , vwscAtGam       :: AtGam
       , vwscFullAtGam   :: AtGam
+      , vwscExplGam     :: ExplGam e
       }
 
-emptyVwScInfo = VwScInfo nmNone emptyGam emptyGam emptyGam
+emptyVwScInfo = VwScInfo nmNone emptyGam emptyGam emptyGam emptyGam
 
 instance Show (VwScInfo e) where
   show _ = "VwScInfo"
 
 instance PP e => PP (VwScInfo e) where
-  pp i = "VWSc" >#< pp (vwscNm i) >#< (ppGam (vwscAtGam i) >-< ppGam (vwscFullAtGam i) >-< ppGam (vwscJdGam i))
+  pp i = "VWSc" >#< pp (vwscNm i) >#< (ppGam (vwscAtGam i) >-< ppGam (vwscFullAtGam i) >-< ppGam (vwscJdGam i) >-< ppGam (vwscExplGam i))
 
 type VwScGam e = Gam Nm (VwScInfo e)
 
@@ -380,6 +352,14 @@ data RsInfo e
 
 emptyRsInfo = RsInfo nmUnk nmUnk Set.empty "" emptyGam
 
+rsInfoIsPlain :: RsInfo e -> Bool
+rsInfoIsPlain (RsInfo _ _ _ _ _) = True
+rsInfoIsPlain _                  = False
+
+rsInfoIsGroup :: RsInfo e -> Bool
+rsInfoIsGroup (RsInfoGroup _ _ _ _ _) = True
+rsInfoIsGroup _                       = False
+
 instance Show (RsInfo e) where
   show _ = "RsInfo"
 
@@ -398,133 +378,4 @@ rsRlOrder i
 rsInfoMbRlGam :: RsInfo e -> Maybe (RlGam e)
 rsInfoMbRlGam (RsInfo _ _ _ _ g) = Just g
 rsInfoMbRlGam _                  = Nothing
-
--------------------------------------------------------------------------
--- Formats
--------------------------------------------------------------------------
-
-data FmKind
-  = FmTeX | FmAG | FmSpec | FmAll | FmCnstr
-  deriving (Show,Eq,Ord)
-
-instance PP FmKind where
-  pp = pp . show
-
-data FmInfo e
-  = FmInfo
-      { fmNm    :: Nm
-      , fmKdGam :: FmKdGam e
-      }
-
-instance Show (FmInfo e) where
-  show _ = "FmInfo"
-
-instance PP e => PP (FmInfo e) where
-  pp i = "FM" >#< pp (fmNm i) >#< (ppGam . fmKdGam $ i)
-
-type FmGam e = Gam Nm (FmInfo e)
-
-fmSingleton :: Nm -> FmKind -> e -> FmGam e
-fmSingleton n k e = Map.singleton n (FmInfo n (Map.singleton k e))
-
-fmNull :: FmGam e -> Bool
-fmNull = all (Map.null . fmKdGam) . Map.elems
-
-fmGamFromList' :: FmKind -> [(Nm,e)] -> FmGam e
-fmGamFromList' fk = Map.unions . map (\(n,e) -> fmSingleton n fk e)
-
-fmGamFromList :: [(Nm,e)] -> FmGam e
-fmGamFromList = fmGamFromList' FmAll
-
-fmGamUnion :: FmGam e -> FmGam e -> FmGam e
-fmGamUnion = Map.unionWith (\i1 i2 -> i1 {fmKdGam = fmKdGam i1 `Map.union` fmKdGam i2})
-
-fmGamUnions :: [FmGam e] -> FmGam e
-fmGamUnions = foldr fmGamUnion emptyGam
-
-{-
-fmLGamUnion :: FmGam [e] -> FmGam [e] -> FmGam [e]
-fmLGamUnion = Map.unionWith (\i1 i2 -> i1 {fmKdGam = Map.unionWith (++) (fmKdGam i1) (fmKdGam i2)})
--}
-
-fmGamLookup :: Nm -> FmKind -> FmGam e -> Maybe e
-fmGamLookup n k g
-  = case Map.lookup n g of
-      Just i
-        -> fkGamLookup Nothing Just [k] (fmKdGam i)
-      _ -> Nothing
-
-fmGamMap :: (Nm -> a -> b) -> FmGam a -> FmGam b
-fmGamMap f = Map.mapWithKey (\n i -> i {fmKdGam = Map.map (\e -> f n e) (fmKdGam i)})
-
--------------------------------------------------------------------------
--- General purpose lookup with a default key
--------------------------------------------------------------------------
-
-gamTryLookups :: Ord k => v -> (e -> v) -> [k] -> Gam k e -> v
-gamTryLookups dflt extr keys g
-  = case keys of
-      (k:ks) -> case Map.lookup k g of
-                  Just i  -> extr i
-                  Nothing -> gamTryLookups dflt extr ks g
-      _      -> dflt
-
-gamLookupWithDefault :: Ord k => k -> v -> (e -> v) -> [k] -> Gam k e -> v
-gamLookupWithDefault dfltKey dflt extr keys g
-  = gamTryLookups dflt extr (keys ++ [dfltKey]) g
-
--------------------------------------------------------------------------
--- FmGam for FmKind
--------------------------------------------------------------------------
-
-type FmKdGam e = Gam FmKind e
-
-fkGamLookup :: v -> (e -> v) -> [FmKind] -> FmKdGam e -> v
-fkGamLookup = gamLookupWithDefault FmAll
-
--------------------------------------------------------------------------
--- FmGam for AtDir
--------------------------------------------------------------------------
-
-type FmDrGam e = Gam AtDir e
-
-fdGamLookup :: v -> (e -> v) -> [AtDir] -> FmDrGam e -> v
-fdGamLookup = gamLookupWithDefault AtInOut
-
--------------------------------------------------------------------------
--- Rewrite rules
--------------------------------------------------------------------------
-
-type RwGam e = FmGam (FmDrGam [e])
-
-rwGamLookup :: Nm -> FmKind -> AtDir -> RwGam e -> Maybe [e]
-rwGamLookup n k d g
-  = case fmGamLookup n k g of
-      Just g'
-        -> fdGamLookup Nothing Just [d] g'
-      _ -> Nothing
-
-rwSingleton :: Nm -> FmKind -> AtDir -> e -> RwGam e
-rwSingleton n k d e = Map.singleton n (FmInfo n (Map.singleton k (Map.singleton d [e])))
-
-rwGamUnion :: RwGam e -> RwGam e -> RwGam e
-rwGamUnion = Map.unionWith (\i1 i2 -> i1 {fmKdGam = Map.unionWith (Map.unionWith (++)) (fmKdGam i1) (fmKdGam i2)})
-
--------------------------------------------------------------------------
--- Child order
--------------------------------------------------------------------------
-
-type ChOrdGam = Gam Nm Int
-
--------------------------------------------------------------------------
--- Copy rule order, ref to previous node
--------------------------------------------------------------------------
-
-type CrOrdGam = Gam Nm Nm
-
--------------------------------------------------------------------------
--- Non local attr's defined, threaded?
--------------------------------------------------------------------------
-
-type AtDefdGam = Gam Nm Bool
 

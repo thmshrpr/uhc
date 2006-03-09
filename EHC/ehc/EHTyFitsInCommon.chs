@@ -1,4 +1,4 @@
-% $Id$
+% $Id: EHTyFitsInCommon.chs 269 2005-08-14 12:49:00Z cddouma $
 
 %%[0
 %include lhs2TeX.fmt
@@ -16,6 +16,9 @@
 %%]
 
 %%[4 import(EHOpts) export(AppSpineInfo(..), unknownAppSpineInfoL, arrowAppSpineInfoL, prodAppSpineInfoL)
+%%]
+
+%%[4 import(EHSubstitutable) export(FitsIn, FitsIn',fitsInLWith)
 %%]
 
 %%[9 import(EHCore,EHCoreSubst)
@@ -136,5 +139,29 @@ arrowAppSpineInfoL
 
 prodAppSpineInfoL :: [AppSpineInfo]
 prodAppSpineInfoL = repeat (AppSpineInfo CoVariant id (\_ x -> x))
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% wrapper around fitsIn
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[4.FitsIn
+type FitsIn' = FIOpts -> UID -> Ty -> Ty -> FIOut
+type FitsIn = FIOpts -> UID -> Ty -> Ty -> (Ty,Cnstr,ErrL)
+%%]
+
+%%[4.fitsInLWith
+fitsInLWith :: (FIOut -> FIOut -> FIOut) -> FitsIn' -> FIOpts -> UID -> TyL -> TyL -> (FIOut,[FIOut])
+fitsInLWith foCmb elemFits opts uniq tyl1 tyl2
+  = (fo,foL)
+  where ((_,fo),foL)
+          = foldr  (\(t1,t2) ((u,foThr),foL)
+                      -> let  (u',ue) = mkNewLevUID u
+                              fo = elemFits opts u (foCnstr foThr |=> t1) (foCnstr foThr |=> t2)
+                         in   ((u',foCmb fo foThr),fo:foL)
+                   )
+                   ((uniq,emptyFO),[])
+            . zip tyl1
+            $ tyl2
 %%]
 

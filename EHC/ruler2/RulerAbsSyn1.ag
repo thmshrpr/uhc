@@ -1,0 +1,25 @@
+-------------------------------------------------------------------------
+-- Haskell interface to Ruler AST pass 1
+-------------------------------------------------------------------------
+
+{
+module RulerAbsSyn1
+  ( module Expr
+  , module ViewSel
+  
+  , AGItf(..)
+  , Decl(..), Decls
+  , AttrIntro(..), AttrIntros
+  , RExpr(..), RExprs
+  , RExprEqn(..)
+  , AttrEqn(..), AttrEqns
+  )
+  where
+
+import Common
+import Expr
+import ViewSel
+}
+
+INCLUDE "RulerAbsSyn1AG.ag"
+INCLUDE "RulerAbsSynCommonAG.ag"
