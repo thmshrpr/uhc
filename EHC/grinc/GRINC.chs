@@ -86,15 +86,6 @@ caParseGrin = do
     modify (csUpdateGrinCode code)
 %%]
 
-%%[8.addGloabls import(Trf.AddGlobals)
-caAddGlobals :: CompileAction ()
-caAddGlobals = do
-    putMsg VerboseALot "Add global variables" Nothing
-    code <- gets csGrinCode
-    code <- return $ addGlobals code
-    modify (csUpdateGrinCode code)
-%%]
-
 %%[8.dropEvalAndApply import(Trf.CleanupPass)
 caCleanupPass :: CompileAction ()
 caCleanupPass = do
@@ -321,20 +312,22 @@ caSplitFetch = do
 
 %%[8.writeCmm import(Cmm.FromGrin, Cmm.CmmCodePretty)
 caGrin2Cmm :: CompileAction CmmUnit
-caGrin2Cmm = do
-    code <- gets csGrinCode
-    entry <- gets csEntry
-    doTrace <- gets (optTrace . csOpts)
-    return (grin2cmm entry code doTrace)
+caGrin2Cmm = do 
+    { code <- gets csGrinCode
+    ; entry <- gets csEntry
+    ; doTrace <- gets (optTrace . csOpts)
+    ; return (grin2cmm entry code doTrace)
+    }
 
 caWriteCmm :: CompileAction ()
 caWriteCmm = do
-    input <- gets csPath
-    let output = fpathSetSuff "cmm" input
-    options <- gets csOpts
-    putMsg VerboseALot ("Writing " ++ fpathToStr output) Nothing
-    cmm <- caGrin2Cmm
-    liftIO $ writePP pp cmm output
+    { input <- gets csPath
+    ; let output = fpathSetSuff "cmm" input
+    ; options <- gets csOpts
+    ; putMsg VerboseALot ("Writing " ++ fpathToStr output) Nothing
+    ; cmm <- caGrin2Cmm
+    ; liftIO $ writePP pp cmm output
+    }
 %%]
 
     -- fpathToStr
@@ -384,7 +377,6 @@ doCompileRun fn opts = let input     = mkTopLevelFPath "grin" fn
 -- create initial GRIN
 caLoad = task_ VerboseNormal "Loading" 
     ( do { caParseGrin
-         ; caAddGlobals
          ; caCleanupPass
          ; caNumberIdents
          ; caAddLazyApplySupport

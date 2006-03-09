@@ -60,9 +60,9 @@ instance Ord GrTag where
 data AbstractValue
   = AV_Nothing
   | AV_Basic
-  | AV_Locations ![Location]
-  | AV_Nodes ![AbstractNode]
-  | AV_Tags  ![GrTag]
+  | AV_Locations ![Location] -- TODO: use Data.Set Location
+  | AV_Nodes ![AbstractNode] -- TODO: use Data.Map GrTag [AbstractValue]
+  | AV_Tags  ![GrTag] -- TODO: use Data.Set GrTag
   | AV_Error !String
 	deriving (Eq, Ord)
 
@@ -75,7 +75,7 @@ instance Show AbstractValue where
                   AV_Tags      ts -> "{" ++ concatMap (show . ppGrTag') ts ++ "}"
                   AV_Error     s  -> "E: " ++ s
 
-type AbstractNode = (GrTag, [AbstractValue]) -- an AV_Nodes can not occur inside a AbstractNode
+type AbstractNode = (GrTag, [AbstractValue]) -- an AV_Nodes can not occur inside an AbstractNode
 type Location = Int
 
 type Variable = Int
@@ -119,6 +119,9 @@ data AbstractHeapElement = AbstractHeapElement
     }
 	deriving (Eq)
 	
+-- TODO: which should ahSharedSet hold: <value when shared> - <value when uniq> or <value when shared>
+-- Note: ahSharedSet currently holds the former, Nothing means it the cell shared, Just means unique (and shared part is kept off the record)
+
 instance Show AbstractHeapElement where
 	show (AbstractHeapElement b s m) =    "unique = "       ++ show b 
                                        ++ ";\tshared = "  ++ show s

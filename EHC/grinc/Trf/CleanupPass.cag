@@ -30,6 +30,9 @@ cleanupPass grmod = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod))
 %%[8
 ATTR GrAGItf [ | | grTrf: GrModule ]
 ATTR AllGrNT [ | | grTrf: SELF ]
+
+SEM GrModule
+  | Mod  lhs  .  grTrf         =  GrModule_Mod @baseName @newGlobals @bindL.grTrf @ctagsMp @newEvalTagMp @applyTagMp
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -59,6 +62,23 @@ SEM GrTag
   | Lit  lhs  .  grTrf  = GrTag_Lit (if @categ == GrTagPApp 0 then GrTagFun else @categ) @int @nm
 %%]
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%% Add Global variables %%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Introduce global variables: each binding without arguments must have a
+corresponding global variable. (CAF's)
+Note: EHC does not generate them
+
+%%[8.caf import("../GrCAFNames")
+SEM GrModule
+  | Mod  loc  .  newGlobals  =  let buildGlobalVar n  =  GrGlobal_Global n (GrVal_Node (GrTag_Lit GrTagFun 0 n) 
+                                                                                       [GrVal_LitInt 0]
+                                                                           )
+                                    globalL           =  map buildGlobalVar @cafNames
+                                in if null @globalL.grTrf then globalL else @globalL.grTrf
+%%]
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%% Fix Primitives to Exception statements %%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -67,8 +87,7 @@ SEM GrTag
 
  -- we need an node which eval interprets as throw exception
 SEM GrModule
-  | Mod  lhs  .  grTrf         =  GrModule_Mod @baseName @globalL.grTrf @bindL.grTrf @ctagsMp @newEvalTagMp @applyTagMp
-         loc  .  newEvalTagMp  =  ((throwTag,1), EvApTagThrow) : @evalTagMp
+  | Mod  loc  .  newEvalTagMp  =  ((throwTag,1), EvApTagThrow) : @evalTagMp
 
 SEM GrBind
   | Bind  lhs  .  grTrf    =  GrBind_Bind @nm @argNmL @newExpr

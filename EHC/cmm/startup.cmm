@@ -75,6 +75,50 @@ foreign "C" main(bits32 argc, "address" bits32 argv) {
     foreign "C" return (1);
 }
 
+//GRIN generic update function which is here as an example, the code generate
+//might produce an inlined variant of this function for the unspecialized
+//update operation. An optimization is to factor out the bigPartPointer.
+
+import GRIN_TAG_InfoTable;
+
+export update_field as "GRIN_generic_update_field";
+
+update_field (bits32 p, bits32 tag, bits32 fieldNr, bits32 field) {
+	//nodes are at least a tag and 4 fields in memory. The last known field
+	//(4th) might be a pointer to the rest of the fields.
+	const bigPartPointerOffset = 4; 
+
+	if fieldNr == 0 {
+		bits32[p] = tag;
+		return;
+	}
+
+	bits32 arity;
+	arity  = bits32[GRIN_TAG_InfoTable + tag];
+
+	if fieldNr <= arity {
+		switch fieldNr {
+			case 1 .. (bigPartPointerOffset-1): { 
+				bits32[p+fieldNr] = field;
+			}
+			case bigPartPointerOffset: {
+				if arity == (bigPartPointerOffset+1) {
+					bits32[p+fieldNr] = field;
+				} else {
+					bits32[bits32[p+bigPartPointerOffset]] = field;
+				}
+			}
+			case (bigPartPointerOffset+1) .. 0xffff: {
+					bits32[bits32[p+bigPartPointerOffset]] = field;
+			}
+		}
+	}
+	return;
+}
+
+
+
+
 /*
 vim:ts=4
 */

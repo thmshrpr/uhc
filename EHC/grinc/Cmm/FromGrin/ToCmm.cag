@@ -18,7 +18,7 @@ SEM GrModule
   | Mod          loc . cmmUnit  = let addTl mtl             = maybe emptyBuilder id mtl
                                       externals             = addTl @imports ~> addTl @exports ~>
                                                               exports [ ( "@TAG_InfoTable"
-                                                                        , Just "TAG_InfoTable"
+                                                                        , Just "GRIN_TAG_InfoTable"
                                                                         )
                                                                       ]
                                       globalNodes           = @sectionGlobals :: CmmToplevelBuilder
@@ -27,8 +27,8 @@ SEM GrModule
                                       unitTarget            = target 8 LittleEndian 32 32
                                       heapPointer           = globalVarDecl False "address" bits32 [("@eh", Nothing)]
                                       grin_main             = buildDriver @lhs.entryNm @returnSizeEnv
-                                      tagConstants          = fst $ foldr buildTagConst (emptyBuilder,0) @tags
-                                      buildTagConst (n,_) (r,i) = (constant (Just valType) n (int i) ~> r, i+1)
+                                      tagConstants          = fst $ foldl buildTagConst (emptyBuilder,0) @tags
+                                      buildTagConst (r,i) (n,_) = (constant (Just valType) n (int i) ~> r, i+1)
                                   in CmmUnit_Unit (  build $ unitTarget ~> unitTypedefs ~> heapPointer
                                                   ~> externals ~> tagConstants ~> globalNodes ~> tagInfo ~> @strings
                                                   ~> grin_main ~> @bindL.cmmProcs
@@ -241,12 +241,11 @@ note that a C call cannot be handled as a last expression, this might change.
 %%[8.FFI
 SEM GrExpr
   | FFI    loc  . recievers   = nreg2knames @lhs.targetNames
-                . primStm     = @primStmF (map cmmName' @argL) (nreg2names @lhs.targetNames)
+                . primStm     = @primStmF (map cmmName' @argL) @options
                 . callStm     = cmmCall "C" (cmmVar $ cmmName @nm) (map (valArg . cmmVar') @argL) @recievers []
                 . cmmBody     = if @isPrim then @primStm
                                 else if not @isLastExpr then @callStm
                                 else error "FFI as last expression"
-
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
