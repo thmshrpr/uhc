@@ -16,7 +16,7 @@ Some transformations are needed to allow easy code generation for GRIN
 WRAPPER GrAGItf
 %%]
 
-%%[8 hs module Trf.LowerGrin import(EHCommon, GRINCCommon, "qualified Data.Map as Map", Data.List, Data.Monoid, GrinCode) export(lowerGrin)
+%%[8 hs module Trf.LowerGrin import(EHCommon, GRINCCommon, "qualified Data.Set as Set", "qualified Data.Map as Map", Data.List, Data.Monoid, GrinCode) export(lowerGrin)
 lowerGrin :: HptMap -> Int -> GrModule -> (HptMap, Int, RenameMap, GrModule)
 lowerGrin hptMap uniq grmod = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod))
                                                           (Inh_GrAGItf { hptMap_Inh_GrAGItf  = hptMap
@@ -32,7 +32,7 @@ lowerGrin hptMap uniq grmod = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf g
 addHptInfo hptMap (orig, newNames) = let (tags,fields) = unzip . getNodes $ getEnvVar hptMap orig
                                          padding = AV_Nothing
                                          av_vars = map mconcat (transpose $ map (++ repeat padding) fields)
-                                         avs     = AV_Tags tags : av_vars
+                                         avs     = AV_Tags (Set.fromAscList tags) : av_vars
                                      in addEnvVars hptMap (zip newNames avs)
 %%]
 
@@ -57,7 +57,8 @@ newNames hptMap uniq (HNPos v) = case getEnvVar hptMap v of
                                                            newVars  = [uniq .. uniq + count - 1]
                                                        in (uniq + count, map HNPos newVars, (v, newVars))
 
-maxNodeSize nl = 1 + foldl (\maxSize node -> max (length $ snd node) maxSize) 0 nl
+-- TODO: use arity information in the eval map!
+maxNodeSize nl = 1 + Map.fold (\args maxSize -> max (length args) maxSize) 0 nl
 
 isLocation :: HptMap -> HsName -> Bool
 isLocation hptMap name = case getEnvVar hptMap (getNr name) of

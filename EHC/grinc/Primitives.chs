@@ -9,16 +9,16 @@ primitives information table.
 - meta info for code generation
 - code snippets to generate the code for a primitive (C--)
 
-%%[8.abstractValues import(HeapPointsToFixpoint,"EHCommon(HsName(..))",GrinCode,GRINCCommon)
-unboxedBasic = AV_Nodes [ (GrTag_Unboxed, [AV_Basic])
-                        ]
-booleanNodes = AV_Nodes [ (GrTag_Lit GrTagCon 0 (HNm "_False"), [AV_Basic])
-                        , (GrTag_Lit GrTagCon 1 (HNm "_True" ), [AV_Basic])
-                        ]
-compareNodes = AV_Nodes [ (GrTag_Lit GrTagCon 0 (HNm "_EQ"), [AV_Basic])
-                        , (GrTag_Lit GrTagCon 1 (HNm "_GT"), [AV_Basic])
-                        , (GrTag_Lit GrTagCon 2 (HNm "_LT"), [AV_Basic])
-                        ]
+%%[8.abstractValues import(HeapPointsToFixpoint,"EHCommon(HsName(..))", "qualified Data.Set as Set", GrinCode,GRINCCommon)
+unboxedBasic = AV_Nodes $ Map.fromList [ (GrTag_Unboxed, [AV_Basic])
+                                       ]
+booleanNodes = AV_Nodes $ Map.fromList [ (GrTag_Lit GrTagCon 0 (HNm "_False"), [AV_Basic])
+                                       , (GrTag_Lit GrTagCon 1 (HNm "_True" ), [AV_Basic])
+                                       ]
+compareNodes = AV_Nodes $ Map.fromList [ (GrTag_Lit GrTagCon 0 (HNm "_EQ"), [AV_Basic])
+                                       , (GrTag_Lit GrTagCon 1 (HNm "_GT"), [AV_Basic])
+                                       , (GrTag_Lit GrTagCon 2 (HNm "_LT"), [AV_Basic])
+                                       ]
 %%]
 
 %%[8.codeGeneration import(Cmm.CmmCode, Cmm.CmmBuilding) export(false_node, true_node)

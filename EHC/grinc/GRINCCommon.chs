@@ -9,7 +9,7 @@
 %%% Common
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%[8 module GRINCCommon import(System.Console.GetOpt,EHCommon, "qualified Data.Map as Map") export(Opts(..), defaultOpts, cmdLineOpts)
+%%[8 module GRINCCommon import(System.Console.GetOpt,EHCommon, "qualified Data.Map as Map", "qualified Data.Set as Set") export(Opts(..), defaultOpts, cmdLineOpts)
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -137,26 +137,26 @@ getHeapLoc ((_, ha),_) i = ahBaseSet (ha ! i)
 
 absFetch :: HptMap -> HsName -> AbstractValue
 absFetch a (HNPos i) = case getEnvVar a i of
-                             AV_Locations l -> mconcat $ map (getHeapLoc a) l
-                             AV_Nothing     -> AV_Nodes []
+                             AV_Locations l -> mconcat $ map (getHeapLoc a) (Set.toList l)
+                             AV_Nothing     -> AV_Nodes Map.empty
                              AV_Error s     -> error $ "analysis error: " ++ s
                              AV_Basic       -> error $ "variable " ++ show i ++ " is a basic value"
                              AV_Nodes _     -> error $ "variable " ++ show i ++ "is a node variable"
 
 getTags av = case av of
-                 AV_Tags  ts -> ts
+                 AV_Tags  ts -> Set.toList ts
                  _           -> map fst (getNodes av)
 
 getNodes av = case av of
-                  AV_Nodes n  -> n
+                  AV_Nodes n  -> Map.toAscList n
                   AV_Nothing  -> []
                   AV_Error s  -> error $ "analysis error: " ++  s
                   _           -> error $ "not a node: " ++ show av
 
 isBottom av = case av of
                   AV_Nothing      ->  True
-                  AV_Locations l  ->  null l
-                  AV_Nodes n      ->  null n
+                  AV_Locations l  ->  Set.null l
+                  AV_Nodes n      ->  Map.null n
                   AV_Error s      ->  error $ "analysis error: " ++ s
                   otherwise       ->  False
                   

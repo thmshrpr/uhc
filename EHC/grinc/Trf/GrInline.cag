@@ -32,7 +32,7 @@ inlineEA hptMap unique grmod = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf 
 %%% Eval code generation %%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%[8.evalCode hs import(Data.Maybe)
+%%[8.evalCode hs import(Data.Maybe, "qualified Data.Set as Set", "qualified Data.Map as Map")
 -- first element is the arity information (is always a basic abstract value)
 buildAlternative t (_:av) arity rhsElem unique uf vf tf =
     let elems           = zip [unique..] av
@@ -71,7 +71,7 @@ buildEvalAlt l s t av evalMap hptMap u = buildAlternative t av arity rhs u uf vf
                        eAbsVal  = getEnvVar hptMap (getNr v + 1)
                        hasE     = case eAbsVal of
                                       AV_Nothing      -> False
-                                      AV_Locations l  -> not (null l)
+                                      AV_Locations l  -> not (Set.null l)
                                       otherwise       -> error $ "wrong content of exception variable of binding " ++ show v
                        code     = if hasE
                                   then GrExpr_Seq eCode
@@ -129,7 +129,7 @@ buildApplyAlt ((t, a, avL), rhs) appArgs hptMap u = buildAlternative t avL a rhs
                       val2av v = case v of
                                      GrVal_Var v -> getEnvVar hptMap (getNr v)
                                      otherwise   -> AV_Basic
-                      absVal = AV_Nodes [(t, avL ++ map val2av appArgs)]
+                      absVal = AV_Nodes (Map.singleton t (avL ++ map val2av appArgs))
                   in (u, hptData absVal, code)
 
 applyCode unique applyMap hptMap funVar appArgs =

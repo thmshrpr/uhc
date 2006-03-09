@@ -17,7 +17,7 @@ TODO: Mark unique variables as Unique
 WRAPPER GrAGItf
 %%]
 
-%%[8 hs import("qualified Data.Map as Map", Data.Maybe, Control.Monad, Control.Monad.ST, Data.Array.ST, Data.Array.IArray)
+%%[8 hs import("qualified Data.Map as Map", "qualified Data.Set as Set", Data.Maybe, Control.Monad, Control.Monad.ST, Data.Array.ST, Data.Array.IArray)
 %%]
 
 %%[8 hs import(Debug.Trace)
@@ -245,7 +245,7 @@ SEM GrExpr
                . fNode2Var  = \tag names t -> let absVals   = map sn2av names
                                                   resultVar = lookup tag @lhs.tag2resultVar
                                                   env       = @lhs.setEnvVar t True
-                                                                          (AV_Nodes [(tag, absVals)])
+                                                                          (AV_Nodes (Map.singleton tag absVals))
                                                                           (EnvTag tag names Nothing)
                                               in env
                . fVar2Node  = buildSelectElems @lhs.setEnvVar
@@ -294,10 +294,10 @@ SEM GrExpr
 makeStore setEnvVar ftag2resultVar heapPointer valInfo targetInfo
     = let fNode2Var  tag names t = let absVals     = map sn2av names
                                        resultVar   = ftag2resultVar tag
-                                       av          = AV_Locations [heapPointer]
+                                       av          = AV_Locations (Set.singleton heapPointer)
                                        env         = setEnvVar t True av envMod
                                        heap        = makeHeapElem heapPointer
-                                                                 (AV_Nodes [(tag, absVals)])
+                                                                 (AV_Nodes (Map.singleton tag absVals))
                                                                  ((tag, names), resultVar)
                                        envMod      = EnvSetAV av
                                    in ( env, heap )
@@ -330,7 +330,7 @@ eval(l); -> \(Tag e1 .. en) => @eval@l:
 %%[8.eval
 SEM GrExpr
   | Eval   loc . fillEnv = case @lhs.targetInfo of
-                             Left  n           -> @lhs.setEnvVar n True (AV_Nodes []) (EnvEval (getNr @nm) @lhs.exceptVar)
+                             Left  n           -> @lhs.setEnvVar n True (AV_Nodes Map.empty) (EnvEval (getNr @nm) @lhs.exceptVar)
                              Right (tag,names) -> error "NormForHPT not executed"
 %%]
 
@@ -352,7 +352,7 @@ foo a1 ..an; -> \(Tag e1 .. en) => e1:
 SEM GrExpr
   | Call  loc  .  resultVar   =  getNr @nm
                .  fillEnv     =  case @lhs.targetInfo of
-                                     Left  n           -> @lhs.setEnvVar n True (AV_Nodes []) (EnvUnion [@resultVar] Nothing)
+                                     Left  n           -> @lhs.setEnvVar n True (AV_Nodes Map.empty) (EnvUnion [@resultVar] Nothing)
                                      Right (tag,names) -> buildSelectElems @lhs.setEnvVar @resultVar tag names
                .  exceptions  =  @resultVar + 1 : @lhs.exceptions
 %%]
@@ -458,7 +458,7 @@ SEM GrExpr
              . prim       = case @lhs.targetInfo of
                               Left nm          -> @lhs.setEnvVar nm True @primAbsVal (EnvSetAV @primAbsVal)
                               Right (tag, nms) -> let (AV_Nodes nodes) = @primAbsVal
-                                                      tagElementsAV    = fromJust' "FFI" $ lookup tag nodes
+                                                      tagElementsAV    = fromJust' "FFI" $ Map.lookup tag nodes
                                                       makeAV teAV nm   = @lhs.setEnvVar nm True teAV (EnvSetAV teAV)
                                                   in zipWithM_ makeAV tagElementsAV nms
              . ffi        = case @lhs.targetInfo of
@@ -503,7 +503,7 @@ SEM GrExpr
                                                       mkAppInfo l = case l of
                                                                         Left  v  -> Left v
                                                                         Right n  -> error $ "Node in apply argument not implemented: " ++ show n
-                                                  in @lhs.setEnvVar nm True (AV_Nodes []) (EnvApp (getNr @nm) (makeAppArgInfo @argL.valsInfo) @lhs.exceptVar)
+                                                  in @lhs.setEnvVar nm True (AV_Nodes Map.empty) (EnvApp (getNr @nm) (makeAppArgInfo @argL.valsInfo) @lhs.exceptVar)
 
 %%]
 
@@ -567,7 +567,7 @@ SEM GrExpr
                    . exceptVar   =  @handlerVar
            handler . exceptions  =  @lhs.exceptions
            lhs     . exceptions  =  @handler.exceptions
-           loc     . exceptEq    =  @lhs.setEnvVar @handlerVar True (AV_Locations []) (EnvUnion @body.exceptions Nothing)
+           loc     . exceptEq    =  @lhs.setEnvVar @handlerVar True (AV_Locations Set.empty) (EnvUnion @body.exceptions Nothing)
                    . handlerVar  =  getNr @arg
 %%]
 
@@ -582,7 +582,7 @@ ATTR AllGrExpr [ exceptVar: Variable | | ]
 SEM GrBind
   | Bind  expr    . exceptions  =  []
           loc     . exceptVar   = @resultVar + 1
-          loc     . exceptEq    =  @lhs.setEnvVar @exceptVar True (AV_Locations []) (EnvUnion @expr.exceptions Nothing)
+          loc     . exceptEq    =  @lhs.setEnvVar @exceptVar True (AV_Locations Set.empty) (EnvUnion @expr.exceptions Nothing)
 %%]
 
 
