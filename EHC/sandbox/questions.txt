@@ -1,0 +1,15 @@
+Questions
+
+1. When rules are used to generate AG files, certain
+   information is thrown out; in particular, the target
+   node.  However, we will need to preserve nodes when
+   generating our Haskell code (that processes more than
+   one node at a time).  Que Pasa?
+
+2. When we need to pattern match on constructors we need 
+   to know parameters of the constructor. But the constructor is now simply given
+   as a string, so we will have to find the arity ourselfs. 
+
+3. Should we be thinking about generating Haskell that
+   will then invoke semantic AG functions or just pure
+   Haskell?

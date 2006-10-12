@@ -1,0 +1,57 @@
+\documentclass[10pt]{report}
+\usepackage{geometry}
+\geometry{letterpaper}
+\usepackage{verbatim}
+\usepackage{graphicx}
+\usepackage{amssymb}
+\usepackage{epstopdf}
+\DeclareGraphicsRule{.tif}{png}{.png}{`convert #1 `dirname #1`/`basename #1 .tif`.png}
+
+\title{Brief Article}
+\author{The Author}
+
+\begin{document}
+\section{Tracing AG Generation}
+\begin{itemize}
+  \item The Path from main to AG
+    \begin{itemize}
+      \item[1] Ruler.hs: main() $\rightarrow$ compileTopLevel()
+      \item[2] Ruler.hs: compileTopLevel() $\rightarrow$ \emph{preprocessing} $\rightarrow$ cpFlattenAndCompileAllCU
+      \item[3] Ruler.hs: cpFlattenAndCompileAllCU $\rightarrow$ sem\_AGltf
+        \begin{itemize}
+          \item AGltf is defined in RulerAS1GenAS2.ag
+        \end{itemize}
+    \end{itemize}
+    \item Generation of Attribute data structures
+        \begin{itemize}
+          \item[1] RulerAbSyn2AG.ag: Decl - \emph{top level parsed/preprocessed rule struct}
+            \begin{itemize}
+              \item[a] Preamble String - 
+              \item[b] ScVwExplain Expr - 
+              \item[c] ScVwAtExplain [(Expr,Expr)] -
+              \item[d] RsVw RsVwDecl - 
+              \item[e] AttrAG AttrAGDecl - attribute declaration
+              \item[f]  DataAG DataAGDecl - data declaration
+              \item[g] Chunk Nm Decl - 
+            \end{itemize}
+          \item[2] RulerAS1GenAS2.ag: AGltf generates an array of decls
+        \end{itemize}
+\end{itemize}
+
+%\subsection{}
+
+In order to generate Haskell, we want to modify:\\ 
+Rules.hs: cpFlattenAndCompileAllCU():\\
+\begin{verbatim}
+cpMk1
+              = do { let t1 = M1.as2_Syn_AGItf sem1Res
+                         ((t2,_,t2errL),doPrint)
+                           = case optGenFM opts of
+                               FmTeX -> bld as2LaTeX
+                               FmAG  -> bld as2ARule
+                               FmHS  -> ((t1,empty,[]),True) -- add shizzle here
+\end{verbatim}
+
+
+
+\end{document}   

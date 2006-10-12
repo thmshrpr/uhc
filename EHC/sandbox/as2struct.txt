@@ -1,0 +1,36 @@
+
+[Decl_RsVw (
+    RsVwDecl_Rs 
+      expr -- Name ruleset
+      expr -- Name scheme
+      "Expression type rules" -- Description ruleset
+      [ VwDecl_Vw 
+          expr   -- Name view
+          rules.expr.expr -- canonical name ruleset.<viewname>.<rulesetname>
+          [ RlDecl_Rl     
+              e.int       -- Name rule
+              rules.expr.expr.e.int  -- canonical name rule rules.<viewname>.<rulesetname>.<rulename>
+              ( "e"                  -- first part of rulename
+              ,"test.rul"            -- filename
+                (line 8, column 8)   -- where defined. These 3 together are a location
+              ) 
+              Shizzle                -- constructor name for node semantic function is applied to
+              []                     -- judgements above the line
+              [ Jd_Ats               -- judgements below the line
+                  _0                 -- unique generated name of the judgement
+                  expr               -- Name of scheme
+                  [ JdAt_At          -- judgement attributes
+                      e              -- name hole1
+                      (Expr_Var int) -- Expression that should replace hole1 in the AG
+                  , JdAt_At g        -- expression for hole2 (although it was defined last?)
+                      (Expr_Var g)   -- Expression that should replace hole2 in the AG
+                  , JdAt_At          -- Expression for hole3
+                      t              
+                      (Expr_Var Int) -- Expression that should replace hole3 in the AG
+                  ]
+              ]
+          ]
+      ]
+)]
+
+Q1. Where did synthesized vs. inherited info go?
