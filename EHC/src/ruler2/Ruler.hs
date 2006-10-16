@@ -30,6 +30,7 @@ import KeywParser
 import RulerParser
 import Expr
 import FmGam
+import Utils
 
 -------------------------------------------------------------------------
 -- Compile run state
@@ -174,7 +175,7 @@ cpFlattenAndCompileAllCU
             putBld  f   b = hPutBld f stdout b
             cpPutBld f b = lift $ putBld f b
             cpPutDbg = cpPutBld (optDebug opts) (M1.pp_Syn_AGItf sem1Res)
-            cpMk1
+            cpMk1                
               = do { let t1 = M1.as2_Syn_AGItf sem1Res
                          ((t2,_,t2errL),doPrint)
                            = case optGenFM opts of
@@ -184,7 +185,7 @@ cpFlattenAndCompileAllCU
                                _ | optGenExpl opts -> ((t1,empty,[]),True)
                                  | otherwise            -> ((t1,empty,[]),False)
                            where bld f = (f opts (M1.dtInvGam_Syn_AGItf sem1Res) (M1.scGam_Syn_AGItf sem1Res) (M1.fmGam_Syn_AGItf sem1Res) (M1.rwGam_Syn_AGItf sem1Res) t1,True)
-                   ; cpSeq [cpSetErrs t2errL, cpPutBld doPrint (M2.ppAS2 opts (M1.fmGam_Syn_AGItf sem1Res) t2)]
+                   ; cpSeq [cpSetErrs t2errL, cpPutBld doPrint (M2.ppAS2 opts (M1.fmGam_Syn_AGItf sem1Res) (printTrace $ t2) )] 
                    }
 {-
             cpMk2

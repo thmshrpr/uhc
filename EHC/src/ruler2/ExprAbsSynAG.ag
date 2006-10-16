@@ -82,5 +82,7 @@ SET AllExprButANm = Expr MbExpr ECnstr
 
 SET AllExpr = AllExprButANm ANm
 
+DERIVING Expr ECnstr ANm: Show
+
 
 

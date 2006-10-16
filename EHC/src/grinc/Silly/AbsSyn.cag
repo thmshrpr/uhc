@@ -64,4 +64,5 @@ DATA Value
                  args       : Values
 
 
+DERIVING * : Show
 %%]

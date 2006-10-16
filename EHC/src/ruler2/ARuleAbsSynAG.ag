@@ -41,3 +41,5 @@ SET AllARuleButARule = AllARuleEqn AExpr AEqnDest AEqnDests
 
 SET AllARule = AllARuleRule AllARuleButARule
 
+DERIVING * : Show
+

@@ -1,0 +1,42 @@
+SilModule_SilModule 
+  [ ("CInt",0)
+  , ("Fundefined", 1)
+  , ("Fmain", 2)
+  ] 
+  ["global_main","global_undefined"] 
+  [ Function_Function 
+      "initialize" 
+      False 
+      [] 
+      [] 
+      [ Statement_Assignment 
+         Variable_BP (Value_Con (Constant_Literal 0))
+      , Statement_Assignment 
+          (Variable_Var "global_main") 
+          (Value_Call "(GrWord)heapalloc" [Value_Con (Constant_Literal 10)])
+      , Statement_Assignment 
+          (Variable_Subs (Variable_Var "global_main") (Constant_Literal 0)) 
+          (Value_Con (Constant_Alias "Fmain"))
+      , Statement_Assignment 
+          (Variable_Var "global_undefined") 
+          (Value_Call "(GrWord)heapalloc" [Value_Con (Constant_Literal 10)])
+      , Statement_Assignment 
+          (Variable_Subs (Variable_Var "global_undefined") (Constant_Literal 0)) 
+          (Value_Con (Constant_Alias "Fundefined"))
+      ]
+  , Function_Function 
+      "fun_main" 
+      False 
+      [] 
+      [] 
+      [ Statement_Enter 0 0
+      , Statement_Comment "Unit"
+      , Statement_Assignment 
+          (Variable_Subs Variable_RP (Constant_Literal 0)) 
+          (Value_Con (Constant_Alias "CInt"))
+      , Statement_Assignment 
+          (Variable_Subs Variable_RP (Constant_Literal 1)) 
+          (Value_Con (Constant_Literal 1))
+      , Statement_Leave 0
+      ]
+  ]

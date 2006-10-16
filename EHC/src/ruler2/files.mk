@@ -23,7 +23,7 @@ RULER2_HS_DPDS_SRC_HS					:= $(patsubst %,$(SRC_RULER2_PREFIX)%.hs,\
 											Gam FmGam ECnstrGam RwExprGam WrKindGam JdShpGam \
 											RulerAdmin RulerMkAdmin \
 											ExprToAEqn \
-											RulerScanner RulerScannerMachine \
+											RulerScanner RulerScannerMachine Utils\
 											)
 RULER2_HS_DPDS_DRV_HS					:= $(patsubst $(SRC_RULER2_PREFIX)%.hs,$(RULER2_BLD_PREFIX)%.hs,$(RULER2_HS_DPDS_SRC_HS))
 
