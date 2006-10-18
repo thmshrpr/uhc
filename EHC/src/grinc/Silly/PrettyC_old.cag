@@ -79,9 +79,8 @@ SEM Function
                 lhs.protoC    = methodHead @name @parameters >|< ";"
 
 SEM Statement
-  | Comment     lhs.prettyC   = comment @comment              -- DONE (removed for now)
-  | Assignment  lhs.prettyC   = assignment @dest.prettyC      -- DONE
-                                           @source.prettyC
+  | Comment     lhs.prettyC   = comment @comment
+  | Assignment  lhs.prettyC   = assignment @dest.prettyC @source.prettyC
   | Switch      lhs.prettyC   = switch @lhs.optCaseDefault @scrutinee.prettyC @body.prettyC
   | Call        lhs.prettyC   = call @name @args.prettyCs >|< ";"
   | Jump        lhs.prettyC   = jump @name
@@ -93,28 +92,27 @@ SEM Alternative
   | Alternative lhs.prettyC   = alternative @when.prettyC @body.prettyC
 
 SEM Values
-  | Nil         lhs.prettyCs  = []                            -- DONE (nothing to do)
-  | Cons        lhs.prettyCs  = @hd.prettyC : @tl.prettyCs    -- DONE (nothing to do)
+  | Nil         lhs.prettyCs  = []
+  | Cons        lhs.prettyCs  = @hd.prettyC : @tl.prettyCs
 
 SEM Value
-  | Con         lhs.prettyC   = @con.prettyC                  -- DONE
-  | Var         lhs.prettyC   = @var.prettyC                  -- DONE
-  | Call        lhs.prettyC   = call @name @args.prettyCs     -- DONE (arg format wrong needs type...) 
+  | Con         lhs.prettyC   = @con.prettyC
+  | Var         lhs.prettyC   = @var.prettyC
+  | Call        lhs.prettyC   = call @name @args.prettyCs
 
 SEM Constant
-  | Literal     lhs.prettyC   = text ("int " ++ show @value)  -- DONE
-  | Alias       lhs.prettyC   = text ("%" ++ @name)           -- DONE
+  | Literal     lhs.prettyC   = text (show @value)
+  | Alias       lhs.prettyC   = text @name
 
 SEM Variable
-  | Var         lhs.prettyC   = text ("%" ++ @name)           -- DONE
-                lhs.prettyPtr = text "(*" >#< text @name      -- DONE (BUT TYPING PROBLEM)
-                                          >#< text ")" 
-  | SP          lhs.prettyC   = text "%SP"                    -- DONE
-                lhs.prettyPtr = text "%SP"                    -- DONE
-  | BP          lhs.prettyC   = text "%BP"                    -- DONE
-                lhs.prettyPtr = text "%BP"                    -- DONE
-  | RP          lhs.prettyC   = text "%RP"                    -- DONE
-                lhs.prettyPtr = text "%RP"                    -- DONE
+  | Var         lhs.prettyC   = text @name
+                lhs.prettyPtr = "((Pointer)" >|< text @name >|< ")"
+  | SP          lhs.prettyC   = text "SP"
+                lhs.prettyPtr = text "SP"
+  | BP          lhs.prettyC   = text "BP"
+                lhs.prettyPtr = text "BP"
+  | RP          lhs.prettyC   = text "RP"
+                lhs.prettyPtr = text "RP"
   | Subs        lhs.prettyC   = @array.prettyPtr >|< "[" >|< @index.prettyC >|< "]"
                 lhs.prettyPtr = error "attempt to use subscription as pointer"
 
@@ -128,6 +126,10 @@ SEM Variable
 
 commaSeparated :: [String] -> String
 commaSeparated = concat . intersperse ", "
+
+macroDefinition :: PP_Doc -> PP_Doc -> PP_Doc
+macroDefinition nm body
+ = "#define" >#< nm >#< body
 
 decrementWith p n
  = incrementWith p (-n)
@@ -156,11 +158,11 @@ caseDefault x
  =  "default: printf(\"undefined case for " >|< x >|< " : %d\\n\", " >|< x >|< "); exit(1);"
 
 comment :: String -> PP_Doc
-comment s = text "" -- removed for now -- ("/* " ++ s ++ " */")
+comment s = text ("/* " ++ s ++ " */")
 
 call :: String -> [PP_Doc] -> PP_Doc
 call f ps
- = "call" >#< "int" >#< f >#< "(" >|< ppHorizontally (intersperse (text ", ") ps) >|< ")"
+ = f >|< "(" >|< ppHorizontally (intersperse (text ", ") ps) >|< ")"
 
 %%]
 
@@ -175,9 +177,9 @@ preambule
    >-< text "#include \"rts.h\""
    >-< text ""
 
-constantDefinition :: (String,Int) -> PP_Doc         -- DONE (but only int consts supported)
-constantDefinition (x,n) = text ("%" ++ x) >#< text "= global int" >#< text (show n)
-
+constantDefinition :: (String,Int) -> PP_Doc
+constantDefinition (x,n)
+ = macroDefinition (text x) (text (show n))
 
 variableDeclaration :: String -> PP_Doc
 variableDeclaration x
@@ -225,6 +227,7 @@ assignment v e
  = v
    >#< "="
    >#< e
+   >|< ";"
    >|< ppWhen optTraceAssign
               (" printf(\"assignment" >#< show v >#< "=" >#< e >#< " : %d\\n\", " >#< show v >#< ");")
 
