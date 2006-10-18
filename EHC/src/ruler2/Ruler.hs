@@ -30,7 +30,6 @@ import KeywParser
 import RulerParser
 import Expr
 import FmGam
-import Utils
 
 -------------------------------------------------------------------------
 -- Compile run state
@@ -185,7 +184,7 @@ cpFlattenAndCompileAllCU
                                _ | optGenExpl opts -> ((t1,empty,[]),True)
                                  | otherwise            -> ((t1,empty,[]),False)
                            where bld f = (f opts (M1.dtInvGam_Syn_AGItf sem1Res) (M1.scGam_Syn_AGItf sem1Res) (M1.fmGam_Syn_AGItf sem1Res) (M1.rwGam_Syn_AGItf sem1Res) t1,True)
-                   ; cpSeq [cpSetErrs t2errL, cpPutBld doPrint (M2.ppAS2 opts (M1.fmGam_Syn_AGItf sem1Res) (printTrace $ t2) )] 
+                   ; cpSeq [cpSetErrs t2errL, cpPutBld doPrint (M2.ppAS2 opts (M1.fmGam_Syn_AGItf sem1Res) t2 )] 
                    }
 {-
             cpMk2

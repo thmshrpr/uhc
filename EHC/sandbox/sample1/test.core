@@ -1,0 +1,22 @@
+module $test =
+let
+ { $main =
+    #Int"1"
+ } in
+let
+ { $False =
+    #Tag{$Bool, $False, 0, 0}
+ } in
+let
+ { $True =
+    #Tag{$Bool, $True, 1, 0}
+ } in
+$main
+-- data type tag map:
+{ $Bool
+   = { $False
+        = {$Bool, $False, 0, 0}
+     ; $True
+        = {$Bool, $True, 1, 0}
+     }
+}
