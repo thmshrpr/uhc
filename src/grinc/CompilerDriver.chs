@@ -14,6 +14,8 @@
 %%]
 
 
+
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Packaging as CompileRun actions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -79,6 +81,30 @@ caParseGrin = do
     path <- gets gcsPath
     opts <- gets gcsOpts
     (fn, code) <- liftIO $ parseGrin path opts
+    modify (gcsUpdateGrinCode code)
+%%]
+
+%%[8.identity import({%{GRIN}GrinCode.Trf.Identity})
+
+{-
+caIdentity1 :: CompileAction ()
+caIdentity1 = do
+    code <- gets gcsGrinCode
+    changed <- return $ identity code
+    modify (gcsUpdateGrinCode code)
+    putDebugMsg (if changed then "Changes" else "No change")
+    return ()
+
+
+caIdentityFix :: CompileAction ()
+caIdentityFix = task VerboseALot "Unskewing" (caFix caIdentity1) (\i -> Just $ show i ++ " iteration(s)")
+-}
+
+caIdentity :: CompileAction ()
+caIdentity = do
+    putMsg VerboseALot "Identity Trans" Nothing
+    code <- gets gcsGrinCode
+    code <- return $ identity code
     modify (gcsUpdateGrinCode code)
 %%]
 
@@ -394,15 +420,16 @@ caAnalyse = task_ VerboseNormal "Analyzing"
 
 -- simplification part I
 caKnownCalls = task_ VerboseNormal "Removing unknown calls"
-    ( do { caInlineEA
-         ; caRightSkew
+    ( do { caIdentity --
+	 ; caInlineEA -- eval, apply
+         ; caRightSkew -- bind normalisation -- caFix
          ; caWriteGrin True "3-knownCalls"
          }
     )
 -- optionsations part I
 caOptimizePartly = task_ VerboseNormal "Optimizing (partly)"
     ( do { caSparseCase
-         ; caEliminateCases
+         ; caEliminateCases -- trivial, evaluated case
          ; caDropUnusedExpr
          ; caDropUnusedBindings
          ; caWriteGrin True "4-partlyOptimized"
@@ -410,14 +437,14 @@ caOptimizePartly = task_ VerboseNormal "Optimizing (partly)"
     )
 -- simplification part II
 caNormalize = task_ VerboseNormal "Normalizing"
-    ( do { caLowerGrin
+    ( do { caLowerGrin -- vectorisation, case simplification
          ; caWriteGrin True "5-normalized"
          }
     )
 
 -- optionsations part II
 caOptimize = task_ VerboseNormal "Optimizing (full)"
-    ( do { caCopyPropagation
+    ( do { caCopyPropagation -- caFix
          ; caWriteGrin True "6-after-cp"
          ; caDropUnusedExpr
          ; caWriteGrin True "7-optimized"
@@ -426,10 +453,10 @@ caOptimize = task_ VerboseNormal "Optimizing (full)"
 
 -- simplification part III
 caFinalize = task_ VerboseNormal "Finalizing"
-    ( do { caSplitFetch
+    ( do { caSplitFetch -- , right hoist
          ; caDropUnusedExpr
          ; caDropUnusedTags
-         ; caReturningCatch
+         ; caReturningCatch -- ...
          ; caNameIdents
          ; caWriteGrin True "8-final"
          }

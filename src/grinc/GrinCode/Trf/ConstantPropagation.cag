@@ -1,0 +1,33 @@
+%%[0
+%include lhs2TeX.fmt
+%include afp.fmt
+%%]
+
+%%[8 import({GrinCode/AbsSyn})
+%%]
+
+%%[8.wrapper
+WRAPPER GrAGItf
+%%]
+
+%%[8 hs module {%{GRIN}GrinCode.Trf.Identity} import({%{EH}Base.Common}, {%{EH}GrinCode}) export(identity)
+copyPropagation :: HptMap -> GrModule -> GrModule
+copyPropagation hptMap grmod  =  let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod))
+                                                       (Inh_GrAGItf { hptMap_Inh_GrAGItf  =  hptMap
+                                                                    }
+                                                       )
+                                  in grTrf_Syn_GrAGItf t
+%%]
+
+%%[8
+ATTR GrAGItf [ hptMap: HptMap | | grTrf: GrModule ]
+ATTR AllGrNT [ hptMap: HptMap | | grTrf: SELF     ]
+%%]
+
+%%[8
+SEM GrinExpr
+  | Case    lhs  .  grTrf	=  if isKnown @val then selectAlt @altL
+  | FFI	    lhs  .  grTrf 	=  -- if args are all known
+%%]
+
+% vim:ts=4:et:

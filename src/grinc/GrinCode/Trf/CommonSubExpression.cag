@@ -1,0 +1,63 @@
+%%[0
+%include lhs2TeX.fmt
+%include afp.fmt
+%%]
+
+%%[8 import({GrinCode/AbsSyn})
+%%]
+
+%%[8.wrapper
+WRAPPER GrAGItf
+%%]
+
+%%[8 hs module {%{GRIN}GrinCode.Trf.Identity} import({%{EH}Base.Common}, {%{EH}GrinCode}) export(identity)
+identity :: GrModule -> GrModule
+identity grmod = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod)) Inh_GrAGItf
+                    in grTrf_Syn_GrAGItf t
+%%]
+
+%%[8
+ATTR GrAGItf [ | | grTrf: GrModule ]
+ATTR AllGrNT [ | | grTrf: SELF     ]
+ATTR GrAGItf [ | | env: (GrinExpr,GrinExpr) ] -- environment (for a very small scope!) matches a GrinExpr and substitutes for an available simpler GrinExpr
+%%]
+
+%%[8
+-- replace with Unit operations
+-- we are interested in the cases of: (see Boquist p. 149)
+   -- function calls Call
+   -- primitive operations FFI
+   -- Unit operations
+   -- memory Fetch, Store operations
+
+SEM GrExpr
+  | Seq     loc  .  env	=  case @expr of
+					(FFI _ _ resTagL) = reuse : lhs.@env
+					(Call _ _) = reuse : foldWith dropfetch lhs.@env
+                        where dropfetch ((Fetch _ _ _), _) xs = xs -- drop all Fetch-es, thus safe (todo)
+                              dropfetch x xs = x : xs
+                    -- (Unit _) = reuse -- is this always profitable?
+					(Unit val) = case val of  
+                                  Tag, Empty, LitInt = lhs.@env 
+                                  otherwise = reuse : lhs.@env 
+					(Fetch _ _ _) = reuse : lhs.@env
+					(Store val) = reuse : ((Fetch nm mbOffset mbTag), (Unit val)) : lhs.@env
+						 -- also add a Fetch
+						   -- but mind: it must not be Update-d in between!
+						    -- (mind only closures: "if a whnf is ever updated it must be with an identical value", p. 150)
+						   -- mind also "function Call-s that risk updating nodes in the environment"!
+						where (nm, mbOffset, mbTag) = getfrom @pat
+					(Update nm val mbTag) = foldWith dropfetch lhs.@env	      -- compared to Fetch, has no offset
+						where dropfetch x@((Fetch nm mbOffset mbTag'), (Unit val)) xs -- matching nm
+							        (mbTag == mbTag') = xs -- todo -- drop
+							        otherwise	  = x : xs
+						      dropfetch x xs = x : xs
+			where reuse = (@expr, (Unit @pat))
+
+SEM GrExpr
+  | Seq     loc  .  grTrf	=  lookup @expr lhs.@env
+                            where lookup x [] = x
+                                  lookup x (x,y):ys = y
+%%]
+
+% vim:ts=4:et:
