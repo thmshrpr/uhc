@@ -1,0 +1,3 @@
+LLVM README
+
+1) lli seems to be broken on the linux x86 platform when it uses JIT trying to evaluate a switch statement. Use the flag -force-interpreter to avoid this bug 

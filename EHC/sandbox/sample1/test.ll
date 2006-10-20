@@ -2,19 +2,39 @@ target endian = little
 target pointersize = 32
 target triple = "i686-pc-linux-gnu"
 
-%X = global int 0
+%thunk_type = type < 8 x uint >
+
+;%MAX_HEAP_THUNKS = global uint 100
+;%THUNK_SIZE      = global uint 10
+;%HEAP_LIMIT      = global uint undef
+
+;%HP = global uint undef
 
 implementation 
 
-int %main() {
 
-  %var0 = load int* %X
-  switch int %var0, label %default1 [ int 0, label %switch2 ]
-                                      ;int 1, label %switch3 ]
-switch2:
-  ret int 5
-switch3:
-  ret int 6
-default1: 
-  ret int %var0
+
+void %main( ) {
+
+  %thunk_ptr = malloc %thunk_type, uint 1  
+
 }
+
+;uint %heapalloc( uint %words ) {
+;
+;  %curr = load uint* %HP
+;  %new  = add uint %words, %curr
+;  store uint %new, uint* %HP
+;  ret uint %new
+;}
+
+
+;uint %main( ) {
+;
+;  tail call uint %heapalloc( uint 4 )
+;  %curr = tail call uint %heapalloc( uint 5 )
+;  ret uint %curr
+;}
+  
+
+

@@ -1,6 +1,6 @@
 #include "rts.h"
 
-Pointer SP, RP, BP ;
+Pointer SP, RP, BP;
 Pointer Stack, ReturnArea;
 
 #if USE_BOEHM_GC
@@ -15,10 +15,10 @@ extern int fun_main();
 int main(int argc, char** argv)
 {
 #if USE_BOEHM_GC
-    GC_INIT() ;
+//    GC_INIT() ;
 
-    Stack = (Pointer)GC_MALLOC_UNCOLLECTABLE(SIZEOF_GRWORD*STACKSIZE);
-    ReturnArea = (Pointer)GC_MALLOC_UNCOLLECTABLE(SIZEOF_GRWORD*RETURNSIZE);
+//    Stack = (Pointer)GC_MALLOC_UNCOLLECTABLE(SIZEOF_GRWORD*STACKSIZE);
+//    ReturnArea = (Pointer)GC_MALLOC_UNCOLLECTABLE(SIZEOF_GRWORD*RETURNSIZE);
 #else
     Heap = (Pointer)malloc(sizeof(GrWord)*HEAPSIZE);
 
@@ -36,13 +36,13 @@ int main(int argc, char** argv)
     initialize();
 #if USE_BOEHM_GC
 #else
-    HeapEndCAF = HP;
+//    HeapEndCAF = HP;
 #endif
     fun_main();
 
 
 #if USE_BOEHM_GC
-     printf("result SP-offset=%d tag=%d value=%d\n", SP-Stack, RP[0], RP[1] );
+//     printf("result SP-offset=%d tag=%d value=%d\n", SP-Stack, RP[0], RP[1] );
 #else
      printf("result SP-offset=%d HP-offset=%d tag=%d value=%d\n", SP-Stack, HP-Heap, RP[0], RP[1] );
 #endif

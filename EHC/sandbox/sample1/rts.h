@@ -12,7 +12,7 @@ typedef GrWord* Pointer;
 #include "prim.h"
 
 #if USE_BOEHM_GC
-#include "gc.h"
+//#include "gc.h"
 #else
 
 #define HEAPSIZE 100000
