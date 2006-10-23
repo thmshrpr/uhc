@@ -108,6 +108,15 @@ caIdentity = do
     modify (gcsUpdateGrinCode code)
 %%]
 
+%%[8.caseHoisting import({%{GRIN}GrinCode.Trf.CaseHoisting})
+caCaseHoisting :: CompileAction ()
+caCaseHoisting = do
+    putMsg VerboseALot "Case Hoisting" Nothing
+    code <- gets gcsGrinCode
+    code <- return $ caseHoisting code
+    modify (gcsUpdateGrinCode code)
+%%]
+
 %%[8.cleanup import({%{GRIN}GrinCode.Trf.CleanupPass})
 caCleanupPass :: CompileAction ()
 caCleanupPass = do
@@ -420,8 +429,8 @@ caAnalyse = task_ VerboseNormal "Analyzing"
 
 -- simplification part I
 caKnownCalls = task_ VerboseNormal "Removing unknown calls"
-    ( do { caIdentity --
-	 ; caInlineEA -- eval, apply
+    ( do { --caIdentity 
+	 ; caInlineEA -- inline eval, inline apply, whnf update elimination, 
          ; caRightSkew -- bind normalisation -- caFix
          ; caWriteGrin True "3-knownCalls"
          }
@@ -446,6 +455,8 @@ caNormalize = task_ VerboseNormal "Normalizing"
 caOptimize = task_ VerboseNormal "Optimizing (full)"
     ( do { caCopyPropagation -- caFix
          ; caWriteGrin True "6-after-cp"
+         ; caCaseHoisting
+         ; caWriteGrin True "6-after-hoisting"
          ; caDropUnusedExpr
          ; caWriteGrin True "7-optimized"
          }

@@ -1,0 +1,49 @@
+%%[0
+%include lhs2TeX.fmt
+%include afp.fmt
+%%]
+
+%%[8 import({GrinCode/AbsSyn})
+%%]
+
+%%[8.wrapper
+WRAPPER GrAGItf
+%%]
+
+%%[8 hs module {%{GRIN}GrinCode.Trf.CaseHoisting} import({%{EH}Base.Common}, {%{EH}GrinCode}) export(caseHoisting)
+caseHoisting :: GrModule -> GrModule
+caseHoisting grmod = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod)) Inh_GrAGItf
+                    in grTrf_Syn_GrAGItf t
+%%]
+
+%%[8
+ATTR GrAGItf [ | | grTrf: GrModule ]
+ATTR AllGrNT [ | | grTrf: SELF     ]
+%%]
+
+%%[8
+{-
+SEM GrExpr
+  | Seq   lhs.grTrf = if @body.isCase && @expr.isCase
+                      then @expr.grTrf
+                      else GrExpr_Seq @expr.grTrf @pat.grTrf @body.grTrf
+          @expr.tailCase = @body.grTrf
+
+ATTR GrExpr GrAlt [ tailCase: GrExpr | | ]
+ 
+SEM GrExpr
+  | Case  lhs.grTrf = GrExpr_Seq 
+-}
+%%]
+
+
+
+%%[8
+SEM GrExpr [ | | isCase USE {`constfalse`} {False} : Bool ]
+  | Case  lhs.isCase    = True
+
+{constfalse _ _ = False}
+%%]
+
+
+% vim:ts=4:et:
