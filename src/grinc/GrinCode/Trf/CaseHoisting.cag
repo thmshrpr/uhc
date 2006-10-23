@@ -60,10 +60,35 @@ Unfortunately, m1 and m2 have to be evaluated lazily here (expressed by the LET)
 because they depend on (Var u),
 but there is no way to express laziness in GRINs `built-in monad'.
 
--- TODO how does GRIN treat LETs?
+-- todo what about making _continuation functions_ for m1, m2? (p. 142 second-last par of 'Limiting code duplication')
+
+(p. 189 RISC code generation optimisation)
+"Unfortunately there is no general and good solution to this problem on the GRIN level\footnote{We do not consider continuation functions a very good solution.}." -- TODO why not?
+"The key observation is that when an alternative of the first case expression returns a known tag, the code can jump directly into the corresponding branch of the second case expression, bypassing the extra test."
+"The implementation of this optimisation is very similar to _the GRIN case hoisting transformation_, but here we only insert different branch instructions instead of duplicate code like in the GRIN transformation."
+"The actual bookkeeping that needs to be done for this transformation is rather involved, to handle sequences of more than two case expressions, nested case expressions, etc., and we will not explain the details here."
+
+-- todo how does GRIN treat LETs?
 
 -- TODO does SSA need (Var u) to be renamed in the different case branches?
 -- what if (Var u) is used in <m3>?
+
+-- todo can we vary the order of inlining? (p. 142 last par of 'Limiting code duplication')
+-- seems silly: we need evaluated u
+
+To measure code duplication:
+ * simple: count _known returns_ (i.e. (Unit x) where x has a known tag) -- TODO synth attr `known'
+ * extended: track more -- todo `local hpt-extension'
+
+Think about:
+ * how many cases are left? if ==1, then the whole case expression can be removed -- todo inherit `local hpt-extension' to produce synth attr `matches' (todo could also perform constant propagation immediately)
+ * what is the (summed) size of the code involved in each of these cases? -- todo synth attr `size'
+
+(The `scrutinized' pat1, pat2 are thus TOTALLY IRRELEVANT to case hoisting.)
+
+Recursiveness of this optimisation:
+ * easy: When 3 or more case expressions are sequenced, and CaseExpr#2 is hoisted to CaseExpr#1; and moreover hoisting CaseExpr#3 to CaseExpr#2 is considered too expensive. Then after hoisting CaseExpr#2 (e.g. much alternatives) to CaseExpr#1 (e.g. few alternatives), the cost of hoisting CaseExpr#3 might be (much) reduced. -- TODO recurse
+ * difficult: It would occur if e1 or e2 (case branches of CaseExpr#1 above) would contain other (CaseExpr#2) which have _known tags_. These would of course only be usefull if the branches e1 or e2 would lack _known tags_. But then, the decision to inline at CaseExpr#1 would depend on the decision to inline at CaseExpr#2!! -- todo
 
 -}
 
@@ -72,18 +97,26 @@ but there is no way to express laziness in GRINs `built-in monad'.
 {-
 SEM GrExpr
   | Seq   lhs.grTrf = if @body.isCase && @expr.isCase
-                      then @expr.grTrf
+                      then @expr.grTrf -- TODO perform the trafo...
                       else GrExpr_Seq @expr.grTrf @pat.grTrf @body.grTrf
           @expr.tailCase = @body.grTrf
 
 ATTR GrExpr GrAlt [ tailCase: GrExpr | | ]
- 
+ATTR GrAltL [ | | known: Int ]
+ATTR GrExpr GrAlt [ | | knownReturn USE {`constfalse`} {False} : Bool ]
+
+SEM GrExpr [ | | doCaseHoistPlease USE {`constfalse`} {False} : Bool ]
+  | Case  lhs.doCaseHoistPlease = @argL.known == {length} @argL -- TODO is length allowed here :)?
+
+SEM GrExpr
+  | Unit  lhs.knownReturn = True  -- TODO this is a return, but also a _known_ return?
+
+-- SEM GrAltL -- TODO sum .knownReturn of items
+
 SEM GrExpr
   | Case  lhs.grTrf = GrExpr_Seq 
 -}
 %%]
-
-
 
 %%[8
 SEM GrExpr [ | | isCase USE {`constfalse`} {False} : Bool ]
