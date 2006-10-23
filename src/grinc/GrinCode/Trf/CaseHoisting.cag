@@ -21,6 +21,53 @@ ATTR GrAGItf [ | | grTrf: GrModule ]
 ATTR AllGrNT [ | | grTrf: SELF     ]
 %%]
 
+
+{- 
+
+It would be nice to leave the descision whether to inline the case (if it duplicates much code) to the inliner.
+
+(case v of 
+	pat1 -> e1
+	pat2 -> e2
+); \u ->
+(case u of
+	pat3 -> <m1>
+	pat4 -> <m2>
+); \w ->
+<m3>
+
+==>
+
+LET 
+	m1 = <m1>
+	m2 = <m2>
+IN
+(case v of 
+	pat1 -> e1; \u ->
+		(case u of
+			pat3 -> m1
+			pat4 -> m2
+		)		
+	pat2 -> e2; \u ->
+		(case u of
+			pat3 -> m1
+			pat4 -> m2
+		)
+); \w ->
+<m3>
+
+Unfortunately, m1 and m2 have to be evaluated lazily here (expressed by the LET),
+because they depend on (Var u),
+but there is no way to express laziness in GRINs `built-in monad'.
+
+-- TODO how does GRIN treat LETs?
+
+-- TODO does SSA need (Var u) to be renamed in the different case branches?
+-- what if (Var u) is used in <m3>?
+
+-}
+
+
 %%[8
 {-
 SEM GrExpr
