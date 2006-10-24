@@ -3,9 +3,9 @@
 %include afp.fmt
 %%]
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Prettyprint Silly program as C
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%[8 hs module {%{GRIN}Silly.PrettyC} import(Data.List(intersperse), UU.Pretty, EH.Util.PPUtils,{%{GRIN}GRINCCommon},{%{GRIN}Silly}, {%{GRIN}Config}) export(prettyC)
 %%]
@@ -16,7 +16,7 @@
 %%[8 hs
 prettyC :: Bool -> Bool -> SilModule -> PP_Doc
 prettyC optTrace optDef silmod
-  = let t = wrap_SilModule (sem_SilModule silmod)
+  = let t = wrap_SilModule (sem_SilModule test1) -- silmod) <---- TESTING!!!
                            (Inh_SilModule { optTraceCall_Inh_SilModule = optTrace
                                           , optCaseDefault_Inh_SilModule = optDef
                                           }
@@ -25,29 +25,70 @@ prettyC optTrace optDef silmod
 
 %%]
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Options to adapt the structure of the generated code
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%[8
 
 WRAPPER SilModule
+
+--------------------------------------------------------------------------------
+-- INTRODUCTION OF UNIQUE LABEL COUNTER
+--------------------------------------------------------------------------------
+ATTR Functions Function Statements Statement Alternatives Alternative
+[ | unique : {Int} | ]
+SEM SilModule
+  | SilModule   functions.unique = 0
+
+SEM Alternative
+  | Alternative loc.clbl = @lhs.unique
+                lhs.unique  = @loc.clbl + 1
+
+--------------------------------------------------------------------------------
+-- SWITCH STATEMENT RENDERING
+--------------------------------------------------------------------------------
+ATTR Alternative Alternatives [ | | prettyAlt : {(PP_Doc, PP_Doc)}]
+SEM Alternative
+  | Alternative lhs.prettyAlt = (indent 3 tableEntry, targetCode)
+                                   where tableEntry = @when.prettyC 
+                                                            >|< ", label %" 
+                                                            >|< label
+                                         label      = "case." >|< show @loc.clbl
+                                         targetCode = label >|< ":" 
+                                                            >-< indent 3 @body.prettyC
+
+SEM Alternatives
+  | Nil   lhs.prettyAlt  = (text "", text "")
+  | Cons  lhs.prettyAlt  = @hd.prettyAlt `concat` @tl.prettyAlt
+                              where concat (a,b) (c,d) = (a >-< c, b >-< d)
+
+
+{
+ppSwitch :: PP_Doc -> (PP_Doc,PP_Doc) -> PP_Doc
+ppSwitch scrutinee alts = "switch int" >#< scrutinee 
+                                       >|< ", label %switch_trap" 
+                                       >-< "[" >-< fst alts >|< "]" 
+                                       >-< snd alts
+}
+
+--------------------------------------------------------------------------------
+-- NEXT TASK...
+--------------------------------------------------------------------------------
+
 
 ATTR SilModule Functions Function Statements Statement Alternatives Alternative
   [ optTraceCall     : {Bool} -- when True, function entrance/exit is logged
     optCaseDefault   : {Bool} -- when True, error messages are given as default case for each switch
   | | ]
 
+
+
 {
 optTraceAssign = False
 }
-%%]
 
-
-%%[8
 ATTR SilModule Functions Function Statements Statement Alternatives Alternative Value Variable Constant
          [ | | prettyC USE {>-<} {empty} : PP_Doc ]
-
-ATTR Functions Function [ | | protoC USE {>-<} {empty} : {PP_Doc} ]
 
 ATTR Values [ | | prettyCs : {[PP_Doc]} ]
 
@@ -56,34 +97,25 @@ ATTR Variable [ | | prettyPtr : {PP_Doc}  ]
 
 SEM SilModule
   | SilModule   lhs.prettyC   = preambule
-                                >-< comment "Tag constants"
+                                >-< text ""
+                                >-< comment "Tag Constants"
                                 >-< ppVertically (map constantDefinition @constants)
                                 >-< text ""
-                                >-< comment "Global table"
+                                >-< comment "Global Table"
                                 >-< ppVertically (map variableDeclaration @variables)
                                 >-< text ""
-                                >-< comment "Function prototypes"
-                                >-< @functions.protoC
-                                >-< text ""
-                                >-< comment "Function definitions"
+                                >-< comment "Function Definitions"
                                 >-< @functions.prettyC
 
-SEM Function
-  | Function    lhs.prettyC   = methodHeader @lhs.optTraceCall @name @parameters
-                                >-< indent 4 (   ppWhen @tailJumps jumpPrepare
-                                             >-< methodLocals @locals
-                                             >-< @body.prettyC
-                                             )
-                                >-< methodFooter @lhs.optTraceCall @name
-
-                lhs.protoC    = methodHead @name @parameters >|< ";"
-
 SEM Statement
-  | Comment     lhs.prettyC   = comment @comment              -- DONE (removed for now)
+  | Comment     lhs.prettyC   = comment @comment              -- DONE
   | Assignment  lhs.prettyC   = assignment @dest.prettyC      -- DONE
                                            @source.prettyC
-  | Switch      lhs.prettyC   = switch @lhs.optCaseDefault @scrutinee.prettyC @body.prettyC
-  | Call        lhs.prettyC   = call @name @args.prettyCs >|< ";"
+  | Switch      lhs.prettyC   = ppSwitch @scrutinee.prettyC   -- DONE
+                                         @body.prettyAlt
+       -- note, switch is not using  @lhs.optCaseDefault 
+  | Call        lhs.prettyC   = call @name 
+                                     @args.prettyCs >|< ";"
   | Jump        lhs.prettyC   = jump @name
   | Enter       lhs.prettyC   = methodEnter @nLocal @nParam
   | Leave       lhs.prettyC   = methodLeave @diff
@@ -100,6 +132,7 @@ SEM Value
   | Con         lhs.prettyC   = @con.prettyC                  -- DONE
   | Var         lhs.prettyC   = @var.prettyC                  -- DONE
   | Call        lhs.prettyC   = call @name @args.prettyCs     -- DONE (arg format wrong needs type...) 
+  | Alloc       lhs.prettyC   = "tail call uint %heapalloc ( uint" >#< show @size >|< ")"
 
 SEM Constant
   | Literal     lhs.prettyC   = text ("int " ++ show @value)  -- DONE
@@ -115,7 +148,9 @@ SEM Variable
                 lhs.prettyPtr = text "%BP"                    -- DONE
   | RP          lhs.prettyC   = text "%RP"                    -- DONE
                 lhs.prettyPtr = text "%RP"                    -- DONE
-  | Subs        lhs.prettyC   = @array.prettyPtr >|< "[" >|< @index.prettyC >|< "]"
+  | Subs        lhs.prettyC   = @array.prettyPtr >|< "[" 
+                                                 >|< @index.prettyC 
+                                                 >|< "]"
                 lhs.prettyPtr = error "attempt to use subscription as pointer"
 
 %%]
@@ -156,32 +191,29 @@ caseDefault x
  =  "default: printf(\"undefined case for " >|< x >|< " : %d\\n\", " >|< x >|< "); exit(1);"
 
 comment :: String -> PP_Doc
-comment s = text "" -- removed for now -- ("/* " ++ s ++ " */")
+comment s = "; ----" >#< s >#< "----"
 
 call :: String -> [PP_Doc] -> PP_Doc
 call f ps
  = "call" >#< "int" >#< f >#< "(" >|< ppHorizontally (intersperse (text ", ") ps) >|< ")"
 
-%%]
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%% Semantic functions
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%[8 hs
+--------------------------------------------------------------------------------
+-- Semantic functions
+--------------------------------------------------------------------------------
 
 preambule :: PP_Doc
 preambule
- = comment "Generated C code"
-   >-< text "#include \"rts.h\""
-   >-< text ""
+ = comment "Generated LLVM Code"
 
 constantDefinition :: (String,Int) -> PP_Doc         -- DONE (but only int consts supported)
-constantDefinition (x,n) = text ("%" ++ x) >#< text "= global int" >#< text (show n)
+constantDefinition (x,n) = text ("%" ++ x) >#< text "= global uint" >#< text (show n)
 
+-- %global_false = global uint 1
 
 variableDeclaration :: String -> PP_Doc
 variableDeclaration x
- = "GrWord" >#< text x >|< ";"
+ = "%" >|< text x >#< "= global uint 1 ; NEED TO FIX"
 
 methodHead :: String -> [String] -> PP_Doc
 methodHead nm params
@@ -228,22 +260,8 @@ assignment v e
    >|< ppWhen optTraceAssign
               (" printf(\"assignment" >#< show v >#< "=" >#< e >#< " : %d\\n\", " >#< show v >#< ");")
 
-switch :: Bool -> PP_Doc -> PP_Doc -> PP_Doc
-switch optDef scrutinee body
- = "switch ("
-   >|< scrutinee
-   >|< ")"
-   >#< "{"
-   >-< indent 4 body
-   >-< ppWhen optDef (indent 4 (caseDefault scrutinee))
-   >-< "}"
-
 alternative :: PP_Doc -> PP_Doc -> PP_Doc
-alternative when body
- = "case"
-   >#< when
-   >|< ":"
-   >-< indent 4 (body >-< "break;")
+alternative when body = "int" >#< when >|< "," >#< body 
 
 methodEnter :: Int -> Int -> PP_Doc
 methodEnter nLocal nParam
@@ -259,4 +277,10 @@ methodLeave nDiff
    >-< assignment (text "BP") (text "((Pointer)*SP)")
    >-< incrementWith (text "SP") (nDiff)
 
+
+test1 = SilModule_SilModule [] [] [func]
+   where func  = Function_Function "func" False [] [] [swtch]
+         swtch = Statement_Switch (Value_Var (Variable_Var "scr")) [alt1,alt2]
+         alt1   = Alternative_Alternative (Constant_Literal 1) [(Statement_Call "fun1" [])]
+         alt2   = Alternative_Alternative (Constant_Literal 2) [(Statement_Call "fun2" [])]
 %%]
