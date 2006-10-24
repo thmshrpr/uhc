@@ -3,10 +3,6 @@
 %include afp.fmt
 %%]
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%% Prettyprint Silly program as C
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 %%[8 hs module {%{GRIN}Silly.PrettyC} import(Data.List(intersperse), UU.Pretty, EH.Util.PPUtils,{%{GRIN}GRINCCommon},{%{GRIN}Silly}, {%{GRIN}Config}) export(prettyC)
 %%]
 
@@ -16,13 +12,12 @@
 %%[8 hs
 prettyC :: Bool -> Bool -> SilModule -> PP_Doc
 prettyC optTrace optDef silmod
-  = let t = wrap_SilModule (sem_SilModule test1) -- silmod) <---- TESTING!!!
+  = let t = wrap_SilModule (sem_SilModule silmod) ---- TESTING!!! test1) -- 
                            (Inh_SilModule { optTraceCall_Inh_SilModule = optTrace
                                           , optCaseDefault_Inh_SilModule = optDef
                                           }
                            )
      in  prettyC_Syn_SilModule t
-
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -31,6 +26,28 @@ prettyC optTrace optDef silmod
 %%[8
 
 WRAPPER SilModule
+
+{-------------------------------------------------------------------------------
+  Notes:
+
+  1. We need to better understand variable and parameter types, since we
+     don't have any type information for variables or parameters...
+     apparently there is only one type available?
+     
+  2. Array access needs to be fixed especially for assignment expressions.
+     For assignments {a[x] = rhs} we need to generate:
+        %array.unique = getelementptr uint* %a , uint %x
+        %array.unique = rhs
+
+  3. We need to inline heap_alloc, switch_trap, ?? function definitions.
+  
+  4. We need to fix global declarations and the initalization function
+  
+  Other
+    function - not complete 
+    jump     - not done
+    ...
+-------------------------------------------------------------------------------}
 
 --------------------------------------------------------------------------------
 -- INTRODUCTION OF UNIQUE LABEL COUNTER
@@ -45,7 +62,39 @@ SEM Alternative
                 lhs.unique  = @loc.clbl + 1
 
 --------------------------------------------------------------------------------
--- SWITCH STATEMENT RENDERING
+-- MODULE GENERATION
+--------------------------------------------------------------------------------
+
+SEM SilModule
+  | SilModule   lhs.prettyC   = preambule
+                                >-< text ""
+                                >-< comment "Tag Constants"
+                                >-< ppVertically (map constantDefinition @constants)
+                                >-< text ""
+                                >-< comment "Global Table"
+                                >-< ppVertically (map variableDeclaration @variables)
+                                >-< text ""
+                                >-< comment "Function Definitions"
+                                >-< @functions.prettyC
+
+--------------------------------------------------------------------------------
+-- FUNCTION DECLARATION GENERATION
+--------------------------------------------------------------------------------
+
+SEM Function
+  | Function    lhs.prettyC   = prefix >|< params 
+                                       >|< ") {" 
+                                       >-< body 
+                                       >-< postfix
+                                   where prefix  = "void %" >|< @name >#< "("
+                                         params = commaSeparated (map (declareName "uint*") @parameters)
+                                         body    = indent 3 @body.prettyC
+                                         postfix = "}" >-< text ""
+-- ppWhen @tailJumps jumpPrepare
+-- methodLocals @locals
+
+--------------------------------------------------------------------------------
+-- SWITCH STATEMENT GENERATION
 --------------------------------------------------------------------------------
 ATTR Alternative Alternatives [ | | prettyAlt : {(PP_Doc, PP_Doc)}]
 SEM Alternative
@@ -62,7 +111,6 @@ SEM Alternatives
   | Cons  lhs.prettyAlt  = @hd.prettyAlt `concat` @tl.prettyAlt
                               where concat (a,b) (c,d) = (a >-< c, b >-< d)
 
-
 {
 ppSwitch :: PP_Doc -> (PP_Doc,PP_Doc) -> PP_Doc
 ppSwitch scrutinee alts = "switch int" >#< scrutinee 
@@ -71,10 +119,16 @@ ppSwitch scrutinee alts = "switch int" >#< scrutinee
                                        >-< snd alts
 }
 
---------------------------------------------------------------------------------
--- NEXT TASK...
---------------------------------------------------------------------------------
+--------------------------------------------
+--------------------------------------------
+--------------------------------------------
 
+{--
+getelementptr <pointer-type> <pointer/array variable> , uint <index>
+
+pointer type is either built-in type or requires type declaration
+as in:  %ST = type { int, double, %RT }
+--}
 
 ATTR SilModule Functions Function Statements Statement Alternatives Alternative
   [ optTraceCall     : {Bool} -- when True, function entrance/exit is logged
@@ -95,23 +149,13 @@ ATTR Values [ | | prettyCs : {[PP_Doc]} ]
 ATTR Variable [ | | prettyPtr : {PP_Doc}  ]
 
 
-SEM SilModule
-  | SilModule   lhs.prettyC   = preambule
-                                >-< text ""
-                                >-< comment "Tag Constants"
-                                >-< ppVertically (map constantDefinition @constants)
-                                >-< text ""
-                                >-< comment "Global Table"
-                                >-< ppVertically (map variableDeclaration @variables)
-                                >-< text ""
-                                >-< comment "Function Definitions"
-                                >-< @functions.prettyC
+
 
 SEM Statement
   | Comment     lhs.prettyC   = comment @comment              -- DONE
   | Assignment  lhs.prettyC   = assignment @dest.prettyC      -- DONE
                                            @source.prettyC
-  | Switch      lhs.prettyC   = ppSwitch @scrutinee.prettyC   -- DONE
+  | Switch      lhs.prettyC   = ppSwitch @scrutinee.prettyC   -- DONE (NEED TO DEFINE switch_trap)
                                          @body.prettyAlt
        -- note, switch is not using  @lhs.optCaseDefault 
   | Call        lhs.prettyC   = call @name 
@@ -122,17 +166,20 @@ SEM Statement
 
 
 SEM Alternative
-  | Alternative lhs.prettyC   = alternative @when.prettyC @body.prettyC
+  | Alternative lhs.prettyC   = text "NOT USED"               -- DONE
 
 SEM Values
-  | Nil         lhs.prettyCs  = []                            -- DONE (nothing to do)
-  | Cons        lhs.prettyCs  = @hd.prettyC : @tl.prettyCs    -- DONE (nothing to do)
+  | Nil         lhs.prettyCs  = []                            -- DONE
+  | Cons        lhs.prettyCs  = @hd.prettyC : @tl.prettyCs    -- DONE
 
 SEM Value
   | Con         lhs.prettyC   = @con.prettyC                  -- DONE
   | Var         lhs.prettyC   = @var.prettyC                  -- DONE
-  | Call        lhs.prettyC   = call @name @args.prettyCs     -- DONE (arg format wrong needs type...) 
-  | Alloc       lhs.prettyC   = "tail call uint %heapalloc ( uint" >#< show @size >|< ")"
+  | Call        lhs.prettyC   = call @name @args.prettyCs     -- DONE (ARG FORMAT NEEDS TYPE) 
+  | Alloc       lhs.prettyC   = "tail call uint %heapalloc"   -- DONE
+                                >#< "(uint" 
+                                >#< show @size 
+                                >|< ")"
 
 SEM Constant
   | Literal     lhs.prettyC   = text ("int " ++ show @value)  -- DONE
@@ -148,11 +195,10 @@ SEM Variable
                 lhs.prettyPtr = text "%BP"                    -- DONE
   | RP          lhs.prettyC   = text "%RP"                    -- DONE
                 lhs.prettyPtr = text "%RP"                    -- DONE
-  | Subs        lhs.prettyC   = @array.prettyPtr >|< "[" 
-                                                 >|< @index.prettyC 
-                                                 >|< "]"
-                lhs.prettyPtr = error "attempt to use subscription as pointer"
-
+  | Subs        lhs.prettyC   = "getelementptr uint*" 
+                                   >#< @array.prettyPtr
+                                   >|< ","
+                                   >#< @index.prettyC
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -203,8 +249,7 @@ call f ps
 --------------------------------------------------------------------------------
 
 preambule :: PP_Doc
-preambule
- = comment "Generated LLVM Code"
+preambule = comment "Generated LLVM Code"
 
 constantDefinition :: (String,Int) -> PP_Doc         -- DONE (but only int consts supported)
 constantDefinition (x,n) = text ("%" ++ x) >#< text "= global uint" >#< text (show n)
@@ -260,15 +305,12 @@ assignment v e
    >|< ppWhen optTraceAssign
               (" printf(\"assignment" >#< show v >#< "=" >#< e >#< " : %d\\n\", " >#< show v >#< ");")
 
-alternative :: PP_Doc -> PP_Doc -> PP_Doc
-alternative when body = "int" >#< when >|< "," >#< body 
-
 methodEnter :: Int -> Int -> PP_Doc
 methodEnter nLocal nParam
  = comment "Enter"
-   >-< assignment (text "*SP") (text "((GrWord)BP)")
-   >-< assignment (text "BP")  (text "SP")
-   >-< incrementWith (text "SP") (nLocal+nParam+1)
+   >-< assignment (text "%SP") (text "(%BP)")
+   >-< assignment (text "%BP")  (text "%SP")
+   >-< incrementWith (text "%SP") (nLocal+nParam+1)
 
 methodLeave :: Int -> PP_Doc
 methodLeave nDiff
@@ -279,8 +321,10 @@ methodLeave nDiff
 
 
 test1 = SilModule_SilModule [] [] [func]
-   where func  = Function_Function "func" False [] [] [swtch]
-         swtch = Statement_Switch (Value_Var (Variable_Var "scr")) [alt1,alt2]
+   where func   = Function_Function "func" False ["p1", "p2"] ["loc"] [swtch]
+         swtch  = Statement_Switch (Value_Var (Variable_Var "scr")) [alt1,alt2]
          alt1   = Alternative_Alternative (Constant_Literal 1) [(Statement_Call "fun1" [])]
-         alt2   = Alternative_Alternative (Constant_Literal 2) [(Statement_Call "fun2" [])]
+         alt2   = Alternative_Alternative (Constant_Literal 2) [(Statement_Call "fun2" [arg1, arg2])]
+         arg1   = Value_Var (Variable_Var "x")
+         arg2   = Value_Con (Constant_Literal 3)
 %%]
