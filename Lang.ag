@@ -1,0 +1,50 @@
+
+-- INTERFACE SPECIFICATION
+
+TYPE Layers          = [Layer]
+TYPE Interfaces      = [Interface]
+TYPE Parameters      = [Parameter]
+TYPE Rules           = [Rule]
+TYPE Judgments       = [Judgment]
+
+DATA Direction 
+  | In 
+  | Out 
+  | InOut
+
+DATA Layer
+  |  RawLayer          name       : {String}
+                       parent     : {Maybe String}
+                       interfaces : Interfaces
+
+DATA Interface
+  |  Interface         name       : {String}
+                       node       : {Maybe String}
+                       params     : Parameters
+                       uses       : Parameters
+                       pattern    : {String}
+
+DATA Parameter
+  |  Parameter         name       : {String}
+                       direction  : Direction
+                       type       : {String}
+                       visibility : {Bool}
+                       directives : {[String]}
+
+
+-- IMPLEMENTATION STRUCTURE
+
+DATA Implementation
+  | Implementation     spec       : {String}
+                       rules      : Rules
+
+DATA Rule
+  | RawRule           name           : {String}
+                      interface      : {String}
+                      preconditions  : Judgments
+                      postconditions : Judgments
+
+DATA Judgment
+  | RawJudgment       name           : {String}
+                      interface      : {String}
+                      body           : {String}
