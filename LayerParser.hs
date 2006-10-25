@@ -4,56 +4,35 @@ import Lang
 import UU.Parsing
 import UU.Scanner
 
-{--
+ops  = [":"]
+keys = ["layer","extends","params","uses","pattern","in","out","inout","interface"]
 
-layer KnownTypes extends Equational
-   interface Expr (e)
-      params
-         in  knType    : Ty 
-      uses
-         in     gamma  : Gamma
-         inout  type   : Ty (retain)
-      pattern {gamma ; type |- knType}
-
-DATA Direction 
-  | In 
-  | Out 
-  | InOut
-
--}
-
-keywords   = ["layer", "extends", "params", "uses", "pattern"
-             ,"in", "out", "inout"]
-keyops = [":"]
-specialchars = ""
-opchars     = []
-
-scnFile :: String -> IO [Token]
-scnFile file = scanFile	keywords keyops specialchars opchars file
-
+main :: IO ()
+main = do { layer <- parseLayer "test.inf"
+          ; putStr $ show layer
+          }
 
 parseLayer :: String -> IO Layer
-parseLayer file = do { tokens <- scnFile file 
+parseLayer file = do { tokens <- scanFile	keys ops "{(:)}" "" file
                      ; parseIO pLayer tokens
                      }
 
 pLayer :: Parser Token Layer
 pLayer = Layer_RawLayer <$ pKey "layer" 
-                        <*> pVarid
-                        <*> opt (Just <$ pKey "extends" <*> pVarid) Nothing
+                        <*> pConid
+                        <*> opt (Just <$ pKey "extends" <*> pConid) Nothing
                         <*> pList pInterface
+
 
 pInterface :: Parser Token Interface
 pInterface = Interface_Interface <$ pKey "interface"
-                                    <*> pVarid
+                                    <*> pConid
                                     <*> opt (Just <$> pParens pVarid) Nothing
                                     <*  pKey "params"
                                     <*> pList pParam
                                     <*> opt (pKey "uses" *> pList pParam) []
                                     <*  pKey "pattern" 
-                                    <*> pBracks pString
-
-
+                                    <*> pString
 
 pParam :: Parser Token Parameter
 pParam = mkParam <$> pDirection 
