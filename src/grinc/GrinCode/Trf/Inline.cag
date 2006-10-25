@@ -1,0 +1,145 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% strongly connected component analysis %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+-- from http://ipdps.cc.gatech.edu/2000/irreg/18000506.pdf
+-- On Identifying Strongly Connected Components in Parallel: Lisa K. Fleischer, Bruce Hendrickson, and Ali Pinar
+
+-- complexity O(n log n)
+
+{-
+graph G = (V,E)
+vertices V
+directed edges E
+
+SCC(G) = strongly connected components of G, thus a partition of V
+SCC(G,v) = partition containing vertice v
+
+Desc(G,v) = descendants of v = vertices reachable from v (including itself)
+Pred(G,v) = predescessors of v = vertices from which v is reachable
+Rem(G,v) = remainder
+
+Lemma 1. SSC(G,v) = Desc(G,v) `intersection` Pred(G,v)
+
+Lemma 2. Let G be a graph with vertex v. Any strongly connected component
+of G is a subset of Desc(G, v), a subset of Pred(G, v) or a subset of Rem(G, v).
+
+-- Divide and Conquer Strong Components
+DCSC(G) =
+If G is empty then Return.
+Select v uniformly at random from V. -- pivot vertex
+SCC <- Pred(G, v) `intersection` Desc(G, v)
+Output SCC.
+DCSC(Pred(G; v) \ SCC)
+DCSC(Desc(G; v) \ SCC)
+DCSC(Rem(G; v))
+-}
+
+type DirectedEdges v = [(v,v)]
+type Graph v = ([v], DirectedEdges v)
+type Partition v = [[v]]
+
+{-
+dcsc :: Graph v -> Partition v
+dcsc ([],_) = [] -- the empty partition
+dcsc (V, E) = scc :
+		  dcsc pred \ scc ++
+		  dcsc desc \ scc ++
+		  dcsc rem
+	where scc = pred `intersect` desc
+		pred = 
+
+desc :: DirectedEdges v -> v -> [v]
+desc (v,v'):es v = v' : 
+-}
+
+-- from http://www.ics.uci.edu/~eppstein/161/960220.html
+
+-- depth first search DFS
+
+-- complexity O(n)
+
+{-
+
+    DFS(G)
+    {
+    make a new vertex x with edges x->v for all v
+    initialize a counter N to zero
+    initialize list L to empty
+    build directed tree T, initially a single vertex {x}
+    visit(x)
+    }
+
+    visit(p)
+    {
+    add p to L
+    dfsnum(p) = N
+    increment N
+    low(p) = dfsnum(p)
+    for each edge p->q
+        if q is not already in T
+        {
+        add p->q to T
+        visit(q)
+        low(p) = min(low(p), low(q))
+        } else low(p) = min(low(p), dfsnum(q))
+
+    if low(p)=dfsnum(p)
+    {
+        output "component:"
+        repeat
+        remove last element v from L
+        output v
+        remove v from G
+        until v=p
+    }
+    }
+
+-}
+
+data Tree v = Leaf v | Branch (Tree v) (Tree v)
+type DFSState v = (Int, [v], Tree v, Map v Int, Map v Int, Graph v)
+-- counter N, list L, tree T, functions low, dfsnum, result
+
+--dfs :: Graph v -> Partition v
+--dfs (V,E) = do (x,g) <- visit x (V',E') (return (N,L,T,[],[],[]))
+dfs (V,E) = snd $ runState (N,L,T,[],[],[],G) (visit x)
+	where G = (V',E')
+	      (V',E') = (x:V, [(x,v) | v <- V] ++ E) -- add new vertex x, to reach all vertices of V from x
+	      x = new vertex -- TODO
+	      N = 0
+	      L = []
+	      T = Leaf x
+
+visit :: v -> State (Partition v) (DFSState v)
+visit p = do
+  (N,L,T,low,dfsnum,g) <- get
+  put ( N+1,
+      , p:L,T
+      , (p,N):low -- dfsnum p = N
+      , (p,N):dfsnum 
+      , g
+      )
+  let edges = [e:(p,_) | e <- E]
+  rss <- mapM consider edges
+  let rs = foldr (:) rss []
+  (N',L',T',low',dfsnum',g') <- get
+  if (lookup low p) == N
+  then do let r = takeWhile (==p) L
+	  let g'' = (removeVertices g' r)
+          put (N',L',T',low',dfsnum',g'')
+	  return r
+  else return []
+
+consider :: Graph v -> (v,v) -> State (Partition v) (DFSState v)
+consider g e@(p,q) = do
+  (N,L,T,low,dfsnum,result) <- get
+  if (inTree T q)
+  then do
+    addEdge T e
+    r <- visit q g
+    put (N,L,T,insert p (min (lookup low p) (lookup low q)) low,dfsnum,result)
+    return r
+  else do
+    put (N,L,T,insert p (min (lookup low p) (lookup dfsnum q)) low,dfsnum,result)
+    return []

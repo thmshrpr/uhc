@@ -11,8 +11,8 @@ WRAPPER GrAGItf
 %%]
 
 %%[8 hs module {%{GRIN}GrinCode.Trf.Identity} import({%{EH}Base.Common}, {%{EH}GrinCode}) export(identity)
-copyPropagation :: HptMap -> GrModule -> GrModule
-copyPropagation hptMap grmod  =  let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod))
+constantPropagation :: HptMap -> GrModule -> GrModule
+constantPropagation hptMap grmod  =  let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod))
                                                        (Inh_GrAGItf { hptMap_Inh_GrAGItf  =  hptMap
                                                                     }
                                                        )
@@ -21,13 +21,35 @@ copyPropagation hptMap grmod  =  let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGIt
 
 %%[8
 ATTR GrAGItf [ hptMap: HptMap | | grTrf: GrModule ]
-ATTR AllGrNT [ hptMap: HptMap | | grTrf: SELF     ]
+ATTR AllGrNT [ hptMap: HptMap | | grTrf: SELF, localhptMap : HptMap ]
+
+SEM GrExpr
+  | Seq	     @body . localhptMap = @expr . localhptMap
+
 %%]
 
 %%[8
-SEM GrinExpr
-  | Case    lhs  .  grTrf	=  if isKnown @val then selectAlt @altL
-  | FFI	    lhs  .  grTrf 	=  -- if args are all known
+
+{-
+%%%%%%%%%%%%%%%%%%%
+%% case branches %%
+%%%%%%%%%%%%%%%%%%%
+
+ATTR GrExpr GrAltL GrAlt [ | | scrutinee: GrVal ]
+SEM GrExpr
+  | Case     @altL . scrutinee = @val
+
+SEM GrAlt
+  | Alt	     @expr . localhptMap = (lhs.scrutinee, @pat) : lhs.localhptMap -- TODO
+
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%% constant operations %%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+
+SEM GrExpr
+  | FFI	     lhs . argL
+-}
+
 %%]
 
 % vim:ts=4:et:

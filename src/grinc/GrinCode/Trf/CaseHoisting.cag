@@ -22,8 +22,6 @@ ATTR AllGrNT [ | | grTrf: SELF     ]
 %%]
 
 
-{- 
-
 It would be nice to leave the descision whether to inline the case (if it duplicates much code) to the inliner.
 
 (case v of 
@@ -90,40 +88,54 @@ Recursiveness of this optimisation:
  * easy: When 3 or more case expressions are sequenced, and CaseExpr#2 is hoisted to CaseExpr#1; and moreover hoisting CaseExpr#3 to CaseExpr#2 is considered too expensive. Then after hoisting CaseExpr#2 (e.g. much alternatives) to CaseExpr#1 (e.g. few alternatives), the cost of hoisting CaseExpr#3 might be (much) reduced. -- TODO recurse
  * difficult: It would occur if e1 or e2 (case branches of CaseExpr#1 above) would contain other (CaseExpr#2) which have _known tags_. These would of course only be usefull if the branches e1 or e2 would lack _known tags_. But then, the decision to inline at CaseExpr#1 would depend on the decision to inline at CaseExpr#2!! -- todo
 
--}
 
 
 %%[8
-{-
-SEM GrExpr
-  | Seq   lhs.grTrf = if @body.isCase && @expr.isCase
-                      then @expr.grTrf -- TODO perform the trafo...
-                      else GrExpr_Seq @expr.grTrf @pat.grTrf @body.grTrf
-          @expr.tailCase = @body.grTrf
 
-ATTR GrExpr GrAlt [ tailCase: GrExpr | | ]
-ATTR GrAltL [ | | known: Int ]
+ATTR GrExpr GrAltL GrAlt [ hoistThis: Maybe (GrPat, GrExpr) | | ]
+-- expr; \pat -> body
+SEM GrExpr
+  | Seq   (@expr.hoistThis, lhs.grTrf) = if @expr.isCase && @body.isSeqExprCase && @expr.hoistHerePlease
+                      			 then (Just (@pat.grTrf, @body.grTrfExpr), @expr.grTrf) -- after hoist, we can throw away the Seq that binds body
+                      			 else (Nothing, GrExpr_Seq @expr.grTrf @pat.grTrf @body.grTrf)
+  | Case  @altL.hoistThis = lhs.hoistThis
+
+SEM GrAlt
+  | Alt   lhs.grTrf = GrAlt @pat.grTrf (hoist lhs.hoistThis @expr.grTrf)
+
+hoist :: MayBe (GrPat, GrExpr) -> GrExpr -> GrExpr
+hoist Nothing = id
+hoist (Just (pat, tailCase)) e = GrExpr_Seq e pat tailCase -- TODO SSA for pat?
+
+ATTR GrAltL [ | | known : Int ] -- sum .knownReturn of items
+SEM GrAltL 
+  | Cons  lhs.known = if @hd.knownReturn
+		      then @tl.known + 1
+		      else @tl.known
+  | Nil   lhs.known = 0
+
 ATTR GrExpr GrAlt [ | | knownReturn USE {`constfalse`} {False} : Bool ]
 
-SEM GrExpr [ | | doCaseHoistPlease USE {`constfalse`} {False} : Bool ]
-  | Case  lhs.doCaseHoistPlease = @argL.known == {length} @argL -- TODO is length allowed here :)?
+SEM GrExpr [ | | hoistHerePlease USE {`constfalse`} {False} : Bool ]
+  | Case  lhs.hoistHerePlease = @argL.known == length @argL
 
+SEM GrAlt
+  | Alt   lhs.knownReturn = @expr.knownReturn
 SEM GrExpr
-  | Unit  lhs.knownReturn = True  -- TODO this is a return, but also a _known_ return?
+  | Seq   lhs.knownReturn = @body.knownReturn -- propagate
+  | Unit  lhs.knownReturn = @val.knownVal
+          -- advanced would like listing of unknown-returns, then using local-hpt to calculate reduction
 
--- SEM GrAltL -- TODO sum .knownReturn of items
+ATTR GrVal [ | | knownVal USE {`constfalse`} {True} : Bool ]
+SEM GrVal
+  | Var   lhs.knownVal = False
 
-SEM GrExpr
-  | Case  lhs.grTrf = GrExpr_Seq 
--}
-%%]
-
-%%[8
-SEM GrExpr [ | | isCase USE {`constfalse`} {False} : Bool ]
-  | Case  lhs.isCase    = True
+SEM GrExpr [ | | isCase isSeqExprCase USE {`constfalse`} {False} : Bool, grTrfExpr : GrExpr ]
+  | Case  lhs.isCase        = True
+  | Seq   lhs.isSeqExprCase = @expr.isCase
+   	  lhs.grTrfExpr     = @expr.grTrf
 
 {constfalse _ _ = False}
 %%]
-
 
 % vim:ts=4:et:
