@@ -8,19 +8,19 @@ expr_interface =
     (Just "e")
     [ Parameter_Parameter
         "valGam"
-        Direction_In
+        In
         "ValGam"
         True
         []                
     , Parameter_Parameter
         "tyGam"
-        Direction_In
+        In
         "TyGam"
         True
         []
     , Parameter_Parameter
         "kiGam"
-        Direction_In
+        In
         "KiGam"
         True
         []

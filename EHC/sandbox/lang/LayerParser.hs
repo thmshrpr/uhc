@@ -45,6 +45,6 @@ pParam = mkParam <$> pDirection
          fltr  ds            = filter (/= "private") ds
 
 pDirection :: Parser Token Direction
-pDirection =    (Direction_In <$ pKey "in")
-            <|> (Direction_InOut <$ pKey "inout")
-            <|> (Direction_Out <$ pKey "out")
+pDirection =    (In <$ pKey "in")
+            <|> (InOut <$ pKey "inout")
+            <|> (Out <$ pKey "out")
