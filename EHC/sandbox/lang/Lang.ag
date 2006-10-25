@@ -35,7 +35,7 @@ DATA Parameter
 -- IMPLEMENTATION STRUCTURE
 
 DATA Implementation
-  | Implementation     spec       : {String}
+  | Implementation     layer      : {String}
                        rules      : Rules
 
 DATA Rule
@@ -48,4 +48,6 @@ DATA Judgment
   | RawJudgment       name           : {String}
                       interface      : {String}
                       body           : {String}
-                      localdefs      : {[String]}
+                      defs           : {[(String,String)]}
+
+DERIVING Direction Layer Interface Parameter Implementation Rule Judgment : Show 
