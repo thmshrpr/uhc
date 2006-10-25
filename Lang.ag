@@ -1,3 +1,12 @@
+{
+import UU.Pretty
+
+data Direction 
+  = In 
+  | Out 
+  | InOut
+  deriving (Show)
+}
 
 -- INTERFACE SPECIFICATION
 
@@ -6,11 +15,6 @@ TYPE Interfaces      = [Interface]
 TYPE Parameters      = [Parameter]
 TYPE Rules           = [Rule]
 TYPE Judgments       = [Judgment]
-
-DATA Direction 
-  | In 
-  | Out 
-  | InOut
 
 DATA Layer
   |  RawLayer          name       : {String}
@@ -29,7 +33,7 @@ DATA Interface
 
 DATA Parameter
   |  Parameter         name       : {String}
-                       direction  : Direction
+                       direction  : {Direction}
                        type       : {String}
                        visible    : {Bool}
                        directives : {[String]}
@@ -63,6 +67,6 @@ DATA Judgment
                       body           : {String}
                       defs           : {[(String,String)]}                      
 
-DERIVING Direction Layer Interface Parameter Implementation Rule Judgment : Show 
+DERIVING Layer Interface Parameter Implementation Rule Judgment : Show 
 
 INCLUDE "PrettyHaskell.ag"

@@ -1,10 +1,7 @@
-
-{import UU.Pretty}
-
 ATTR Implementation Rules Rule 
-     Judgment Interface Parameter Direction [ | | ppHaskell USE {>-<} {empty}: {PP_Doc} ]
+     Judgment Interface Parameter [ | | ppHaskell USE {>-<} {empty}: {PP_Doc} ]
      
-ATTR Judgement Parameters Parameter [ | | inParams : Parameters outParams : Parameters ]
+--ATTR Judgment Parameters Parameter [ | | inParams : Parameters outParams : Parameters ]
 
 SEM Implementation
   | Implementation        lhs.ppHaskell = @rules.ppHaskell
@@ -14,8 +11,20 @@ SEM Rule
                                           >-< indent 2 (text "= let")
                                           >-< indent 6 (text "result = undefined")
                                           >-< indent 4 (text "in" >#< text "result")
+
+                                                                                    
                                           
-                                          
-SEM Parameter
-  Parameter               
-                          lhs.ppHaskell =                 
+--SEM Parameter
+--  | Parameter             lhs.ppHaskell = undefined 
+                          
+{
+isIn :: Direction ->  Bool
+isIn (In)    = True
+isIn (InOut) = True
+isIn (Out)   = False
+
+isOut :: Direction -> Bool
+isOut (In)    = False
+isOut (InOut) = True
+isOut (Out)   = True
+}   
