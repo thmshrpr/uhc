@@ -58,10 +58,11 @@ DATA Judgment
                       interface      : {String}
                       body           : {String}
                       defs           : {[(String,String)]}
-DATA Judgment
   | Judgment          name           : {String}
                       interface      : Interface
                       body           : {String}
                       defs           : {[(String,String)]}                      
 
 DERIVING Direction Layer Interface Parameter Implementation Rule Judgment : Show 
+
+INCLUDE "PrettyHaskell.ag"
