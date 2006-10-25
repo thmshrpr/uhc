@@ -24,6 +24,12 @@ expr_interface =
         "KiGam"
         True
         []
+    , Parameter_Parameter
+        "ty"
+        InOut
+        "Ty"
+        True
+        []
     ]
     []      -- no uses
     "kiGam ; tyGam ; valGam :- e : ty"   -- pattern    

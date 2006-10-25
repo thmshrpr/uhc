@@ -1,5 +1,8 @@
 {
 import UU.Pretty
+import Data.List
+
+import Debug.Trace
 
 data Direction 
   = In 
