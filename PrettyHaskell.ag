@@ -1,22 +1,31 @@
-ATTR Implementation Rules Rule 
-     Judgment Interface Parameter [ | | ppHaskell USE {>-<} {empty}: {PP_Doc} ]
-     
---ATTR Judgment Parameters Parameter [ | | inParams : Parameters outParams : Parameters ]
+{
+type ParameterData = [(String,String)]
+}
 
+ATTR Implementation Rules Rule 
+     Judgment Interface [ | | ppHaskell USE {>-<} {empty}: {PP_Doc} ]
+     
 SEM Implementation
   | Implementation        lhs.ppHaskell = @rules.ppHaskell
   
 SEM Rule
-  | Rule                  lhs.ppHaskell = text @name
+  | Rule                  lhs.ppHaskell = mkSig @name @interface.inParams @interface.outParams
+                                          >-< text @name
                                           >-< indent 2 (text "= let")
                                           >-< indent 6 (text "result = undefined")
                                           >-< indent 4 (text "in" >#< text "result")
-
-                                                                                    
-                                          
---SEM Parameter
---  | Parameter             lhs.ppHaskell = undefined 
-                          
+                                                                                                                              
+ATTR Interface 
+     Parameters Parameter [ | | inParams  USE {++} {[]} : {ParameterData} 
+                                outParams USE {++} {[]} : {ParameterData} ]                          
+                                                                
+SEM Parameter
+  | Parameter             lhs.inParams  = if isIn @direction
+                                          then [(@name, @type)]
+                                          else []
+                          lhs.outParams = if isOut @direction
+                                          then [(@name, @type)]
+                                          else []                         
 {
 isIn :: Direction ->  Bool
 isIn (In)    = True
@@ -27,4 +36,12 @@ isOut :: Direction -> Bool
 isOut (In)    = False
 isOut (InOut) = True
 isOut (Out)   = True
+
+mkSig :: String -> ParameterData -> ParameterData -> PP_Doc
+mkSig fName inParams outParams =
+  let interspersePP sep xs = 
+                      foldr (>#<) empty $ intersperse (text sep) $ map (text.snd) xs 
+      inputSig      = interspersePP "->" inParams
+      outputSig     = interspersePP "," outParams
+   in text fName >#< text "::" >#< inputSig >#< text "-> (" >#< outputSig >#< text ")"
 }   
