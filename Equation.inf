@@ -6,8 +6,3 @@ layer Equational
          in    kiGam     : KiGam
          inout ty        : Ty
       pattern "kiGam ; tyGam ; valGam :- e : ty"
-      
-implementation of Equational
-  rule fitsIn implements Expr
-    pre
-    post R : Expr = kiGam ; tyGam ; valGam :- int : tyInt
