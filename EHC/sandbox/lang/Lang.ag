@@ -16,6 +16,9 @@ DATA Layer
   |  RawLayer          name       : {String}
                        parent     : {Maybe String}
                        interfaces : Interfaces
+  |  Layer             name       : {String}
+                       parent     : {Maybe Layer}
+                       interfaces : Interfaces
 
 DATA Interface
   |  Interface         name       : {String}
@@ -35,12 +38,18 @@ DATA Parameter
 -- IMPLEMENTATION STRUCTURE
 
 DATA Implementation
-  | Implementation     layer      : {String}
-                       rules      : Rules
+  | RawImplementation     layer      : {String}
+                          rules      : Rules
+  | Implementation        layer      : Layer
+                          rules      : Rules
 
 DATA Rule
   | RawRule           name           : {String}
                       interface      : {String}
+                      preconditions  : Judgments
+                      postconditions : Judgments
+  | Rule              name           : {String}
+                      interface      : Interface
                       preconditions  : Judgments
                       postconditions : Judgments
 
@@ -49,5 +58,10 @@ DATA Judgment
                       interface      : {String}
                       body           : {String}
                       defs           : {[(String,String)]}
+DATA Judgment
+  | Judgment          name           : {String}
+                      interface      : Interface
+                      body           : {String}
+                      defs           : {[(String,String)]}                      
 
 DERIVING Direction Layer Interface Parameter Implementation Rule Judgment : Show 
