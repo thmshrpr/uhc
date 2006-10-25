@@ -5,8 +5,7 @@ layer Equational
          in    tyGam     : TyGam
          in    kiGam     : KiGam
          inout ty        : Ty
-      uses
-      pattern {kiGam ; tyGam ; valGam :- e : ty}
+      pattern "kiGam ; tyGam ; valGam :- e : ty"
       
 implementation of Equational
   rule fitsIn implements Expr

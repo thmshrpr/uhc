@@ -8,7 +8,7 @@ ops  = [":"]
 keys = ["layer","extends","params","uses","pattern","in","out","inout","interface"]
 
 main :: IO ()
-main = do { layer <- parseLayer "test.inf"
+main = do { layer <- parseLayer "Equation.inf"
           ; putStr $ show layer
           }
 
