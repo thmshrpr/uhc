@@ -28,7 +28,7 @@ DATA Parameter
   |  Parameter         name       : {String}
                        direction  : Direction
                        type       : {String}
-                       visibility : {Bool}
+                       visible    : {Bool}
                        directives : {[String]}
 
 
@@ -48,3 +48,4 @@ DATA Judgment
   | RawJudgment       name           : {String}
                       interface      : {String}
                       body           : {String}
+                      localdefs      : {[String]}
