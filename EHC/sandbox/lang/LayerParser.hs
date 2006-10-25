@@ -61,8 +61,9 @@ pParam = mkParam <$> pDirection
                    <*  pKey ":" 
                    <*> pConid 
                    <*> (opt (pParens_pCommas pVarid) [])
-
-mkParam dir name ty directives = Parameter_Parameter name dir ty ("private" `elem` directives) directives
+   where mkParam io nm ty ds = Parameter_Parameter nm io ty (vis ds) (fltr ds)
+         vis   ds            = not (elem "private" ds)
+         fltr  ds            = filter (/= "private") ds
 
 pDirection :: Parser Token Direction
 pDirection =    (Direction_In <$ pKey "in")
