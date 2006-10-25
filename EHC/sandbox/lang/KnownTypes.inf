@@ -1,0 +1,12 @@
+
+
+layer KnownTypes extends Equational
+   interface Expr (e)
+      params
+         in  knType    : Ty 
+      uses
+         in     gamma  : Gamma
+         inout  type   : Ty (retain)
+      pattern {gamma ; type |- knType}
+
+
