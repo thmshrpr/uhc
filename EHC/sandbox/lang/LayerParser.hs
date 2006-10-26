@@ -5,11 +5,14 @@ import UU.Parsing
 import UU.Scanner
 
 lyrops  = [":"]
-lyrkeys = ["layer","extends","params","uses","pattern","in","out","inout","interface"]
+lyrkeys = [ "layer", "extends", "params", "uses", "pattern"
+          , "in", "out", "inout", "node", "interface"]
 
 main :: IO ()
 main = do { layer <- parseLayer "Equation.inf"
           ; putStr $ show layer
+          ; putStrLn ""
+          ; putStrLn ""
           ; impl <- parseImpl "Equation.impl"
           ; putStr $ show impl
           }
@@ -25,11 +28,9 @@ pLayer = Layer_RawLayer <$ pKey "layer"
                         <*> opt (Just <$ pKey "extends" <*> pConid) Nothing
                         <*> pList pInterface
 
-
 pInterface :: Parser Token Interface
 pInterface = Interface_Interface <$ pKey "interface"
                                     <*> pConid
-                                    <*> opt (Just <$> pParens pVarid) Nothing
                                     <*  pKey "params"
                                     <*> pList pParam
                                     <*> opt (pKey "uses" *> pList pParam) []
@@ -50,6 +51,7 @@ pDirection :: Parser Token Direction
 pDirection =    (In <$ pKey "in")
             <|> (InOut <$ pKey "inout")
             <|> (Out <$ pKey "out")
+            <|> (Node <$ pKey "node")
 
 {-------
 implementation of Equational
@@ -81,12 +83,12 @@ pRule = Rule_RawRule <$  pKey "rule"
                   <*> opt (pKey "pre" *> pList pJudge) []
                   <* pKey "post" <*> pList pJudge
 
-pJudge = Judgment_RawJudgment <$> pConid 
-                              <*  pKey ":"
-                              <*> pConid
-                              <*  pKey "="
-                              <*> pString
-                              <*> pSucceed []
+pJudge = Judgment_RawJudgment1 <$> pConid 
+                               <*  pKey ":"
+                               <*> pConid
+                               <*  pKey "="
+                               <*> pString
+                               <*> pSucceed []
 
 
 

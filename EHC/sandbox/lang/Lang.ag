@@ -8,6 +8,7 @@ data Direction
   = In 
   | Out 
   | InOut
+  | Node
   deriving (Show)
 }
 
@@ -29,7 +30,6 @@ DATA Layer
 
 DATA Interface
   |  Interface         name       : {String}
-                       node       : {Maybe String}
                        params     : Parameters
                        uses       : Parameters
                        pattern    : {String}
@@ -61,13 +61,17 @@ DATA Rule
                       postconditions : Judgments
 
 DATA Judgment
-  | RawJudgment       name           : {String}
+  | RawJudgment1      name           : {String}
                       interface      : {String}
                       body           : {String}
                       defs           : {[(String,String)]}
+  | RawJudgment2      name           : {String}
+                      interface      : {String}
+                      body           : {[(String,String)]}
+                      defs           : {[(String,String)]}
   | Judgment          name           : {String}
                       interface      : Interface
-                      body           : {String}
+                      body           : {[(Parameter,String)]}
                       defs           : {[(String,String)]}                      
 
 DERIVING Layer Interface Parameter Implementation Rule Judgment : Show 
