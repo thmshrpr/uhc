@@ -67,9 +67,25 @@ SEM Statement
   | Switch      lhs.unique  = @loc.slbl + 1
                 loc.slbl    = @lhs.unique
 SEM Variable
-  | Subs        loc.rlbl    = @lhs.unique
-                lhs.unique  = @loc.rlbl + 1
+  | Subs        loc.vlbl    = @lhs.unique
+                lhs.unique  = @loc.vlbl + 1
+  | SP          loc.vlbl    = @lhs.unique
+                lhs.unique  = @loc.vlbl + 1
+  | RP          loc.vlbl    = @lhs.unique
+                lhs.unique  = @loc.vlbl + 1
+  | BP          loc.vlbl    = @lhs.unique
+                lhs.unique  = @loc.vlbl + 1
 
+SEM Value
+  | Con         loc.vlbl    = @lhs.unique
+                lhs.unique  = @loc.vlbl + 1
+  | Var         loc.vlbl    = @lhs.unique
+                lhs.unique  = @loc.vlbl + 1
+  | Alloc       loc.vlbl    = @lhs.unique
+                lhs.unique  = @loc.vlbl + 1
+  | Call        loc.vlbl    = @lhs.unique
+                lhs.unique  = @loc.vlbl + 1
+                
 --------------------------------------------------------------------------------
 -- PROPAGATING CONSTANT SUBSTITUTIONS
 --------------------------------------------------------------------------------
@@ -79,6 +95,47 @@ ATTR Functions Function Statements Statement  Alternatives
 
 SEM SilModule
   | SilModule   functions.constants = @constants
+
+--------------------------------------------------------------------------------
+-- VARIABLE/VALUE POINTER TYPES
+--------------------------------------------------------------------------------
+{
+data PtrType = Thunk | ThunkPtr | ThunkPtrPtr
+
+ptr :: PtrType -> PP_Doc
+ptr Thunk       = text "%thunk_type"
+ptr ThunkPtr    = text "%thunk_type*"
+ptr ThunkPtrPtr = text "%thunk_type**"
+
+ptrptr :: PtrType -> PP_Doc
+ptrptr p = ptr p >|< "*"
+
+}
+
+ATTR Variable Value [ | | ptrtype : {PtrType}]
+
+SEM Variable
+  | Var         loc.ptrtype  = Thunk
+                lhs.ptrtype  = @loc.ptrtype
+  | SP          loc.ptrtype  = ThunkPtrPtr
+                lhs.ptrtype  = @loc.ptrtype
+  | BP          loc.ptrtype  = ThunkPtrPtr
+                lhs.ptrtype  = @loc.ptrtype
+  | RP          loc.ptrtype  = ThunkPtrPtr
+                lhs.ptrtype  = @loc.ptrtype
+  | Subs        loc.ptrtype  = ThunkPtrPtr ------- PROBABLY WRONG
+                lhs.ptrtype  = @loc.ptrtype
+
+SEM Value
+  | Con         loc.ptrtype  = Thunk
+                lhs.ptrtype  = @loc.ptrtype
+  | Var         loc.ptrtype  = ThunkPtr
+                lhs.ptrtype  = @loc.ptrtype
+  | Alloc       loc.ptrtype  = ThunkPtr
+                lhs.ptrtype  = @loc.ptrtype
+  | Call        loc.ptrtype  = ThunkPtr ----- NOT SURE ABOUT THIS EITHER
+                lhs.ptrtype  = @loc.ptrtype
+
 
 --------------------------------------------------------------------------------
 -- MODULE GENERATION
@@ -163,25 +220,66 @@ ppSwitch lbl scrutinee alts = "switch int" >#< scrutinee
 }
 
 --------------------------------------------------------------------------------
--- ARRAY ACCESS GENERATION
+-- LOAD AND STORE OF VALUES
 --------------------------------------------------------------------------------
-ATTR Variable [ | | lineBefore : {Maybe PP_Doc}]
+
+ATTR Variable Value [ | | before : {Maybe PP_Doc}]
 
 SEM Variable
-  | Var         lhs.lineBefore   = Nothing
-  | SP          lhs.lineBefore   = Nothing
-  | BP          lhs.lineBefore   = Nothing
-  | RP          lhs.lineBefore   = Nothing
-  | Subs        loc.var          = "%array." >|< show @loc.rlbl
-                lhs.lineBefore   = Just (@loc.var  >#< "= getelementptr uint*" 
-                                                   >#< @array.prettyPtr
-                                                   >|< ","
-                                                   >#< @index.prettyC)
+  | Var         lhs.before   = Nothing ------------------------------------ TODO
+  | SP          loc.var     = "%SP." >|< show @loc.vlbl
+                lhs.before  = Just $ loadGlbl "SP" @loc.vlbl @loc.ptrtype
+  | BP          loc.var     = "%BP." >|< show @loc.vlbl
+                lhs.before  = Just $ loadGlbl "BP" @loc.vlbl @loc.ptrtype
+  | RP          loc.var     = "%RP." >|< show @loc.vlbl
+                lhs.before  = Just $ loadGlbl "RP" @loc.vlbl @loc.ptrtype
+  | Subs        loc.var     = "%array." >|< show @loc.vlbl
+                lhs.before  = Just $ loadArray @array.prettyC 
+                                               @loc.vlbl 
+                                               @loc.ptrtype 
+                                               @index.prettyC
 
+SEM Value
+  | Con         lhs.before = Nothing
+  | Var         lhs.before = Nothing
+  | Alloc       lhs.before = Just $ "%alloc.">|< show @loc.vlbl 
+                                                 >#< "="
+                                                 >#< heapalloc @size
+
+  | Call        lhs.before = Just $ "%call." >|< show @loc.vlbl 
+                                             >#< "="
+                                             >#< call @name @args.prettyCs
 {
-assignment :: Maybe PP_Doc -> PP_Doc -> PP_Doc -> PP_Doc
-assignment Nothing  v e = v >#< "=" >#< e
-assignment (Just p) v e = p >-< v >#< "=" >#< e
+loadGlbl :: String -> Int -> PtrType -> PP_Doc
+loadGlbl name lbl pty = nm >|< "." >|< lbl >#< "= load" >#< ptr pty >#< nm
+   where nm = "%" >|< name
+
+loadArray :: PP_Doc -> Int -> PtrType -> PP_Doc -> PP_Doc
+loadArray name lbl pty idx = "%array." 
+                          >|< lbl 
+                          >#< "= getelementptr" 
+                          >#< ptr pty -- " uint*" 
+                          >#< name
+                          >|< ", int"
+                          >#< idx
+
+-- TODO remove usages of assign
+assignment :: Maybe PP_Doc -> Maybe PP_Doc -> PP_Doc -> PP_Doc -> PP_Doc
+assignment b1 b2 v e = rndr b1 >|< rndr b2 >|< "store" >#< e 
+                      >|< "," >#< "%thunk_type*" >#< v >-< ""
+   where rndr b = maybe (text "") (>-< "") b
+
+assign :: Maybe PP_Doc -> Maybe PP_Doc -> PtrType -> PP_Doc -> PP_Doc -> PP_Doc
+assign b1 b2 typ v e = rndr b1 
+                       >|< rndr b2 
+                       >|< "store" 
+                       >#< ptr typ
+                       >#< e 
+                       >|< "," 
+                       >#< ptrptr typ 
+                       >#< v 
+                       >-< ""
+   where rndr b = maybe (text "") (>-< "") b
 }
 
 --------------------------------------------
@@ -217,14 +315,15 @@ ATTR Variable [ | | prettyPtr : {PP_Doc}  ]
 
 
 SEM Statement
-  | Comment     lhs.prettyC   = comment @comment              -- DONE
-  | Assignment  lhs.prettyC   = assignment @dest.lineBefore
-                                           @dest.prettyC      -- DONE
-                                           @source.prettyC
+  | Comment     lhs.prettyC   = comment @comment
+  | Assignment  lhs.prettyC   = assign @source.before
+                                       @dest.before
+                                       @source.ptrtype
+                                       @dest.prettyC
+                                       @source.prettyC
   | Switch      lhs.prettyC   = ppSwitch @loc.slbl
-                                         @scrutinee.prettyC   -- DONE (NEED TO DEFINE switch_trap)
+                                         @scrutinee.prettyC   -- DONE 
                                          @body.prettyAlt
-       -- note, switch is not using  @lhs.optCaseDefault 
   | Call        lhs.prettyC   = call @name 
                                      @args.prettyCs
   | Jump        lhs.prettyC   = jump @name
@@ -242,27 +341,23 @@ SEM Values
 SEM Value
   | Con         lhs.prettyC   = @con.prettyC                  -- DONE
   | Var         lhs.prettyC   = @var.prettyC                  -- DONE
-  | Call        lhs.prettyC   = call @name @args.prettyCs     -- DONE (ARG FORMAT NEEDS TYPE) 
-  | Alloc       lhs.prettyC   = "tail call uint %heapalloc"   -- DONE
-                                >#< "(uint" 
-                                >#< show @size 
-                                >|< ")"
+  | Call        lhs.prettyC   = "%call." >|< show @loc.vlbl   -- DONE (ARG FORMAT NEEDS TYPE) 
+  | Alloc       lhs.prettyC   = "%alloc." >|< show @loc.vlbl   -- DONE
 
 SEM Constant
-  | Literal     lhs.prettyC   = "int" >#< show @value         -- DONE
-  | Alias       lhs.prettyC   = "int" >#< get @name @lhs.constants     -- DONE
+  | Literal     lhs.prettyC   = text $ show @value
+  | Alias       lhs.prettyC   = text $ get @name @lhs.constants
 
 SEM Variable
-  | Var         lhs.prettyC   = text ("%" ++ @name)           -- DONE
-                lhs.prettyPtr = text "(*" >#< text @name      -- DONE (BUT TYPING PROBLEM)
-                                          >#< text ")" 
-  | SP          lhs.prettyC   = text "%SP"                    -- DONE
-                lhs.prettyPtr = text "%SP"                    -- DONE
-  | BP          lhs.prettyC   = text "%BP"                    -- DONE
-                lhs.prettyPtr = text "%BP"                    -- DONE
-  | RP          lhs.prettyC   = text "%RP"                    -- DONE
-                lhs.prettyPtr = text "%RP"                    -- DONE
-  | Subs        lhs.prettyC   = @loc.var                      -- DONE
+  | Var         lhs.prettyC   = text "%" >|< @name
+                lhs.prettyPtr = text "%" >|< @name
+  | SP          lhs.prettyC   = text "%SP"
+                lhs.prettyPtr = text "%SP"
+  | BP          lhs.prettyC   = @loc.var
+                lhs.prettyPtr = text "%BP"
+  | RP          lhs.prettyC   = text "%RP"
+                lhs.prettyPtr = text "%RP"
+  | Subs        lhs.prettyC   = @loc.var
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -305,7 +400,11 @@ comment s = "; ----" >#< s >#< "----"
 
 call :: String -> [PP_Doc] -> PP_Doc
 call f ps
- = "call" >#< "int" >#< f >#< "(" >|< ppHorizontally (intersperse (text ", ") ps) >|< ")"
+ = "tail call" >#< "int" >#< f >#< "(" >|< ppHorizontally (intersperse (text ", ") ps) >|< ")"
+
+heapalloc :: Int -> PP_Doc
+heapalloc ps
+ = "tail call" >#< "%thunk_type*" >#< "heapalloc" >#< "(uint " >|< show ps >|< ")"
 
 
 --------------------------------------------------------------------------------
@@ -361,15 +460,15 @@ jump nm
 methodEnter :: Int -> Int -> PP_Doc
 methodEnter nLocal nParam
  = comment "Enter"
-   >-< assignment Nothing (text "%SP") (text "(%BP)") -- cleanup
-   >-< assignment Nothing (text "%BP")  (text "%SP") -- cleanup
+   >-< assignment Nothing Nothing (text "%SP") (text "(%BP)") -- cleanup
+   >-< assignment Nothing Nothing (text "%BP")  (text "%SP") -- cleanup
    >-< incrementWith (text "%SP") (nLocal+nParam+1)
 
 methodLeave :: Int -> PP_Doc
 methodLeave nDiff
  = comment "Leave"
-   >-< assignment Nothing (text "SP")  (text "BP")  -- cleanup
-   >-< assignment Nothing (text "BP") (text "((Pointer)*SP)") -- cleanup
+   >-< assignment Nothing Nothing (text "SP")  (text "BP")  -- cleanup
+   >-< assignment Nothing Nothing (text "BP") (text "((Pointer)*SP)") -- cleanup
    >-< incrementWith (text "SP") (nDiff)
 
 
