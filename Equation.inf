@@ -1,6 +1,7 @@
 layer Equational
-   interface Expr (e)
+   interface Expr
       params
+         node  e         : Expr
          in    valGam    : ValGam
          in    tyGam     : TyGam
          in    kiGam     : KiGam
