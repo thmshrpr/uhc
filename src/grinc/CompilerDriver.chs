@@ -268,11 +268,13 @@ caInlineEA = do
     hptMap <- gets gcsHptMap
     unique <- gets gcsUnique
     varMap <- gets gcsOrigNms
-    (hptMap, unique', renMap, code)   <- return $ inlineEA hptMap unique code
+    (hptMap, unique', renMap, code, callgraph)   <- return $ inlineEA hptMap unique code
+    putMsg VerboseALot "Constructed new call graph" Nothing -- TODO display neat call graph
     modify (\s -> s { gcsMbOrigNms  = Just $ mergeRenameMap varMap renMap
                     , gcsUnique     = unique'
                     , gcsMbHptMap   = Just hptMap
                     , gcsMbCode     = Just code
+		    -- TODO store the callgraph in the state
                     }
            )
     return $ unique' - unique

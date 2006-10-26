@@ -13,7 +13,7 @@ WRAPPER GrAGItf
 %%]
 
 %%[8 hs module {%{GRIN}GrinCode.Trf.GrInline} import({%{EH}Base.Common}, {%{GRIN}GRINCCommon}, {%{EH}GrinCode}, {%{GRIN}HeapPointsToFixpoint}, Data.List) export(inlineEA)
-inlineEA :: HptMap -> Int -> GrModule -> (HptMap, Int, RenameMap, GrModule)
+inlineEA :: HptMap -> Int -> GrModule -> (HptMap, Int, RenameMap, GrModule, [(HsName,[HsName])])
 inlineEA hptMap unique grmod = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod))
                                                     (Inh_GrAGItf { hptMap_Inh_GrAGItf = hptMap
                                                                  , unique_Inh_GrAGItf = unique
@@ -23,7 +23,8 @@ inlineEA hptMap unique grmod = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf 
                                    unique'    = unique_Syn_GrAGItf t
                                    renameMap  = renameMap_Syn_GrAGItf t
                                    grmod'     = grTrf_Syn_GrAGItf t
-                               in (hptMap', unique', renameMap, grmod')
+				   callgraph  = callsInfoL_Syn_GrAGItf t
+                               in (hptMap', unique', renameMap, grmod', callgraph)
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -39,12 +40,13 @@ buildAlternative
     Int                                                                  ->      -- arity
     EvApTagElt                                                           ->      -- rhsElem
     Int                                                                  ->      -- unique
-    (Int -> [HsName]           -> (Int, [(Int,AbstractValue)], GrExpr))  ->      -- uf
-    (Int -> [HsName] -> HsName -> (Int, [(Int,AbstractValue)], GrExpr))  ->      -- vf
-    (Int -> [HsName] -> GrTag  -> (Int, [(Int,AbstractValue)], GrExpr))  ->      -- tf
+    (Int -> [HsName]           -> (Int, [(Int,AbstractValue)], GrExpr, Maybe HsName))  ->      -- uf
+    (Int -> [HsName] -> HsName -> (Int, [(Int,AbstractValue)], GrExpr, Maybe HsName))  ->      -- vf
+    (Int -> [HsName] -> GrTag  -> (Int, [(Int,AbstractValue)], GrExpr, Maybe HsName))  ->      -- tf
     ( Int                                -- newU
     , [(Int, AbstractValue)]             -- newHPT
     , GrAlt                              -- alt
+    , Maybe HsName
     )
 
 buildAlternative t av arity rhsElem unique uf vf tf =
@@ -54,14 +56,14 @@ buildAlternative t av arity rhsElem unique uf vf tf =
         elems           = zip [unique..] args
         patNames        = map (\(i,_) -> HNPos i) elems
         unique'         = unique + arity
-        (newU, h, rhs)  = case rhsElem of
-                              EvApTagThrow -> (unique', [], GrExpr_Throw (head patNames))
-                              EvApTagUnit  -> uf unique' patNames
-                              EvApTagVar f -> vf unique' patNames f
-                              EvApTagTag t -> tf unique' patNames t
+        (newU, h, rhs, mcall)  = case rhsElem of
+                              		EvApTagThrow -> (unique', [], GrExpr_Throw (head patNames), Nothing) -- TODO no calls for callgraph?
+                              		EvApTagUnit  -> uf unique' patNames
+                              		EvApTagVar f -> vf unique' patNames f
+                              		EvApTagTag t -> tf unique' patNames t
         alt             = GrAlt_Alt (GrPat_Node t $ (if grinStoreArity then (wildcardNr:) else id) patNames) rhs
         newHPT          = h ++ elems
-    in (newU, newHPT, alt)
+    in (newU, newHPT, alt, mcall)
 
 
 
@@ -77,6 +79,7 @@ buildEvalAlt
     ( Int                     -- newU
     , [(Int, AbstractValue)]  -- maps
     , GrAlt                   -- code
+    , Maybe HsName	      -- if it extends the programs callgraph
     )
 
 buildEvalAlt l s t av evalMap hptMap u
@@ -84,7 +87,7 @@ buildEvalAlt l s t av evalMap hptMap u
     where
     (arity, rhs) = fromJust' ("tag not found: " ++ show t ++ " in " ++ show (map fst evalMap)) (lookup t evalMap)
     tf u args t  = error "no tag at the right hand side of eval map expected"
-    uf u args    = (u, [], GrExpr_Unit $ GrVal_Var s)
+    uf u args    = (u, [], GrExpr_Unit $ GrVal_Var s, Nothing)
     vf u args v  = let var      = HNPos u
                        val      = GrVal_Var var
                        absVal   = getEnvVar hptMap (getNr v)
@@ -115,7 +118,7 @@ buildEvalAlt l s t av evalMap hptMap u
                                   else callExp
                        newU     = if hasE then u+3 else u+1
                        maps     = (u, absVal) : if hasE then [(u+1, eAbsVal), (u+2, absVal)] else []
-                   in (newU, maps, code)
+                   in (newU, maps, code, Just v)
 
 
 
@@ -128,25 +131,31 @@ evalCode
     , HptMap                             -- ...
     , GrExpr                             -- ...
     , (Int, [Int])                       -- ...
+    , [HsName]				 -- calls extending the programs callgraph
     )
 
+maybeAdd :: Maybe a -> [a] -> [a]
+maybeAdd Nothing  xs = xs
+maybeAdd (Just x) xs = x : xs
+
 evalCode unique evalMap hptMap loc
- = let unique'                    = unique+1
-       fetchVar                   = HNPos unique
-       fetchAbsVal                = absFetch hptMap loc
-       nodes                      = getNodes fetchAbsVal
-       makeAlt  (t, av) (u, h, l) = let (u', h', alt) = buildEvalAlt loc fetchVar t av evalMap hptMap u
-                                    in (u', h' ++ h, alt:l)
-       (unique'', hptDelta, alts) = foldr makeAlt (unique', [(unique, fetchAbsVal)], []) nodes
-       code                       = GrExpr_Seq (GrExpr_Fetch loc Nothing Nothing)
-                                               (GrPat_Var fetchVar)
-                                               (GrExpr_Case (GrVal_Var fetchVar) alts)
+ = let unique'                           = unique+1
+       fetchVar                          = HNPos unique
+       fetchAbsVal                       = absFetch hptMap loc
+       nodes                             = getNodes fetchAbsVal
+       makeAlt  (t, av) (u, h, l, c)     = let (u', h', alt, callmod) = buildEvalAlt loc fetchVar t av evalMap hptMap u
+                                           in (u', h' ++ h, alt:l, maybeAdd callmod c)
+       (unique'', hptDelta, alts, calls) = foldr makeAlt (unique', [(unique, fetchAbsVal)], [], []) nodes
+       code                              = GrExpr_Seq (GrExpr_Fetch loc Nothing Nothing)
+                                                      (GrPat_Var fetchVar)
+                                                      (GrExpr_Case (GrVal_Var fetchVar) alts)
    in ( unique''
       , addEnvVars hptMap hptDelta
       , code
       , ( getNr loc
         , [unique .. unique''-1]
         )
+      , calls
       )
 
 
@@ -196,6 +205,7 @@ buildApplyAlt
     ( Int                                -- newU
     , [(Int, AbstractValue)]             -- newHPT
     , GrAlt                              -- alt
+    , Maybe HsName
     )
 
 buildApplyAlt ((t, a, avL), rhs) appArgs hptMap u
@@ -207,6 +217,7 @@ buildApplyAlt ((t, a, avL), rhs) appArgs hptMap u
                   in  ( u
                       , hptData absVal
                       , GrExpr_Call v (map GrVal_Var args ++ appArgs)
+		      , Just v
                       )
     tf u args t = let arit   = if grinStoreArity
                                 then [GrVal_LitInt (a + length appArgs)]
@@ -218,6 +229,7 @@ buildApplyAlt ((t, a, avL), rhs) appArgs hptMap u
                   in ( u
                      , hptData absVal
                      , GrExpr_Unit (GrVal_Node t (arit ++ map GrVal_Var args ++ appArgs))
+		     , Nothing
                      )
 
 
@@ -239,14 +251,15 @@ buildApplyCase
     , GrExpr
     , AbstractValue                      -- unionAV
     , (Int,[Int])
+    , [HsName]
     )
 
 buildApplyCase unique hptMap funVar appArgs nodeList
- =  let makeAlt elem (u, h, l)   = let (u2, h2, alt) = buildApplyAlt elem appArgs hptMap u
-                                   in (u2, h2 ++ h, alt:l)
-        (unique2, hptData, alts) = foldr makeAlt (unique, [], []) nodeList
-        (altAvs, hptDelta)       = partition (\(i, _) -> getNr applyNr == i) hptData
-        unionAV                  = mconcat (map snd altAvs)
+ =  let makeAlt elem (u, h, l, c)        = let (u2, h2, alt, callmod) = buildApplyAlt elem appArgs hptMap u
+                                           in (u2, h2 ++ h, alt:l, maybeAdd callmod c)
+        (unique2, hptData, alts, calls)  = foldr makeAlt (unique, [], [], []) nodeList
+        (altAvs, hptDelta)               = partition (\(i, _) -> getNr applyNr == i) hptData
+        unionAV                          = mconcat (map snd altAvs)
     in ( unique2
        , hptDelta
        , GrExpr_Case (GrVal_Var funVar) alts
@@ -254,6 +267,7 @@ buildApplyCase unique hptMap funVar appArgs nodeList
        , ( getNr funVar
          , [unique .. unique2 - 1]
          )
+       , calls
        )
 
 applyCodePart
@@ -267,6 +281,7 @@ applyCodePart
     , HptMap                             -- ...
     , GrExpr                             -- ...
     , [(Int,[Int])]                      -- ...
+    , [HsName]
     )
 
 applyCodePart unique applyMap hptMap nodes appVar appArgs
@@ -308,23 +323,23 @@ applyCodePart unique applyMap hptMap nodes appVar appArgs
 
         fromInfo         = zip3 origTags arities avs
 
-        (elems, usedArgs, restArgs)                  = getElements origTags appArgs id
+        (elems, usedArgs, restArgs)                         = getElements origTags appArgs id
 
-        (unique2, hptDelta, code, resultAV, newMap)  = buildApplyCase unique hptMap appVar usedArgs elems
+        (unique2, hptDelta, code, resultAV, newMap, calls)  = buildApplyCase unique hptMap appVar usedArgs elems
 
-        hptMap2                                      = addEnvVars hptMap hptDelta
+        hptMap2                                             = addEnvVars hptMap hptDelta
 
         newVar  = HNPos unique2
 
     in if null restArgs
-       then (unique2, hptMap2, code, [newMap])
-       else let (unique3, hptMap3, code2, newMaps) = applyCodePart (unique2 + 1)
-                                                                   applyMap
-                                                                   (addEnvVar hptMap2 unique2 resultAV)
-                                                                   (filter isPartialApplication $ getNodes resultAV)
-                                                                   newVar
-                                                                   restArgs
-            in (unique3, hptMap3, GrExpr_Seq code (GrPat_Var newVar) code2, newMaps)
+       then (unique2, hptMap2, code, [newMap], calls)
+       else let (unique3, hptMap3, code2, newMaps, calls) = applyCodePart (unique2 + 1)
+                                                                          applyMap
+                                                                          (addEnvVar hptMap2 unique2 resultAV)
+                                                                          (filter isPartialApplication $ getNodes resultAV)
+                                                                          newVar
+                                                                          restArgs
+            in (unique3, hptMap3, GrExpr_Seq code (GrPat_Var newVar) code2, newMaps, calls)
 
 
 
@@ -341,6 +356,7 @@ applyCode
     , HptMap                             -- ...
     , GrExpr                             -- ...
     , [(Int,[Int])]                      -- ...
+    , [HsName]
     )
 
 applyCode unique applyMap hptMap funVar appArgs
@@ -362,7 +378,7 @@ fromJust' _ (Just e) = e
 
 %%[8
 ATTR GrAGItf AllGrNT [ | unique: Int  hptMap: HptMap | ]
-ATTR GrAGItf [ | | grTrf: GrModule renameMap: RenameMap ]
+ATTR GrAGItf [ | | grTrf: GrModule  renameMap: RenameMap  callsInfoL: {[(HsName,[HsName])]} ]
 ATTR AllGrNT [ | renameMap: RenameMap | grTrf: SELF ]
 
 SEM GrAGItf
@@ -377,10 +393,45 @@ SEM GrModule
   | Mod  loc  .  applyMap = [ (t, (a,v))| ((t,a), v) <- @applyTagMp ]
 %%]
 
+%%[8
+
+ATTR GrExpr GrAltL GrAlt [ | | calls USE {`undefined`} {[]} : {[HsName]} ]
+
+%%]
+
 %%[8.inlineEval
 SEM GrExpr
-  | Eval  loc  .  (unique, hptMap, grTrf, newMap )  = evalCode   @lhs.unique @lhs.evalMap   @lhs.hptMap @nm
-               .  renameMap                         = @newMap : @lhs.renameMap
-  | App   loc  .  (unique, hptMap, grTrf, newMaps)  = applyCode  @lhs.unique @lhs.applyMap  @lhs.hptMap @nm @argL.grTrf
-               .  renameMap                         = @newMaps ++ @lhs.renameMap
+  | Eval  loc  .  (unique, hptMap, grTrf, newMap, calls)  = evalCode   @lhs.unique @lhs.evalMap   @lhs.hptMap @nm
+          loc  .  renameMap                               = @newMap : @lhs.renameMap
+          lhs  .  calls                                   = @loc.calls
+  | App   loc  .  (unique, hptMap, grTrf, newMaps, calls) = applyCode  @lhs.unique @lhs.applyMap  @lhs.hptMap @nm @argL.grTrf
+               .  renameMap                               = @newMaps ++ @lhs.renameMap
+          lhs  .  calls                                   = @loc.calls
+%%]
+
+%%[8
+
+SEM GrExpr 
+  | Seq   lhs  .  calls = @expr.calls ++ @body.calls
+  | Call  lhs  .  calls = [@nm]
+  | Case  lhs  .  calls = @altL.calls
+SEM GrAlt
+  | Alt   lhs  .  calls = @expr.calls
+SEM GrAltL
+  | Cons  lhs  .  calls = @hd.calls ++ @tl.calls
+  | Nil   lhs  .  calls = []
+
+-- GrExpr_Catch: todo?
+
+ATTR GrBind GrBindL GrModule [ | | callsInfoL: {[(HsName,[HsName])]} ]
+SEM GrBind
+  | Bind  lhs  .  callsInfoL = [(@nm, @expr.calls)] -- singleton
+  | Rec   lhs  .  callsInfoL = @bindL.callsInfoL
+SEM GrBindL
+  | Cons  lhs  .  callsInfoL = @hd.callsInfoL ++ @tl.callsInfoL
+  | Nil   lhs  .  callsInfoL = []
+
+SEM GrModule
+  | Mod   loc  .  callsInfoL = @bindL.callsInfoL
+
 %%]
