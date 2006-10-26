@@ -12,7 +12,7 @@
 %%[8 hs
 prettyC :: Bool -> Bool -> SilModule -> PP_Doc
 prettyC optTrace optDef silmod
-  = let t = wrap_SilModule (sem_SilModule silmod) ---- TESTING!!! test1) -- 
+  = let t = wrap_SilModule (sem_SilModule silmod) ---- TESTING!!! test1) --  
                            (Inh_SilModule { optTraceCall_Inh_SilModule = optTrace
                                           , optCaseDefault_Inh_SilModule = optDef
                                           }
@@ -37,7 +37,7 @@ WRAPPER SilModule
   2. Array access needs to be fixed especially for assignment expressions.
      For assignments {a[x] = rhs} we need to generate:
         %array.unique = getelementptr uint* %a , uint %x
-        %array.unique = rhs
+        store uint %rhs, uint* %array.unique
 
   3. We need to inline heap_alloc, switch_trap, ?? function definitions.
   
@@ -52,30 +52,63 @@ WRAPPER SilModule
 --------------------------------------------------------------------------------
 -- INTRODUCTION OF UNIQUE LABEL COUNTER
 --------------------------------------------------------------------------------
-ATTR Functions Function Statements Statement Alternatives Alternative
+ATTR Functions Function Statements Statement  Alternatives 
+     Alternative  Variables Variable Values Value
 [ | unique : {Int} | ]
+
 SEM SilModule
   | SilModule   functions.unique = 0
 
 SEM Alternative
-  | Alternative loc.clbl = @lhs.unique
+  | Alternative loc.clbl    = @lhs.unique
                 lhs.unique  = @loc.clbl + 1
+
+SEM Statement
+  | Switch      lhs.unique  = @loc.slbl + 1
+                loc.slbl    = @lhs.unique
+SEM Variable
+  | Subs        loc.rlbl    = @lhs.unique
+                lhs.unique  = @loc.rlbl + 1
+
+--------------------------------------------------------------------------------
+-- PROPAGATING CONSTANT SUBSTITUTIONS
+--------------------------------------------------------------------------------
+ATTR Functions Function Statements Statement  Alternatives 
+     Alternative  Variables Variable Values Value Constant
+[ constants : {[(String,Int)]} | | ]
+
+SEM SilModule
+  | SilModule   functions.constants = @constants
 
 --------------------------------------------------------------------------------
 -- MODULE GENERATION
 --------------------------------------------------------------------------------
 
 SEM SilModule
-  | SilModule   lhs.prettyC   = preambule
+  | SilModule   lhs.prettyC   = header
                                 >-< text ""
-                                >-< comment "Tag Constants"
+                                >-< comment "Constants"
                                 >-< ppVertically (map constantDefinition @constants)
                                 >-< text ""
-                                >-< comment "Global Table"
+                                >-< comment "Globals"
                                 >-< ppVertically (map variableDeclaration @variables)
                                 >-< text ""
-                                >-< comment "Function Definitions"
+                                >-< text ""
+                                >-< "implementation"
+                                >-< text ""
+                                >-< text ""
                                 >-< @functions.prettyC
+
+{
+header :: PP_Doc
+header = comment "LLVM Code Generated From Grin"
+         >-< "" >-< ""
+         >-< "%thunk_type = type uint"
+         >-< "declare void main()"
+         >-< "declare void switch_trap()"
+         >-< "declare %thunk_type heap_alloc(uint)"
+         >-< ""
+}
 
 --------------------------------------------------------------------------------
 -- FUNCTION DECLARATION GENERATION
@@ -96,7 +129,7 @@ SEM Function
 --------------------------------------------------------------------------------
 -- SWITCH STATEMENT GENERATION
 --------------------------------------------------------------------------------
-ATTR Alternative Alternatives [ | | prettyAlt : {(PP_Doc, PP_Doc)}]
+ATTR Alternative Alternatives [ break : PP_Doc | | prettyAlt : {(PP_Doc, PP_Doc)}]
 SEM Alternative
   | Alternative lhs.prettyAlt = (indent 3 tableEntry, targetCode)
                                    where tableEntry = @when.prettyC 
@@ -104,19 +137,51 @@ SEM Alternative
                                                             >|< label
                                          label      = "case." >|< show @loc.clbl
                                          targetCode = label >|< ":" 
-                                                            >-< indent 3 @body.prettyC
+                                                            >-< indent 3 
+                                                            ( @body.prettyC 
+                                                              >-< @lhs.break)
 
 SEM Alternatives
   | Nil   lhs.prettyAlt  = (text "", text "")
   | Cons  lhs.prettyAlt  = @hd.prettyAlt `concat` @tl.prettyAlt
                               where concat (a,b) (c,d) = (a >-< c, b >-< d)
 
+SEM Statement
+  | Switch   body.break = "br %switch_end." >|< @loc.slbl >|< ":"
+
 {
-ppSwitch :: PP_Doc -> (PP_Doc,PP_Doc) -> PP_Doc
-ppSwitch scrutinee alts = "switch int" >#< scrutinee 
-                                       >|< ", label %switch_trap" 
+ppSwitch :: Int -> PP_Doc -> (PP_Doc,PP_Doc) -> PP_Doc
+ppSwitch lbl scrutinee alts = "switch int" >#< scrutinee 
+                                       >|< ", label %switch_trap." >|< show lbl 
                                        >-< "[" >-< fst alts >|< "]" 
                                        >-< snd alts
+                                       >|< "%switch_trap." >|< show lbl >|< ":"
+                                       >-< indent 3 (text "call void switch_trap()")
+                                       >-< "%switch_end." 
+                                       >|< show lbl
+                                       >|< ":"
+}
+
+--------------------------------------------------------------------------------
+-- ARRAY ACCESS GENERATION
+--------------------------------------------------------------------------------
+ATTR Variable [ | | lineBefore : {Maybe PP_Doc}]
+
+SEM Variable
+  | Var         lhs.lineBefore   = Nothing
+  | SP          lhs.lineBefore   = Nothing
+  | BP          lhs.lineBefore   = Nothing
+  | RP          lhs.lineBefore   = Nothing
+  | Subs        loc.var          = "%array." >|< show @loc.rlbl
+                lhs.lineBefore   = Just (@loc.var  >#< "= getelementptr uint*" 
+                                                   >#< @array.prettyPtr
+                                                   >|< ","
+                                                   >#< @index.prettyC)
+
+{
+assignment :: Maybe PP_Doc -> PP_Doc -> PP_Doc -> PP_Doc
+assignment Nothing  v e = v >#< "=" >#< e
+assignment (Just p) v e = p >-< v >#< "=" >#< e
 }
 
 --------------------------------------------
@@ -153,13 +218,15 @@ ATTR Variable [ | | prettyPtr : {PP_Doc}  ]
 
 SEM Statement
   | Comment     lhs.prettyC   = comment @comment              -- DONE
-  | Assignment  lhs.prettyC   = assignment @dest.prettyC      -- DONE
+  | Assignment  lhs.prettyC   = assignment @dest.lineBefore
+                                           @dest.prettyC      -- DONE
                                            @source.prettyC
-  | Switch      lhs.prettyC   = ppSwitch @scrutinee.prettyC   -- DONE (NEED TO DEFINE switch_trap)
+  | Switch      lhs.prettyC   = ppSwitch @loc.slbl
+                                         @scrutinee.prettyC   -- DONE (NEED TO DEFINE switch_trap)
                                          @body.prettyAlt
        -- note, switch is not using  @lhs.optCaseDefault 
   | Call        lhs.prettyC   = call @name 
-                                     @args.prettyCs >|< ";"
+                                     @args.prettyCs
   | Jump        lhs.prettyC   = jump @name
   | Enter       lhs.prettyC   = methodEnter @nLocal @nParam
   | Leave       lhs.prettyC   = methodLeave @diff
@@ -182,8 +249,8 @@ SEM Value
                                 >|< ")"
 
 SEM Constant
-  | Literal     lhs.prettyC   = text ("int " ++ show @value)  -- DONE
-  | Alias       lhs.prettyC   = text ("%" ++ @name)           -- DONE
+  | Literal     lhs.prettyC   = "int" >#< show @value         -- DONE
+  | Alias       lhs.prettyC   = "int" >#< get @name @lhs.constants     -- DONE
 
 SEM Variable
   | Var         lhs.prettyC   = text ("%" ++ @name)           -- DONE
@@ -195,10 +262,7 @@ SEM Variable
                 lhs.prettyPtr = text "%BP"                    -- DONE
   | RP          lhs.prettyC   = text "%RP"                    -- DONE
                 lhs.prettyPtr = text "%RP"                    -- DONE
-  | Subs        lhs.prettyC   = "getelementptr uint*" 
-                                   >#< @array.prettyPtr
-                                   >|< ","
-                                   >#< @index.prettyC
+  | Subs        lhs.prettyC   = @loc.var                      -- DONE
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -248,17 +312,13 @@ call f ps
 -- Semantic functions
 --------------------------------------------------------------------------------
 
-preambule :: PP_Doc
-preambule = comment "Generated LLVM Code"
 
-constantDefinition :: (String,Int) -> PP_Doc         -- DONE (but only int consts supported)
-constantDefinition (x,n) = text ("%" ++ x) >#< text "= global uint" >#< text (show n)
-
--- %global_false = global uint 1
+constantDefinition :: (String,Int) -> PP_Doc
+constantDefinition (x,n) = ";" >#< x >#< "=" >#< show n
 
 variableDeclaration :: String -> PP_Doc
 variableDeclaration x
- = "%" >|< text x >#< "= global uint 1 ; NEED TO FIX"
+ = "%" >|< text x >#< "= global %thunk_type undef"
 
 methodHead :: String -> [String] -> PP_Doc
 methodHead nm params
@@ -297,26 +357,19 @@ jump nm
     >-< machDepCForTailcallLeave2
     >-< "goto *_tail_call_dest;"
 
-assignment :: PP_Doc -> PP_Doc -> PP_Doc
-assignment v e
- = v
-   >#< "="
-   >#< e
-   >|< ppWhen optTraceAssign
-              (" printf(\"assignment" >#< show v >#< "=" >#< e >#< " : %d\\n\", " >#< show v >#< ");")
 
 methodEnter :: Int -> Int -> PP_Doc
 methodEnter nLocal nParam
  = comment "Enter"
-   >-< assignment (text "%SP") (text "(%BP)")
-   >-< assignment (text "%BP")  (text "%SP")
+   >-< assignment Nothing (text "%SP") (text "(%BP)") -- cleanup
+   >-< assignment Nothing (text "%BP")  (text "%SP") -- cleanup
    >-< incrementWith (text "%SP") (nLocal+nParam+1)
 
 methodLeave :: Int -> PP_Doc
 methodLeave nDiff
  = comment "Leave"
-   >-< assignment (text "SP")  (text "BP")
-   >-< assignment (text "BP") (text "((Pointer)*SP)")
+   >-< assignment Nothing (text "SP")  (text "BP")  -- cleanup
+   >-< assignment Nothing (text "BP") (text "((Pointer)*SP)") -- cleanup
    >-< incrementWith (text "SP") (nDiff)
 
 
@@ -327,4 +380,9 @@ test1 = SilModule_SilModule [] [] [func]
          alt2   = Alternative_Alternative (Constant_Literal 2) [(Statement_Call "fun2" [arg1, arg2])]
          arg1   = Value_Var (Variable_Var "x")
          arg2   = Value_Con (Constant_Literal 3)
+         
+get :: String -> [(String, Int)] -> String
+get name table = if null res then error msg else show $ head res
+   where res = [ b | (a,b) <- table, a == name]
+         msg = "constant: " ++ name ++ " not found!"
 %%]
