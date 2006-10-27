@@ -27,28 +27,6 @@ prettyC optTrace optDef silmod
 
 WRAPPER SilModule
 
-{-------------------------------------------------------------------------------
-  Notes:
-
-  1. We need to better understand variable and parameter types, since we
-     don't have any type information for variables or parameters...
-     apparently there is only one type available?
-     
-  2. Array access needs to be fixed especially for assignment expressions.
-     For assignments {a[x] = rhs} we need to generate:
-        %array.unique = getelementptr uint* %a , uint %x
-        store uint %rhs, uint* %array.unique
-
-  3. We need to inline heap_alloc, switch_trap, ?? function definitions.
-  
-  4. We need to fix global declarations and the initalization function
-  
-  Other
-    function - not complete 
-    jump     - not done
-    ...
--------------------------------------------------------------------------------}
-
 --------------------------------------------------------------------------------
 -- INTRODUCTION OF UNIQUE LABEL COUNTER
 --------------------------------------------------------------------------------
@@ -103,9 +81,9 @@ SEM SilModule
 data PtrType = Thunk | ThunkPtr | ThunkPtrPtr
 
 ptr :: PtrType -> PP_Doc
-ptr Thunk       = text "%thunk_type"
-ptr ThunkPtr    = text "%thunk_type*"
-ptr ThunkPtrPtr = text "%thunk_type**"
+ptr Thunk          = text "%thunk_type"
+ptr ThunkPtr       = text "%thunk_type*"
+ptr ThunkPtrPtr    = text "%thunk_type**"
 
 ptrptr :: PtrType -> PP_Doc
 ptrptr p = ptr p >|< "*"
@@ -165,6 +143,12 @@ header = comment "LLVM Code Generated From Grin"
          >-< "declare void switch_trap()"
          >-< "declare %thunk_type heap_alloc(uint)"
          >-< ""
+
+constantDefinition :: (String,Int) -> PP_Doc
+constantDefinition (x,n) = ";" >#< x >#< "=" >#< show n
+
+variableDeclaration :: String -> PP_Doc
+variableDeclaration x = "%" >|< text x >#< "= global %thunk_type undef"
 }
 
 --------------------------------------------------------------------------------
@@ -181,7 +165,6 @@ SEM Function
                                          body    = indent 3 @body.prettyC
                                          postfix = "}" >-< text ""
 -- ppWhen @tailJumps jumpPrepare
--- methodLocals @locals
 
 --------------------------------------------------------------------------------
 -- SWITCH STATEMENT GENERATION
@@ -222,19 +205,22 @@ ppSwitch lbl scrutinee alts = "switch int" >#< scrutinee
 --------------------------------------------------------------------------------
 -- LOAD AND STORE OF VALUES
 --------------------------------------------------------------------------------
+ATTR Constant [ | | self : SELF]
+
 
 ATTR Variable Value [ | | before : {Maybe PP_Doc}]
 
 SEM Variable
   | Var         lhs.before   = Nothing ------------------------------------ TODO
   | SP          loc.var     = "%SP." >|< show @loc.vlbl
-                lhs.before  = Just $ loadGlbl "SP" @loc.vlbl @loc.ptrtype
+                lhs.before  = Just $ load "SP" @loc.vlbl @loc.ptrtype
   | BP          loc.var     = "%BP." >|< show @loc.vlbl
-                lhs.before  = Just $ loadGlbl "BP" @loc.vlbl @loc.ptrtype
+                lhs.before  = Just $ load "BP" @loc.vlbl @loc.ptrtype
   | RP          loc.var     = "%RP." >|< show @loc.vlbl
-                lhs.before  = Just $ loadGlbl "RP" @loc.vlbl @loc.ptrtype
+                lhs.before  = Just $ load "RP" @loc.vlbl @loc.ptrtype
   | Subs        loc.var     = "%array." >|< show @loc.vlbl
-                lhs.before  = Just $ loadArray @array.prettyC 
+                lhs.before  = Just $ loadArray (isZero @index.self)
+                                               @array.prettyC 
                                                @loc.vlbl 
                                                @loc.ptrtype -------- WRONG PtrType
                                                @index.prettyC
@@ -249,71 +235,82 @@ SEM Value
   | Call        lhs.before = Just $ "%call." >|< show @loc.vlbl 
                                              >#< "="
                                              >#< call @name @args.prettyCs
+
 {
-loadGlbl :: String -> Int -> PtrType -> PP_Doc
-loadGlbl name lbl pty = nm >|< "." >|< lbl >#< "= load" >#< ptr pty >#< nm
-   where nm = "%" >|< name
+loadArray :: Bool -> PP_Doc -> Int -> PtrType -> PP_Doc -> PP_Doc
+loadArray zero name lbl pty idx = if zero then deref2 else arith >-< deref1
+   where var    = "%array." >|< lbl
+         tmp    = var >|< ".tmp"
+         arith  = ptrAdd' tmp name pty idx
+         -- tmp >#< "= getelementptr" >#< ptr pty >#< name >|< ", int" >#< idx
+         deref1 = var >#< "= load" >#< ptr pty >#< tmp
+         deref2 = var >#< "= load" >#< ptr pty >#< name
 
--- array access in two steps first pointer arithmetic
--- then we dereference the pointer...
-loadArray :: PP_Doc -> Int -> PtrType -> PP_Doc -> PP_Doc
-loadArray name lbl pty idx = "%array." >|< lbl >|< ".tmp"
-                          >#< "= getelementptr" 
-                          >#< ptr pty -- " uint*" 
-                          >#< name
-                          >|< ", int"
-                          >#< idx
-                          >-< "%array." 
-                          >|< lbl
-                          >#< "= load"
-                          >#< ptr pty
-                          >#< "%array." >|< lbl >|< ".tmp"
-                          
+isZero :: Constant -> Bool                         
+isZero (Constant_Literal 0) = True
+isZero _           = False
+
 heapalloc :: Int -> PP_Doc
-heapalloc ps
- = "tail call" >#< "%thunk_type*" >#< "%heapalloc" >#< "(uint " >|< show ps >|< ")"
-
-
--- TODO remove usages of assignment
-assignment :: Maybe PP_Doc -> Maybe PP_Doc -> PP_Doc -> PP_Doc -> PP_Doc
-assignment b1 b2 v e = rndr b1 >|< rndr b2 >|< "store" >#< e 
-                      >|< "," >#< "%thunk_type*" >#< v >-< ""
-   where rndr b = maybe (text "") (>-< "") b
+heapalloc ps =  "tail call" 
+            >#< "%thunk_type*" 
+            >#< "%heapalloc" 
+            >#< "(uint " 
+            >|< show ps 
+            >|< ")"
 
 assign :: Maybe PP_Doc -> Maybe PP_Doc -> PtrType -> PP_Doc -> PP_Doc -> PP_Doc
-assign b1 b2 typ v e = rndr b1 
-                       >|< rndr b2 
-                       >|< "store" 
-                       >#< ptr typ
-                       >#< e 
-                       >|< "," 
-                       >#< ptrptr typ 
-                       >#< v 
-                       >-< ""
+assign b1 b2 typ v e = rndr b1 >|< rndr b2 >|< (store' e typ v) >-< ""
    where rndr b = maybe (text "") (>-< "") b
+
+--------------------------------------------------------------------------------
+-- Function Entry / Exit
+--------------------------------------------------------------------------------
+enter :: Int -> Int -> PP_Doc
+enter i j =  comment "Function Entry"
+         >-< "; store current BasePointer value on Stack"
+         >-< load' (p "BP") (p "deref") ThunkPtrPtr
+         >-< load' (p "SP") (p "deref") ThunkPtrPtr
+         >-< cast "BP.cast" ThunkPtr "BP.deref" Thunk -- Why not: ThunkPtrPtr ThunkPtr
+         >-< store "BP.cast" ThunkPtr "SP.deref"
+         >-< ""
+         >-< "; Set BasePointer equal to StackPointer"
+         >-< store "SP.deref" ThunkPtr "BP" 
+         >-< ""
+         >-< "; increment StackPointer"
+         >-< ptrAdd "SP.incr" "SP.deref" ThunkPtr (i+1)
+         >-< ""
+         >-< ""
+
+exit :: Int -> PP_Doc
+exit i =  comment "Function Exit (TODO)"
+      >-< "; restore StackPointer and BasePointer"
+      >-< store "SP.deref" ThunkPtr "SP"
+      >-< cast "BP.recast" Thunk "BP.cast" ThunkPtr
+      >-< store "BP.recast" ThunkPtr "BP"
+      >-< ""     ------ TODO: increment SP (see below) ?
+      >-< "ret void"
+
+{--
+methodLeave :: Int -> PP_Doc
+methodLeave nDiff
+ = comment "Leave"
+   >-< assignment Nothing Nothing (text "SP")  (text "BP")  -- cleanup
+   >-< assignment Nothing Nothing (text "BP") (text "((Pointer)*SP)") -- cleanup
+   >-< incrementBy (text "SP") (nDiff)
+--}
+
 }
 
 --------------------------------------------
 --------------------------------------------
 --------------------------------------------
 
-{--
-getelementptr <pointer-type> <pointer/array variable> , uint <index>
-
-pointer type is either built-in type or requires type declaration
-as in:  %ST = type { int, double, %RT }
---}
 
 ATTR SilModule Functions Function Statements Statement Alternatives Alternative
   [ optTraceCall     : {Bool} -- when True, function entrance/exit is logged
     optCaseDefault   : {Bool} -- when True, error messages are given as default case for each switch
   | | ]
 
-
-
-{
-optTraceAssign = False
-}
 
 ATTR SilModule Functions Function Statements Statement Alternatives Alternative Value Variable Constant
          [ | | prettyC USE {>-<} {empty} : PP_Doc ]
@@ -333,27 +330,27 @@ SEM Statement
                                        @dest.prettyC
                                        @source.prettyC
   | Switch      lhs.prettyC   = ppSwitch @loc.slbl
-                                         @scrutinee.prettyC   -- DONE 
+                                         @scrutinee.prettyC
                                          @body.prettyAlt
   | Call        lhs.prettyC   = call @name 
                                      @args.prettyCs
   | Jump        lhs.prettyC   = jump @name
-  | Enter       lhs.prettyC   = methodEnter @nLocal @nParam
-  | Leave       lhs.prettyC   = methodLeave @diff
+  | Enter       lhs.prettyC   = enter @nLocal @nParam
+  | Leave       lhs.prettyC   = exit @diff
 
 
 SEM Alternative
-  | Alternative lhs.prettyC   = text "NOT USED"               -- DONE
+  | Alternative lhs.prettyC   = text "NOT USED"
 
 SEM Values
-  | Nil         lhs.prettyCs  = []                            -- DONE
-  | Cons        lhs.prettyCs  = @hd.prettyC : @tl.prettyCs    -- DONE
+  | Nil         lhs.prettyCs  = []
+  | Cons        lhs.prettyCs  = @hd.prettyC : @tl.prettyCs
 
 SEM Value
-  | Con         lhs.prettyC   = @con.prettyC                  -- DONE
-  | Var         lhs.prettyC   = @var.prettyC                  -- DONE
+  | Con         lhs.prettyC   = @con.prettyC
+  | Var         lhs.prettyC   = @var.prettyC
   | Call        lhs.prettyC   = "%call." >|< show @loc.vlbl   -- DONE (ARG FORMAT NEEDS TYPE) 
-  | Alloc       lhs.prettyC   = "%alloc." >|< show @loc.vlbl   -- DONE
+  | Alloc       lhs.prettyC   = "%alloc." >|< show @loc.vlbl
 
 SEM Constant
   | Literal     lhs.prettyC   = text $ show @value
@@ -380,16 +377,6 @@ SEM Variable
 commaSeparated :: [String] -> String
 commaSeparated = concat . intersperse ", "
 
-decrementWith p n
- = incrementWith p (-n)
-
-incrementWith p n
- = if n>0
-   then p >#< "+=" >#< n >#< ";"
-   else if n<0
-   then p >#< "-=" >#< (-n) >#< ";"
-   else empty
-
 declareNames :: String -> [String] -> PP_Doc
 declareNames tp ns
  = tp >#< commaSeparated ns >|< ";"
@@ -398,14 +385,6 @@ declareName :: String -> String -> String
 declareName tp nm
  = tp ++ (' ' : nm)
 
-trace :: String -> PP_Doc
-trace s
- = text ("printf(\"" ++ s ++ " SP=%d\\n\", SP-Stack); fflush(stdout);")
-
-caseDefault :: PP_Doc -> PP_Doc
-caseDefault x
- =  "default: printf(\"undefined case for " >|< x >|< " : %d\\n\", " >|< x >|< "); exit(1);"
-
 comment :: String -> PP_Doc
 comment s = "; ----" >#< s >#< "----"
 
@@ -413,44 +392,6 @@ call :: String -> [PP_Doc] -> PP_Doc
 call f ps
  = "tail call" >#< "int" >#< f >#< "(" >|< ppHorizontally (intersperse (text ", ") ps) >|< ")"
 
-
---------------------------------------------------------------------------------
--- Semantic functions
---------------------------------------------------------------------------------
-
-
-constantDefinition :: (String,Int) -> PP_Doc
-constantDefinition (x,n) = ";" >#< x >#< "=" >#< show n
-
-variableDeclaration :: String -> PP_Doc
-variableDeclaration x
- = "%" >|< text x >#< "= global %thunk_type undef"
-
-methodHead :: String -> [String] -> PP_Doc
-methodHead nm params
- =  let parameters = if null params
-                      then "void"
-                      else commaSeparated (map (declareName "GrWord") params)
-    in  "void" >#< nm >|< "(" >|< parameters >|< ")"
-
-methodHeader :: Bool -> String -> [String] -> PP_Doc
-methodHeader optTrace nm params
- =  methodHead nm params
-    >#< "{"
-    >-< ppWhen optTrace (trace ("enter " ++ show nm))
-
-methodFooter ::  Bool -> String -> PP_Doc
-methodFooter optTrace nm
- =  ppWhen optTrace (trace ("leave "++show nm))
-    >-< text "}"
-    >-< text ""
-
-methodLocals :: [String] -> PP_Doc
-methodLocals ns
- = ppUnless (null ns)
-            (   comment "Local names"
-            >-< declareNames "GrWord" ns
-            )
 
 jumpPrepare :: PP_Doc
 jumpPrepare
@@ -463,21 +404,46 @@ jump nm
     >-< machDepCForTailcallLeave2
     >-< "goto *_tail_call_dest;"
 
+--------------------------------------------------------------------------------
+-- LL Primitives
+--------------------------------------------------------------------------------
 
-methodEnter :: Int -> Int -> PP_Doc
-methodEnter nLocal nParam
- = comment "Enter"
-   >-< assignment Nothing Nothing (text "%SP") (text "(%BP)") -- cleanup
-   >-< assignment Nothing Nothing (text "%BP")  (text "%SP") -- cleanup
-   >-< incrementWith (text "%SP") (nLocal+nParam+1)
+ptrAdd :: String -> String -> PtrType -> Int -> PP_Doc
+ptrAdd l r ty i = ptrAdd' (text l) (text r) ty (text $ show i)
 
-methodLeave :: Int -> PP_Doc
-methodLeave nDiff
- = comment "Leave"
-   >-< assignment Nothing Nothing (text "SP")  (text "BP")  -- cleanup
-   >-< assignment Nothing Nothing (text "BP") (text "((Pointer)*SP)") -- cleanup
-   >-< incrementWith (text "SP") (nDiff)
+ptrAdd' :: PP_Doc -> PP_Doc -> PtrType -> PP_Doc -> PP_Doc
+ptrAdd' l r ty i = l >#< "= getelementptr" >#< ptr ty >#< r >|< ", int" >#< i
 
+load :: String -> Int -> PtrType -> PP_Doc
+load nm i p = load' (text nm) (text $ show i) p
+
+load' :: PP_Doc -> PP_Doc -> PtrType -> PP_Doc
+load' nm i p = "%" >|< nm >|< "." >|< i >#< "= load" >#< ptr p >#< "%" >|< nm
+
+store :: String -> PtrType -> String -> PP_Doc
+store val ty adr = store' (text val) ty (text adr)
+
+store' :: PP_Doc -> PtrType -> PP_Doc -> PP_Doc
+store' val ty adr = "store" >#< ptr ty >#< val >|< "," >#< ptrptr ty >#< adr
+
+cast :: String -> PtrType -> String -> PtrType -> PP_Doc
+cast lhs ty var ty' = lhs >#< "= cast" >#< ptr ty >#< var >#< "to" >#< ptr ty'
+
+--------------------------------------------------------------------------------
+-- Utility Functions
+--------------------------------------------------------------------------------
+
+get :: String -> [(String, Int)] -> String
+get name table = if null res then error msg else show $ head res
+   where res = [ b | (a,b) <- table, a == name]
+         msg = "constant: " ++ name ++ " not found!"
+
+p :: Show a => a -> PP_Doc
+p x = text $ show x
+
+--------------------------------------------------------------------------------
+-- Test Data
+--------------------------------------------------------------------------------
 
 test1 = SilModule_SilModule [] [] [func]
    where func   = Function_Function "func" False ["p1", "p2"] ["loc"] [swtch]
@@ -487,8 +453,4 @@ test1 = SilModule_SilModule [] [] [func]
          arg1   = Value_Var (Variable_Var "x")
          arg2   = Value_Con (Constant_Literal 3)
          
-get :: String -> [(String, Int)] -> String
-get name table = if null res then error msg else show $ head res
-   where res = [ b | (a,b) <- table, a == name]
-         msg = "constant: " ++ name ++ " not found!"
 %%]
