@@ -236,7 +236,7 @@ SEM Variable
   | Subs        loc.var     = "%array." >|< show @loc.vlbl
                 lhs.before  = Just $ loadArray @array.prettyC 
                                                @loc.vlbl 
-                                               @loc.ptrtype 
+                                               @loc.ptrtype -------- WRONG PtrType
                                                @index.prettyC
 
 SEM Value
@@ -254,16 +254,27 @@ loadGlbl :: String -> Int -> PtrType -> PP_Doc
 loadGlbl name lbl pty = nm >|< "." >|< lbl >#< "= load" >#< ptr pty >#< nm
    where nm = "%" >|< name
 
+-- array access in two steps first pointer arithmetic
+-- then we dereference the pointer...
 loadArray :: PP_Doc -> Int -> PtrType -> PP_Doc -> PP_Doc
-loadArray name lbl pty idx = "%array." 
-                          >|< lbl 
+loadArray name lbl pty idx = "%array." >|< lbl >|< ".tmp"
                           >#< "= getelementptr" 
                           >#< ptr pty -- " uint*" 
                           >#< name
                           >|< ", int"
                           >#< idx
+                          >-< "%array." 
+                          >|< lbl
+                          >#< "= load"
+                          >#< ptr pty
+                          >#< "%array." >|< lbl >|< ".tmp"
+                          
+heapalloc :: Int -> PP_Doc
+heapalloc ps
+ = "tail call" >#< "%thunk_type*" >#< "%heapalloc" >#< "(uint " >|< show ps >|< ")"
 
--- TODO remove usages of assign
+
+-- TODO remove usages of assignment
 assignment :: Maybe PP_Doc -> Maybe PP_Doc -> PP_Doc -> PP_Doc -> PP_Doc
 assignment b1 b2 v e = rndr b1 >|< rndr b2 >|< "store" >#< e 
                       >|< "," >#< "%thunk_type*" >#< v >-< ""
@@ -401,10 +412,6 @@ comment s = "; ----" >#< s >#< "----"
 call :: String -> [PP_Doc] -> PP_Doc
 call f ps
  = "tail call" >#< "int" >#< f >#< "(" >|< ppHorizontally (intersperse (text ", ") ps) >|< ")"
-
-heapalloc :: Int -> PP_Doc
-heapalloc ps
- = "tail call" >#< "%thunk_type*" >#< "heapalloc" >#< "(uint " >|< show ps >|< ")"
 
 
 --------------------------------------------------------------------------------
