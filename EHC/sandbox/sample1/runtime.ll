@@ -9,6 +9,9 @@ deplibs = [ "c" ]
 declare int %printf(sbyte*, ...)
 declare void %exit(int)
 
+
+declare void %fun_main()
+declare void %initialize()
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Typedefs
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -75,4 +78,26 @@ void %heap_overflow_error() {
   tail call int (sbyte*, ...)* %printf( sbyte* getelementptr ([15 x sbyte]* %__heapErrorMsg, int 0, int 0) )
   tail call void %exit( int 1 )
   unreachable
+}
+
+%thunk_type* %heapalloc( uint %words ) {
+
+  ; Offset of current pointer is 0 based
+  %word_offset = sub uint %words, 1 
+
+  ; The thunk can be allocated on this address
+  %curr_ptr = load %thunk_type** %HP
+  %new_ptr  = getelementptr %thunk_type* %curr_ptr, uint %word_offset
+  %heap_limit = load %thunk_type** %HeapLimit
+
+  ; Check if the new heap pointer is below the heap limit
+  %heap_limit_cond = setge %thunk_type* %new_ptr, %heap_limit
+  br bool %heap_limit_cond, label %heap_overflow, label %no_heap_overflow
+
+  heap_overflow:
+  tail call void %heap_overflow_error()
+  ret %thunk_type* %curr_ptr ; Declared unreachable by the heap_overflow_error
+
+  no_heap_overflow:
+  ret %thunk_type* %curr_ptr
 }

@@ -7,18 +7,17 @@ deplibs = [ "c" ]
 ;; External dependencies
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-; C functions
-declare int %printf(sbyte*, ...)
-declare void %exit(int)
-
-; Defined in runtime
+; Functions defined in runtime
 declare void %heap_overflow_error()
+declare %thunk_type* %heapalloc( uint )
 
+; Constant variables declared in runtime
 %Heap       = external global %thunk_type*
 %Stack      = external global %thunk_type*
 %ReturnArea = external global %thunk_type*
 %HeapLimit  = external global %thunk_type*
 
+; Pointers declared in runtime
 %HP = external global %thunk_type*
 %SP = external global %thunk_type*
 %RP = external global %thunk_type*
@@ -38,6 +37,12 @@ declare void %heap_overflow_error()
 
 implementation 
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Function declarations
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+; Allocate space for each global var on the heap
+;
 void %initialize( ) {
 
   %BP_deref = load %thunk_type** %BP
@@ -62,6 +67,7 @@ void %initialize( ) {
   ret void
 }
 
+; Main function of the haskell program (main = 1)
 void %fun_main( ) {
 
   ; Save the current pointer value of %BP in the %SP pointer
@@ -98,28 +104,6 @@ void %fun_main( ) {
   %recast_BP = cast %thunk_type %cast_BP to %thunk_type*
   store %thunk_type* %recast_BP, %thunk_type** %BP
   ret void
-}
-
-%thunk_type* %heapalloc( uint %words ) {
-
-  ; Offset of current pointer is 0 based
-  %word_offset = sub uint %words, 1 
-
-  ; The thunk can be allocated on this address
-  %curr_ptr = load %thunk_type** %HP
-  %new_ptr  = getelementptr %thunk_type* %curr_ptr, uint %word_offset
-  %heap_limit = load %thunk_type** %HeapLimit
-
-  ; Check if the new heap pointer is below the heap limit
-  %heap_limit_cond = setge %thunk_type* %new_ptr, %heap_limit
-  br bool %heap_limit_cond, label %heap_overflow, label %no_heap_overflow
-
-  heap_overflow:
-  tail call void %heap_overflow_error()
-  ret %thunk_type* %curr_ptr ; Declared unreachable by the heap_overflow_error
-
-  no_heap_overflow:
-  ret %thunk_type* %curr_ptr
 }
   
 
