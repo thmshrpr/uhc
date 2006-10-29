@@ -57,10 +57,10 @@ pDirection =    (In <$ pKey "in")
 -------------------------------------------------------------------------------
 
 implops  = [":.",";"]
-implkeys = ["implementation","of","rule","implements","pre","post"]
+implkeys = ["implementation","of","rule","implements","pre","post", "where"]
 
 parseImpl :: String -> IO Implementation
-parseImpl file = do { tokens <- scanFile implkeys implops "{(:;)}=." "" file
+parseImpl file = do { tokens <- scanFile implkeys implops "{(:;)}=.|" "" file
                     ; parseIO pImpl tokens
                     }
 
@@ -86,15 +86,18 @@ pRawJudge1 = mkJudge1 <$> pConid
                                    <*> pConid
                                    <*  pKey "="
                                    <*> pString
-                                   <*> pSucceed []
+                                   <*> pDefinitions
    where mkJudge1 int nm bdy defs = Judgment_RawJudgment1 nm int bdy defs
 
 pRawJudge2 = mkJudge2 <$> pConid 
                                    <*  pKey "."
                                    <*> pConid
-                                   <*> pCurly (pListSep (pKey ";") pBinding)
-                                   <*> pSucceed []
+                                   <*> pList (pKey "|" *> pBinding)
+                                   <*> pDefinitions
    where mkJudge2 int nm bdy defs = Judgment_RawJudgment2 nm int bdy defs
+
+pDefinitions :: Parser Token [(String,String)]
+pDefinitions = opt (pKey "where" *> pList pBinding) []
 
 pBinding :: Parser Token (String,String)
 pBinding = (,) <$> pId <* pKey "=" <*> pString
