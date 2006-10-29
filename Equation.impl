@@ -1,8 +1,9 @@
 implementation of Equational
   rule fitsIn implements Expr
     post Expr.R = "kiGam ; tyGam ; valGam :- int : tyInt"
-    
+       where asdf = "asdfkj"
+             xyz  = "asdfasdfasdf"
+
   rule fitsOut implements Expr
-    post Expr.Q { blah = "abc" 
-                  ; blechh = "asdf" 
-                  }
+    post Expr.X | blah = "abc" | blechh = "asdf" 
+       where asdf = "asdfkj"
