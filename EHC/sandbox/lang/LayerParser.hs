@@ -4,7 +4,7 @@ import Lang
 import UU.Parsing
 import UU.Scanner
 
-lyrops  = [":"]
+lyrops  = [":", ","]
 lyrkeys = [ "layer", "extends", "params", "uses", "pattern"
           , "in", "out", "inout", "node", "interface"]
 
@@ -53,18 +53,14 @@ pDirection =    (In <$ pKey "in")
             <|> (Out <$ pKey "out")
             <|> (Node <$ pKey "node")
 
-{-------
-implementation of Equational
-  rule fitsIn implements Expr
-    pre
-    post R : Expr = "kiGam ; tyGam ; valGam :- int : tyInt"
--------}
 
-implops  = [":","="]
+-------------------------------------------------------------------------------
+
+implops  = [":.",";"]
 implkeys = ["implementation","of","rule","implements","pre","post"]
 
 parseImpl :: String -> IO Implementation
-parseImpl file = do { tokens <- scanFile implkeys implops "{(:)}=" "" file
+parseImpl file = do { tokens <- scanFile implkeys implops "{(:;)}=." "" file
                     ; parseIO pImpl tokens
                     }
 
@@ -83,13 +79,25 @@ pRule = Rule_RawRule <$  pKey "rule"
                   <*> opt (pKey "pre" *> pList pJudge) []
                   <* pKey "post" <*> pList pJudge
 
-pJudge = Judgment_RawJudgment1 <$> pConid 
-                               <*  pKey ":"
-                               <*> pConid
-                               <*  pKey "="
-                               <*> pString
-                               <*> pSucceed []
+pJudge = pRawJudge1 <|> pRawJudge2
 
+pRawJudge1 = mkJudge1 <$> pConid 
+                                   <*  pKey "."
+                                   <*> pConid
+                                   <*  pKey "="
+                                   <*> pString
+                                   <*> pSucceed []
+   where mkJudge1 int nm bdy defs = Judgment_RawJudgment1 nm int bdy defs
 
+pRawJudge2 = mkJudge2 <$> pConid 
+                                   <*  pKey "."
+                                   <*> pConid
+                                   <*> pCurly (pListSep (pKey ";") pBinding)
+                                   <*> pSucceed []
+   where mkJudge2 int nm bdy defs = Judgment_RawJudgment2 nm int bdy defs
 
+pBinding :: Parser Token (String,String)
+pBinding = (,) <$> pId <* pKey "=" <*> pString
 
+pId :: Parser Token String
+pId = pConid <|> pVarid
