@@ -137,6 +137,7 @@ SEM SilModule
 {
 header :: PP_Doc
 header = comment "LLVM Code Generated From Grin"
+         >-< ""
          >-< comment "Platform Constants"
          >-< "target endian = little"
          >-< "target pointersize = 32"
@@ -148,11 +149,13 @@ header = comment "LLVM Code Generated From Grin"
          >-< "declare void %main()"
          >-< "declare void %switch_trap()"
          >-< "declare %thunk_type* %heapalloc( uint )"
+         >-< ""
          >-< comment "Runtime Library Constant Variables"
          >-< "%Heap       = external global %thunk_type*"
          >-< "%Stack      = external global %thunk_type*"
          >-< "%ReturnArea = external global %thunk_type*"
          >-< "%HeapLimit  = external global %thunk_type*"
+         >-< ""
          >-< comment "Runtime Library Pointers"
          >-< "%HP = external global %thunk_type*"
          >-< "%SP = external global %thunk_type*"
@@ -381,7 +384,7 @@ SEM Variable
                 lhs.prettyPtr = text "%BP"
   | RP          lhs.prettyC   = text "%RP"
                 lhs.prettyPtr = text "%RP"
-  | Subs        lhs.prettyC   = @loc.var
+  | Subs        lhs.prettyC   = @loc.var >|< (if (isZero @index.self) then "" else ".tmp")
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
