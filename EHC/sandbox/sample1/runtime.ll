@@ -1,4 +1,6 @@
+target endian = little
 target pointersize = 32
+target triple = "i686-pc-linux-gnu"
 deplibs = [ "c" ]
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -31,8 +33,9 @@ declare void %initialize()
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Internal constants
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-%__heapErrorMsg = internal constant [15 x sbyte] c"heap overflow\0A\00"
-%__resultMsg    = internal constant [24 x sbyte] c"result tag=%d value=%d\0A\00"
+%__heapErrorMsg   = internal constant [15 x sbyte] c"heap overflow\0A\00"
+%__switchErrorMsg = internal constant [23 x sbyte] c"pattern match failure\0A\00"
+%__resultMsg      = internal constant [24 x sbyte] c"result tag=%d value=%d\0A\00"
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Functions
@@ -74,6 +77,12 @@ void %main( ) {
 
 void %heap_overflow_error() {
   tail call int (sbyte*, ...)* %printf( sbyte* getelementptr ([15 x sbyte]* %__heapErrorMsg, int 0, int 0) )
+  tail call void %exit( int 1 )
+  unreachable
+}
+
+void %switch_trap() {
+  tail call int (sbyte*, ...)* %printf( sbyte* getelementptr ([23 x sbyte]* %__switchErrorMsg, int 0, int 0) )
   tail call void %exit( int 1 )
   unreachable
 }
