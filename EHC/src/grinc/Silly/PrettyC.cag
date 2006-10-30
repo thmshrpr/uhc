@@ -101,7 +101,7 @@ SEM Variable
                 lhs.ptrtype  = @loc.ptrtype
   | RP          loc.ptrtype  = ThunkPtrPtr
                 lhs.ptrtype  = @loc.ptrtype
-  | Subs        loc.ptrtype  = ThunkPtrPtr ------- PROBABLY WRONG
+  | Subs        loc.ptrtype  = ThunkPtr      -- We only array-access global vars
                 lhs.ptrtype  = @loc.ptrtype
 
 SEM Value
@@ -137,18 +137,34 @@ SEM SilModule
 {
 header :: PP_Doc
 header = comment "LLVM Code Generated From Grin"
-         >-< "" >-< ""
+         >-< comment "Platform Constants"
+         >-< "target endian = little"
+         >-< "target pointersize = 32"
+         >-< "target triple = \"i686-pc-linux-gnu\""
+         >-< "deplibs = [ \"c\" ]"
+         >-< ""
+         >-< comment "Runtime Library Functions"
          >-< "%thunk_type = type uint"
-         >-< "declare void main()"
-         >-< "declare void switch_trap()"
-         >-< "declare %thunk_type heap_alloc(uint)"
+         >-< "declare void %main()"
+         >-< "declare void %switch_trap()"
+         >-< "declare %thunk_type* %heapalloc( uint )"
+         >-< comment "Runtime Library Constant Variables"
+         >-< "%Heap       = external global %thunk_type*"
+         >-< "%Stack      = external global %thunk_type*"
+         >-< "%ReturnArea = external global %thunk_type*"
+         >-< "%HeapLimit  = external global %thunk_type*"
+         >-< comment "Runtime Library Pointers"
+         >-< "%HP = external global %thunk_type*"
+         >-< "%SP = external global %thunk_type*"
+         >-< "%RP = external global %thunk_type*"
+         >-< "%BP = external global %thunk_type*"
          >-< ""
 
 constantDefinition :: (String,Int) -> PP_Doc
 constantDefinition (x,n) = ";" >#< x >#< "=" >#< show n
 
 variableDeclaration :: String -> PP_Doc
-variableDeclaration x = "%" >|< text x >#< "= global %thunk_type undef"
+variableDeclaration x = "%" >|< text x >#< "= global %thunk_type* undef"
 }
 
 --------------------------------------------------------------------------------
@@ -162,8 +178,9 @@ SEM Function
                                        >-< postfix
                                    where prefix  = "void %" >|< @name >#< "("
                                          params = commaSeparated (map (declareName "uint*") @parameters)
-                                         body    = indent 3 @body.prettyC
+                                         body    = indent 3 (@body.prettyC >-< "ret void")
                                          postfix = "}" >-< text ""
+                                         
 -- ppWhen @tailJumps jumpPrepare
 
 --------------------------------------------------------------------------------
@@ -222,7 +239,7 @@ SEM Variable
                 lhs.before  = Just $ loadArray (isZero @index.self)
                                                @array.prettyC 
                                                @loc.vlbl 
-                                               @loc.ptrtype -------- WRONG PtrType
+                                               @loc.ptrtype
                                                @index.prettyC
 
 SEM Value
@@ -238,13 +255,12 @@ SEM Value
 
 {
 loadArray :: Bool -> PP_Doc -> Int -> PtrType -> PP_Doc -> PP_Doc
-loadArray zero name lbl pty idx = if zero then deref2 else arith >-< deref1
+loadArray zero name lbl pty idx = if zero then deref else deref >-< arith
    where var    = "%array." >|< lbl
          tmp    = var >|< ".tmp"
-         arith  = ptrAdd' tmp name pty idx
+         arith  = ptrAdd' tmp var pty idx
          -- tmp >#< "= getelementptr" >#< ptr pty >#< name >|< ", int" >#< idx
-         deref1 = var >#< "= load" >#< ptr pty >#< tmp
-         deref2 = var >#< "= load" >#< ptr pty >#< name
+         deref = var >#< "= load" >#< ptrptr pty >#< name
 
 isZero :: Constant -> Bool                         
 isZero (Constant_Literal 0) = True
@@ -268,27 +284,27 @@ assign b1 b2 typ v e = rndr b1 >|< rndr b2 >|< (store' e typ v) >-< ""
 enter :: Int -> Int -> PP_Doc
 enter i j =  comment "Function Entry"
          >-< "; store current BasePointer value on Stack"
-         >-< load' (p "BP") (p "deref") ThunkPtrPtr
-         >-< load' (p "SP") (p "deref") ThunkPtrPtr
-         >-< cast "BP.cast" ThunkPtr "BP.deref" Thunk -- Why not: ThunkPtrPtr ThunkPtr
-         >-< store "BP.cast" ThunkPtr "SP.deref"
+         >-< load' (text "BP") (text "deref") ThunkPtrPtr
+         >-< load' (text "SP") (text "deref") ThunkPtrPtr
+         >-< cast "%BP.cast" ThunkPtr "%BP.deref" Thunk -- Why not: ThunkPtrPtr ThunkPtr
+         >-< store "%BP.cast" Thunk "%SP.deref"
          >-< ""
          >-< "; Set BasePointer equal to StackPointer"
-         >-< store "SP.deref" ThunkPtr "BP" 
+         >-< store "%SP.deref" ThunkPtr "%BP" 
          >-< ""
          >-< "; increment StackPointer"
-         >-< ptrAdd "SP.incr" "SP.deref" ThunkPtr (i+1)
+         >-< ptrAdd "%SP.incr" "%SP.deref" ThunkPtr (i+1)
+         >-< store "%SP.incr" ThunkPtr "%SP"
          >-< ""
          >-< ""
 
 exit :: Int -> PP_Doc
 exit i =  comment "Function Exit (TODO)"
       >-< "; restore StackPointer and BasePointer"
-      >-< store "SP.deref" ThunkPtr "SP"
-      >-< cast "BP.recast" Thunk "BP.cast" ThunkPtr
-      >-< store "BP.recast" ThunkPtr "BP"
-      >-< ""     ------ TODO: increment SP (see below) ?
-      >-< "ret void"
+      >-< store "%SP.deref" ThunkPtr "%SP"
+      >-< cast "%BP.recast" Thunk "%BP.cast" ThunkPtr
+      >-< store "%BP.recast" ThunkPtr "%BP"
+      >-< ""     ------ TODO: increment SP (see C code below) ?
 
 {--
 methodLeave :: Int -> PP_Doc
