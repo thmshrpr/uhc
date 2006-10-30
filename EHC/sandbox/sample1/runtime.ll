@@ -1,6 +1,4 @@
-target endian = little
 target pointersize = 32
-target triple = "i686-pc-linux-gnu"
 deplibs = [ "c" ]
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
