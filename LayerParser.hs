@@ -77,7 +77,7 @@ pRule = Rule_RawRule <$  pKey "rule"
                   <*  pKey "implements"
                   <*> pConid
                   <*> opt (pKey "pre" *> pList pJudge) []
-                  <* pKey "post" <*> pList pJudge
+                  <* pKey "post" <*> pJudge
 
 pJudge = pRawJudge1 <|> pRawJudge2
 

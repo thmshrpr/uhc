@@ -5,8 +5,13 @@ import Lang
 expr_interface =
   Interface_Interface 
     "Expr"
-    (Just "e")
     [ Parameter_Parameter
+        "e"
+        Node
+        "Expr"
+        True
+        []
+    , Parameter_Parameter
         "valGam"
         In
         "ValGam"
@@ -44,11 +49,16 @@ test1 = Implementation_Implementation
               "fitsIn"
               expr_interface
               []
-              [ Judgment_Judgment
+              ( Judgment_Judgment
                   "R"
                   expr_interface
-                  "kiGam ; tyGam ; valGam :- int : tyInt"
+                  [ BodyAssignment_BodyAssignment (Parameter_Parameter "kiGam" In "KiGam" True []) "kiGam"
+                  , BodyAssignment_BodyAssignment (Parameter_Parameter "tyGam" In "TyGam" True []) "tyGam"
+                  , BodyAssignment_BodyAssignment (Parameter_Parameter "valGam" In "ValGam" True []) "valGam"
+                  , BodyAssignment_BodyAssignment (Parameter_Parameter "e" Node "Expr" True []) "IConst"
+                  , BodyAssignment_BodyAssignment (Parameter_Parameter "ty" InOut "Ty" True []) "tyInt"
+                  ]
                   []
-              ]
+              )
              )
            ]          
