@@ -5,11 +5,11 @@ import Data.List
 import Debug.Trace
 
 data Direction 
-  = In 
-  | Out 
-  | InOut
-  | Node
-  deriving (Show)
+  = Node
+  | In 
+  | InOut 
+  | Out
+  deriving (Show,Eq,Ord)
 }
 
 -- INTERFACE SPECIFICATION
@@ -19,6 +19,7 @@ TYPE Interfaces      = [Interface]
 TYPE Parameters      = [Parameter]
 TYPE Rules           = [Rule]
 TYPE Judgments       = [Judgment]
+TYPE BodyAssignments = [BodyAssignment]
 
 DATA Layer
   |  RawLayer          name       : {String}
@@ -54,11 +55,11 @@ DATA Rule
   | RawRule           name           : {String}
                       interface      : {String}
                       preconditions  : Judgments
-                      postconditions : Judgments
+                      postcondition  : Judgments
   | Rule              name           : {String}
                       interface      : Interface
                       preconditions  : Judgments
-                      postconditions : Judgments
+                      postcondition  : Judgment
 
 DATA Judgment
   | RawJudgment1      name           : {String}
@@ -71,9 +72,13 @@ DATA Judgment
                       defs           : {[(String,String)]}
   | Judgment          name           : {String}
                       interface      : Interface
-                      body           : {[(Parameter,String)]}
-                      defs           : {[(String,String)]}                      
+                      body           : BodyAssignments
+                      defs           : {[(String,String)]} 
+                      
+DATA BodyAssignment
+  | BodyAssignment    param          : Parameter
+                      value          : String                                        
 
-DERIVING Layer Interface Parameter Implementation Rule Judgment : Show 
+DERIVING Layer Interface Parameter Implementation Rule Judgment BodyAssignment : Show 
 
 INCLUDE "PrettyHaskell.ag"

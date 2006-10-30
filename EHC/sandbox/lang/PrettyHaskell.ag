@@ -1,5 +1,8 @@
 {
-type ParameterData = [(String,String)]
+type ParameterData  = (Direction,String,String)
+
+type Assignment     = (ParameterData,String)
+type Assignments    = [Assignment]
 }
 
 ATTR Implementation Rules Rule 
@@ -9,39 +12,67 @@ SEM Implementation
   | Implementation        lhs.ppHaskell = @rules.ppHaskell
   
 SEM Rule
-  | Rule                  lhs.ppHaskell = mkSig @name @interface.inParams @interface.outParams
-                                          >-< text @name
-                                          >-< indent 2 (text "= let")
-                                          >-< indent 6 (text "result = undefined")
-                                          >-< indent 4 (text "in" >#< text "result")
-                                                                                                                              
-ATTR Interface 
-     Parameters Parameter [ | | inParams  USE {++} {[]} : {ParameterData} 
-                                outParams USE {++} {[]} : {ParameterData} ]                          
+  | Rule                  lhs.ppHaskell = let sortParams = sortBy (\((dirLeft,_,nameLeft),_) ((dirRight,_,nameRight),_) -> case compare dirLeft dirRight of
+                                                                                                                             EQ -> compare nameLeft nameRight
+                                                                                                                             x  -> x
+                                                                  ) @postcondition.paramAssignments 
+                                              input      = filter (\((dir,_,_),_) -> isIn dir)  sortParams
+                                              output     = filter (\((dir,_,_),_) -> isOut dir) sortParams 
+                                              signature  = mkSig @name (map fst input) (map fst output)
+                                              patterns   = mkInputPatterns input
+                                              outputTup  = mkOutputTuple output
+                                           in     signature
+                                              >-< text @name >#< patterns >#< "="
+                                              >-< indent 2 (text "let")
+                                              >-< indent 4 (text "-- insert let bindings here from preconditions")
+                                              >-< indent 2 (text "in" >#< outputTup)
+                                             
+ATTR Judgment [ | | paramAssignments : Assignments ]
+SEM  Judgment
+  | Judgment            lhs.paramAssignments = @body.assignments
+  | RawJudgment1        lhs.paramAssignments = undefined
+  | RawJudgment2        lhs.paramAssignments = undefined 
+                                              
+                                              
+ATTR BodyAssignments [ | | assignments : Assignments ]
+SEM  BodyAssignments
+  | Cons                 lhs.assignments = @hd.assignment : @tl.assignments
+  | Nil                  lhs.assignments = []
+                                              
+ATTR BodyAssignment [ | | assignment : Assignment ]
+SEM BodyAssignment      
+  | BodyAssignment       lhs.assignment = (@param.pdata,@value)                                                                              
+                                                                                                                          
+ATTR Parameter  [ | | pdata  : {ParameterData} ]                          
                                                                 
 SEM Parameter
-  | Parameter             lhs.inParams  = if isIn @direction
-                                          then [(@name, @type)]
-                                          else []
-                          lhs.outParams = if isOut @direction
-                                          then [(@name, @type)]
-                                          else []                         
+  | Parameter             lhs.pdata  = (@direction, @type, @name)
+                     
 {
 isIn :: Direction ->  Bool
-isIn (In)    = True
-isIn (InOut) = True
 isIn (Out)   = False
+isIn _       = True
 
 isOut :: Direction -> Bool
-isOut (In)    = False
 isOut (InOut) = True
 isOut (Out)   = True
+isOut _       = False
 
-mkSig :: String -> ParameterData -> ParameterData -> PP_Doc
+mkSig :: String -> [ParameterData] -> [ParameterData] -> PP_Doc
 mkSig fName inParams outParams =
-  let interspersePP sep xs = 
-                      foldr (>#<) empty $ intersperse (text sep) $ map (text.snd) xs 
+  let snd3 (x,y,z)  = y
+      interspersePP sep xs = 
+                      foldr (>#<) empty $ intersperse (text sep) $ map (text.snd3) xs 
       inputSig      = interspersePP "->" inParams
       outputSig     = interspersePP "," outParams
    in text fName >#< text "::" >#< inputSig >#< text "-> (" >#< outputSig >#< text ")"
+
+mkInputPatterns :: Assignments -> PP_Doc
+mkInputPatterns as = foldr (>#<) empty $ map (\a -> "(" >|< f a >|< ")") as
+  where f ((Node,_,_),value) = value
+        f ((_,_,name),_)  = name
+ 
+mkOutputTuple :: Assignments -> PP_Doc
+mkOutputTuple as = let commaSep = foldr (>#<) empty $ intersperse (text ",") $ map (text.snd) as
+                    in "(" >|< commaSep >|< ")" 
 }   
