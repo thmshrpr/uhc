@@ -19,7 +19,9 @@ main = do { layer <- parseLayer "Equation.inf"
 
 parseLayer :: String -> IO Layer
 parseLayer file = do { tokens <- scanFile	lyrkeys lyrops "{(:)}" "" file
-                     ; parseIO pLayer tokens
+                     ; layer  <- parseIO pLayer tokens
+                     ; checkLayerName file layer
+                     ; resolveParents layer
                      }
 
 pLayer :: Parser Token Layer
@@ -30,7 +32,7 @@ pLayer = Layer_RawLayer <$ pKey "layer"
 
 pInterface :: Parser Token Interface
 pInterface = Interface_Interface <$ pKey "interface"
-                                    <*> pConid
+                                    <*> pId
                                     <*  pKey "params"
                                     <*> pList pParam
                                     <*> opt (pKey "uses" *> pList pParam) []
@@ -53,6 +55,22 @@ pDirection =    (In <$ pKey "in")
             <|> (Out <$ pKey "out")
             <|> (Node <$ pKey "node")
 
+----------------- LAYER POST PROCESSING -----------------
+
+resolveParents :: Layer -> IO Layer
+resolveParents (Layer_RawLayer n Nothing is) = return $ Layer_Layer n Nothing is
+resolveParents (Layer_RawLayer n (Just p) is) 
+   = do parent <- parseLayer $ p ++ ".inf"
+        return $ Layer_Layer n (Just parent) is
+
+checkLayerName :: String -> Layer -> IO Layer
+checkLayerName nm l@(Layer_RawLayer n p is) = if n == nm then return l else error msg
+   where msg = "Layer file: " ++ nm ++ " contains layer with name: " ++ n
+
+checkParamAccess :: Layer -> IO Layer
+checkParamAccess l@(Layer_Layer n Nothing is) = return l
+checkParamAccess l@(Layer_Layer n Nothing is) 
+   = undefined
 
 -------------------------------------------------------------------------------
 
