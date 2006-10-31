@@ -55,7 +55,7 @@ DATA Rule
   | RawRule           name           : {String}
                       interface      : {String}
                       preconditions  : Judgments
-                      postcondition  : Judgments
+                      postcondition  : Judgment
   | Rule              name           : {String}
                       interface      : Interface
                       preconditions  : Judgments
