@@ -3,45 +3,60 @@ type ParameterData  = (Direction,String,String)
 
 type Assignment     = (ParameterData,String)
 type Assignments    = [Assignment]
+
+type SplitAssignments = (Assignments, Assignments, Assignments)
 }
 
-ATTR Implementation Rules Rule 
-     Judgment Interface [ | | ppHaskell USE {>-<} {empty}: {PP_Doc} ]
+ATTR Implementation Rules Rule [ | | ppHaskell USE {>-< text "" >-<} {empty}: {PP_Doc} ]
      
 SEM Implementation
   | Implementation        lhs.ppHaskell = @rules.ppHaskell
   
 SEM Rule
-  | Rule                  lhs.ppHaskell = let sortParams = sortBy (\((dirLeft,_,nameLeft),_) ((dirRight,_,nameRight),_) -> case compare dirLeft dirRight of
-                                                                                                                             EQ -> compare nameLeft nameRight
-                                                                                                                             x  -> x
-                                                                  ) @postcondition.paramAssignments 
-                                              input      = filter (\((dir,_,_),_) -> isIn dir)  sortParams
-                                              output     = filter (\((dir,_,_),_) -> isOut dir) sortParams 
-                                              signature  = mkSig @name (map fst input) (map fst output)
-                                              patterns   = mkInputPatterns input
-                                              outputTup  = mkOutputTuple output
-                                           in     signature
-                                              >-< text @name >#< patterns >#< "="
+  | Rule                  loc.(guards,input,output)
+                                        = @postcondition.paramAssignments
+                          lhs.ppHaskell = let 
+                                              fnNm       = @postcondition.fnName                                
+                                              --signature  = mkSig fnNm (map fst @input) (map fst @output)
+                                              guardedEx  = mkGuardExpr @guards
+                                              patterns   = mkInputPatterns @input
+                                              letbindings= mkLetBindings @preconditions.paramAssignments
+                                              outputTup  = mkOutputTuple @output
+                                           in text fnNm >#< patterns >|< guardedEx >#< "="
                                               >-< indent 2 (text "let")
-                                              >-< indent 4 (text "-- insert let bindings here from preconditions")
+                                              >-< indent 4 letbindings
                                               >-< indent 2 (text "in" >#< outputTup)
-                                             
-ATTR Judgment [ | | paramAssignments : Assignments ]
+  
+ATTR Interface [ | | functionName : {String} ]
+SEM  Interface 
+  | Interface           lhs.functionName     = @name
+ 
+ATTR Judgments [ | | paramAssignments : {[(String, SplitAssignments)]} ]
+SEM Judgments
+  | Cons                lhs.paramAssignments = (@hd.fnName, @hd.paramAssignments) : @tl.paramAssignments 
+  | Nil                 lhs.paramAssignments = []
+                                          
+ATTR Judgment [ | | paramAssignments : SplitAssignments fnName : String ]
 SEM  Judgment
-  | Judgment            lhs.paramAssignments = @body.assignments
+  | Judgment            lhs.paramAssignments = let (guards,params) = partition (isGuard.getParam) (sortParams @body.assignments)
+                                                   input           = filter (\x -> isIn (getDir (getParam x)) ) params
+                                                   output          = filter (\x -> isOut (getDir (getParam x)) ) params
+                                                in (guards,input,output)
+                        lhs.fnName           = @interface.functionName
   | RawJudgment1        lhs.paramAssignments = undefined
+                        lhs.fnName           = undefined
   | RawJudgment2        lhs.paramAssignments = undefined 
+                        lhs.fnName           = undefined
                                               
                                               
-ATTR BodyAssignments [ | | assignments : Assignments ]
+ATTR BodyAssignments [ | | assignments : Assignments]
 SEM  BodyAssignments
   | Cons                 lhs.assignments = @hd.assignment : @tl.assignments
   | Nil                  lhs.assignments = []
                                               
 ATTR BodyAssignment [ | | assignment : Assignment ]
 SEM BodyAssignment      
-  | BodyAssignment       lhs.assignment = (@param.pdata,@value)                                                                              
+  | BodyAssignment       lhs.assignment = (@param.pdata,@value)                                                                            
                                                                                                                           
 ATTR Parameter  [ | | pdata  : {ParameterData} ]                          
                                                                 
@@ -49,6 +64,24 @@ SEM Parameter
   | Parameter             lhs.pdata  = (@direction, @type, @name)
                      
 {
+getDir :: ParameterData -> Direction
+getDir (dir,_,_) = dir
+
+getType :: ParameterData -> String
+getType (_,ty,_) = ty
+
+getName :: ParameterData -> String
+getName (_,_,name) = name
+
+getParam :: Assignment -> ParameterData
+getParam = fst
+
+getValue :: Assignment -> String
+getValue = snd
+
+isGuard :: ParameterData -> Bool
+isGuard (_,_,name) = name == "guard"
+
 isIn :: Direction ->  Bool
 isIn (Out)   = False
 isIn _       = True
@@ -68,11 +101,37 @@ mkSig fName inParams outParams =
    in text fName >#< text "::" >#< inputSig >#< text "-> (" >#< outputSig >#< text ")"
 
 mkInputPatterns :: Assignments -> PP_Doc
-mkInputPatterns as = foldr (>#<) empty $ map (\a -> "(" >|< f a >|< ")") as
-  where f ((Node,_,_),value) = value
-        f ((_,_,name),_)  = name
+mkInputPatterns as = foldr (>#<) empty $ map f as
+  where f ((InOut,_,name),_) = params name
+        f ((_,_,name),value) = if name == value
+                               then params name
+                               else name >|< "@" >|< params value
+        params s             = "(" >|< s >|< ")"
+
+mkLetPatterns :: Assignments -> PP_Doc
+mkLetPatterns as = foldr (>#<) empty $ map f as
+  where f ((InOut,_,name),_) = params name
+        f ((_,_,name),value) = params value
+        params s             = "(" >|< s >|< ")"
  
 mkOutputTuple :: Assignments -> PP_Doc
 mkOutputTuple as = let commaSep = foldr (>#<) empty $ intersperse (text ",") $ map (text.snd) as
-                    in "(" >|< commaSep >|< ")" 
+                    in "(" >#< commaSep >|< ")" 
+
+mkGuardExpr :: Assignments -> PP_Doc
+mkGuardExpr as = if null as
+                 then empty
+                 else "|" >#< (foldr (>#<) empty $ intersperse (text "&&") $ map (text.snd) as)
+
+mkLetBindings args
+              = let mkLetBinding (n,(_,i,o)) = mkOutputTuple o >#< "=" >#< n >#< mkLetPatterns i
+                 in foldr (\x y -> mkLetBinding x >-< y) empty args
+
+sortParams :: Assignments -> Assignments
+sortParams = let cmpDir x y  = compare (getDir (getParam x)) (getDir (getParam y))
+                 cmpName x y = compare (getName (getParam x)) (getName (getParam y))
+              in sortBy (\x y -> case cmpDir x y of
+                                   EQ  -> cmpName x y
+                                   res -> res
+                        )
 }   
