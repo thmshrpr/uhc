@@ -18,11 +18,12 @@ WRAPPER GrAGItf
 type EdgeF   = [Edge] -> [Edge]
 type VertexF = [Vertex] -> [Vertex]
 
-type CallInfo = Map.Map Vertex CallType
+type CallList = Map.Map Vertex CallInfo
+type CallInfo = (CallType, Int, Int)
 data CallType = Call | TailCall | BothCall deriving (Eq, Show)
 
 
-type NodeInfo  = (Vertex, CallInfo)
+type NodeInfo  = (Vertex, CallList)
 type NodeInfoF = [NodeInfo] -> [NodeInfo]
 %%]
 
@@ -37,7 +38,7 @@ dropUnusedBindings e m grmod = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf 
 ATTR GrAGItf [ | | grTrf: GrModule ]
 ATTR AllGrNT [ | | grTrf: SELF ]
 
-ATTR GrAGItf GrModule [ entry: HsName nameMap: IdentNameMap | | dot: String ]
+ATTR GrAGItf GrModule [ entry: HsName  nameMap: IdentNameMap | | dot: String ]
 %%]
 
 %%[8.graphInfo import({GrinCode/LastExpr})
@@ -45,28 +46,81 @@ ATTR AllBind            [ | | biggest USE {`max`} {minBound}: Int
                               smallest USE {`min`} {maxBound}: Int
                               nodes USE {.} {id}: NodeInfoF
                         ]
-ATTR AllGrExpr          [ | calls: CallInfo | ]
-ATTR AllBind AllGrExpr  [ | | ]
+ATTR AllGrExpr          [ | | calls USE {`undefined`} {Map.empty}: CallList ]
+
+ATTR AllGrNT [ | | size USE {+1+} {1} : Int ]
+SEM GrBind [ | | sizeIncrease: Int ]
+  | Bind	lhs . sizeIncrease = @expr.size - (1 + 1 + length @argNmL)
+-- (Call nm argL): always saturated, so size = 1 for Call, 1 for nm
 
 SEM GrBind
   | Bind  loc   .  bindNr    = getNr @nm
-          lhs   .  smallest  = @bindNr
+          lhs   .  smallest  = @bindNr -- 'singleton' interval
                 .  biggest   = @bindNr
                 .  nodes     = ( (@bindNr, @expr.calls) :)
-          expr  .  calls     = Map.empty
+
+SEM GrAltL
+  | Cons  lhs   .  calls     = Map.unionWith mergeBranches @hd.calls @tl.calls         
+  | Nil   lhs   .  calls     = Map.empty
+
+{
+mergeType :: CallType -> CallType -> CallType
+mergeType tp tp' = if tp == tp' then tp else BothCall
+}
+
+{
+mergeBranches :: CallInfo -> CallInfo -> CallInfo
+mergeBranches (tp,use,occ) (tp',use',occ') = (mergeType tp tp', max use use', occ + occ')
+}
 
 SEM GrExpr
-  | Call  loc  .  mergeCall  =  (\p n -> if p == n then p else BothCall)
-               .  callType   =  if @isLastExpr then TailCall else Call
-               .  calls      =  Map.insertWith @mergeCall (getNr @nm) @callType @lhs.calls
+  | Seq   lhs  .  calls	     =  Map.unionWith mergeSeq @expr.calls @body.calls
+  | Call  loc  .  callType   =  if @isLastExpr then TailCall else Call
+          lhs  .  calls      =  Map.singleton (getNr @nm) (@callType, 1, 1)
+
+{
+mergeSeq :: CallInfo -> CallInfo -> CallInfo
+mergeSeq (tp,use,occ) (tp',use',occ') = (mergeType tp tp', use + use', occ + occ')
+}
 %%]
 
 %%[8.graph
 SEM GrModule
   | Mod  loc  .  nodes  = @bindL.nodes []
-              .  graph  = let buildNode prev outlist = Map.keys outlist
+              .  graph  = let buildNode prev outlist = Map.keys outlist -- map & array in one run :) efficiency
                           in accumArray buildNode undefined (@bindL.smallest, @bindL.biggest) @nodes
 %%]
+
+{
+maxim :: (Ord b, Bounded b) => (a -> b) -> [a] -> a
+maxim f [x] = x
+maxim f (x:xs) | fx == maxBound = fx
+	       | mxs > fx       = mxs
+	       | otherwise      = fx
+	where fx = f x
+	      mxs = maxim xs
+
+findLoopBreakers :: Graph -> [Vertex]
+findLoopBreakers g = concatMap (visit . flatten) forest
+	where forest = scc g
+	      -- the component is a [Vertex]
+	      visit :: [Vertex] -> [Vertex]
+	      visit c | c == [v] && not selfRecursive g v = []
+		      | otherwise 			  = loopBreaker : findLoopBreakers g'
+		where loopBreaker = maxim (heuristic g) c
+		      selfRecursive g v = v `elem` g!v
+		      heuristic g v | selfRecursive g v = maxBound -- we really don't want to inline v, so most high score for loop breaking
+				    | noSizeIncrease v  = minBound -- TODO -- we really do want to inline v 
+		                    | otherwise         = ...counts... -- TODO
+		      g' = deleteTerminatingEdges g v
+ 
+deleteTerminatingEdges :: Graph -> Vertex -> Graph
+deleteTerminatingEdges g v = array (bounds g) [ (vertex, vertices \\ v) | (vertex, vertices) <- Array.elems g ]
+}
+
+ATTR AllGrNT [ loopBreakers: [] | | doInline: Bool ]
+SEM GrBind
+  | Bind	lhs . 
 
 %%[8.dropUnusedBindings
 ATTR AllBind [ lifeBindings: {Set.Set Int} | | ]
@@ -113,7 +167,7 @@ mkNodeEdges nm lns sf (n,es) =
          node   =  ( (show n ++ " [ label = \"" ++ getName nm n ++ "\"" ++ style ++ "];") :)
     in Map.foldWithKey (mkEdge n) (sf . node) es
 
-mkEdge from to callType sf = sf . ( (show from ++ " -> " ++ show to ++ style) :)
+mkEdge from to (callType,_,_) sf = sf . ( (show from ++ " -> " ++ show to ++ style) :)
     where
     style = case callType of
                Call      ->  ";"

@@ -12,8 +12,9 @@ WRAPPER GrAGItf
 
 %%[8 hs module {%{GRIN}GrinCode.Trf.CaseHoisting} import({%{EH}Base.Common}, {%{EH}GrinCode}) export(caseHoisting)
 caseHoisting :: GrModule -> GrModule
-caseHoisting grmod = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod)) Inh_GrAGItf
-                    in grTrf_Syn_GrAGItf t
+caseHoisting grmod = undefined
+--let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod)) Inh_GrAGItf
+--                    in grTrf_Syn_GrAGItf t
 %%]
 
 %%[8
@@ -100,7 +101,7 @@ SEM GrExpr
   | Case  @altL.hoistThis = lhs.hoistThis
 
 
-%%[8
+
 -- determine if we have a seq of two cases
 SEM GrExpr [ | | isCase leftIsCase USE {`constfalse`} {False} : Bool, grTrfExpr : GrExpr ]
   | Case  lhs.isCase     = True
@@ -164,6 +165,6 @@ SEM GrAlt
 
 {constfalse _ _ = False}
 
-%%]
+
 
 % vim:ts=4:et:

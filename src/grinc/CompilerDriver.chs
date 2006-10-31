@@ -108,14 +108,14 @@ caIdentity = do
     modify (gcsUpdateGrinCode code)
 %%]
 
-%%[8.caseHoisting import({%{GRIN}GrinCode.Trf.CaseHoisting})
+[8.caseHoisting import({%{GRIN}GrinCode.Trf.CaseHoisting})
 caCaseHoisting :: CompileAction ()
 caCaseHoisting = do
     putMsg VerboseALot "Case Hoisting" Nothing
     code <- gets gcsGrinCode
     code <- return $ caseHoisting code
     modify (gcsUpdateGrinCode code)
-%%]
+]
 
 %%[8.cleanup import({%{GRIN}GrinCode.Trf.CleanupPass})
 caCleanupPass :: CompileAction ()
@@ -269,7 +269,7 @@ caInlineEA = do
     unique <- gets gcsUnique
     varMap <- gets gcsOrigNms
     (hptMap, unique', renMap, code, callgraph)   <- return $ inlineEA hptMap unique code
-    putMsg VerboseALot "Constructed new call graph" Nothing -- TODO display neat call graph
+    -- putMsg VerboseALot "Constructed new call graph" Nothing -- TODO display neat call graph
     modify (\s -> s { gcsMbOrigNms  = Just $ mergeRenameMap varMap renMap
                     , gcsUnique     = unique'
                     , gcsMbHptMap   = Just hptMap
@@ -457,7 +457,7 @@ caNormalize = task_ VerboseNormal "Normalizing"
 caOptimize = task_ VerboseNormal "Optimizing (full)"
     ( do { caCopyPropagation -- caFix
          ; caWriteGrin True "6-after-cp"
-         ; caCaseHoisting
+         -- ; caCaseHoisting
          ; caWriteGrin True "6-after-hoisting"
          ; caDropUnusedExpr
          ; caWriteGrin True "7-optimized"

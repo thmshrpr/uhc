@@ -411,10 +411,13 @@ SEM GrExpr
 
 %%[8
 
+-- Unsafe contexts don't exist in GRIN, because it is no higher-order language
+-- for Safe contexts, count occurences
+
 SEM GrExpr 
   | Seq   lhs  .  calls = @expr.calls ++ @body.calls
   | Call  lhs  .  calls = [@nm]
-  | Case  lhs  .  calls = @altL.calls
+  | Case  lhs  .  calls = @altL.calls -- here, a different usage count has to be made
 SEM GrAlt
   | Alt   lhs  .  calls = @expr.calls
 SEM GrAltL
