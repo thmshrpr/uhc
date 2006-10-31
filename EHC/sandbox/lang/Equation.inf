@@ -1,9 +1,10 @@
-layer Equational
+layer Equation extends Base
    interface Expr
       params
          node  e         : Expr
          in    valGam    : ValGam
          in    tyGam     : TyGam
          in    kiGam     : KiGam
+      uses
          inout ty        : Ty
       pattern "kiGam ; tyGam ; valGam :- e : ty"
