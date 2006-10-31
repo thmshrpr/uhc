@@ -1,10 +1,10 @@
 implementation of Equation
   rule fitsIn implements Expr
-    post Expr.R = "kiGam ; tyGam ; valGam :- int : tyInt"
+    post Expr.R | abc = "kiGam"
        where asdf = "asdfkj"
              xyz  = "asdfasdfasdf"
 
   rule fitsOut implements Expr
-    post Expr.X 
+    post Expr.X
       | blah = "abc" | blechh = "asdf" 
         where asdf = "asdfkj"

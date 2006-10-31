@@ -10,7 +10,26 @@ data Direction
   | InOut 
   | Out
   deriving (Show,Eq,Ord)
+
+class Named a where
+  name :: a -> String
+
+instance Named Layer where
+   name (Layer_RawLayer n _ _) = n
+   name (Layer_Layer n _ _) = n
+
+instance Named Interface where
+   name (Interface_Interface n _ _ _) = n
+
+instance Named Parameter where
+   name (Parameter_Parameter n _ _ _ _) = n
 }
+
+{--
+Things to think about:
+1. adding symmetric,etc to judgments
+2. how to accomodate relations, e.g. literal Haskell syntax
+--}
 
 -- INTERFACE SPECIFICATION
 

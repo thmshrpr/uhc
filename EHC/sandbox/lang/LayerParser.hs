@@ -10,13 +10,15 @@ lyrkeys = [ "layer", "extends", "params", "uses", "pattern"
           , "in", "out", "inout", "node", "interface"]
 
 main :: IO ()
-main = do { layer <- parseLayer "Equation"
-          ; putStr $ show layer
-          ; putStrLn ""
-          ; putStrLn ""
-          ; impl <- parseImpl "Equation.impl"
-          ; putStr $ show impl
+main = do { impls <- compile "Equation"
+          ; putStr $ show impls
           }
+
+compile :: String -> IO Implementation
+compile name = do target <- parseLayer name
+                  let layers = hierarchy target
+                  impls  <- resolveImpls layers
+                  return $ head impls ------------------ foldImpls   
 
 parseLayer :: String -> IO Layer
 parseLayer file = do { tokens <- scanFile	lyrkeys lyrops "{(:)}" "" (file ++ ".inf")
@@ -90,28 +92,42 @@ type ParamFilter = Parameter -> Bool
 
 
 visibleParams :: Layer -> [(String,[String])]
-visibleParams = layerParams isVisible isVisible
+visibleParams l = ps2n $ layerParams isVisible isVisible l
    where isVisible (Parameter_Parameter _ _ _ v _) = v
+         ps2n = map (\(n,ps) -> (n, map p2n ps) )
+         p2n (Parameter_Parameter n d t v ds) = n
 
 usedParams :: Layer -> [(String,[String])]
-usedParams = layerParams (const False) (const True)
+usedParams l = ps2n $ layerParams (const False) (const True) l
+   where ps2n = map (\(n,ps) -> (n, map p2n ps) )
+         p2n (Parameter_Parameter n d t v ds) = n
 
-layerParams :: ParamFilter -> ParamFilter -> Layer -> [(String,[String])]
-layerParams pf uf l = map (\i->(iname i, tracer $ params pf uf i)) (ifaces l)
-   where iname (Interface_Interface nm pa us p) = nm
+
+layerParams :: ParamFilter -> ParamFilter -> Layer -> [(String,[Parameter])]
+layerParams pf uf l = map (\i->(name i, tracer $ params pf uf i)) (ifaces l)
 
 ifaces :: Layer -> [Interface]
 ifaces (Layer_Layer n p is) = is
 
 
-params :: ParamFilter -> ParamFilter -> Interface -> [String]
-params pf uf (Interface_Interface n ps us p) = map toName $ filter pf ps ++ filter uf us
-   where toName (Parameter_Parameter n d t v ds) = n
+params :: ParamFilter -> ParamFilter -> Interface -> [Parameter]
+params pf uf (Interface_Interface n ps us p) = filter pf ps ++ filter uf us
 
 tracer = (\x -> trace (show x) x) 
 
-dictionary xs nm = if null x then error "not in dictionary: " ++ nm else head x
-   where x = [r | (n,r) <- xs, n == nm]
+
+get :: Named a => String -> [a] -> a
+get nm xs = if null fs then err else head fs
+   where fs  = [x| x <- xs, name x == nm]
+         err = error $ "value with name: " ++ nm ++ " was not found."
+
+get' :: String -> [(String,a)] -> a
+get' nm xs = if null fs then err else head fs
+   where fs  = [x| (n,x) <- xs, n == nm]
+         err = error $ "value with name: " ++ nm ++ " was not found."
+
+getR :: Named a => [a] -> String -> a
+getR = flip get
 
 ----------------- IMPLEMENTATION POST PROCESSING -----------------
 
@@ -120,8 +136,8 @@ type ImplAlg = ( String -> Layer               -- name to layer
                , String -> String -> Parameter -- name & name to param
                )
 
-foldImplementation :: ImplAlg -> Implementation -> Implementation
-foldImplementation (n2l, n2i, nn2p) = f0
+foldImpl :: ImplAlg -> Implementation -> Implementation
+foldImpl (n2l, n2i, nn2p) = f0
    where f0 (Implementation_RawImplementation nm rs)  
              = Implementation_Implementation (n2l nm) (map f1 rs)
          f1 (Rule_RawRule nm ni pres post) 
@@ -131,20 +147,37 @@ foldImplementation (n2l, n2i, nn2p) = f0
          f3 ni (pnm,expr) = BodyAssignment_BodyAssignment (nn2p ni pnm) expr
 
 
-hierarchy :: Layer -> [(String, Layer)]
-hierarchy l@(Layer_Layer nm Nothing is) = [(nm,l)]
-hierarchy l@(Layer_Layer nm (Just p) is) = hierarchy p ++ [(nm,l)]
+hierarchy :: Layer -> [Layer]
+hierarchy l@(Layer_Layer _ Nothing _) = [l]
+hierarchy l@(Layer_Layer _ (Just p) _) = hierarchy p ++ [l]
 
-interfaces :: Layer -> [(String, Interface)]
-interfaces l = map pairify $ ifaces l
-   where pairify i@(Interface_Interface n ps us p) = (n,i)
+
+---------------------------------------------------------------------------
 
 parameters :: Layer -> [(String, Parameter)]
 parameters = undefined
---layerParams (const True) (const True)
--- postProcess [(String, String)]
 
--- dictionary 
+
+resolve :: Layer -> Implementation -> IO Implementation
+resolve l i = return $ foldImpl (a,b,c) i
+   where a = getR $ hierarchy l
+         b = getR $ ifaces l
+         c pi p2 = get p2 $ get' pi (allParams l)
+         allParams = layerParams (const True) (const True)
+
+linkLayer :: Layer -> IO [Implementation]
+linkLayer l 
+   = do let hier = hierarchy l
+        let intsd = getR $ ifaces l
+        let alg = (getR hier, intsd, undefined)
+        return undefined
+
+resolveImpls :: [Layer] -> IO [Implementation]
+resolveImpls []     = return []
+resolveImpls (l:ls) = do impl <- parseImpl (name l) 
+                         impl <- resolve l impl
+                         impls <- resolveImpls ls
+                         return $ impl : impls
 
 -------------------------------------------------------------------------------
 
@@ -152,7 +185,7 @@ implops  = [":.",";"]
 implkeys = ["implementation","of","rule","implements","pre","post", "where"]
 
 parseImpl :: String -> IO Implementation
-parseImpl file = do { tokens <- scanFile implkeys implops "{(:;)}=.|" "" file
+parseImpl file = do { tokens <- scanFile implkeys implops "{(:;)}=.|" "" (file ++ ".impl")
                     ; parseIO pImpl tokens
                     }
 
