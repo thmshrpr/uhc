@@ -1,0 +1,384 @@
+%% ODER: format ==         = "\mathrel{==}"
+%% ODER: format /=         = "\neq "
+%
+%
+\makeatletter
+\@ifundefined{lhs2tex.lhs2tex.sty.read}%
+  {\@namedef{lhs2tex.lhs2tex.sty.read}{}%
+   \newcommand\SkipToFmtEnd{}%
+   \newcommand\EndFmtInput{}%
+   \long\def\SkipToFmtEnd#1\EndFmtInput{}%
+  }\SkipToFmtEnd
+
+\newcommand\ReadOnlyOnce[1]{\@ifundefined{#1}{\@namedef{#1}{}}\SkipToFmtEnd}
+\usepackage{amstext}
+\usepackage{amssymb}
+\usepackage{stmaryrd}
+\DeclareFontFamily{OT1}{cmtex}{}
+\DeclareFontShape{OT1}{cmtex}{m}{n}
+  {<5><6><7><8>cmtex8
+   <9>cmtex9
+   <10><10.95><12><14.4><17.28><20.74><24.88>cmtex10}{}
+\DeclareFontShape{OT1}{cmtex}{m}{it}
+  {<-> ssub * cmtt/m/it}{}
+\newcommand{\texfamily}{\fontfamily{cmtex}\selectfont}
+\DeclareFontShape{OT1}{cmtt}{bx}{n}
+  {<5><6><7><8>cmtt8
+   <9>cmbtt9
+   <10><10.95><12><14.4><17.28><20.74><24.88>cmbtt10}{}
+\DeclareFontShape{OT1}{cmtex}{bx}{n}
+  {<-> ssub * cmtt/bx/n}{}
+\newcommand{\tex}[1]{\text{\texfamily#1}}	% NEU
+
+\newcommand{\Sp}{\hskip.33334em\relax}
+
+
+\newcommand{\Conid}[1]{\mathit{#1}}
+\newcommand{\Varid}[1]{\mathit{#1}}
+\newcommand{\anonymous}{\kern0.06em \vbox{\hrule\@width.5em}}
+\newcommand{\plus}{\mathbin{+\!\!\!+}}
+\newcommand{\bind}{\mathbin{>\!\!\!>\mkern-6.7mu=}}
+\newcommand{\sequ}{\mathbin{>\!\!\!>}}
+\renewcommand{\leq}{\leqslant}
+\renewcommand{\geq}{\geqslant}
+\usepackage{polytable}
+
+%mathindent has to be defined
+\@ifundefined{mathindent}%
+  {\newdimen\mathindent\mathindent\leftmargini}%
+  {}%
+
+\def\resethooks{%
+  \global\let\SaveRestoreHook\empty
+  \global\let\ColumnHook\empty}
+\newcommand*{\savecolumns}[1][default]%
+  {\g@addto@macro\SaveRestoreHook{\savecolumns[#1]}}
+\newcommand*{\restorecolumns}[1][default]%
+  {\g@addto@macro\SaveRestoreHook{\restorecolumns[#1]}}
+\newcommand*{\aligncolumn}[2]%
+  {\g@addto@macro\ColumnHook{\column{#1}{#2}}}
+
+\resethooks
+
+\newcommand{\onelinecommentchars}{\quad-{}- }
+\newcommand{\commentbeginchars}{\enskip\{-}
+\newcommand{\commentendchars}{-\}\enskip}
+
+\newcommand{\visiblecomments}{%
+  \let\onelinecomment=\onelinecommentchars
+  \let\commentbegin=\commentbeginchars
+  \let\commentend=\commentendchars}
+
+\newcommand{\invisiblecomments}{%
+  \let\onelinecomment=\empty
+  \let\commentbegin=\empty
+  \let\commentend=\empty}
+
+\visiblecomments
+
+\newlength{\blanklineskip}
+\setlength{\blanklineskip}{1mm}
+
+\newcommand{\hsindent}[1]{\quad}% default is fixed indentation
+\newcommand{\NB}{\textbf{NB}}
+\newcommand{\Todo}[1]{$\langle$\textbf{To do:}~#1$\rangle$}
+
+\makeatother
+\EndFmtInput
+%
+%% configuration
+
+
+
+
+%% end of configuration
+
+%% CONFIG: Omitted material excluded
+
+
+
+
+% format * = "\times "
+% subst inline a  	= "\ensuremath{{}\allowforspacecorrection " a "}"
+% subst varid a  	= a "{}\allowforspacecorrection "
+
+
+
+
+
+
+
+
+%% handling of `
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+% format <=> 			= "\mathrel{\cong}"
+% format <+-> 			= "\setbox0=\hbox{\ensuremath{\mathrel{\vartriangle}}}\copy0\kern-.4\wd0\mathrel{\triangledown}"
+% format +	 			= ","
+% format ++	 			= ","
+
+
+% format fiopt			= "{\xi}"
+
+
+
+
+
+% format ANY				= "\makebox[0cm][l]{\(\top\)}\bot{}"
+
+
+
+% format ftv				= "\ftv "
+
+
+
+
+
+
+
+
+%% acronyms
+
+
+\rulerCmdDef{rules.E.expr.base.scheme}{%
+\ensuremath{\ensuremath{\Gamma \vdash } ^{ \ensuremath{\Varid{e}} } \ensuremath{\Varid{e}\mathbin{:}\sigma } }
+}
+\rulerCmdDef{rules.E.expr.base.e.int}{%
+\rulerRule{e.int}{E}
+{%
+}
+{%
+\ensuremath{\Gamma \vdash } ^{ \ensuremath{\Varid{e}} } \ensuremath{\Varid{int}\mathbin{:}\Conid{Int}} 
+}
+}
+
+\rulerCmdDef{rules.E.expr.base.e.char}{%
+\rulerRule{e.char}{E}
+{%
+}
+{%
+\ensuremath{\Gamma \vdash } ^{ \ensuremath{\Varid{e}} } \ensuremath{\Varid{char}\mathbin{:}\Conid{Char}} 
+}
+}
+
+\rulerCmdDef{rules.E.expr.base.e.str}{%
+\rulerRule{e.str}{E}
+{%
+}
+{%
+\ensuremath{\Gamma \vdash } ^{ \ensuremath{\Varid{e}} } \ensuremath{\Varid{str}\mathbin{:}\Varid{tyString}} 
+}
+}
+
+\rulerCmdDef{rules.E.expr.base.e.float}{%
+\rulerRule{e.float}{E}
+{%
+}
+{%
+\ensuremath{\Gamma \vdash } ^{ \ensuremath{\Varid{e}} } \ensuremath{\Varid{float}\mathbin{:}\Varid{tyFloat}} 
+}
+}
+
+\rulerCmdDef{rules.E.expr.base.e.iint}{%
+\rulerRule{e.iint}{E}
+{%
+}
+{%
+\ensuremath{\Gamma \vdash } ^{ \ensuremath{\Varid{e}} } \ensuremath{\Varid{integer}\mathbin{:}\Varid{tyInteger}} 
+}
+}
+
+\rulerCmdDef{rules.E.expr.base.e.double}{%
+\rulerRule{e.double}{E}
+{%
+}
+{%
+\ensuremath{\Gamma \vdash } ^{ \ensuremath{\Varid{e}} } \ensuremath{\Varid{double}\mathbin{:}\Varid{tyDouble}} 
+}
+}
+
+\rulerCmdDef{rules.E.expr.base.e.var}{%
+\rulerRule{e.var}{E}
+{%
+\ensuremath{\iota \mapsto \sigma \in \Gamma } 
+}
+{%
+\ensuremath{\Gamma \vdash } ^{ \ensuremath{\Varid{e}} } \ensuremath{\iota \mathbin{:}\sigma } 
+}
+}
+
+\rulerCmdDef{rules.E.expr.base.e.app}{%
+\rulerRule{e.app}{E}
+{%
+\ensuremath{\Gamma \vdash } ^{ \ensuremath{\Varid{e}} } \ensuremath{\Varid{e}} _{ \ensuremath{\mathrm{2}} } \ensuremath{\mathbin{:}\sigma } _{ \ensuremath{\Varid{a}} } \ensuremath{} 
+\\
+\ensuremath{\Gamma \vdash } ^{ \ensuremath{\Varid{e}} } \ensuremath{\Varid{e}} _{ \ensuremath{\mathrm{1}} } \ensuremath{\mathbin{:}\sigma } _{ \ensuremath{\Varid{a}} } \ensuremath{\to \sigma } 
+}
+{%
+\ensuremath{\Gamma \vdash } ^{ \ensuremath{\Varid{e}} } \ensuremath{\Varid{e}} _{ \ensuremath{\mathrm{1}} } \ensuremath{\;\Varid{e}} _{ \ensuremath{\mathrm{2}} } \ensuremath{\mathbin{:}\sigma } 
+}
+}
+
+\rulerCmdDef{rules.E.expr.base.e.lam}{%
+\rulerRule{e.lam}{E}
+{%
+\ensuremath{(\allowforspacecorrection i\mapsto \sigma } _{ \ensuremath{i} } \ensuremath{),\Gamma \vdash } ^{ \ensuremath{\Varid{e}} } \ensuremath{\Varid{e}\mathbin{:}\sigma } _{ \ensuremath{\Varid{e}} } \ensuremath{} 
+}
+{%
+\ensuremath{\Gamma \vdash } ^{ \ensuremath{\Varid{e}} } \ensuremath{\lambda i\to \Varid{e}\mathbin{:}\sigma } _{ \ensuremath{i} } \ensuremath{\to \sigma } _{ \ensuremath{\Varid{e}} } \ensuremath{} 
+}
+}
+
+\rulerCmdDef{rules.E.expr.base.e.let}{%
+\rulerRule{e.let}{E}
+{%
+\ensuremath{\Gamma } _{ \ensuremath{\Varid{t}} } \ensuremath{,\Gamma \vdash } ^{ \ensuremath{\Varid{d}} } \ensuremath{\Varid{d}\mathbin{:}\Gamma } _{ \ensuremath{\Varid{t}} } \ensuremath{} 
+\\
+\ensuremath{\Gamma } _{ \ensuremath{\Varid{t}} } \ensuremath{,\Gamma \vdash } ^{ \ensuremath{\Varid{e}} } \ensuremath{\Varid{b}\mathbin{:}\sigma } 
+}
+{%
+\ensuremath{\Gamma \vdash } ^{ \ensuremath{\Varid{e}} } \ensuremath{\mathbf{let}\;\Varid{d}\;\mathbf{in}\;\Varid{b}\mathbin{:}\sigma } 
+}
+}
+
+\rulerCmdDef{rules.E.expr.base.e.ann}{%
+\rulerRule{e.ann}{E}
+{%
+\ensuremath{\vdash } ^{ \ensuremath{\Varid{t}} } \ensuremath{\Varid{t}\mathbin{:}\sigma } 
+\\
+\ensuremath{\Gamma \vdash } ^{ \ensuremath{\Varid{e}} } \ensuremath{\Varid{e}\mathbin{:}\sigma } 
+}
+{%
+\ensuremath{\Gamma \vdash } ^{ \ensuremath{\Varid{e}} } \ensuremath{(\allowforspacecorrection \Varid{e}\mathbin{::}\Varid{t})\mathbin{:}\sigma } 
+}
+}
+
+\rulerCmdDef{rules.E.expr.base.e.prod}{%
+\rulerRule{e.prod}{E}
+{%
+\ensuremath{\Gamma \vdash } ^{ \ensuremath{\Varid{e}} } \ensuremath{\Varid{e}} _{ \ensuremath{\mathrm{1}} } \ensuremath{\mathbin{:}\sigma } _{ \ensuremath{\mathrm{1}} } \ensuremath{} 
+\\
+\ensuremath{\Gamma \vdash } ^{ \ensuremath{\Varid{e}} } \ensuremath{\Varid{e}} _{ \ensuremath{\mathrm{2}} } \ensuremath{\mathbin{:}\sigma } _{ \ensuremath{\mathrm{2}} } \ensuremath{} 
+}
+{%
+\ensuremath{\Gamma \vdash } ^{ \ensuremath{\Varid{e}} } \ensuremath{(\allowforspacecorrection \Varid{e}} _{ \ensuremath{\mathrm{1}} } \ensuremath{,\Varid{e}} _{ \ensuremath{\mathrm{2}} } \ensuremath{)\mathbin{:}(\allowforspacecorrection \sigma } _{ \ensuremath{\mathrm{1}} } \ensuremath{,\sigma } _{ \ensuremath{\mathrm{2}} } \ensuremath{)} 
+}
+}
+
+\rulerCmdDef{rules.E.expr.base}{%
+\begin{rulerRulesetFigure}{\rulerCmdUse{rules.E.expr.base.scheme}}{Expression type rules}{rules.E.expr.base}{E}
+\rulerCmdUse{rules.E.expr.base.e.int}
+\hspace{1ex}
+\rulerCmdUse{rules.E.expr.base.e.char}
+\hspace{1ex}
+\rulerCmdUse{rules.E.expr.base.e.str}
+\hspace{1ex}
+\rulerCmdUse{rules.E.expr.base.e.float}
+\hspace{1ex}
+\rulerCmdUse{rules.E.expr.base.e.iint}
+\hspace{1ex}
+\rulerCmdUse{rules.E.expr.base.e.double}
+\hspace{1ex}
+\rulerCmdUse{rules.E.expr.base.e.var}
+\hspace{1ex}
+\rulerCmdUse{rules.E.expr.base.e.app}
+\hspace{1ex}
+\rulerCmdUse{rules.E.expr.base.e.lam}
+\hspace{1ex}
+\rulerCmdUse{rules.E.expr.base.e.let}
+\hspace{1ex}
+\rulerCmdUse{rules.E.expr.base.e.ann}
+\hspace{1ex}
+\rulerCmdUse{rules.E.expr.base.e.prod}
+\end{rulerRulesetFigure}
+}
+
+\rulerCmdDef{rules.E.expr.baseForEH1.scheme}{%
+\ensuremath{\ensuremath{\Gamma \vdash } ^{ \ensuremath{\Varid{e}} } \ensuremath{\Varid{e}\mathbin{:}\sigma } }
+}
+\rulerCmdDef{rules.E.expr.baseForEH1.e.int}{%
+\rulerCmdUse{rules.E.expr.base.e.int}
+}
+
+\rulerCmdDef{rules.E.expr.baseForEH1.e.char}{%
+\rulerCmdUse{rules.E.expr.base.e.char}
+}
+
+\rulerCmdDef{rules.E.expr.baseForEH1.e.var}{%
+\rulerCmdUse{rules.E.expr.base.e.var}
+}
+
+\rulerCmdDef{rules.E.expr.baseForEH1.e.app}{%
+\rulerCmdUse{rules.E.expr.base.e.app}
+}
+
+\rulerCmdDef{rules.E.expr.baseForEH1.e.lam}{%
+\rulerCmdUse{rules.E.expr.base.e.lam}
+}
+
+\rulerCmdDef{rules.E.expr.baseForEH1.e.ann}{%
+\rulerCmdUse{rules.E.expr.base.e.ann}
+}
+
+\rulerCmdDef{rules.E.expr.baseForEH1.e.let}{%
+\rulerCmdUse{rules.E.expr.base.e.let}
+}
+
+\rulerCmdDef{rules.E.expr.baseForEH1}{%
+\begin{rulerRulesetFigure}{\rulerCmdUse{rules.E.expr.baseForEH1.scheme}}{Expression type rules}{rules.E.expr.baseForEH1}{E}
+\rulerCmdUse{rules.E.expr.baseForEH1.e.int}
+\hspace{1ex}
+\rulerCmdUse{rules.E.expr.baseForEH1.e.char}
+\hspace{1ex}
+\rulerCmdUse{rules.E.expr.baseForEH1.e.var}
+\hspace{1ex}
+\rulerCmdUse{rules.E.expr.baseForEH1.e.app}
+\hspace{1ex}
+\rulerCmdUse{rules.E.expr.baseForEH1.e.lam}
+\hspace{1ex}
+\rulerCmdUse{rules.E.expr.baseForEH1.e.ann}
+\hspace{1ex}
+\rulerCmdUse{rules.E.expr.baseForEH1.e.let}
+\end{rulerRulesetFigure}
+}
+
+\rulerCmdDef{rules.E.expr.scratch.scheme}{%
+\ensuremath{\ensuremath{\Gamma \vdash } ^{ \ensuremath{\Varid{e}} } \ensuremath{\Varid{e}\mathbin{:}\sigma } }
+}
+\rulerCmdDef{rules.E.expr.scratch.e.let}{%
+\rulerCmdUse{rules.E.expr.base.e.let}
+}
+
+\rulerCmdDef{rules.E.expr.scratch}{%
+\begin{rulerRulesetFigure}{\rulerCmdUse{rules.E.expr.scratch.scheme}}{Expression type rules (scratch)}{rules.E.expr.scratch}{E}
+\rulerCmdUse{rules.E.expr.scratch.e.let}
+\end{rulerRulesetFigure}
+}
+
