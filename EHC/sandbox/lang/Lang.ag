@@ -98,6 +98,8 @@ DATA BodyAssignment
   | BodyAssignment    param          : Parameter
                       value          : String                                        
 
+DERIVING Interface Parameter : Eq
+
 DERIVING Layer Interface Parameter Implementation Rule Judgment BodyAssignment : Show 
 
 INCLUDE "PrettyHaskell.ag"

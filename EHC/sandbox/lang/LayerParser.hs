@@ -4,6 +4,7 @@ import Lang
 import UU.Parsing
 import UU.Scanner
 import Debug.Trace
+import Data.List
 
 lyrops  = [":", ","]
 lyrkeys = [ "layer", "extends", "params", "uses", "pattern"
@@ -20,6 +21,7 @@ compile name = do target <- parseLayer name
                   impls  <- resolveImpls layers
                   return $ head impls ------------------ foldImpls   
 
+-- TODO: return hierarchy 
 parseLayer :: String -> IO Layer
 parseLayer file = do { tokens <- scanFile	lyrkeys lyrops "{(:)}" "" (file ++ ".inf")
                      ; layer  <- parseIO pLayer tokens
@@ -151,9 +153,6 @@ hierarchy :: Layer -> [Layer]
 hierarchy l@(Layer_Layer _ Nothing _) = [l]
 hierarchy l@(Layer_Layer _ (Just p) _) = hierarchy p ++ [l]
 
-
----------------------------------------------------------------------------
-
 parameters :: Layer -> [(String, Parameter)]
 parameters = undefined
 
@@ -179,6 +178,35 @@ resolveImpls (l:ls) = do impl <- parseImpl (name l)
                          impls <- resolveImpls ls
                          return $ impl : impls
 
+-- combining layers:
+
+zipImpls :: Implementation -> Implementation -> Implementation
+zipImpls (Implementation_Implementation l rs1) 
+         (Implementation_Implementation _ rs2)
+   = Implementation_Implementation l $ zipRules rs1 rs2
+
+-- TODO: assumes we checked for (erroneous duplication of rules in file) 
+
+zipRules :: [Rule] -> [Rule] -> [Rule]
+zipRules above  []    = above
+zipRules []     below = below
+zipRules (x:xs) below = makeOne x match : zipRules xs nomatch
+   where (match,nomatch) = partition (matchRule x) below
+         makeOne r [] = r
+         makeOne r rs = mergeRule r (head rs)
+
+mergeRule :: Rule -> Rule -> Rule
+mergeRule (Rule_Rule nm i pre1 post1) 
+          (Rule_Rule _ _ pre2 post2)
+   = Rule_Rule nm i (mergeJudges pre1 pre2) (mergeJudge post1 post2) 
+
+mergeJudges j1 j2 = undefined
+
+mergeJudge = undefined
+
+matchRule :: Rule -> Rule -> Bool
+matchRule (Rule_Rule n1 i1 _ _) (Rule_Rule n2 i2 _ _) = n1 == n2 && i1 == i2
+
 -------------------------------------------------------------------------------
 
 implops  = [":.",";"]
@@ -187,13 +215,16 @@ implkeys = ["implementation","of","rule","implements","pre","post", "where"]
 parseImpl :: String -> IO Implementation
 parseImpl file = do { tokens <- scanFile implkeys implops "{(:;)}=.|" "" (file ++ ".impl")
                     ; parseIO pImpl tokens
+                    -- TODO: check judgment LHS names are visible
+                    -- TODO: check rule names don't appear twice in file
+                    -- TODO: check that impl name matches file name
                     }
 
 pImpl :: Parser Token Implementation
 pImpl = Implementation_RawImplementation 
                   <$  pKey "implementation"
                   <*  pKey "of"
-                  <*> pConid
+                  <*> pId
                   <*> pList pRule
 
 pRule :: Parser Token Rule
