@@ -237,19 +237,19 @@ pRule = Rule_RawRule <$  pKey "rule"
 
 pJudge = pRawJudge1 <|> pRawJudge2
 
-pRawJudge1 = mkJudge1 <$> pConid 
-                                   <*  pKey "."
-                                   <*> pConid
-                                   <*  pKey "="
-                                   <*> pString
-                                   <*> pDefinitions
+pRawJudge1 = mkJudge1 <$> pId 
+                      <*  pKey "."
+                      <*> pConid
+                      <*  pKey "="
+                      <*> pString
+                      <*> pDefinitions
    where mkJudge1 int nm bdy defs = Judgment_RawJudgment1 nm int bdy defs
 
-pRawJudge2 = mkJudge2 <$> pConid 
-                                   <*  pKey "."
-                                   <*> pConid
-                                   <*> pList (pKey "|" *> pBinding)
-                                   <*> pDefinitions
+pRawJudge2 = mkJudge2 <$> pId 
+                      <*  pKey "."
+                      <*> pConid
+                      <*> pList (pKey "|" *> pBinding)
+                      <*> pDefinitions
    where mkJudge2 int nm bdy defs = Judgment_RawJudgment2 nm int bdy defs
 
 pDefinitions :: Parser Token [(String,String)]
