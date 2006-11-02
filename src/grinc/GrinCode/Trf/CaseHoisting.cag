@@ -4,6 +4,10 @@
 %%]
 
 %%[8 import({GrinCode/AbsSyn})
+{
+import qualified Data.Map as Map
+import Maybe(fromMaybe)
+}
 %%]
 
 %%[8.wrapper
@@ -12,14 +16,14 @@ WRAPPER GrAGItf
 
 %%[8 hs module {%{GRIN}GrinCode.Trf.CaseHoisting} import({%{EH}Base.Common}, {%{EH}GrinCode}) export(caseHoisting)
 caseHoisting :: GrModule -> GrModule
-caseHoisting grmod = undefined
---let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod)) Inh_GrAGItf
---                    in grTrf_Syn_GrAGItf t
+caseHoisting grmod = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod)) Inh_GrAGItf
+                    in grTrf_Syn_GrAGItf t
 %%]
 
 %%[8
 ATTR GrAGItf [ | | grTrf: GrModule ]
 ATTR AllGrNT [ | | grTrf: SELF     ]
+ATTR AllGrNT [ | | self : SELF     ]
 %%]
 
 
@@ -101,25 +105,25 @@ SEM GrExpr
   | Case  @altL.hoistThis = lhs.hoistThis
 
 
-
+%%[8
 -- determine if we have a seq of two cases
-SEM GrExpr [ | | isCase leftIsCase USE {`constfalse`} {False} : Bool, grTrfExpr : GrExpr ]
+SEM GrExpr [ | | isCase USE {`constfalse`} {False} : Bool
+                 leftIsCase USE {`constfalse`} {False} : Bool
+           ]
   | Case  lhs.isCase     = True
   | Seq   lhs.leftIsCase = @expr.isCase --fixme: || @expr.leftIsCase ?
-          loc.isCaseSeq  = @expr.isCase && @body.leftIsCase
-   	      lhs.grTrfExpr  = @expr.grTrf --todo: move this to where it is used
+          loc.isCaseSeq  = @expr.isCase && (@body.leftIsCase || @body.isCase)
 
-SEM GrExpr [ | | isHoistTarget USE {`constfalse`} {False} : Bool ] 
-  | Case  lhs.hoistHerePlease = @argL.known == length @argL
 
 -- Count the number of alternatives of which we know what tag it will return
 SEM GrAltL [ | | knownAltRets : Int -- no. alternatives with a known return tag
                  noAlts : Int -- no. alternatives
            ] 
-  | Cons  lhs.knownAltRets = if @hd.knownReturn then @tl.known + 1 else @tl.known
+  | Cons  lhs.knownAltRets = if @hd.knownReturn then @tl.knownAltRets + 1 else @tl.knownAltRets
           lhs.noAlts = 1 + @tl.noAlts
   | Nil   lhs.knownAltRets = 0
           lhs.noAlts = 0
+
 
 -- determine wether a case alternative has a known return tag
 ATTR GrExpr GrAlt [ | | knownReturn USE {`constfalse`} {False} : Bool ]
@@ -129,27 +133,100 @@ SEM GrExpr
   | Unit  lhs.knownReturn = @val.knownTag
           -- advanced would like listing of unknown-returns, then using local-hpt to calculate reduction
 
---fixme: we only need these for expressions, right?
---ATTR GrExpr GrAltL GrAlt [ doHoist : Bool 
-ATTR GrExpr [ doHoist : Bool -- tell left case of a seq to hoist
-              hoistedCasePat : GrPat -- pattern of the right case (u in the example
-              hoistedCase : GrExpr -- the case that will be hoisted
-            | | ]
+SEM GrVal [ | | knownTag USE {`constfalse`} {False} : Bool ]
+  | Node   lhs.knownTag = True
+  | LitInt lhs.knownTag = True
+  | Tag    lhs.knownTag = True
+  | Var    lhs.knownTag = True --TODO: lookup the possible tags
 
--- Decide wether or not to apply the hoisting transformation on a particular
--- sequence and pass down the values that would be needed for a hoist.
--- TODO: rename hoistedCasePat's variables in hoistedCase
-SEM GrExpr
-  | Seq loc.doHoist = @loc.isCaseSeq && @expr.hoistHere
-        lhs.grTrf = if @loc.doHoist then @expr.grTrf 
-                    else GrExpr_Seq @expr.grTrf @pat.grTrf @body.grTrf
-        expr.doHoist = @loc.doHoist
-        expr.hoistedCasePat = @pat.grTrf --fixme: copy rule?
-        expr.hoistedCase = @body.grTrfExpr
+
+-- Decide wether or not to apply the hoisting transformation on a 
+-- particular sequence
+SEM GrExpr [ doHoist : Bool 
+             -- tell left case (in expr) of a seq to hoist
+             -- and tell seq body to remove its case
+           | 
+           | allKnownRets USE {`constfalse`} {False} : Bool 
+             -- true if all alternatives of a case are true
+             -- or if the (left) expr of a seq is has all known returns
+           ]
+  | Case lhs.allKnownRets = @altL.noAlts == @altL.knownAltRets
+  | Seq  loc.canHoist = @loc.isCaseSeq && not @lhs.doHoist && @expr.allKnownRets
+         expr.doHoist = @loc.canHoist
+         body.doHoist = @loc.canHoist
+         --lhs.allKnownRets = @expr.allKnownRets
+
+SEM GrBind
+  | Bind  expr.doHoist = False
+SEM GrAlt
+  | Alt   expr.doHoist = False
+
+-- pass the values that would be needed for a case hoist
+SEM GrExpr [ hoistedCasePat : GrPat -- pattern of the right case (u in the example)
+           | hoistedCase : GrExpr -- case that is inlined
+           | pushPattern : GrPat -- the pattern that has to be moved upwards (w in the example)
+           ]
+  | Seq   lhs.hoistedCase = @expr.self
+          expr.hoistedCasePat = @pat.self
+          expr.hoistedCase = @body.hoistedCase
+          lhs.pushPattern = @pat.self
+
 
 -- Apply case hoisting if we're told to
+SEM GrExpr
+  | Seq  lhs.grTrf = if @loc.canHoist 
+                     then if @body.isCase
+                          then @expr.grTrf
+                          else GrExpr_Seq @expr.grTrf @body.pushPattern @body.grTrf
+                     else if @lhs.doHoist  -- true if we're the body of a hoisted seq
+                          then @body.grTrf -- in which case we remove the case in expr
+                          else GrExpr_Seq @expr.grTrf @pat.grTrf @body.grTrf
+  | Case altL.caseMap = if @lhs.doHoist
+                        then mkCaseMap @lhs.hoistedCasePat @lhs.hoistedCase
+                        else const id
+
+ATTR GrAltL GrAlt GrExpr [ caseMap : CaseMap | | ]
+
+SEM GrExpr
+  | Unit  loc.transformer = if @lhs.isLast
+                            then @lhs.caseMap (getValTag @val.grTrf) 
+                            else id
+          lhs.grTrf       = @loc.transformer (GrExpr_Unit @val.grTrf)
+
+SEM GrExpr [ isLast : Bool | | ]
+  | Seq body.isLast = True
+        expr.isLast = False
+
+SEM GrBind
+  | Bind  expr.isLast = True
+          expr.caseMap = const id
 SEM GrAlt
-  | Alt lhs.grTrf = undefined
+  | Alt   expr.isLast = True
+
+
+
+{
+type CaseMap = GrTag -> GrExpr -> GrExpr
+
+getValTag :: GrVal -> GrTag
+getValTag = undefined
+
+mkCaseMap :: GrPat -> GrExpr -> CaseMap
+mkCaseMap u body _ expr =
+  GrExpr_Seq expr u body
+--mkCaseMap u (GrExpr_Case _ altL) tag e = 
+--  let altTups = map mkTup altL
+--      mkTup (GrAlt_Alt pat expr) = (pat, \e -> GrExpr_Seq e u expr)
+--      caseMap = Map.fromList altTups
+--      lookuperr = id --TODO: really make this an error
+--  in fromMaybe lookuperr $ Map.lookup tag caseMap
+}
+
+{
+--mkSeq :: GrExpr -> GrExpr -> GrExpr
+--mkSeq newExpr oldBody (GrExpr_Seq (GrExpr_Case valV altLA) pattU (GrExpr_Seq (GrExpr_Case valU altLB) pattW expr)) =
+--mkSeq (GrExpr_Seq (GrExpr_Case valV altLA) pattU (GrExpr_Seq (GrExpr_Case valU altLB) pattW expr)) =
+}
 
 
 --SEM GrAlt
@@ -161,10 +238,9 @@ SEM GrAlt
 --hoist (Just (pat, tailCase)) e = GrExpr_Seq e pat tailCase -- TODO SSA for pat?
 }
 
-
-
-{constfalse _ _ = False}
-
-
+{
+constfalse _ _ = False
+}
+%%]
 
 % vim:ts=4:et:
