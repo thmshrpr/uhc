@@ -231,7 +231,7 @@ pRule :: Parser Token Rule
 pRule = Rule_RawRule <$  pKey "rule"
                   <*> pVarid
                   <*  pKey "implements"
-                  <*> pConid
+                  <*> pId
                   <*> opt (pKey "pre" *> pList pJudge) []
                   <* pKey "post" <*> pJudge
 
