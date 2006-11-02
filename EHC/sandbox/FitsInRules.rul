@@ -1,0 +1,47 @@
+preamble tex "%include lhs2TeX.fmt\n%include afp.fmt\n%include ehrules.fmt"
+
+format tex ity = isigma
+format tex lty = sigma.l
+format tex rty = sigma.r
+format tex ty = sigma
+format tex knTy = sigma..k
+format tex knTy.1 = sigma.1.k
+format tex knTy.2 = sigma.2.k
+format tex pred = pi
+format tex tyInt = Int
+format tex tyChar = Char
+format tex instTyFixed = inst.f
+format tex patFunTy = sigma.pf
+format tex ty.sig = ty.s
+format tex ty.q = sigma.q
+format tex ty.elim = sigma.e
+format tex ty.tboth = sigma./=/
+format tex tboth =  /=/
+format tex ty' = sigma'
+
+format ag tvarv..._ = tvars
+format ag ty..._ = tys
+format ag ANY = (Ty_Any|Ty)
+format ag ity = imprTy
+format ag ty.ident = gTy
+
+-- tvars
+external tyLVar
+
+format tex tyLVar =
+format tvars.f = tvarv.f.._
+format tvars.g = tvarv.g.._
+
+external tyInt
+
+scheme fitsIn =
+  view Main =
+    holes [ lty: Ty, rty: Ty | | ty: Ty ]
+    judgespec :- lty <= rty : ty
+    judgeuse tex :-.."=" lty <= rty : ty
+
+ruleset fitsIn scheme fitsIn "Crackhoer" =
+  rule fitsIn.con =
+    view Main =
+      ---
+      judge R: fitsIn = :- a <= b : tyInt 
