@@ -35,7 +35,7 @@ grin2silly gr optJump optPar optLoc
                                      , optOwnLocals_Inh_GrAGItf = optLoc
                                      }
                         )
-   in trace ("SILLY TREE: \n" ++ (show $ silModule_Syn_GrAGItf t)) $ silModule_Syn_GrAGItf t 
+   in silModule_Syn_GrAGItf t 
 %%]
 
 %%[8 import({GrinCode/ToSilly})

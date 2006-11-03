@@ -3,21 +3,21 @@
 %include afp.fmt
 %%]
 
-%%[8 hs module {%{GRIN}Silly.PrettyC} import(Data.List(intersperse), UU.Pretty, EH.Util.PPUtils,{%{GRIN}GRINCCommon},{%{GRIN}Silly}, {%{GRIN}Config}) export(prettyC)
+%%[8 hs module {%{GRIN}Silly.PrettyLLVM} import(Data.List(intersperse), UU.Pretty, EH.Util.PPUtils,{%{GRIN}GRINCCommon},{%{GRIN}Silly}, {%{GRIN}Config}) export(prettyLL)
 %%]
 
 %%[8 import({Silly/AbsSyn})
 %%]
 
 %%[8 hs
-prettyC :: Bool -> Bool -> SilModule -> PP_Doc
-prettyC optTrace optDef silmod
+prettyLL :: Bool -> Bool -> SilModule -> PP_Doc
+prettyLL optTrace optDef silmod
   = let t = wrap_SilModule (sem_SilModule silmod) ---- TESTING!!! test1) --  
                            (Inh_SilModule { optTraceCall_Inh_SilModule = optTrace
                                           , optCaseDefault_Inh_SilModule = optDef
                                           }
                            )
-     in  prettyC_Syn_SilModule t
+     in  prettyLL_Syn_SilModule t
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -120,7 +120,7 @@ SEM Value
 --------------------------------------------------------------------------------
 
 SEM SilModule
-  | SilModule   lhs.prettyC   = header
+  | SilModule   lhs.prettyLL  = header
                                 >-< text ""
                                 >-< comment "Constants"
                                 >-< ppVertically (map constantDefinition @constants)
@@ -132,7 +132,7 @@ SEM SilModule
                                 >-< "implementation"
                                 >-< text ""
                                 >-< text ""
-                                >-< @functions.prettyC
+                                >-< @functions.prettyLL
 
 {
 header :: PP_Doc
@@ -175,13 +175,13 @@ variableDeclaration x = "%" >|< text x >#< "= global %thunk_type* undef"
 --------------------------------------------------------------------------------
 
 SEM Function
-  | Function    lhs.prettyC   = prefix >|< params 
+  | Function    lhs.prettyLL   = prefix >|< params 
                                        >|< ") {" 
                                        >-< body 
                                        >-< postfix
                                    where prefix  = "void %" >|< @name >#< "("
                                          params = commaSeparated (map (declareName "uint*") @parameters)
-                                         body    = indent 3 (@body.prettyC >-< "ret void")
+                                         body    = indent 3 (@body.prettyLL >-< "ret void")
                                          postfix = "}" >-< text ""
                                          
 -- ppWhen @tailJumps jumpPrepare
@@ -192,13 +192,13 @@ SEM Function
 ATTR Alternative Alternatives [ break : PP_Doc | | prettyAlt : {(PP_Doc, PP_Doc)}]
 SEM Alternative
   | Alternative lhs.prettyAlt = (indent 3 tableEntry, targetCode)
-                                   where tableEntry = @when.prettyC 
+                                   where tableEntry = @when.prettyLL 
                                                             >|< ", label %" 
                                                             >|< label
                                          label      = "case." >|< show @loc.clbl
                                          targetCode = label >|< ":" 
                                                             >-< indent 3 
-                                                            ( @body.prettyC 
+                                                            ( @body.prettyLL 
                                                               >-< @lhs.break)
 
 SEM Alternatives
@@ -240,10 +240,10 @@ SEM Variable
                 lhs.before  = Just $ load "RP" @loc.vlbl @loc.ptrtype
   | Subs        loc.var     = "%array." >|< show @loc.vlbl
                 lhs.before  = Just $ loadArray (isZero @index.self)
-                                               @array.prettyC 
+                                               @array.prettyLL 
                                                @loc.vlbl 
                                                @loc.ptrtype
-                                               @index.prettyC
+                                               @index.prettyLL
 
 SEM Value
   | Con         lhs.before = Nothing
@@ -254,7 +254,7 @@ SEM Value
 
   | Call        lhs.before = Just $ "%call." >|< show @loc.vlbl 
                                              >#< "="
-                                             >#< call @name @args.prettyCs
+                                             >#< call @name @args.prettyLLs
 
 {
 loadArray :: Bool -> PP_Doc -> Int -> PtrType -> PP_Doc -> PP_Doc
@@ -332,9 +332,9 @@ ATTR SilModule Functions Function Statements Statement Alternatives Alternative
 
 
 ATTR SilModule Functions Function Statements Statement Alternatives Alternative Value Variable Constant
-         [ | | prettyC USE {>-<} {empty} : PP_Doc ]
+         [ | | prettyLL USE {>-<} {empty} : PP_Doc ]
 
-ATTR Values [ | | prettyCs : {[PP_Doc]} ]
+ATTR Values [ | | prettyLLs : {[PP_Doc]} ]
 
 ATTR Variable [ | | prettyPtr : {PP_Doc}  ]
 
@@ -342,49 +342,49 @@ ATTR Variable [ | | prettyPtr : {PP_Doc}  ]
 
 
 SEM Statement
-  | Comment     lhs.prettyC   = comment @comment
-  | Assignment  lhs.prettyC   = assign @source.before
+  | Comment     lhs.prettyLL   = comment @comment
+  | Assignment  lhs.prettyLL   = assign @source.before
                                        @dest.before
                                        @source.ptrtype
-                                       @dest.prettyC
-                                       @source.prettyC
-  | Switch      lhs.prettyC   = ppSwitch @loc.slbl
-                                         @scrutinee.prettyC
+                                       @dest.prettyLL
+                                       @source.prettyLL
+  | Switch      lhs.prettyLL   = ppSwitch @loc.slbl
+                                         @scrutinee.prettyLL
                                          @body.prettyAlt
-  | Call        lhs.prettyC   = call @name 
-                                     @args.prettyCs
-  | Jump        lhs.prettyC   = jump @name
-  | Enter       lhs.prettyC   = enter @nLocal @nParam
-  | Leave       lhs.prettyC   = exit @diff
+  | Call        lhs.prettyLL   = call @name 
+                                     @args.prettyLLs
+  | Jump        lhs.prettyLL   = jump @name
+  | Enter       lhs.prettyLL   = enter @nLocal @nParam
+  | Leave       lhs.prettyLL   = exit @diff
 
 
 SEM Alternative
-  | Alternative lhs.prettyC   = text "NOT USED"
+  | Alternative lhs.prettyLL   = text "NOT USED"
 
 SEM Values
-  | Nil         lhs.prettyCs  = []
-  | Cons        lhs.prettyCs  = @hd.prettyC : @tl.prettyCs
+  | Nil         lhs.prettyLLs  = []
+  | Cons        lhs.prettyLLs  = @hd.prettyLL : @tl.prettyLLs
 
 SEM Value
-  | Con         lhs.prettyC   = @con.prettyC
-  | Var         lhs.prettyC   = @var.prettyC
-  | Call        lhs.prettyC   = "%call." >|< show @loc.vlbl   -- DONE (ARG FORMAT NEEDS TYPE) 
-  | Alloc       lhs.prettyC   = "%alloc." >|< show @loc.vlbl
+  | Con         lhs.prettyLL   = @con.prettyLL
+  | Var         lhs.prettyLL   = @var.prettyLL
+  | Call        lhs.prettyLL   = "%call." >|< show @loc.vlbl   -- DONE (ARG FORMAT NEEDS TYPE) 
+  | Alloc       lhs.prettyLL   = "%alloc." >|< show @loc.vlbl
 
 SEM Constant
-  | Literal     lhs.prettyC   = text $ show @value
-  | Alias       lhs.prettyC   = text $ get @name @lhs.constants
+  | Literal     lhs.prettyLL   = text $ show @value
+  | Alias       lhs.prettyLL   = text $ get @name @lhs.constants
 
 SEM Variable
-  | Var         lhs.prettyC   = text "%" >|< @name
+  | Var         lhs.prettyLL   = text "%" >|< @name
                 lhs.prettyPtr = text "%" >|< @name
-  | SP          lhs.prettyC   = text "%SP"
+  | SP          lhs.prettyLL   = text "%SP"
                 lhs.prettyPtr = text "%SP"
-  | BP          lhs.prettyC   = @loc.var
+  | BP          lhs.prettyLL   = @loc.var
                 lhs.prettyPtr = text "%BP"
-  | RP          lhs.prettyC   = text "%RP"
+  | RP          lhs.prettyLL   = text "%RP"
                 lhs.prettyPtr = text "%RP"
-  | Subs        lhs.prettyC   = @loc.var >|< (if (isZero @index.self) then "" else ".tmp")
+  | Subs        lhs.prettyLL   = @loc.var >|< (if (isZero @index.self) then "" else ".tmp")
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
