@@ -19,12 +19,7 @@ format tex ty.tboth = sigma./=/
 format tex tboth =  /=/
 format tex ty' = sigma'
 
-format ag tvarv..._ = tvars
-format ag ty..._ = tys
-format ag ANY = (Ty_Any|Ty)
-format ag ity = imprTy
-format ag ty.ident = gTy
-
+format tex const = C_x
 -- tvars
 external tyLVar
 
@@ -40,8 +35,8 @@ scheme fitsIn =
     judgespec :- lty <= rty : ty
     judgeuse tex :-.."=" lty <= rty : ty
 
-ruleset fitsIn scheme fitsIn "Crackhoer" =
+ruleset fitsIn scheme fitsIn "FitsIn" =
   rule fitsIn.con =
     view Main =
       ---
-      judge R: fitsIn = :- a <= b : tyInt 
+      judge R: fitsIn = :- constr <= constr : tyInt 
