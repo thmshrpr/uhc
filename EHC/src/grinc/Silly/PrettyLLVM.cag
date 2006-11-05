@@ -3,7 +3,7 @@
 %include afp.fmt
 %%]
 
-%%[8 hs module {%{GRIN}Silly.PrettyLLVM} import(Data.List(intersperse), UU.Pretty, EH.Util.PPUtils,{%{GRIN}GRINCCommon},{%{GRIN}Silly}, {%{GRIN}Config}) export(prettyLL)
+%%[8 hs module {%{GRIN}Silly.PrettyLLVM} import(Data.List(intersperse), Data.List, Debug.Trace, UU.Pretty, EH.Util.PPUtils,{%{GRIN}GRINCCommon},{%{GRIN}Silly}, {%{GRIN}Config}) export(prettyLL)
 %%]
 
 %%[8 import({Silly/AbsSyn})
@@ -12,7 +12,7 @@
 %%[8 hs
 prettyLL :: Bool -> Bool -> SilModule -> PP_Doc
 prettyLL optTrace optDef silmod
-  = let t = wrap_SilModule (sem_SilModule silmod) ---- TESTING!!! test1) --  
+  = let t = wrap_SilModule (sem_SilModule $ traceit silmod) ---- TESTING!!! test1) --  
                            (Inh_SilModule { optTraceCall_Inh_SilModule = optTrace
                                           , optCaseDefault_Inh_SilModule = optDef
                                           }
@@ -32,7 +32,7 @@ WRAPPER SilModule
 --------------------------------------------------------------------------------
 ATTR Functions Function Statements Statement  Alternatives 
      Alternative  Variables Variable Values Value
-[ | unique : {Int} | ]
+[ | unique : {Int} | self : SELF ]
 
 SEM SilModule
   | SilModule   functions.unique = 0
@@ -132,6 +132,9 @@ SEM SilModule
                                 >-< "implementation"
                                 >-< text ""
                                 >-< text ""
+                                >-< comment "------------"
+                                >-< comment (show @functions.self)
+                                >-< comment "------------"
                                 >-< @functions.prettyLL
 
 {
@@ -186,6 +189,25 @@ SEM Function
                                          
 -- ppWhen @tailJumps jumpPrepare
 
+
+--------------------------------------------------------------------------------
+-- PARAMETER POSITION WITHIN STACK
+--------------------------------------------------------------------------------
+
+ATTR Statements Statement Variables Variable 
+     Values Value Alternatives Alternative [ stackPos : {String -> Int} | | ] 
+
+SEM Function 
+  | Function   body.stackPos = stackPosition @parameters
+
+
+  
+{
+stackPosition :: [String] -> String -> Int
+stackPosition vs v = convert $ elemIndex v vs
+   where convert = maybe (error $ "variable not on stack: " ++ v) (0-)
+}
+
 --------------------------------------------------------------------------------
 -- SWITCH STATEMENT GENERATION
 --------------------------------------------------------------------------------
@@ -231,7 +253,7 @@ ATTR Constant [ | | self : SELF]
 ATTR Variable Value [ | | before : {Maybe PP_Doc}]
 
 SEM Variable
-  | Var         lhs.before   = Nothing ------------------------------------ TODO
+  | Var         lhs.before  = Just $ text "ACCESS SP[stackPos]" 
   | SP          loc.var     = "%SP." >|< show @loc.vlbl
                 lhs.before  = Just $ load "SP" @loc.vlbl @loc.ptrtype
   | BP          loc.var     = "%BP." >|< show @loc.vlbl
@@ -461,8 +483,11 @@ p :: Show a => a -> PP_Doc
 p x = text $ show x
 
 --------------------------------------------------------------------------------
--- Test Data
+-- Testing
 --------------------------------------------------------------------------------
+
+traceit :: Show a => a -> a
+traceit x = trace (show x) x
 
 test1 = SilModule_SilModule [] [] [func]
    where func   = Function_Function "func" False ["p1", "p2"] ["loc"] [swtch]
