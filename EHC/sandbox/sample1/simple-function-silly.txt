@@ -1,0 +1,86 @@
+--------------------------------------------------------------------------------
+main = f 20
+f x = x
+--------------------------------------------------------------------------------
+SilModule_SilModule 
+  [ ("CInt",0)
+  , ("CFalse",1)
+  , ("CTrue",2)
+  , ("Fundefined", 3)
+  , ("Fmain",4)
+  ] 
+  
+  [ "global_main"
+  , "global_False"
+  , "global_True"
+  , "global_undefined"
+  ] 
+  
+  [ Function_Function 
+      "initialize" 
+      False 
+      [] 
+      [] 
+      [ Statement_Assignment Variable_BP (Value_Con (Constant_Literal 0))
+      , Statement_Assignment (Variable_Var "global_main") (Value_Alloc 10)
+      , Statement_Assignment (Variable_Subs (Variable_Var "global_main") 
+                                            (Constant_Literal 0)) 
+                             (Value_Con (Constant_Alias "Fmain"))
+      , Statement_Assignment (Variable_Var "global_False") (Value_Alloc 10)
+      , Statement_Assignment (Variable_Subs (Variable_Var "global_False") 
+                                            (Constant_Literal 0)) 
+                             (Value_Con (Constant_Alias "CFalse"))
+      , Statement_Assignment (Variable_Var "global_True") 
+                             (Value_Alloc 10)
+      , Statement_Assignment (Variable_Subs (Variable_Var "global_True") 
+                                            (Constant_Literal 0)) 
+                             (Value_Con (Constant_Alias "CTrue"))
+      , Statement_Assignment (Variable_Var "global_undefined") (Value_Alloc 10)
+      , Statement_Assignment (Variable_Subs (Variable_Var "global_undefined") 
+                                            (Constant_Literal 0)) 
+                             (Value_Con (Constant_Alias "Fundefined"))
+      ]
+  , Function_Function 
+      "fun_f" 
+      False 
+      [] 
+      ["x_24","x__1"] 
+      [ Statement_Comment "Parameters"
+      , Statement_Assignment (Variable_Var "x__1") 
+                             (Value_Var (Variable_Subs Variable_SP 
+                                        (Constant_Literal (-1))))
+      , Statement_Enter 0 0
+      , Statement_Comment "Fetch"
+      , Statement_Assignment (Variable_Var "x_24") 
+                             (Value_Var (Variable_Subs (Variable_Var "x__1") 
+                                                       (Constant_Literal 1)))
+      , Statement_Comment "Unit"
+      , Statement_Assignment (Variable_Subs Variable_RP (Constant_Literal 0)) 
+                             (Value_Con (Constant_Alias "CInt"))
+      , Statement_Assignment (Variable_Subs Variable_RP (Constant_Literal 1)) 
+                             (Value_Var (Variable_Var "x_24"))
+      , Statement_Leave 0
+      ]
+  , Function_Function 
+      "fun_main" 
+      True 
+      [] 
+      ["x_13"] 
+      [ Statement_Enter 0 1
+      , Statement_Comment "Store"
+      , Statement_Assignment (Variable_Var "x_13") (Value_Alloc 10)
+      , Statement_Assignment (Variable_Subs (Variable_Var "x_13") 
+                                            (Constant_Literal 0)) 
+                             (Value_Con (Constant_Alias "CInt"))
+      , Statement_Assignment (Variable_Subs (Variable_Var "x_13") 
+                                            (Constant_Literal 1)) 
+                             (Value_Con (Constant_Literal 20))
+      , Statement_Comment "Call (Tail)"
+      , Statement_Assignment (Variable_Subs Variable_RP (Constant_Literal 1)) 
+                             (Value_Var (Variable_Var "x_13"))
+      , Statement_Leave 1
+      , Statement_Assignment (Variable_Subs Variable_SP (Constant_Literal (-1))) 
+                             (Value_Var (Variable_Subs Variable_RP 
+                                                       (Constant_Literal 1)))
+      , Statement_Jump "fun_f"]
+      ]
