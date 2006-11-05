@@ -208,24 +208,6 @@ builtin nm = nm `elem` ["fun_main", "initialize"]
 
 
 --------------------------------------------------------------------------------
--- PARAMETER POSITION WITHIN STACK
---------------------------------------------------------------------------------
-
-ATTR Statements Statement Variables Variable 
-     Values Value Alternatives Alternative [ stack : {[String]} | | ] 
-
-SEM Function 
-  | Function   body.stack = @parameters
-
-
-  
-{
-stackPosition :: String -> [String] -> Int
-stackPosition v vs = convert $ elemIndex v vs
-   where convert = maybe (error $ "variable not on stack: " ++ v) (0-)
-}
-
---------------------------------------------------------------------------------
 -- SWITCH STATEMENT GENERATION
 --------------------------------------------------------------------------------
 ATTR Alternative Alternatives [ break : PP_Doc | | prettyAlt : {(PP_Doc, PP_Doc)}]
