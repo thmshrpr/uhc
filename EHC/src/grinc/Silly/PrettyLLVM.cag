@@ -12,7 +12,7 @@
 %%[8 hs
 prettyLL :: Bool -> Bool -> SilModule -> PP_Doc
 prettyLL optTrace optDef silmod
-  = let t = wrap_SilModule (sem_SilModule $ traceit silmod) ---- TESTING!!! test1) --  
+  = let t = wrap_SilModule (sem_SilModule silmod) --  $ traceit silmod) ---- TESTING!!! 
                            (Inh_SilModule { optTraceCall_Inh_SilModule = optTrace
                                           , optCaseDefault_Inh_SilModule = optDef
                                           }
@@ -132,9 +132,6 @@ SEM SilModule
                                 >-< "implementation"
                                 >-< text ""
                                 >-< text ""
-                                >-< comment "------------"
-                                >-< comment (show @functions.self)
-                                >-< comment "------------"
                                 >-< @functions.prettyLL
 
 {
@@ -178,15 +175,35 @@ variableDeclaration x = "%" >|< text x >#< "= global %thunk_type* undef"
 --------------------------------------------------------------------------------
 
 SEM Function
-  | Function    lhs.prettyLL   = prefix >|< params 
-                                       >|< ") {" 
-                                       >-< body 
-                                       >-< postfix
-                                   where prefix  = "void %" >|< @name >#< "("
-                                         params = commaSeparated (map (declareName "uint*") @parameters)
-                                         body    = indent 3 (@body.prettyLL >-< "ret void")
+  | Function    lhs.prettyLL   = prefix >-< indent 3 params
+                                        >-< indent 3 body
+                                        >-< postfix
+                                   where prefix  = "void %" >|< @name >#< "() {"
+                                         params = if builtin @name
+                                                    then params0 
+                                                    else params1
+                                         params0  = text ""
+                                         params1  = mkParams @loc.unique (tail @locals)
+                                         body    = @body.prettyLL >-< "ret void"
                                          postfix = "}" >-< text ""
-                                         
+                loc.unique     = @lhs.unique
+                body.unique    = @loc.unique + length @parameters
+                lhs.unique     = @body.unique
+
+{
+mkParams :: Int -> [String] -> PP_Doc
+mkParams base names = foldr (>-<) empty ps'
+  where ps  = zipWith mkParam [0..] names
+        ps' = zipWith ($) ps [base..]
+
+mkParam :: Int -> String -> Int -> PP_Doc
+mkParam pi nm ai = loadArray False (text nm) ai ThunkPtr (text (show $ 0 - 1- pi))
+
+-- KLUGE!!
+builtin :: String -> Bool
+builtin nm = nm `elem` ["fun_main", "initialize"]
+}
+
 -- ppWhen @tailJumps jumpPrepare
 
 
@@ -195,16 +212,16 @@ SEM Function
 --------------------------------------------------------------------------------
 
 ATTR Statements Statement Variables Variable 
-     Values Value Alternatives Alternative [ stackPos : {String -> Int} | | ] 
+     Values Value Alternatives Alternative [ stack : {[String]} | | ] 
 
 SEM Function 
-  | Function   body.stackPos = stackPosition @parameters
+  | Function   body.stack = @parameters
 
 
   
 {
-stackPosition :: [String] -> String -> Int
-stackPosition vs v = convert $ elemIndex v vs
+stackPosition :: String -> [String] -> Int
+stackPosition v vs = convert $ elemIndex v vs
    where convert = maybe (error $ "variable not on stack: " ++ v) (0-)
 }
 
@@ -252,8 +269,10 @@ ATTR Constant [ | | self : SELF]
 
 ATTR Variable Value [ | | before : {Maybe PP_Doc}]
 
+
+----***********************************************************************----
 SEM Variable
-  | Var         lhs.before  = Just $ text "ACCESS SP[stackPos]" 
+  | Var         lhs.before  = Nothing
   | SP          loc.var     = "%SP." >|< show @loc.vlbl
                 lhs.before  = Just $ load "SP" @loc.vlbl @loc.ptrtype
   | BP          loc.var     = "%BP." >|< show @loc.vlbl
@@ -278,14 +297,16 @@ SEM Value
                                              >#< "="
                                              >#< call @name @args.prettyLLs
 
+
 {
 loadArray :: Bool -> PP_Doc -> Int -> PtrType -> PP_Doc -> PP_Doc
 loadArray zero name lbl pty idx = if zero then deref else deref >-< arith
    where var    = "%array." >|< lbl
          tmp    = var >|< ".tmp"
          arith  = ptrAdd' tmp var pty idx
-         -- tmp >#< "= getelementptr" >#< ptr pty >#< name >|< ", int" >#< idx
          deref = var >#< "= load" >#< ptrptr pty >#< name
+
+
 
 isZero :: Constant -> Bool                         
 isZero (Constant_Literal 0) = True
