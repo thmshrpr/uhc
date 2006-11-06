@@ -3,7 +3,7 @@
 %include afp.fmt
 %%]
 
-%%[8 hs module {%{GRIN}Silly.PrettyLLVM} import(Data.List(intersperse), Data.List, Debug.Trace, UU.Pretty, EH.Util.PPUtils,{%{GRIN}GRINCCommon},{%{GRIN}Silly}, {%{GRIN}Config}) export(prettyLL)
+%%[8 hs module {%{GRIN}Silly.PrettyLLVM} import(Data.List(intersperse), Data.Maybe, Data.List, Debug.Trace, UU.Pretty, EH.Util.PPUtils,{%{GRIN}GRINCCommon},{%{GRIN}Silly}, {%{GRIN}Config}) export(prettyLL)
 %%]
 
 %%[8 import({Silly/AbsSyn})
@@ -175,34 +175,49 @@ variableDeclaration x = "%" >|< text x >#< "= global %thunk_type* undef"
 --------------------------------------------------------------------------------
 
 SEM Function
-  | Function    lhs.prettyLL   = prefix >-< indent 3 params
-                                        >-< indent 3 body
+  | Function    lhs.prettyLL   = prefix >-< indent 3 body
                                         >-< postfix
                                    where prefix  = "void %" >|< @name >#< "() {"
-                                         params = if builtin @name
-                                                    then params0 
-                                                    else params1
-                                         params0  = text ""
-                                         params1  = mkParams @loc.unique (tail @locals)
                                          body    = @body.prettyLL >-< "ret void"
                                          postfix = "}" >-< text ""
-                loc.unique     = @lhs.unique
-                body.unique    = @loc.unique + length @parameters
-                lhs.unique     = @body.unique
+                body.locals    = @locals
 
-{
-mkParams :: Int -> [String] -> PP_Doc
-mkParams base names = foldr (>-<) empty ps'
-  where ps  = zipWith mkParam [0..] names
-        ps' = zipWith ($) ps [base..]
 
-mkParam :: Int -> String -> Int -> PP_Doc
-mkParam pi nm ai = loadArray False (text nm) ai ThunkPtr (text (show $ 0 - 1- pi))
+--------------------------------------------------------------------------------
+-- PARAMETER LOADING
+--------------------------------------------------------------------------------
 
--- KLUGE!!
-builtin :: String -> Bool
-builtin nm = nm `elem` ["fun_main", "initialize"]
-}
+ATTR Statements Statement Variables Variable 
+     Values Value Alternatives Alternative [ locals : {[String]} | | ]
+
+
+ATTR Variable [ | | localName : {Maybe String} ]
+ATTR Variables Variable [ lclName : {Maybe String} | | ]
+ATTR Values Value [ lclName : {Maybe String} | | ]
+
+SEM Variable
+  |  Var    lhs.localName = if @name `elem` @lhs.locals then Just @name else Nothing
+  |  Subs   lhs.localName = Nothing
+  |  SP     lhs.localName = Nothing
+  |  BP     lhs.localName = Nothing
+  |  RP     lhs.localName = Nothing
+
+SEM Statement
+  |  Assignment  source.lclName = @dest.localName
+                 dest.lclName   = Nothing
+
+--SEM Variable
+--  |  Subs        array.lclName     = Nothing -- @lhs.localName
+
+SEM Value
+  | Var          var.lclName   = @lhs.lclName
+  | Call         args.lclName  = Nothing -- @lhs.lclName
+
+
+SEM Statement
+  |  Switch      scrutinee.lclName = Nothing
+  |  Call        args.lclName = Nothing
+
 
 -- ppWhen @tailJumps jumpPrepare
 
@@ -262,7 +277,8 @@ SEM Variable
   | RP          loc.var     = "%RP." >|< show @loc.vlbl
                 lhs.before  = Just $ load "RP" @loc.vlbl @loc.ptrtype
   | Subs        loc.var     = "%array." >|< show @loc.vlbl
-                lhs.before  = Just $ loadArray (isZero @index.self)
+                lhs.before  = Just $ loadArray @lhs.lclName
+                                               (isZero @index.self)
                                                @array.prettyLL 
                                                @loc.vlbl 
                                                @loc.ptrtype
@@ -270,7 +286,7 @@ SEM Variable
 
 SEM Value
   | Con         lhs.before = Nothing
-  | Var         lhs.before = Nothing
+  | Var         lhs.before = @var.before
   | Alloc       lhs.before = Just $ "%alloc.">|< show @loc.vlbl 
                                                  >#< "="
                                                  >#< heapalloc @size
@@ -281,12 +297,16 @@ SEM Value
 
 
 {
-loadArray :: Bool -> PP_Doc -> Int -> PtrType -> PP_Doc -> PP_Doc
-loadArray zero name lbl pty idx = if zero then deref else deref >-< arith
-   where var    = "%array." >|< lbl
-         tmp    = var >|< ".tmp"
-         arith  = ptrAdd' tmp var pty idx
-         deref = var >#< "= load" >#< ptrptr pty >#< name
+loadArray :: Maybe String -> Bool -> PP_Doc -> Int -> PtrType -> PP_Doc -> PP_Doc
+loadArray lname zero name lbl pty idx = if zero then load0 else load1 -- then deref else deref >-< arith
+   where load0  = var0 >#< "= load" >#< ptrptr pty >#< name
+         var0   = maybe ("%array." >|< lbl) mkName lname
+         load1  = deref >-< arith
+         var1   = maybe ("%array." >|< lbl) mkName lname
+         deref  = tmp >#< "= load" >#< ptrptr pty >#< name
+         arith  = ptrAdd' var1 tmp pty idx
+         tmp    = var1 >|< ".tmp"
+         mkName = (\x -> "%" >|< x)
 
 
 
@@ -365,14 +385,15 @@ ATTR Variable [ | | prettyPtr : {PP_Doc}  ]
 
 
 
-
 SEM Statement
   | Comment     lhs.prettyLL   = comment @comment
-  | Assignment  lhs.prettyLL   = assign @source.before
-                                       @dest.before
-                                       @source.ptrtype
-                                       @dest.prettyLL
-                                       @source.prettyLL
+  | Assignment  lhs.prettyLL   = if (isJust @dest.localName)
+                                 then maybe (text "") (>-< "") @source.before  >|< ""
+                                 else assign @source.before
+                                             @dest.before
+                                             @source.ptrtype
+                                             @dest.prettyLL
+                                             @source.prettyLL
   | Switch      lhs.prettyLL   = ppSwitch @loc.slbl
                                          @scrutinee.prettyLL
                                          @body.prettyAlt
@@ -491,6 +512,9 @@ p x = text $ show x
 
 traceit :: Show a => a -> a
 traceit x = trace (show x) x
+
+traceloud :: Show a => String -> a -> a
+traceloud s x = trace (s ++ show x) x
 
 test1 = SilModule_SilModule [] [] [func]
    where func   = Function_Function "func" False ["p1", "p2"] ["loc"] [swtch]
