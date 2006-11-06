@@ -175,10 +175,10 @@ variableDeclaration x = "%" >|< text x >#< "= global %thunk_type* undef"
 --------------------------------------------------------------------------------
 
 SEM Function
-  | Function    lhs.prettyLL   = prefix >-< indent 3 body
+  | Function    lhs.prettyLL   = prefix >-< indent 3 @body.prettyLL
+                                        >-< indent 3 (text "ret void")
                                         >-< postfix
                                    where prefix  = "void %" >|< @name >#< "() {"
-                                         body    = @body.prettyLL >-< "ret void"
                                          postfix = "}" >-< text ""
                 body.locals    = @locals
 
@@ -205,9 +205,6 @@ SEM Variable
 SEM Statement
   |  Assignment  source.lclName = @dest.localName
                  dest.lclName   = Nothing
-
---SEM Variable
---  |  Subs        array.lclName     = Nothing -- @lhs.localName
 
 SEM Value
   | Var          var.lclName   = @lhs.lclName
@@ -252,7 +249,7 @@ ppSwitch lbl scrutinee alts = "switch int" >#< scrutinee
                                        >-< "[" >-< fst alts >|< "]" 
                                        >-< snd alts
                                        >|< "%switch_trap." >|< show lbl >|< ":"
-                                       >-< indent 3 (text "call void switch_trap()")
+                                       >-< indent 3 (text "tail call void switch_trap()")
                                        >-< "%switch_end." 
                                        >|< show lbl
                                        >|< ":"
@@ -293,7 +290,7 @@ SEM Value
 
   | Call        lhs.before = Just $ "%call." >|< show @loc.vlbl 
                                              >#< "="
-                                             >#< call @name @args.prettyLLs
+                                             >#< call @name -- args not passed explicitly
 
 
 {
@@ -352,17 +349,11 @@ exit i =  comment "Function Exit (TODO)"
       >-< store "%SP.deref" ThunkPtr "%SP"
       >-< cast "%BP.recast" Thunk "%BP.cast" ThunkPtr
       >-< store "%BP.recast" ThunkPtr "%BP"
-      >-< ""     ------ TODO: increment SP (see C code below) ?
-
-{--
-methodLeave :: Int -> PP_Doc
-methodLeave nDiff
- = comment "Leave"
-   >-< assignment Nothing Nothing (text "SP")  (text "BP")  -- cleanup
-   >-< assignment Nothing Nothing (text "BP") (text "((Pointer)*SP)") -- cleanup
-   >-< incrementBy (text "SP") (nDiff)
---}
-
+      >-< if i /= 0 
+          then ptrAdd "%SP.incr_exit" "%SP.deref" ThunkPtr i
+               >-< store "%SP.incr_exit" ThunkPtr "%SP"
+          else empty
+      >-< ""
 }
 
 --------------------------------------------
@@ -397,8 +388,7 @@ SEM Statement
   | Switch      lhs.prettyLL   = ppSwitch @loc.slbl
                                          @scrutinee.prettyLL
                                          @body.prettyAlt
-  | Call        lhs.prettyLL   = call @name 
-                                     @args.prettyLLs
+  | Call        lhs.prettyLL   = call @name  -- no args explicitly passed
   | Jump        lhs.prettyLL   = jump @name
   | Enter       lhs.prettyLL   = enter @nLocal @nParam
   | Leave       lhs.prettyLL   = exit @diff
@@ -453,9 +443,9 @@ declareName tp nm
 comment :: String -> PP_Doc
 comment s = "; ----" >#< s >#< "----"
 
-call :: String -> [PP_Doc] -> PP_Doc
-call f ps
- = "tail call" >#< "int" >#< f >#< "(" >|< ppHorizontally (intersperse (text ", ") ps) >|< ")"
+call :: String -> PP_Doc
+call f
+ = "tail call" >#< "void" >#< "%" >|< f >#< "()" 
 
 
 jumpPrepare :: PP_Doc
@@ -463,11 +453,10 @@ jumpPrepare
  =  pp machDepCForTailcallEnter
 
 jump :: String -> PP_Doc
-jump nm
- =  machDepCForTailcallLeave1
-    >-< "register void* _tail_call_dest = ((void*)" >|< nm >|< ");"
-    >-< machDepCForTailcallLeave2
-    >-< "goto *_tail_call_dest;"
+jump nm = call nm 
+--    >-< "register void* _tail_call_dest = ((void*)" >|< nm >|< ");"
+--    >-< machDepCForTailcallLeave2
+--    >-< "goto *_tail_call_dest;"
 
 --------------------------------------------------------------------------------
 -- LL Primitives
