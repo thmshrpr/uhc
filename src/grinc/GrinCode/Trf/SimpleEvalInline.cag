@@ -1,0 +1,100 @@
+%%[0
+%include lhs2TeX.fmt
+%include afp.fmt
+%%]
+
+%%[8 import({GrinCode/AbsSyn})
+{
+import Data.Map as Map
+}
+%%]
+
+%%[8.wrapper
+WRAPPER GrAGItf
+%%]
+
+%%[8 hs module {%{GRIN}GrinCode.Trf.Identity} import({%{EH}Base.Common}, {%{EH}GrinCode}) export(identity)
+simpleEvalInline :: GrModule -> GrModule
+simpleEvalInline grmod = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod)) Inh_GrAGItf
+                    in grTrf_Syn_GrAGItf t
+%%]
+
+%%[8
+ATTR GrAGItf [ | | grTrf: GrModule ]
+ATTR AllGrNT [ | | grTrf: SELF     ]
+%%]
+
+%%[8
+SEM GrExpr [ | | nextIsEval USE {`constfalse`} {False} : Bool ]
+  | Seq  lhs.nextIsEval = @expr.nextIsEval
+  | Eval lhs.nextIsEval = True
+
+SEM GrExpr [ | | lastStore USE {`constnothing`} {Nothing} : {Maybe HsName} ]
+  | Seq   lhs.lastStore = @body.lastStore
+  | Store lhs.lastStore = @val.mHsName
+
+SEM GrVal [ | | mHsName USE {`constnothing`} {Nothing} : {Maybe HsName} ]
+  | Var lhs.mHsName = @nm
+
+{
+constfalse _ _ = False
+constnothing _ _ = Nothing
+}
+
+ATTR GrAlt GrExpr [ currFunc : HsName | | ]
+SEM GrBind 
+  | Bind expr.GrExpr = @nm
+
+ATTR GrBindL GrBind GrExpr [ | evalCount : EvalInMap | ]
+
+SEM GrExpr
+  | Seq  lhs.evalCount =
+           if @body.nextIsEval
+           then markEval @expr.lastStore @lhs.currFunc @body.evalCount
+           else @body.evalCount
+{
+type EvalInMap = Map HsName (Maybe HsName)
+
+markEval :: Maybe HsName -> HsName -> EvalInMap -> EvalInMap
+markEval (Just name) func = Map.insertWith constNothing name func
+markEval Nothing func = id
+}
+%%]
+
+
+%%[8
+{
+type GlobalFunctionMap = Map HsName HsName
+
+maybeAddFunc :: HsName -> Maybe HsName -> GlobalFunctionMap -> GlobalFunctionMap
+maybeAddFunc nm (Just func) = Map.insert nm func
+maybeAddFunc _ Nothing = id
+}
+
+SEM GrGlobalL [ | | globalFuncs : GlobalFunctionMap ]
+  | Cons  lhs.globalFuncs = maybeAddFun @hd.nm @hd.func @tl.globalFuncs
+
+SEM GrGlobal [ | | nm : HsName  func : {Maybe HsName} ]
+  | Global  lhs.nm = @nm
+            lhs.func = @val.func
+
+SEM GrVal [ | | func USE {`constnothing`} {Nothing} : {Maybe HsName} ]
+  | Tag  lhs.func = @tag.func
+
+SEM GrTag [ | | func USE {`constnothing`} {Nothing} : {Maybe HsName} ]
+  | Lit  lhs.func = if @categ == GrTagFun 
+                   then Just @nm
+                   else Nothing
+%%]
+
+[%%
+{
+type FunctionTagMap = Map HsName HsName
+}
+
+
+%%]
+
+
+
+% vim:ts=4:et:
