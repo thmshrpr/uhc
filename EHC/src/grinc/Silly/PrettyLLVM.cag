@@ -101,7 +101,7 @@ SEM Variable
                 lhs.ptrtype  = @loc.ptrtype
   | RP          loc.ptrtype  = ThunkPtrPtr
                 lhs.ptrtype  = @loc.ptrtype
-  | Subs        loc.ptrtype  = ThunkPtr      -- We only array-access global vars
+  | Subs        loc.ptrtype  = if isJust @array.localName then Thunk else ThunkPtr
                 lhs.ptrtype  = @loc.ptrtype
 
 SEM Value
@@ -139,9 +139,7 @@ header :: PP_Doc
 header = comment "LLVM Code Generated From Grin"
          >-< ""
          >-< comment "Platform Constants"
-         >-< "target endian = little"
          >-< "target pointersize = 32"
-         >-< "target triple = \"i686-pc-linux-gnu\""
          >-< "deplibs = [ \"c\" ]"
          >-< ""
          >-< comment "Runtime Library Functions"
@@ -194,13 +192,21 @@ ATTR Statements Statement Variables Variable
 ATTR Variable [ | | localName : {Maybe String} ]
 ATTR Variables Variable [ lclName : {Maybe String} | | ]
 ATTR Values Value [ lclName : {Maybe String} | | ]
+ATTR Variable [ | | isArrayAssign : {Bool} ]
 
 SEM Variable
   |  Var    lhs.localName = if @name `elem` @lhs.locals then Just @name else Nothing
-  |  Subs   lhs.localName = Nothing
+  |  Subs   lhs.localName = @array.localName
   |  SP     lhs.localName = Nothing
   |  BP     lhs.localName = Nothing
   |  RP     lhs.localName = Nothing
+
+SEM Variable
+  |  Var    lhs.isArrayAssign = False
+  |  Subs   lhs.isArrayAssign = True
+  |  SP     lhs.isArrayAssign = False
+  |  BP     lhs.isArrayAssign = False
+  |  RP     lhs.isArrayAssign = False
 
 SEM Statement
   |  Assignment  source.lclName = @dest.localName
@@ -274,20 +280,34 @@ SEM Variable
   | RP          loc.var     = "%RP." >|< show @loc.vlbl
                 lhs.before  = Just $ load "RP" @loc.vlbl @loc.ptrtype
   | Subs        loc.var     = "%array." >|< show @loc.vlbl
-                lhs.before  = Just $ loadArray @lhs.lclName
-                                               (isZero @index.self)
-                                               @array.prettyLL 
-                                               @loc.vlbl 
-                                               @loc.ptrtype
-                                               @index.prettyLL
+                lhs.before  = Just $ if isJust @array.localName
+                                     then ptrAdd' ("%array." >|< @loc.vlbl)
+                                                  (text $ fromJust @array.localName)
+                                                  ThunkPtr
+                                                  @index.prettyLL
+                                     else loadArray @lhs.lclName
+                                                    (isZero @index.self)
+                                                    @array.prettyLL 
+                                                    @loc.vlbl 
+                                                    @loc.ptrtype
+                                                    @index.prettyLL
 
+
+{-
+ptrAdd' :: PP_Doc -> PP_Doc -> PtrType -> PP_Doc -> PP_Doc
+ptrAdd' l r ty i = l >#< "= getelementptr" >#< ptr ty >#< r >|< ", int" >#< i
+    
+   %array.24.tmp = load %thunk_type* %x_14
+   %array.24 = getelementptr %thunk_type %array.24.tmp, int 1
+
+-}
 SEM Value
   | Con         lhs.before = Nothing
   | Var         lhs.before = @var.before
-  | Alloc       lhs.before = Just $ "%alloc.">|< show @loc.vlbl 
-                                                 >#< "="
-                                                 >#< heapalloc @size
-
+  | Alloc       lhs.before = Just $ (lhs >#< "=" >#< heapalloc @size)
+                                 where lhs = maybe ("%alloc.">|< show @loc.vlbl) 
+                                                   (\x -> ("%" >|< x))
+                                                   @lhs.lclName
   | Call        lhs.before = Just $ "%call." >|< show @loc.vlbl 
                                              >#< "="
                                              >#< call @name -- args not passed explicitly
@@ -374,17 +394,50 @@ ATTR Values [ | | prettyLLs : {[PP_Doc]} ]
 
 ATTR Variable [ | | prettyPtr : {PP_Doc}  ]
 
+{            
+mkLocalAssign :: Bool -> Maybe PP_Doc -> Maybe PP_Doc -> PtrType -> PP_Doc -> PP_Doc -> Maybe String -> PP_Doc
+mkLocalAssign arrayAssign srcBefore destBefore ptype src dest lname
+  = if arrayAssign
+    then assign' srcBefore
+                 destBefore
+                 ptype
+                 (text $ fromJust lname)
+                 (traceloud "src" src)
+    else fromJust srcBefore
+                
+assign' :: Maybe PP_Doc -> Maybe PP_Doc -> PtrType -> PP_Doc -> PP_Doc -> PP_Doc
+assign' b1 b2 typ v e = rndr b1 >|< rndr b2 >|< (store' e typ v) >-< ""
+   where rndr b = maybe (text "") (>-< "") b
 
+}
 
 SEM Statement
   | Comment     lhs.prettyLL   = comment @comment
+{-
+   ; ---- Store ----
+   %x_14 = tail call %thunk_type* %heapalloc (uint 10) -- OK
+   %array.22 = load %thunk_type** %x_14     -- NO PTRPTR @dest.before
+   store %thunk_type @src.pp, %thunk_type* %array.22  -- should be generated
+-}
+{-
+assign :: Maybe PP_Doc -> Maybe PP_Doc -> PtrType -> PP_Doc -> PP_Doc -> PP_Doc
+assign b1 b2 typ v e = rndr b1 >|< rndr b2 >|< (store' e typ v) >-< ""
+   where rndr b = maybe (text "") (>-< "") b
+
+-}
   | Assignment  lhs.prettyLL   = if (isJust @dest.localName)
-                                 then maybe (text "") (>-< "") @source.before  >|< ""
-                                 else assign @source.before
-                                             @dest.before
-                                             @source.ptrtype
-                                             @dest.prettyLL
-                                             @source.prettyLL
+                                   then mkLocalAssign @dest.isArrayAssign
+                                                      @source.before 
+                                                      @dest.before
+                                                      Thunk 
+                                                      @source.prettyLL
+                                                      @dest.prettyLL
+                                                      @dest.localName
+                                   else assign @source.before
+                                               @dest.before
+                                               @source.ptrtype
+                                               @dest.prettyLL
+                                               @source.prettyLL
   | Switch      lhs.prettyLL   = ppSwitch @loc.slbl
                                          @scrutinee.prettyLL
                                          @body.prettyAlt
@@ -444,19 +497,10 @@ comment :: String -> PP_Doc
 comment s = "; ----" >#< s >#< "----"
 
 call :: String -> PP_Doc
-call f
- = "tail call" >#< "void" >#< "%" >|< f >#< "()" 
-
-
-jumpPrepare :: PP_Doc
-jumpPrepare
- =  pp machDepCForTailcallEnter
+call f = "tail call" >#< "void" >#< "%" >|< f >#< "()" 
 
 jump :: String -> PP_Doc
 jump nm = call nm 
---    >-< "register void* _tail_call_dest = ((void*)" >|< nm >|< ");"
---    >-< machDepCForTailcallLeave2
---    >-< "goto *_tail_call_dest;"
 
 --------------------------------------------------------------------------------
 -- LL Primitives
