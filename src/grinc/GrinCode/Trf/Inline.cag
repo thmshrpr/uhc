@@ -11,13 +11,40 @@ WRAPPER GrAGItf
 
 %%[8 hs module {%{GRIN}GrinCode.Trf.Inline} import({%{EH}Base.Common}, {%{EH}GrinCode}) export(inline)
 inline :: GrModule -> GrModule
-inline grmod = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod)) Inh_GrAGItf
-               in grTrf_Syn_GrAGItf t
+inline grmod substs = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod)) (sem_GrAGItf substs) Inh_GrAGItf
+                      in grTrf_Syn_GrAGItf t
 %%]
 
 %%[8
 ATTR GrAGItf [ | | grTrf: GrModule ]
 ATTR AllGrNT [ | | grTrf: SELF     ]
+
+ATTR AllGrExpr [ substs | | grTrfSubs: SELF ]
+SEM GrVal
+  | Var   lhs . grTrfSubs = \s -> (GrVal_Var (trysubs s @nm))
+SEM GrValL
+  | Cons  lhs . grTrfSubs = \s -> (GrValL_Cons (@hd.grTrfSubs s) (@tl.grTrfSubs s))
+  | Nil   lhs . grTrfSubs = \_ -> GrValL_Nil
+
+type Substitution = Map HsName HsName
+
+Substitution -> GrExpr
+\s -> (GrExpr_Expr nm [(GrVal_Var (Map.lookup s x)),(GrVal_Var (Map.lookup s y))])
+
+(Expr nm [x,y]) [a/x, b/y] = Expr nm [a,b]
+[c/x, d/y]
+
+Call f [a,b]
+Call f [c,d]
+
+{
+trysubs = Map.lookup || id
+}
+
+ATTR GrModule AllGrBind [ | | grTrfSubsBinds: Map HsName GrExpr ]
+SEM GrBind
+  | Bind  lhs . grTrfSubsBinds = Map.insert @nm (\lazy -> @expr.grTrfSubs)
+	  expr . substs = lazy
 %%]
 
 

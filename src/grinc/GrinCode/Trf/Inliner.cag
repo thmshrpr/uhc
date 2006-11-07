@@ -14,15 +14,15 @@ calls. (When no hidden function calls exists anymore.)
 WRAPPER GrAGItf
 %%]
 
-%%[8 hs module {%{GRIN}GrinCode.Trf.DropUnusedBindings} import(qualified Data.Set as Set,qualified Data.Map as Map,Data.Graph,Data.List,Data.Array)
+%%[8 hs module {%{GRIN}GrinCode.Trf.Inliner} import(qualified Data.Set as Set,qualified Data.Map as Map,Data.Graph,Data.List,Data.Array as Array)
 type EdgeF   = [Edge] -> [Edge]
 type VertexF = [Vertex] -> [Vertex]
 
-type CallList = Map Vertex CallInfo
+type CallList = Map.Map Vertex CallInfo
 type CallInfo = (CallType, Int, Int) -- type, use, occurences
 data CallType = Call | TailCall | BothCall deriving (Eq, Show)
 
-type GlobalCallInfo = (Int, Int, Maybe (Int, Bool, GrExpr, [HsName])) -- use and occurences, sizeIncrease, knownReturns
+--type GlobalCallInfo = (Int, Int, Maybe (Int, Bool, GrExpr, [HsName])) -- use and occurences, sizeIncrease, knownReturns
 data GlobalCallInfo = GlobalCallInfo
   { use :: Int
   , occ :: Int
@@ -38,17 +38,17 @@ data PrivateCallInfo = PrivateCallInfo
 
 mkSimpleCallInfo u o = GlobalCallInfo { use = u, occ = o, privateInfo = Nothing }
 
-type GlobalCallInfoMap = Map Vertex GlobalCallInfo
+type GlobalCallInfoMap = Map.Map Vertex GlobalCallInfo
 
 type NodeInfo  = (Vertex, CallList)
 type NodeInfoF = [NodeInfo] -> [NodeInfo]
 %%]
 
-%%[8 hs import({%{EH}Base.Common}, {%{GRIN}GRINCCommon}, {%{EH}GrinCode}) export(dropUnusedBindings)
-dropUnusedBindings :: HsName -> IdentNameMap -> GrModule -> (GrModule, String)
-dropUnusedBindings e m grmod = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod))
-                                                    (Inh_GrAGItf { entry_Inh_GrAGItf = e, nameMap_Inh_GrAGItf = m })
-                               in (grTrf_Syn_GrAGItf t, dot_Syn_GrAGItf t)
+%%[8 hs import({%{EH}Base.Common}, {%{GRIN}GRINCCommon}, {%{EH}GrinCode}) export(inliner)
+inliner :: HsName -> IdentNameMap -> GrModule -> (GrModule, String)
+inliner e m grmod = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod))
+                               (Inh_GrAGItf { entry_Inh_GrAGItf = e, nameMap_Inh_GrAGItf = m })
+                    in (grTrf_Syn_GrAGItf t, dot_Syn_GrAGItf t)
 %%]
 
 %%[8
@@ -62,7 +62,6 @@ ATTR GrAGItf GrModule [ entry: HsName  nameMap: IdentNameMap | | dot: String ]
 ATTR AllBind            [ | | biggest USE {`max`} {minBound}: Int
                               smallest USE {`min`} {maxBound}: Int
                               nodes USE {.} {id}: NodeInfoF
-                              info USE {.} {id}: GlobalInfoF -- call info for the WHOLE program
                         ]
 ATTR AllGrExpr          [ | | calls USE {`undefined`} {Map.empty}: CallList ]
 
@@ -89,10 +88,20 @@ SEM GrVal [ | | knownTag USE {`constfalse`} {False} : Bool ]
   | Tag    lhs.knownTag = True
   | Var    lhs.knownTag = True --TODO: lookup the possible tags
 
+{
+constfalse _ _ = False
+}
+
 --
 --
 
-ATTR GrBindL GrBind [ GlobalCallInfoMap | globalCallInfoGath : GlobalCallInfoMap | ]
+ATTR AllGrNT [ globalCallInfo : GlobalCallInfoMap | | ]
+SEM GrModule
+  | Mod  bindL  .  globalCallInfoGath = Map.empty
+                .  globalCallInfo = @globalCallInfo
+         loc    .  globalCallInfo = @bindL.globalCallInfoGath
+
+ATTR GrBindL GrBind [ | globalCallInfoGath : GlobalCallInfoMap | ]
 
 SEM GrBind
   | Bind  loc   .  bindNr    = getNr @nm
@@ -142,9 +151,12 @@ SEM GrModule
   | Mod  loc  .  nodes  = @bindL.nodes []
               .  graph  = let buildNode prev outlist = Map.keys outlist 
                           in accumArray buildNode undefined (@bindL.smallest, @bindL.biggest) @nodes -- map & array in one run :) efficiency
-              .  info   = @bindL.info Map.empty
+              . loopBreakers = findLoopBreakers @graph @globalCallInfo
+         bindL . loopBreakers = @loopBreakers
+         bindL . preInline    = Map.filter (preInlineUnconditionally @globalCallInfo) $ Map.keys @graph \\ @loopBreakers
 %%]
 
+%%[8
 {
 maxim :: (Ord b, Bounded b) => (a -> b) -> [a] -> a
 maxim f [x] = x
@@ -160,60 +172,65 @@ onceSafe  i = use i == 1 && occ i == 1
 multiSafe i = use i == 1
 
 findLoopBreakers :: Graph -> GlobalCallInfoMap -> [Vertex]
-findLoopBreakers g info = concatMap (visit . flatten) forest
+findLoopBreakers g info = concatMap (visit . Tree.flatten) forest
 	where forest = scc g -- scc analysis, topologically ordered
 	      -- the component is a [Vertex]
 	      visit :: [Vertex] -> [Vertex]
-	      visit c | c == [v] && not selfRecursive g v = []
-		          | otherwise 			              = loopBreaker : findLoopBreakers g'
+	      visit c@[v] | not selfRecursive g v = []
+		              | otherwise 			  = loopBreaker : findLoopBreakers g'
 		where loopBreaker = maxim (heuristic g) c
 		      selfRecursive g v = v `elem` g!v
 		      heuristic g v | selfRecursive g v                 = maxBound -- we really don't want to inline v, so most high score for loop breaking
 				            | preInlineUnconditionally g info v = minBound -- we really do want to inline v 
-		      g' = deleteTerminatingEdges g v
+		      g' = deleteTerminatingEdges g loopBreaker
  
 deleteTerminatingEdges :: Graph -> Vertex -> Graph
 deleteTerminatingEdges g v = array (bounds g) [ (vertex, vertices \\ v) | (vertex, vertices) <- Array.elems g ]
 
 noSizeIncrease :: GlobalCallInfo -> Bool
-noSizeIncrease i = size (privateInfo i) =< 0
+noSizeIncrease i = size (privateInfo i) <= 0
 
 resultDiscount :: GlobalCallInfo -> Bool
 resultDiscount i | known (privateInfo i) = knownResultDiscount
                  | otherwise   = 0
 
 preInlineUnconditionally :: GlobalCallInfoMap -> Vertex -> Bool
-preInlineUnconditionally info v | noSizeIncrease vInfo = True -- GRIN calls don't have environments that matter for this computation
-                                | otherwise            = onceSafe vInfo -- counts
-    where vInfo = (Map.lookup v info)
+preInlineUnconditionally info v
+  | noSizeIncrease vInfo = True -- GRIN calls don't have environments that matter for this computation
+  | otherwise            = onceSafe vInfo -- counts
+     where vInfo = (Map.lookup v info)
 }
 
 -- ATTR AllGrExpr [ | | lookupArgs: {HsName} ]
 -- ATTR AllGrExpr [ lookupArgs: {HsName} | | scoreArgs: Map.Map HsName Bool ]
+%%]
 
 
-
+%%[8
 -- test
+{
 inlineTreshold = 7 
 knownResultDiscount = 1
+}
 
 -- callSiteInline
-ATTR AllGrNT [ loopBreakers: {Set Vertex}  preInline: {Set Vertex}  dynamicKnown: {Set HsName} | | grTrf: SELF]
+ATTR AllGrNT [ loopBreakers: {Set.Set Vertex}  preInline: {Set.Set Vertex}  dynamicKnown: {Set.Set HsName} | | ]
 SEM GrExpr
-  | Call	loc . preInline      = Set.member key @lhs.preInline
-                . callSiteInline = ( sizeIncrease -- size of Call is constant in GRIN (ever saturated application)
+  | Call	loc . key            = (getNr @nm)
+                . info           = Map.lookup @key @lhs.globalCallInfo
+                . preInline      = Set.member @key @lhs.preInline
+                . callSiteInline = ( (size @info) -- size of Call is constant in GRIN (ever saturated application)
                                       -- @argL.discount
-                                      -- (resultDiscount vInfo)
+                                      -- (resultDiscount @info)
                                       -- TODO for other trafo's  interesting: Int
                                    ) < inlineTreshold 
-            lhs . grTrf  = if not (Set.member key @lhs.loopBreakers) && ( @preInline || @callSiteInline )
-                           then substituteVars (code vInfo) $ Map.union freshSubs (Map.fromList $ zip (args vInfo) @argL)
+            lhs . grTrf  = if not (Set.member @key @lhs.loopBreakers) && ( @preInline || @callSiteInline )
+                           then substituteVars (code @info) $ Map.union freshSubs (Map.fromList $ zip (args @info) @argL)
                            else (GrExpr_Call @nm @argL) -- self
-                                where key = (getNr @nm)
-                                      vInfo = Map.lookup key @lhs.globalCallInfoMap
 
 -- ATTR GrValL [ | | discount: Int ]
 -- SEM GrValL
+%%]
 
 %%[8.dropUnusedBindings
 ATTR AllBind [ lifeBindings: {Set.Set Int} | | ]

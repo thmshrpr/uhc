@@ -108,14 +108,24 @@ caIdentity = do
     modify (gcsUpdateGrinCode code)
 %%]
 
-[8.caseHoisting import({%{GRIN}GrinCode.Trf.CaseHoisting})
+%%[8.identity import({%{GRIN}GrinCode.Trf.Inliner})
+
+caInliner :: CompileAction ()
+caInliner = do
+    putMsg VerboseALot "Inliner Trans" Nothing
+    code <- gets gcsGrinCode
+    code <- return $ inliner code
+    modify (gcsUpdateGrinCode code)
+%%]
+
+%%[8.caseHoisting import({%{GRIN}GrinCode.Trf.CaseHoisting})
 caCaseHoisting :: CompileAction ()
 caCaseHoisting = do
     putMsg VerboseALot "Case Hoisting" Nothing
     code <- gets gcsGrinCode
     code <- return $ caseHoisting code
     modify (gcsUpdateGrinCode code)
-]
+%%]
 
 %%[8.cleanup import({%{GRIN}GrinCode.Trf.CleanupPass})
 caCleanupPass :: CompileAction ()
@@ -126,7 +136,7 @@ caCleanupPass = do
     modify (gcsUpdateGrinCode code)
 %%]
 
-%%[8.dropUnusedBindings import({%{GRIN}GrinCode.Trf.DropUnusedBindings})
+%%[800.dropUnusedBindings import({%{GRIN}GrinCode.Trf.DropUnusedBindings})
 caDropUnusedBindings :: CompileAction ()
 caDropUnusedBindings = do
     { putMsg VerboseALot "Remove unused function bindings" Nothing
@@ -442,7 +452,8 @@ caOptimizePartly = task_ VerboseNormal "Optimizing (partly)"
     ( do { caSparseCase
          ; caEliminateCases -- trivial, evaluated case
          ; caDropUnusedExpr
-         ; caDropUnusedBindings
+         --; caDropUnusedBindings
+         ; caInliner
          ; caWriteGrin True "4-partlyOptimized"
          }
     )
@@ -457,7 +468,7 @@ caNormalize = task_ VerboseNormal "Normalizing"
 caOptimize = task_ VerboseNormal "Optimizing (full)"
     ( do { caCopyPropagation -- caFix
          ; caWriteGrin True "6-after-cp"
-         -- ; caCaseHoisting
+         ; caCaseHoisting
          ; caWriteGrin True "6-after-hoisting"
          ; caDropUnusedExpr
          ; caWriteGrin True "7-optimized"
