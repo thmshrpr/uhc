@@ -114,7 +114,24 @@ SEM Value
   | Call        loc.ptrtype  = ThunkPtr ----- NOT SURE ABOUT THIS EITHER
                 lhs.ptrtype  = @loc.ptrtype
 
+--------------------------------------------------------------------------------
+-- LHS/RHS ROLE	FOR VARIABLES
+--------------------------------------------------------------------------------
+{
+data Side = LHS | RHS
+}
 
+ATTR Variables Variable [ side : {Side} | | ]
+
+SEM Statement
+  |  Assignment  dest.side   = LHS
+
+SEM Variable
+  |  Subs        array.side  = RHS
+
+SEM Value
+  | Var          var.side    = RHS
+  
 --------------------------------------------------------------------------------
 -- MODULE GENERATION
 --------------------------------------------------------------------------------
