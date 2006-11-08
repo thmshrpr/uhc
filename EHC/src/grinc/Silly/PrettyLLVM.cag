@@ -3,7 +3,7 @@
 %include afp.fmt
 %%]
 
-%%[8 hs module {%{GRIN}Silly.PrettyLLVM} import(Data.List(intersperse), Data.Maybe, Data.List, Debug.Trace, UU.Pretty, EH.Util.PPUtils,{%{GRIN}GRINCCommon},{%{GRIN}Silly}, {%{GRIN}Config}) export(prettyLL)
+%%[8 hs module {%{GRIN}Silly.PrettyLLVM} import(Data.List(intersperse), Char, Data.Maybe, Data.List, Debug.Trace, UU.Pretty, EH.Util.PPUtils,{%{GRIN}GRINCCommon},{%{GRIN}Silly}, {%{GRIN}Config}) export(prettyLL)
 %%]
 
 %%[8 import({Silly/AbsSyn})
@@ -447,39 +447,34 @@ SEM Constant
 
 {
 call :: String -> PP_Doc
-call f = "tail call" >#< "void" >#< "%" >|< f >#< "()" 
+call f = "tail call" >#< "void" >#< pct f >#< "()" 
 
 ptrAdd :: String -> String -> PtrType -> Int -> PP_Doc
-ptrAdd l r ty i = ptrAdd' (text l) (text r) ty (text $ show i)
-
-ptrAdd' :: PP_Doc -> PP_Doc -> PtrType -> PP_Doc -> PP_Doc
-ptrAdd' l r ty i = "%" >|< l >#< "= getelementptr" 
-                       >#< ptr ty >#< "%" >|< r 
-                       >|< ", int" >#< i
+ptrAdd l r ty i = pct l >#< "= getelementptr" 
+                        >#< ptr ty >#< pct r 
+                        >|< ", int" >#< i
 
 load :: String -> Int -> PtrType -> PP_Doc
-load nm i p = load' (text nm) (text $ show i) p
-
-load' :: PP_Doc -> PP_Doc -> PtrType -> PP_Doc
-load' nm i p = "%" >|< nm >|< "." >|< i >#< "= load" >#< ptr p >#< "%" >|< nm
+load nm i p = pct nm >|< "." >|< i >#< "= load" >#< ptr p >#< pct nm
 
 store :: String -> PtrType -> String -> PP_Doc
-store val ty adr = store' (text val) ty (text adr)
-
-store' :: PP_Doc -> PtrType -> PP_Doc -> PP_Doc
-store' val ty adr = "store" >#< ptr ty >#< "%" >|< val 
-                            >|< "," >#< ptrptr ty >#< "%" >|< adr
+store val ty adr = "store" >#< ptr ty >#< pct val 
+                           >|< "," >#< ptrptr ty >#< pct adr
 
 cast :: String -> PtrType -> String -> PtrType -> PP_Doc
-cast lhs ty var ty' = "%" >|< lhs >#< "= cast" 
-                          >#< ptr ty >#< "%" >|< var 
-                          >#< "to" >#< ptr ty'
+cast lhs ty var ty' = pct lhs >#< "= cast" 
+                              >#< ptr ty >#< pct var 
+                              >#< "to" >#< ptr ty'
 
 heapalloc :: Int -> PP_Doc
 heapalloc ps = "tail call %thunk_type*" 
                >#< "%heapalloc (uint " 
                >|< ps 
                >|< ")"
+
+pct :: String -> String
+pct s = if isNumber s then s else "%" ++ s
+   where isNumber s = foldr (&&) True $ map isDigit s
 
 showSubs :: [(String,String)] -> String
 showSubs []  = ""
