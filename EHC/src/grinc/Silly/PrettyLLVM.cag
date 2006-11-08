@@ -242,7 +242,7 @@ SEM Value
                 lhs.resultName = @var.resultName
   | Call        lhs.code       = text "CALL"
                 lhs.resultName = "CALL-RESULT-NAME"
-  | Alloc       lhs.code       = @result >#< "=" >#< heapalloc @size
+  | Alloc       lhs.code       = "%" >|< @result >#< "=" >#< heapalloc @size
                 lhs.resultName = @result
                 loc.result     = "alloc." ++ show @uniq
                 loc.uniq       = @lhs.uniq
@@ -453,7 +453,9 @@ ptrAdd :: String -> String -> PtrType -> Int -> PP_Doc
 ptrAdd l r ty i = ptrAdd' (text l) (text r) ty (text $ show i)
 
 ptrAdd' :: PP_Doc -> PP_Doc -> PtrType -> PP_Doc -> PP_Doc
-ptrAdd' l r ty i = l >#< "= getelementptr" >#< ptr ty >#< r >|< ", int" >#< i
+ptrAdd' l r ty i = "%" >|< l >#< "= getelementptr" 
+                       >#< ptr ty >#< "%" >|< r 
+                       >|< ", int" >#< i
 
 load :: String -> Int -> PtrType -> PP_Doc
 load nm i p = load' (text nm) (text $ show i) p
@@ -465,10 +467,13 @@ store :: String -> PtrType -> String -> PP_Doc
 store val ty adr = store' (text val) ty (text adr)
 
 store' :: PP_Doc -> PtrType -> PP_Doc -> PP_Doc
-store' val ty adr = "store" >#< ptr ty >#< val >|< "," >#< ptrptr ty >#< adr
+store' val ty adr = "store" >#< ptr ty >#< "%" >|< val 
+                            >|< "," >#< ptrptr ty >#< "%" >|< adr
 
 cast :: String -> PtrType -> String -> PtrType -> PP_Doc
-cast lhs ty var ty' = lhs >#< "= cast" >#< ptr ty >#< var >#< "to" >#< ptr ty'
+cast lhs ty var ty' = "%" >|< lhs >#< "= cast" 
+                          >#< ptr ty >#< "%" >|< var 
+                          >#< "to" >#< ptr ty'
 
 heapalloc :: Int -> PP_Doc
 heapalloc ps = "tail call %thunk_type*" 
