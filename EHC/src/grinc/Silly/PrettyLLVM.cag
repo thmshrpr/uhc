@@ -183,7 +183,10 @@ ATTR Variable Value [ | | resultName : {String} ]
 SEM Statement
   | Comment     lhs.code   = comment @comment
 
-  | Assignment  lhs.code   = @source.code 
+  | Assignment  lhs.code   = ";------------------------------------------------------"
+                             >-< (";" >#< @dest.descr >#< "=" >#< @source.descr >|< @sbs)
+                             >-< ";------------------------------------------------------"
+                             >-< @source.code 
                              >-< @dest.code 
                              >-< if @dest.local
                                  then if @doCast
@@ -217,7 +220,7 @@ SEM Statement
                 lhs.subs    = if @dest.local && not @doCast
                               then (@dest.resultName, @source.resultName) : @lhs.subs
                               else @lhs.subs
-
+                loc.sbs    = "   " >|< showSubs (@dest.asubs ++ @source.asubs)
   | Switch      lhs.code   = text "SWITCH"
   | Call        lhs.code   = text "CALL"
   | Jump        lhs.code   = text "JUMP"
@@ -252,7 +255,9 @@ SEM Constant
   | Literal     lhs.code   = text $ show @value
                 lhs.value  = @value
   | Alias       lhs.code   = "" >|< get @name @lhs.constants
-                lhs.value  = get @name @lhs.constants
+                lhs.value  = @val
+                loc.val    = get @name @lhs.constants
+                lhs.asubs  = [(@name, show @val)]
 
 SEM Variable
   | Var         lhs.code   = if @lhs.islocal @name
@@ -266,6 +271,9 @@ SEM Variable
                                  then @name'
                                  else @name' ++ show @loc.uniq
                 loc.name'      = maybe @name id $ lookup @name @lhs.subs
+                lhs.asubs      = if @name == @name'
+                                 then []
+                                 else [(@name,@name')]
   | SP          lhs.code       = load "SP" @uniq @ty
                 lhs.resultName = "SP." ++ show @uniq
                 loc.uniq       = @lhs.uniq
@@ -406,23 +414,31 @@ SEM Value
 -- COMMENTING CODE
 --------------------------------------------------------------------------------
 
-ATTR Variable Value Constant [ | | descr : {PP_Doc} ]
+ATTR Variable Value Constant [ | | descr : {PP_Doc} asubs : {[(String,String)]} ]
 
 SEM Variable
   |  Var    lhs.descr = text @name
   |  Subs   lhs.descr = @array.descr >|< "[" >|< @index.descr >|< "]"
+            lhs.asubs = @array.asubs
   |  SP     lhs.descr = text "SP"
+            lhs.asubs = []
   |  BP     lhs.descr = text "BP"
+            lhs.asubs = []
   |  RP     lhs.descr = text "RP"
+            lhs.asubs = []
 
 SEM Value
   | Con     lhs.descr = @con.descr
+            lhs.asubs = []
   | Var     lhs.descr = @var.descr
   | Alloc   lhs.descr = "heapalloc(" >|< @size >|< ")"
+            lhs.asubs = []
   | Call    lhs.descr = @name >|< "()"
+            lhs.asubs = []
 
 SEM Constant
   | Literal lhs.descr = "" >|< @value
+            lhs.asubs = []
   | Alias   lhs.descr = text @name
 
 --------------------------------------------------------------------------------
@@ -430,7 +446,6 @@ SEM Constant
 --------------------------------------------------------------------------------
 
 {
-
 call :: String -> PP_Doc
 call f = "tail call" >#< "void" >#< "%" >|< f >#< "()" 
 
@@ -456,14 +471,15 @@ cast :: String -> PtrType -> String -> PtrType -> PP_Doc
 cast lhs ty var ty' = lhs >#< "= cast" >#< ptr ty >#< var >#< "to" >#< ptr ty'
 
 heapalloc :: Int -> PP_Doc
-heapalloc ps =  "tail call" 
-            >#< "%thunk_type*" 
-            >#< "%heapalloc" 
-            >#< "(uint " 
-            >|< show ps 
-            >|< ")"
+heapalloc ps = "tail call %thunk_type*" 
+               >#< "%heapalloc (uint " 
+               >|< ps 
+               >|< ")"
+
+showSubs :: [(String,String)] -> String
+showSubs []  = ""
+showSubs xs  = "substitutions: " ++ show xs'
+   where xs' = map (\(a,b) -> a ++ " -> " ++ b) xs
 }
-
-
 
 %%]
