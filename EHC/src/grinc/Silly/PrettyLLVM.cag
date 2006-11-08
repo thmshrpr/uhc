@@ -13,11 +13,9 @@
 prettyLL :: Bool -> Bool -> SilModule -> PP_Doc
 prettyLL optTrace optDef silmod
   = let t = wrap_SilModule (sem_SilModule silmod) --  $ traceit silmod) ---- TESTING!!! 
-                           (Inh_SilModule { optTraceCall_Inh_SilModule = optTrace
-                                          , optCaseDefault_Inh_SilModule = optDef
-                                          }
+                           (Inh_SilModule { }
                            )
-     in  prettyLL_Syn_SilModule t
+     in  code_Syn_SilModule t
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -27,117 +25,20 @@ prettyLL optTrace optDef silmod
 
 WRAPPER SilModule
 
---------------------------------------------------------------------------------
--- INTRODUCTION OF UNIQUE LABEL COUNTER
---------------------------------------------------------------------------------
-ATTR Functions Function Statements Statement  Alternatives 
-     Alternative  Variables Variable Values Value
-[ | unique : {Int} | self : SELF ]
+ATTR SilModule Functions Function 
+     Statements Statement Alternatives 
+     Alternative Value Variable Constant
+     
+     [ | | code USE {>-<} {empty} : PP_Doc ]
 
-SEM SilModule
-  | SilModule   functions.unique = 0
+ATTR Values [ | | codes : {[PP_Doc]} ]
 
-SEM Alternative
-  | Alternative loc.clbl    = @lhs.unique
-                lhs.unique  = @loc.clbl + 1
-
-SEM Statement
-  | Switch      lhs.unique  = @loc.slbl + 1
-                loc.slbl    = @lhs.unique
-SEM Variable
-  | Subs        loc.vlbl    = @lhs.unique
-                lhs.unique  = @loc.vlbl + 1
-  | SP          loc.vlbl    = @lhs.unique
-                lhs.unique  = @loc.vlbl + 1
-  | RP          loc.vlbl    = @lhs.unique
-                lhs.unique  = @loc.vlbl + 1
-  | BP          loc.vlbl    = @lhs.unique
-                lhs.unique  = @loc.vlbl + 1
-
-SEM Value
-  | Con         loc.vlbl    = @lhs.unique
-                lhs.unique  = @loc.vlbl + 1
-  | Var         loc.vlbl    = @lhs.unique
-                lhs.unique  = @loc.vlbl + 1
-  | Alloc       loc.vlbl    = @lhs.unique
-                lhs.unique  = @loc.vlbl + 1
-  | Call        loc.vlbl    = @lhs.unique
-                lhs.unique  = @loc.vlbl + 1
-                
---------------------------------------------------------------------------------
--- PROPAGATING CONSTANT SUBSTITUTIONS
---------------------------------------------------------------------------------
-ATTR Functions Function Statements Statement  Alternatives 
-     Alternative  Variables Variable Values Value Constant
-[ constants : {[(String,Int)]} | | ]
-
-SEM SilModule
-  | SilModule   functions.constants = @constants
-
---------------------------------------------------------------------------------
--- VARIABLE/VALUE POINTER TYPES
---------------------------------------------------------------------------------
-{
-data PtrType = Thunk | ThunkPtr | ThunkPtrPtr
-
-ptr :: PtrType -> PP_Doc
-ptr Thunk          = text "%thunk_type"
-ptr ThunkPtr       = text "%thunk_type*"
-ptr ThunkPtrPtr    = text "%thunk_type**"
-
-ptrptr :: PtrType -> PP_Doc
-ptrptr p = ptr p >|< "*"
-
-}
-
-ATTR Variable Value [ | | ptrtype : {PtrType}]
-
-SEM Variable
-  | Var         loc.ptrtype  = Thunk
-                lhs.ptrtype  = @loc.ptrtype
-  | SP          loc.ptrtype  = ThunkPtrPtr
-                lhs.ptrtype  = @loc.ptrtype
-  | BP          loc.ptrtype  = ThunkPtrPtr
-                lhs.ptrtype  = @loc.ptrtype
-  | RP          loc.ptrtype  = ThunkPtrPtr
-                lhs.ptrtype  = @loc.ptrtype
-  | Subs        loc.ptrtype  = if isJust @array.localName then Thunk else ThunkPtr
-                lhs.ptrtype  = @loc.ptrtype
-
-SEM Value
-  | Con         loc.ptrtype  = Thunk
-                lhs.ptrtype  = @loc.ptrtype
-  | Var         loc.ptrtype  = ThunkPtr
-                lhs.ptrtype  = @loc.ptrtype
-  | Alloc       loc.ptrtype  = ThunkPtr
-                lhs.ptrtype  = @loc.ptrtype
-  | Call        loc.ptrtype  = ThunkPtr ----- NOT SURE ABOUT THIS EITHER
-                lhs.ptrtype  = @loc.ptrtype
-
---------------------------------------------------------------------------------
--- LHS/RHS ROLE	FOR VARIABLES
---------------------------------------------------------------------------------
-{
-data Side = LHS | RHS
-}
-
-ATTR Variables Variable [ side : {Side} | | ]
-
-SEM Statement
-  |  Assignment  dest.side   = LHS
-
-SEM Variable
-  |  Subs        array.side  = RHS
-
-SEM Value
-  | Var          var.side    = RHS
-  
 --------------------------------------------------------------------------------
 -- MODULE GENERATION
 --------------------------------------------------------------------------------
 
 SEM SilModule
-  | SilModule   lhs.prettyLL  = header
+  | SilModule   lhs.code  = header
                                 >-< text ""
                                 >-< comment "Constants"
                                 >-< ppVertically (map constantDefinition @constants)
@@ -149,7 +50,7 @@ SEM SilModule
                                 >-< "implementation"
                                 >-< text ""
                                 >-< text ""
-                                >-< @functions.prettyLL
+                                >-< @functions.code
 
 {
 header :: PP_Doc
@@ -182,346 +83,333 @@ constantDefinition :: (String,Int) -> PP_Doc
 constantDefinition (x,n) = ";" >#< x >#< "=" >#< show n
 
 variableDeclaration :: String -> PP_Doc
-variableDeclaration x = "%" >|< text x >#< "= global %thunk_type* undef"
+variableDeclaration x = "%" >|< text x >#< "= global %thunk_type undef"
 }
 
 --------------------------------------------------------------------------------
 -- FUNCTION DECLARATION GENERATION
 --------------------------------------------------------------------------------
-
 SEM Function
-  | Function    lhs.prettyLL   = prefix >-< indent 3 @body.prettyLL
-                                        >-< indent 3 (text "ret void")
-                                        >-< postfix
+  | Function    lhs.code   = prefix >-< indent 3 @body.code
+                                    >-< indent 3 (text "ret void")
+                                    >-< postfix
                                    where prefix  = "void %" >|< @name >#< "() {"
                                          postfix = "}" >-< text ""
-                body.locals    = @locals
-
 
 --------------------------------------------------------------------------------
--- PARAMETER LOADING
+-- PROPOGATION OF INFORMATION WITHIN FUNCTION
 --------------------------------------------------------------------------------
+ATTR Statements Statement  
+     Alternatives Alternative 
+     Variables Variable 
+     Values Value
+     [ islocal : {String -> Bool} | subs : {[(String,String)]} uniq : {Int} | ]
 
-ATTR Statements Statement Variables Variable 
-     Values Value Alternatives Alternative [ locals : {[String]} | | ]
+SEM Function
+  | Function    body.islocal  = (\x -> x `elem` @locals)
+                body.subs     = []
+                body.uniq     = 0
 
-
-ATTR Variable [ | | localName : {Maybe String} ]
-ATTR Variables Variable [ lclName : {Maybe String} | | ]
-ATTR Values Value [ lclName : {Maybe String} | | ]
-ATTR Variable [ | | isArrayAssign : {Bool} ]
-
-SEM Variable
-  |  Var    lhs.localName = if @name `elem` @lhs.locals then Just @name else Nothing
-  |  Subs   lhs.localName = @array.localName
-  |  SP     lhs.localName = Nothing
-  |  BP     lhs.localName = Nothing
-  |  RP     lhs.localName = Nothing
-
-SEM Variable
-  |  Var    lhs.isArrayAssign = False
-  |  Subs   lhs.isArrayAssign = True
-  |  SP     lhs.isArrayAssign = False
-  |  BP     lhs.isArrayAssign = False
-  |  RP     lhs.isArrayAssign = False
-
-SEM Statement
-  |  Assignment  source.lclName = @dest.localName
-                 dest.lclName   = Nothing
-
-SEM Value
-  | Var          var.lclName   = @lhs.lclName
-  | Call         args.lclName  = Nothing -- @lhs.lclName
-
-
-SEM Statement
-  |  Switch      scrutinee.lclName = Nothing
-  |  Call        args.lclName = Nothing
-
-
--- ppWhen @tailJumps jumpPrepare
-
-
+                
 --------------------------------------------------------------------------------
--- SWITCH STATEMENT GENERATION
+-- PROPAGATING CONSTANT SUBSTITUTIONS
 --------------------------------------------------------------------------------
-ATTR Alternative Alternatives [ break : PP_Doc | | prettyAlt : {(PP_Doc, PP_Doc)}]
-SEM Alternative
-  | Alternative lhs.prettyAlt = (indent 3 tableEntry, targetCode)
-                                   where tableEntry = @when.prettyLL 
-                                                            >|< ", label %" 
-                                                            >|< label
-                                         label      = "case." >|< show @loc.clbl
-                                         targetCode = label >|< ":" 
-                                                            >-< indent 3 
-                                                            ( @body.prettyLL 
-                                                              >-< @lhs.break)
+ATTR Functions Function Statements Statement  Alternatives 
+     Alternative  Variables Variable Values Value Constant
+[ constants : {[(String,Int)]} | | ]
 
-SEM Alternatives
-  | Nil   lhs.prettyAlt  = (text "", text "")
-  | Cons  lhs.prettyAlt  = @hd.prettyAlt `concat` @tl.prettyAlt
-                              where concat (a,b) (c,d) = (a >-< c, b >-< d)
+SEM SilModule
+  | SilModule   functions.constants = @constants
 
-SEM Statement
-  | Switch   body.break = "br %switch_end." >|< @loc.slbl >|< ":"
-
-{
-ppSwitch :: Int -> PP_Doc -> (PP_Doc,PP_Doc) -> PP_Doc
-ppSwitch lbl scrutinee alts = "switch int" >#< scrutinee 
-                                       >|< ", label %switch_trap." >|< show lbl 
-                                       >-< "[" >-< fst alts >|< "]" 
-                                       >-< snd alts
-                                       >|< "%switch_trap." >|< show lbl >|< ":"
-                                       >-< indent 3 (text "tail call void switch_trap()")
-                                       >-< "%switch_end." 
-                                       >|< show lbl
-                                       >|< ":"
-}
-
---------------------------------------------------------------------------------
--- LOAD AND STORE OF VALUES
---------------------------------------------------------------------------------
-ATTR Constant [ | | self : SELF]
-
-
-ATTR Variable Value [ | | before : {Maybe PP_Doc}]
-
-
-----***********************************************************************----
-SEM Variable
-  | Var         lhs.before  = Nothing
-  | SP          loc.var     = "%SP." >|< show @loc.vlbl
-                lhs.before  = Just $ load "SP" @loc.vlbl @loc.ptrtype
-  | BP          loc.var     = "%BP." >|< show @loc.vlbl
-                lhs.before  = Just $ load "BP" @loc.vlbl @loc.ptrtype
-  | RP          loc.var     = "%RP." >|< show @loc.vlbl
-                lhs.before  = Just $ load "RP" @loc.vlbl @loc.ptrtype
-  | Subs        loc.var     = "%array." >|< show @loc.vlbl
-                lhs.before  = Just $ if isJust @array.localName
-                                     then ptrAdd' ("%array." >|< @loc.vlbl)
-                                                  (text $ fromJust @array.localName)
-                                                  ThunkPtr
-                                                  @index.prettyLL
-                                     else loadArray @lhs.lclName
-                                                    (isZero @index.self)
-                                                    @array.prettyLL 
-                                                    @loc.vlbl 
-                                                    @loc.ptrtype
-                                                    @index.prettyLL
-
-
-{-
-ptrAdd' :: PP_Doc -> PP_Doc -> PtrType -> PP_Doc -> PP_Doc
-ptrAdd' l r ty i = l >#< "= getelementptr" >#< ptr ty >#< r >|< ", int" >#< i
-    
-   %array.24.tmp = load %thunk_type* %x_14
-   %array.24 = getelementptr %thunk_type %array.24.tmp, int 1
-
--}
-SEM Value
-  | Con         lhs.before = Nothing
-  | Var         lhs.before = @var.before
-  | Alloc       lhs.before = Just $ (lhs >#< "=" >#< heapalloc @size)
-                                 where lhs = maybe ("%alloc.">|< show @loc.vlbl) 
-                                                   (\x -> ("%" >|< x))
-                                                   @lhs.lclName
-  | Call        lhs.before = Just $ "%call." >|< show @loc.vlbl 
-                                             >#< "="
-                                             >#< call @name -- args not passed explicitly
-
-
-{
-loadArray :: Maybe String -> Bool -> PP_Doc -> Int -> PtrType -> PP_Doc -> PP_Doc
-loadArray lname zero name lbl pty idx = if zero then load0 else load1 -- then deref else deref >-< arith
-   where load0  = var0 >#< "= load" >#< ptrptr pty >#< name
-         var0   = maybe ("%array." >|< lbl) mkName lname
-         load1  = deref >-< arith
-         var1   = maybe ("%array." >|< lbl) mkName lname
-         deref  = tmp >#< "= load" >#< ptrptr pty >#< name
-         arith  = ptrAdd' var1 tmp pty idx
-         tmp    = var1 >|< ".tmp"
-         mkName = (\x -> "%" >|< x)
-
-
-
-isZero :: Constant -> Bool                         
-isZero (Constant_Literal 0) = True
-isZero _           = False
-
-heapalloc :: Int -> PP_Doc
-heapalloc ps =  "tail call" 
-            >#< "%thunk_type*" 
-            >#< "%heapalloc" 
-            >#< "(uint " 
-            >|< show ps 
-            >|< ")"
-
-assign :: Maybe PP_Doc -> Maybe PP_Doc -> PtrType -> PP_Doc -> PP_Doc -> PP_Doc
-assign b1 b2 typ v e = rndr b1 >|< rndr b2 >|< (store' e typ v) >-< ""
-   where rndr b = maybe (text "") (>-< "") b
 
 --------------------------------------------------------------------------------
 -- Function Entry / Exit
 --------------------------------------------------------------------------------
+{
 enter :: Int -> Int -> PP_Doc
-enter i j =  comment "Function Entry"
-         >-< "; store current BasePointer value on Stack"
-         >-< load' (text "BP") (text "deref") ThunkPtrPtr
-         >-< load' (text "SP") (text "deref") ThunkPtrPtr
-         >-< cast "%BP.cast" ThunkPtr "%BP.deref" Thunk -- Why not: ThunkPtrPtr ThunkPtr
-         >-< store "%BP.cast" Thunk "%SP.deref"
-         >-< ""
-         >-< "; Set BasePointer equal to StackPointer"
-         >-< store "%SP.deref" ThunkPtr "%BP" 
-         >-< ""
-         >-< "; increment StackPointer"
-         >-< ptrAdd "%SP.incr" "%SP.deref" ThunkPtr (i+1)
-         >-< store "%SP.incr" ThunkPtr "%SP"
-         >-< ""
-         >-< ""
+enter i j = undefined
 
 exit :: Int -> PP_Doc
-exit i =  comment "Function Exit (TODO)"
-      >-< "; restore StackPointer and BasePointer"
-      >-< store "%SP.deref" ThunkPtr "%SP"
-      >-< cast "%BP.recast" Thunk "%BP.cast" ThunkPtr
-      >-< store "%BP.recast" ThunkPtr "%BP"
-      >-< if i /= 0 
-          then ptrAdd "%SP.incr_exit" "%SP.deref" ThunkPtr i
-               >-< store "%SP.incr_exit" ThunkPtr "%SP"
-          else empty
-      >-< ""
+exit i =  undefined
 }
 
---------------------------------------------
---------------------------------------------
---------------------------------------------
 
+--------------------------------------------------------------------------------
+-- Utility Functions
+--------------------------------------------------------------------------------
 
-ATTR SilModule Functions Function Statements Statement Alternatives Alternative
-  [ optTraceCall     : {Bool} -- when True, function entrance/exit is logged
-    optCaseDefault   : {Bool} -- when True, error messages are given as default case for each switch
-  | | ]
-
-
-ATTR SilModule Functions Function Statements Statement Alternatives Alternative Value Variable Constant
-         [ | | prettyLL USE {>-<} {empty} : PP_Doc ]
-
-ATTR Values [ | | prettyLLs : {[PP_Doc]} ]
-
-ATTR Variable [ | | prettyPtr : {PP_Doc}  ]
-
-{            
-mkLocalAssign :: Bool -> Maybe PP_Doc -> Maybe PP_Doc -> PtrType -> PP_Doc -> PP_Doc -> Maybe String -> PP_Doc
-mkLocalAssign arrayAssign srcBefore destBefore ptype src dest lname
-  = if arrayAssign
-    then assign' srcBefore
-                 destBefore
-                 ptype
-                 (text $ fromJust lname)
-                 (traceloud "src" src)
-    else fromJust srcBefore
-                
-assign' :: Maybe PP_Doc -> Maybe PP_Doc -> PtrType -> PP_Doc -> PP_Doc -> PP_Doc
-assign' b1 b2 typ v e = rndr b1 >|< rndr b2 >|< (store' e typ v) >-< ""
-   where rndr b = maybe (text "") (>-< "") b
-
-}
-
-SEM Statement
-  | Comment     lhs.prettyLL   = comment @comment
-{-
-   ; ---- Store ----
-   %x_14 = tail call %thunk_type* %heapalloc (uint 10) -- OK
-   %array.22 = load %thunk_type** %x_14     -- NO PTRPTR @dest.before
-   store %thunk_type @src.pp, %thunk_type* %array.22  -- should be generated
--}
-{-
-assign :: Maybe PP_Doc -> Maybe PP_Doc -> PtrType -> PP_Doc -> PP_Doc -> PP_Doc
-assign b1 b2 typ v e = rndr b1 >|< rndr b2 >|< (store' e typ v) >-< ""
-   where rndr b = maybe (text "") (>-< "") b
-
--}
-  | Assignment  lhs.prettyLL   = if (isJust @dest.localName)
-                                   then mkLocalAssign @dest.isArrayAssign
-                                                      @source.before 
-                                                      @dest.before
-                                                      Thunk 
-                                                      @source.prettyLL
-                                                      @dest.prettyLL
-                                                      @dest.localName
-                                   else assign @source.before
-                                               @dest.before
-                                               @source.ptrtype
-                                               @dest.prettyLL
-                                               @source.prettyLL
-  | Switch      lhs.prettyLL   = ppSwitch @loc.slbl
-                                         @scrutinee.prettyLL
-                                         @body.prettyAlt
-  | Call        lhs.prettyLL   = call @name  -- no args explicitly passed
-  | Jump        lhs.prettyLL   = jump @name
-  | Enter       lhs.prettyLL   = enter @nLocal @nParam
-  | Leave       lhs.prettyLL   = exit @diff
-
-
-SEM Alternative
-  | Alternative lhs.prettyLL   = text "NOT USED"
-
-SEM Values
-  | Nil         lhs.prettyLLs  = []
-  | Cons        lhs.prettyLLs  = @hd.prettyLL : @tl.prettyLLs
-
-SEM Value
-  | Con         lhs.prettyLL   = @con.prettyLL
-  | Var         lhs.prettyLL   = @var.prettyLL
-  | Call        lhs.prettyLL   = "%call." >|< show @loc.vlbl   -- DONE (ARG FORMAT NEEDS TYPE) 
-  | Alloc       lhs.prettyLL   = "%alloc." >|< show @loc.vlbl
-
-SEM Constant
-  | Literal     lhs.prettyLL   = text $ show @value
-  | Alias       lhs.prettyLL   = text $ get @name @lhs.constants
-
-SEM Variable
-  | Var         lhs.prettyLL   = text "%" >|< @name
-                lhs.prettyPtr = text "%" >|< @name
-  | SP          lhs.prettyLL   = text "%SP"
-                lhs.prettyPtr = text "%SP"
-  | BP          lhs.prettyLL   = @loc.var
-                lhs.prettyPtr = text "%BP"
-  | RP          lhs.prettyLL   = text "%RP"
-                lhs.prettyPtr = text "%RP"
-  | Subs        lhs.prettyLL   = @loc.var >|< (if (isZero @index.self) then "" else ".tmp")
-%%]
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%% Building a C program
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-%%[8 hs
-
-commaSeparated :: [String] -> String
-commaSeparated = concat . intersperse ", "
-
-declareNames :: String -> [String] -> PP_Doc
-declareNames tp ns
- = tp >#< commaSeparated ns >|< ";"
-
-declareName :: String -> String -> String
-declareName tp nm
- = tp ++ (' ' : nm)
-
+{
 comment :: String -> PP_Doc
 comment s = "; ----" >#< s >#< "----"
 
-call :: String -> PP_Doc
-call f = "tail call" >#< "void" >#< "%" >|< f >#< "()" 
+get :: String -> [(String, Int)] -> Int
+get name table = if null res then error msg else head res
+   where res = [ b | (a,b) <- table, a == name]
+         msg = "constant: " ++ name ++ " not found!"
 
-jump :: String -> PP_Doc
-jump nm = call nm 
+p :: Show a => a -> PP_Doc
+p x = text $ show x
+}
+--------------------------------------------------------------------------------
+-- Testing
+--------------------------------------------------------------------------------
+{
+traceit :: Show a => a -> a
+traceit x = trace (show x) x
+
+traceloud :: Show a => String -> a -> a
+traceloud s x = trace (s ++ show x) x
+}
+{-
+test1 = SilModule_SilModule [] [] [func]
+   where func   = Function_Function "func" False ["p1", "p2"] ["loc"] [swtch]
+         swtch  = Statement_Switch (Value_Var (Variable_Var "scr")) [alt1,alt2]
+         alt1   = Alternative_Alternative (Constant_Literal 1) [(Statement_Call "fun1" [])]
+         alt2   = Alternative_Alternative (Constant_Literal 2) [(Statement_Call "fun2" [arg1, arg2])]
+         arg1   = Value_Var (Variable_Var "x")
+         arg2   = Value_Con (Constant_Literal 3)
+-}
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+ATTR Variable Value [ | | resultName : {String} ]
+
+
+
+SEM Statement
+  | Comment     lhs.code   = comment @comment
+
+  | Assignment  lhs.code   = @source.code 
+                             >-< @dest.code 
+                             >-< if @dest.local
+                                 then if @doCast
+                                      then cast @dest.resultName @source.ty 
+                                                @source.resultName @dest.ty    
+                                      else comment $ "aliasing: " 
+                                                  ++ @dest.resultName 
+                                                  ++ " = "
+                                                  ++ @source.resultName -- add to subs 
+                                 else (if @doCast
+                                       then cast @storee 
+                                                 @source.ty 
+                                                 @source.resultName 
+                                                 @storety
+                                       else empty
+                                      )
+                                      >-< store @storee @storety @dest.resultName
+                loc.doCast = if @dest.local
+                             then @dest.ty /= @source.ty
+                             else not $ isPtrTypeOf @dest.ty @source.ty
+                loc.storee = if @doCast 
+                             then "cast." ++ show @uniq
+                             else @source.resultName
+                loc.storety = deref @dest.ty
+
+                loc.uniq    = @lhs.uniq
+                dest.uniq   = @uniq + 1
+                source.uniq = @dest.uniq
+                lhs.uniq    = @source.uniq
+                
+                lhs.subs    = if @dest.local && not @doCast
+                              then (@dest.resultName, @source.resultName) : @lhs.subs
+                              else @lhs.subs
+
+  | Switch      lhs.code   = text "SWITCH"
+  | Call        lhs.code   = text "CALL"
+  | Jump        lhs.code   = text "JUMP"
+  | Enter       lhs.code   = text "ENTER"
+  | Leave       lhs.code   = text "LEAVE"
+
+
+SEM Alternative
+  | Alternative lhs.code   = text "ALT"
+
+SEM Values
+  | Nil         lhs.codes  = []
+  | Cons        lhs.codes  = @hd.code : @tl.codes
+
+SEM Value
+  | Con         lhs.code       = empty
+                lhs.resultName = show @con.code
+  | Var         lhs.code       = @var.code
+                lhs.resultName = @var.resultName
+  | Call        lhs.code       = text "CALL"
+                lhs.resultName = "CALL-RESULT-NAME"
+  | Alloc       lhs.code       = @result >#< "=" >#< heapalloc @size
+                lhs.resultName = @result
+                loc.result     = "alloc." ++ show @uniq
+                loc.uniq       = @lhs.uniq
+                lhs.uniq       = @uniq + 1
+
+
+
+ATTR Constant [ | | value : {Int} ]
+SEM Constant
+  | Literal     lhs.code   = text $ show @value
+                lhs.value  = @value
+  | Alias       lhs.code   = "" >|< get @name @lhs.constants
+                lhs.value  = get @name @lhs.constants
+
+SEM Variable
+  | Var         lhs.code   = if @lhs.islocal @name
+                             then empty -- creates substitution at assign
+                             else if isLHS @lhs.side
+                                  then empty
+                                  else load @name @uniq @ty
+                loc.uniq   = @lhs.uniq
+                lhs.uniq   = @loc.uniq + 1
+                lhs.resultName = if @lhs.islocal @name || isLHS @lhs.side
+                                 then @name'
+                                 else @name' ++ show @loc.uniq
+                loc.name'      = maybe @name id $ lookup @name @lhs.subs
+  | SP          lhs.code       = load "SP" @uniq @ty
+                lhs.resultName = "SP." ++ show @uniq
+                loc.uniq       = @lhs.uniq
+                lhs.uniq       = @loc.uniq + 1
+  | BP          lhs.code       = load "BP" @uniq @ty
+                lhs.resultName = "BP." ++ show @uniq
+                loc.uniq       = @lhs.uniq
+                lhs.uniq       = @loc.uniq + 1
+  | RP          lhs.code       = load "RP" @uniq @ty
+                lhs.resultName = "RP." ++ show @uniq
+                loc.uniq       = @lhs.uniq
+                lhs.uniq       = @loc.uniq + 1
+  | Subs        lhs.code       = @array.code
+                                 >-<
+                                 (if @array.ty /= ThunkPtr
+                                  then (cast ("cast." ++ show @uniq) 
+                                            @array.ty 
+                                            @array.resultName 
+                                            ThunkPtr
+                                        >-< ptrAdd @arithName 
+                                                   ("cast." ++ show @uniq)
+                                                   ThunkPtr
+                                                   @index.value
+                                       )
+                                  else ptrAdd @arithName 
+                                              @array.resultName
+                                              ThunkPtr
+                                              @index.value                
+                                 )
+                                 >-<
+                                 (if isLHS @lhs.side 
+                                  then empty
+                                  else load @arithName (@uniq + 1) ThunkPtr
+                                 )
+                loc.arithName  = "subs." ++ show (@uniq + 1)
+                lhs.resultName = if isLHS @lhs.side
+                                  then @arithName
+                                  else @arithName ++ "." ++ (show $ @uniq + 1)
+                loc.uniq       = @lhs.uniq
+                array.uniq     = @uniq + 2
+                lhs.uniq       = @array.uniq
+
+
+--------------------------------------------------------------------------------
+-- LHS/RHS ROLE	FOR VARIABLES
+--------------------------------------------------------------------------------
+{
+data Side = LHS | RHS
+
+isLHS :: Side -> Bool
+isLHS LHS = True
+isLHS _   = False
+
+isRHS :: Side -> Bool
+isRHS RHS = True
+isRHS _   = False
+
+}
+
+ATTR Variables Variable [ side : {Side} | | ]
+
+SEM Statement
+  |  Assignment  dest.side   = LHS
+SEM Variable
+  |  Subs        array.side  = RHS
+SEM Value
+  | Var          var.side    = RHS
+  
+
+--------------------------------------------------------------------------------
+-- VARIABLE/VALUE POINTER TYPES
+--------------------------------------------------------------------------------
+{
+data PtrType = Thunk | ThunkPtr | ThunkPtrPtr deriving (Show,Eq,Enum)
+
+ptr :: PtrType -> PP_Doc
+ptr Thunk          = text "%thunk_type"
+ptr ThunkPtr       = text "%thunk_type*"
+ptr ThunkPtrPtr    = text "%thunk_type**"
+
+deref :: PtrType -> PtrType
+deref p = pred p
+
+ptrOf :: PtrType -> PtrType
+ptrOf p = succ p
+
+ptrptr :: PtrType -> PP_Doc
+ptrptr p = ptr p >|< "*"
+
+isPtrTypeOf :: PtrType -> PtrType -> Bool
+isPtrTypeOf ptr val = succ val == ptr
+}
+
+ATTR Variable Value [ | | ty : {PtrType}]
+ATTR Variable [ | | local : {Bool}]
+
+SEM Variable
+  | Var         loc.ty    = if @lhs.islocal @name 
+                            then Thunk 
+                            else if isLHS @lhs.side
+                                 then ThunkPtr
+                                 else Thunk
+                lhs.ty    = @loc.ty
+                lhs.local = @lhs.islocal @name
+  | SP          loc.ty    = if isLHS @lhs.side 
+                            then ThunkPtrPtr
+                            else ThunkPtr
+                lhs.ty    = @loc.ty
+                lhs.local = False
+  | BP          loc.ty    = if isLHS @lhs.side 
+                            then ThunkPtrPtr
+                            else ThunkPtr
+                lhs.ty    = @loc.ty
+                lhs.local = False
+  | RP          loc.ty    = if isLHS @lhs.side 
+                            then ThunkPtrPtr
+                            else ThunkPtr
+                lhs.ty    = @loc.ty
+                lhs.local = False
+  | Subs        loc.ty    = if isLHS @lhs.side
+                            then ThunkPtr
+                            else Thunk -- result of array access is always a thunk
+                lhs.ty    = @loc.ty
+                lhs.local = False
+
+SEM Value
+  | Con         loc.ty  = Thunk
+                lhs.ty  = @loc.ty
+  | Var         loc.ty  = @var.ty
+                lhs.ty  = @loc.ty
+  | Alloc       loc.ty  = ThunkPtr
+                lhs.ty  = @loc.ty
+  | Call        loc.ty  = undefined -- calls never occur on rhs
+                lhs.ty  = @loc.ty
+
 
 --------------------------------------------------------------------------------
 -- LL Primitives
 --------------------------------------------------------------------------------
+
+{
+
+call :: String -> PP_Doc
+call f = "tail call" >#< "void" >#< "%" >|< f >#< "()" 
 
 ptrAdd :: String -> String -> PtrType -> Int -> PP_Doc
 ptrAdd l r ty i = ptrAdd' (text l) (text r) ty (text $ show i)
@@ -544,34 +432,15 @@ store' val ty adr = "store" >#< ptr ty >#< val >|< "," >#< ptrptr ty >#< adr
 cast :: String -> PtrType -> String -> PtrType -> PP_Doc
 cast lhs ty var ty' = lhs >#< "= cast" >#< ptr ty >#< var >#< "to" >#< ptr ty'
 
---------------------------------------------------------------------------------
--- Utility Functions
---------------------------------------------------------------------------------
+heapalloc :: Int -> PP_Doc
+heapalloc ps =  "tail call" 
+            >#< "%thunk_type*" 
+            >#< "%heapalloc" 
+            >#< "(uint " 
+            >|< show ps 
+            >|< ")"
+}
 
-get :: String -> [(String, Int)] -> String
-get name table = if null res then error msg else show $ head res
-   where res = [ b | (a,b) <- table, a == name]
-         msg = "constant: " ++ name ++ " not found!"
 
-p :: Show a => a -> PP_Doc
-p x = text $ show x
 
---------------------------------------------------------------------------------
--- Testing
---------------------------------------------------------------------------------
-
-traceit :: Show a => a -> a
-traceit x = trace (show x) x
-
-traceloud :: Show a => String -> a -> a
-traceloud s x = trace (s ++ show x) x
-
-test1 = SilModule_SilModule [] [] [func]
-   where func   = Function_Function "func" False ["p1", "p2"] ["loc"] [swtch]
-         swtch  = Statement_Switch (Value_Var (Variable_Var "scr")) [alt1,alt2]
-         alt1   = Alternative_Alternative (Constant_Literal 1) [(Statement_Call "fun1" [])]
-         alt2   = Alternative_Alternative (Constant_Literal 2) [(Statement_Call "fun2" [arg1, arg2])]
-         arg1   = Value_Var (Variable_Var "x")
-         arg2   = Value_Con (Constant_Literal 3)
-         
 %%]
