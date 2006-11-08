@@ -1,6 +1,4 @@
-target endian = little
 target pointersize = 32
-target triple = "i686-pc-linux-gnu"
 deplibs = [ "c" ]
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -106,5 +104,6 @@ void %switch_trap() {
   ret %thunk_type* %curr_ptr ; Declared unreachable by the heap_overflow_error
 
   no_heap_overflow:
+  store %thunk_type* %new_ptr, %thunk_type** %HP
   ret %thunk_type* %curr_ptr
 }

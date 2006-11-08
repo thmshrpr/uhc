@@ -127,10 +127,35 @@ SEM SilModule
 --------------------------------------------------------------------------------
 {
 enter :: Int -> Int -> PP_Doc
-enter i j = undefined
+enter i j =  
+             comment "Function Entry"
+         >-< "; store current BasePointer value on Stack"
+         >-< load' "BP.deref" "BP" ThunkPtrPtr
+         >-< load' "SP.deref" "SP" ThunkPtrPtr
+         >-< cast "BP.cast" ThunkPtr "BP.deref" Thunk
+         >-< store "BP.cast" Thunk "SP.deref"
+         >-< ""
+         >-< "; Set BasePointer equal to StackPointer"
+         >-< store "SP.deref" ThunkPtr "BP" 
+         >-< ""
+         >-< "; increment StackPointer"
+         >-< ptrAdd "SP.incr" "SP.deref" ThunkPtr (i+1)
+         >-< store "SP.incr" ThunkPtr "SP"
+         >-< ""
+         >-< ""
 
 exit :: Int -> PP_Doc
-exit i =  undefined
+exit i =  
+          comment "Function Exit"
+      >-< "; restore StackPointer and BasePointer"
+      >-< store "SP.deref" ThunkPtr "SP"
+      >-< cast "BP.recast" Thunk "BP.cast" ThunkPtr
+      >-< store "BP.recast" ThunkPtr "BP"
+      >-< if i /= 0 
+          then ptrAdd "SP.incr_exit" "SP.deref" ThunkPtr i
+               >-< store "SP.incr_exit" ThunkPtr "SP"
+          else empty
+      >-< ""
 }
 
 
@@ -223,9 +248,9 @@ SEM Statement
                 loc.sbs    = "   " >|< showSubs (@dest.asubs ++ @source.asubs)
   | Switch      lhs.code   = text "SWITCH"
   | Call        lhs.code   = text "CALL"
-  | Jump        lhs.code   = text "JUMP"
-  | Enter       lhs.code   = text "ENTER"
-  | Leave       lhs.code   = text "LEAVE"
+  | Jump        lhs.code   = call @name
+  | Enter       lhs.code   = enter @nLocal @nParam
+  | Leave       lhs.code   = exit @diff
 
 
 SEM Alternative
@@ -264,26 +289,38 @@ SEM Variable
                              then empty -- creates substitution at assign
                              else if isLHS @lhs.side
                                   then empty
-                                  else load @name @uniq @ty
+                                  else load @name @uniq (ptrOf @ty)
                 loc.uniq   = @lhs.uniq
                 lhs.uniq   = @loc.uniq + 1
                 lhs.resultName = if @lhs.islocal @name || isLHS @lhs.side
                                  then @name'
-                                 else @name' ++ show @loc.uniq
+                                 else @name' ++ "." ++ show @loc.uniq
                 loc.name'      = maybe @name id $ lookup @name @lhs.subs
                 lhs.asubs      = if @name == @name'
                                  then []
                                  else [(@name,@name')]
-  | SP          lhs.code       = load "SP" @uniq @ty
-                lhs.resultName = "SP." ++ show @uniq
+  | SP          lhs.code       = if isLHS @lhs.side
+                                 then empty
+                                 else load "SP" @uniq ThunkPtrPtr
+                lhs.resultName = if isLHS @lhs.side
+                                 then "SP"
+                                 else "SP." ++ show @uniq
                 loc.uniq       = @lhs.uniq
                 lhs.uniq       = @loc.uniq + 1
-  | BP          lhs.code       = load "BP" @uniq @ty
-                lhs.resultName = "BP." ++ show @uniq
+  | BP          lhs.code       = if isLHS @lhs.side
+                                 then empty
+                                 else load "BP" @uniq ThunkPtrPtr
+                lhs.resultName = if isLHS @lhs.side
+                                 then "BP"
+                                 else "BP." ++ show @uniq
                 loc.uniq       = @lhs.uniq
                 lhs.uniq       = @loc.uniq + 1
-  | RP          lhs.code       = load "RP" @uniq @ty
-                lhs.resultName = "RP." ++ show @uniq
+  | RP          lhs.code       = if isLHS @lhs.side
+                                 then empty
+                                 else load "RP" @uniq ThunkPtrPtr
+                lhs.resultName = if isLHS @lhs.side
+                                 then "RP"
+                                 else "RP." ++ show @uniq
                 loc.uniq       = @lhs.uniq
                 lhs.uniq       = @loc.uniq + 1
   | Subs        lhs.code       = @array.code
@@ -456,6 +493,9 @@ ptrAdd l r ty i = pct l >#< "= getelementptr"
 
 load :: String -> Int -> PtrType -> PP_Doc
 load nm i p = pct nm >|< "." >|< i >#< "= load" >#< ptr p >#< pct nm
+
+load' :: String -> String -> PtrType -> PP_Doc
+load' dst src ty = pct dst >#< "= load" >#< ptr ty >#< pct src
 
 store :: String -> PtrType -> String -> PP_Doc
 store val ty adr = "store" >#< ptr ty >#< pct val 
