@@ -19,13 +19,11 @@ type EdgeF   = [Edge] -> [Edge]
 type VertexF = [Vertex] -> [Vertex]
 
 type CallList = Map.Map Vertex CallInfo
-type CallInfo = (CallType, Int, Int) -- type, use, occurences
+type CallInfo = (CallType, Int) -- type, occurences
 data CallType = Call | TailCall | BothCall deriving (Eq, Show)
 
---type GlobalCallInfo = (Int, Int, Maybe (Int, Bool, GrExpr, [HsName])) -- use and occurences, sizeIncrease, knownReturns
 data GlobalCallInfo = GlobalCallInfo
-  { use :: Int
-  , occ :: Int
+  { occ :: Int
   , privateInfo :: Maybe PrivateCallInfo
   }
     deriving Show
@@ -44,7 +42,7 @@ privateCode = code . fromJust . privateInfo
 privateArgs = args . fromJust . privateInfo
 privateSize = size . fromJust . privateInfo
 
-mkSimpleCallInfo u o = GlobalCallInfo { use = u, occ = o, privateInfo = Nothing }
+mkSimpleCallInfo u o = GlobalCallInfo { occ = o, privateInfo = Nothing }
 
 type GlobalCallInfoMap = Map.Map Vertex GlobalCallInfo
 
@@ -114,9 +112,9 @@ ATTR GrBindL GrBind [ | globalCallInfoGath : GlobalCallInfoMap | ]
 
 SEM GrBind
   | Bind  loc   .  bindNr    = getNr @nm
-                .  myInfo    = GlobalCallInfo { use = 0, occ = 0, privateInfo = Just @privInfo }
+                .  myInfo    = GlobalCallInfo { occ = 0, privateInfo = Just @privInfo }
                 .  privInfo  = PrivateCallInfo { size = @sizeIncrease, known = @expr.knownReturn, code = @expr.grTrf, args = @argNmL }
-                .  globalCallInfoUpdate = Map.map (\(_,u,o) -> GlobalCallInfo { use = u, occ = o, privateInfo = Nothing }) @expr.calls -- FIXME efficiency?
+                .  globalCallInfoUpdate = Map.map (\(_,o) -> GlobalCallInfo { occ = o, privateInfo = Nothing }) @expr.calls -- FIXME efficiency?
           lhs   .  smallest  = @bindNr -- 'singleton' interval
                 .  biggest   = @bindNr
                 .  nodes     = ( (@bindNr, @expr.calls) :)
@@ -125,34 +123,28 @@ SEM GrBind
 
 {
 mergeGlobal :: GlobalCallInfo -> GlobalCallInfo -> GlobalCallInfo
-mergeGlobal a b = GlobalCallInfo { use = use a `max` use b, occ = occ a + occ b, privateInfo = privateInfo a `some` privateInfo b }
+mergeGlobal a b = GlobalCallInfo { occ = occ a + occ b, privateInfo = privateInfo a `some` privateInfo b }
     where some Nothing c = c
           some c Nothing = c
 }
 
 SEM GrAltL
-  | Cons  lhs   .  calls     = Map.unionWith mergeBranches @hd.calls @tl.calls         
+  | Cons  lhs   .  calls     = Map.unionWith mergeInfo @hd.calls @tl.calls         
   | Nil   lhs   .  calls     = Map.empty
 
-{
-mergeType :: CallType -> CallType -> CallType
-mergeType tp tp' = if tp == tp' then tp else BothCall
-}
-
-{
-mergeBranches :: CallInfo -> CallInfo -> CallInfo
-mergeBranches (tp,use,occ) (tp',use',occ') = (mergeType tp tp', max use use', occ + occ')
-}
-
 SEM GrExpr
-  | Seq   lhs  .  calls      =  Map.unionWith mergeSeq @expr.calls @body.calls
+  | Seq   lhs  .  calls      =  Map.unionWith mergeInfo @expr.calls @body.calls
   | Call  loc  .  callType   =  if @isLastExpr then TailCall else Call
           lhs  .  calls      =  Map.singleton (getNr @nm) (@callType, 1, 1)
 
 {
-mergeSeq :: CallInfo -> CallInfo -> CallInfo
-mergeSeq (tp,use,occ) (tp',use',occ') = (mergeType tp tp', use + use', occ + occ')
+mergeType :: CallType -> CallType -> CallType
+mergeType tp tp' = if tp == tp' then tp else BothCall
+
+mergeInfo :: CallInfo -> CallInfo -> CallInfo
+mergeInfo (tp,occ) (tp',occ') = (mergeType tp tp', occ + occ')
 }
+
 %%]
 
 %%[8.graph
@@ -175,11 +167,6 @@ maxim f (x:xs) | fx == maxBound = (x, fx)
                | otherwise      = (x, fx)
     where fx = f x
           m@(mxs, mfxs) = maxim f xs
-
-onceSafe :: GlobalCallInfo -> Bool
-multiSafe :: GlobalCallInfo -> Bool
-onceSafe  i = use i == 1 && occ i == 1
-multiSafe i = use i == 1
 
 findLoopBreakers :: Graph -> GlobalCallInfoMap -> [Vertex]
 findLoopBreakers g info = concatMap (visit . Tree.flatten) forest
@@ -209,7 +196,7 @@ resultDiscount i | privateKnown i = knownResultDiscount
 preInlineUnconditionally :: GlobalCallInfoMap -> Vertex -> Bool
 preInlineUnconditionally info v
   | noSizeIncrease vInfo = True -- GRIN calls don't have environments that matter for this computation
-  | otherwise            = onceSafe vInfo -- counts
+  | otherwise            = occ vInfo == 1 -- counts
      where vInfo = fromJust (Map.lookup v info)
 }
 
@@ -296,7 +283,7 @@ mkNodeEdges nm lns sf (n,es) =
          node   =  ( (show n ++ " [ label = \"" ++ getName nm n ++ "\"" ++ style ++ "];") :)
     in Map.foldWithKey (mkEdge n) (sf . node) es
 
-mkEdge from to (callType,_,_) sf = sf . ( (show from ++ " -> " ++ show to ++ style) :)
+mkEdge from to (callType,_) sf = sf . ( (show from ++ " -> " ++ show to ++ style) :)
     where
     style = case callType of
                Call      ->  ";"

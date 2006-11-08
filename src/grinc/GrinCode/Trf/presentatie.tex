@@ -1,0 +1,106 @@
+\documentclass{article}
+\usepackage[dutch]{babel}
+\begin{document}
+
+\newcommand{\grin}{{\textsc{\textb{GRIN}}}}
+\newcommand{\ehc}{{\textsc{\textb{EHC}}}}
+
+\title{Secrets of the \ehc \grin Transformations}
+\author{Aris van Dijk \\ Gideon Smeding}
+\maketitle
+
+\tableofcontents
+
+\section{Identity}
+A most innovative part of the \ehc \grin transformations is The Identity Transformation. Due to censure, we are not allowed to explain technical details about the tool. We currently run this transformation 7 times (it should be regarded as an Example for new made trafo's).
+
+\section{Case Hoisting}
+
+
+\section{Inlining}
+Initiated from this\cite{Simons}. Inlining in \grin falls apart into \emph{copy propagation} and \emph{(late) call inlining}.
+
+\subsection{Boquist}
+\emph{Late} inlining has value because it is done after inlining the $eval$ and $apply$ functions, which add \texttt{Call}s to the code. \grin has no unknown calls.
+
+Boquist only inlines functions on two criteria (see p. 137):
+\begin{enumerate}
+\item called only once (and non-recursively)
+\item size is smaller than a certain limit
+\end{enumerate}
+
+\subsection{Simons}
+Because \grin is lower order, inlining is more restricted. The question "What is inlining?" (section 2.1) thus has a different -- and simpler -- answer: it is inlining of known functions at \texttt{Call} constructs in \grin \texttt{Expr}s.
+
+\subsubsection{factors}
+\begin{description}
+\item[work duplication] will not occur for \emph{call} inlining in \grin, because results of \texttt{Call}s are always bound to \texttt{Var}s\footnote{Work would only be duplicated in the case of \emph{copy propagation}: if we `inlined' a bind to an \emph{evaluated} value, this \emph{evaluation} would be spread across code. The \texttt{Seq} structure of \grin, however, \emph{always} leaves binds and forces evaluation.}; unless we inline recursively! -- we construct the call graph (see below) to prevent it
+\item[code duplication] the first criterium of Boquist: is the function called only once? -- we count all occurences
+\item[transformation exposal] more investigation has to be done on \grin transformations of how to get the most of it\ldots -- see the scoring of context-conditional inlining below
+\end{description}
+
+We don't need the indicators $MultiSafe$, $OnceUnsafe$, $MultiUnsafe$: we don't have unsafe contexts (because of the lower \grin), and no similar threat for work duplication.
+
+\subsubsection{synthesizing call information}
+Called the \emph{occurence analyser}.
+
+\begin{itemize}
+\item call graph information
+\begin{itemize}
+\item occurrence counts
+\item tailcall, just call, or bothcall information
+\end{itemize}
+\item bind information
+\begin{itemize}
+\item size (minus the size of the argument list)
+\item if the function returns a \emph{known} tag
+\item for the actual inlining: code of the body, and the names of the parameters
+\end{itemize}
+\end{itemize}
+
+\subsubsection{keeping track of context}
+TODO: dynamicKnown
+
+\subsubsection{call graph analysis}
+We follow the exact algorithm of p. 8.
+
+\subsubsection{context-independent inlining}
+\paragraph{PreInlineUnconditionally}
+
+We need the criterium of once-occurrence: $OnceSafe$ or $MultiSafe$, therefore we need counts.
+
+Moreover, because the \grin context won't change much after inlining the function (except after other transformations!\footnote{Which is covered by the \grin specific version of $boring$.}), the property $noSizeIncrease$ can be considered context-independent.
+
+\paragraph{PostInlineUnconditionally}
+TODO: make!
+TODO: size of function must be computed from expr.grTrf.size! (otherwise just inlined code size is ignored!)
+
+\subsubsection{context-conditional inlining}
+This was called \emph{CallSiteInline}.
+
+What we implemented: function \emph{considerInline} as a synthization of the attribute \texttt{grTrf}, the result of the transformation. We need criterium \emph{inline}, and in that function, to distinguish between:
+\begin{description}
+\item[LoopBreaker] we have an inherited set \texttt{loopBreakers}
+\item[OnceSafe] (which has been done before) we use an inherited set \texttt{preInlines}
+\item[MultiSafe] we jump into function \emph{inlineMulti} for closer analyse 
+\end{description}
+
+The last case \emph{inlineMulti} falls apart into a considering of the \emph{boring}ness of the context for the call, and otherwise a calculation of a \emph{smallEnough} score.
+
+The property \emph{boring} looks for the dynamic information of the arguments of the function; apparently known arguments (which are substituted in the function) will open up for other transformations.
+
+It should be noticed that to the criteria of the article, all call contexts in \grin are \emph{veryBoring} (no functions return lambda's, no functions are scrutinized by a \texttt{Case}). 
+
+Thus the \emph{boring} criterium only checks if not all arguments of the call have the \emph{dynamic} information unknown: that would be boring indeed.
+
+In the \emph{smallEnough} score we again find considerations about opening up new transformations: the \emph{argument discount} and \emph{result discount}. 
+
+The many other \grin transformations may like to have more criteriums added to decide for the interestingness of the context. The score should be tuned that way.
+
+Here, finally, also the size of the function is used.
+
+\begin{thebibliography}{Secrets}
+\bibitem{Simons} Secrets of the Glasgow Haskell Compiler inliner, Simon Peyton Jones and Simon Marlow, 1 sep 1999.
+\end{thebibliography}
+
+\end{document}

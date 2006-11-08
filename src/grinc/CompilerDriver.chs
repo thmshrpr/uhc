@@ -149,26 +149,6 @@ caCleanupPass = do
     modify (gcsUpdateGrinCode code)
 %%]
 
-%%[800.dropUnusedBindings import({%{GRIN}GrinCode.Trf.DropUnusedBindings})
-caDropUnusedBindings :: CompileAction ()
-caDropUnusedBindings = do
-    { putMsg VerboseALot "Remove unused function bindings" Nothing
-    ; code  <- gets gcsGrinCode
-    ; entry <- gets gcsEntry
-    ; vm    <- gets gcsOrigNms
-    ; (code, dot) <- return $ dropUnusedBindings entry vm code
-    ; modify (gcsUpdateGrinCode code)
-    ; outputCallGraph <- gets (ehcOptDumpCallGraph . gcsOpts)
-    ; when outputCallGraph
-        (do { input <- gets gcsPath
-            ; let output = fpathSetSuff "dot" input
-            ; putMsg VerboseALot ("Writing call graph to " ++ fpathToStr output) Nothing
-            ; liftIO $ writeToFile dot output
-            }
-        )
-    }
-%%]
-
 %%[8.dropUnusedExpr import({%{GRIN}GrinCode.Trf.DropUnusedExpr})
 caDropUnusedExpr :: CompileAction ()
 caDropUnusedExpr = do
@@ -465,7 +445,6 @@ caOptimizePartly = task_ VerboseNormal "Optimizing (partly)"
     ( do { caSparseCase
          ; caEliminateCases -- trivial, evaluated case
          ; caDropUnusedExpr
-         --; caDropUnusedBindings
          ; caInliner
          ; caWriteGrin True "4-partlyOptimized"
          }
