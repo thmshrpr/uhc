@@ -403,6 +403,29 @@ SEM Value
 
 
 --------------------------------------------------------------------------------
+-- COMMENTING CODE
+--------------------------------------------------------------------------------
+
+ATTR Variable Value Constant [ | | descr : {PP_Doc} ]
+
+SEM Variable
+  |  Var    lhs.descr = text @name
+  |  Subs   lhs.descr = @array.descr >|< "[" >|< @index.descr >|< "]"
+  |  SP     lhs.descr = text "SP"
+  |  BP     lhs.descr = text "BP"
+  |  RP     lhs.descr = text "RP"
+
+SEM Value
+  | Con     lhs.descr = @con.descr
+  | Var     lhs.descr = @var.descr
+  | Alloc   lhs.descr = "heapalloc(" >|< @size >|< ")"
+  | Call    lhs.descr = @name >|< "()"
+
+SEM Constant
+  | Literal lhs.descr = "" >|< @value
+  | Alias   lhs.descr = text @name
+
+--------------------------------------------------------------------------------
 -- LL Primitives
 --------------------------------------------------------------------------------
 
