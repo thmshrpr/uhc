@@ -14,7 +14,7 @@ calls. (When no hidden function calls exists anymore.)
 WRAPPER GrAGItf
 %%]
 
-%%[8 hs module {%{GRIN}GrinCode.Trf.Inliner} import(qualified Data.Set as Set,qualified Data.Map as Map,Data.Graph,Data.List,Data.Array as Array)
+%%[8 hs module {%{GRIN}GrinCode.Trf.Inliner} import({%{GRIN}GrinCode.Trf.SubstituteVars}, qualified Data.Set as Set,qualified Data.Map as Map, Data.Graph,Data.Tree as Tree,Data.List,Data.Array as Array,Maybe,Data.List as List, Debug.Trace(trace))
 type EdgeF   = [Edge] -> [Edge]
 type VertexF = [Vertex] -> [Vertex]
 
@@ -28,6 +28,7 @@ data GlobalCallInfo = GlobalCallInfo
   , occ :: Int
   , privateInfo :: Maybe PrivateCallInfo
   }
+    deriving Show
 
 data PrivateCallInfo = PrivateCallInfo
   { known :: Bool
@@ -35,6 +36,13 @@ data PrivateCallInfo = PrivateCallInfo
   , args :: [HsName]
   , size :: Int
   }
+    deriving Show
+
+uPrivateInfo = fromJust . privateInfo
+privateKnown = known . fromJust . privateInfo 
+privateCode = code . fromJust . privateInfo
+privateArgs = args . fromJust . privateInfo
+privateSize = size . fromJust . privateInfo
 
 mkSimpleCallInfo u o = GlobalCallInfo { use = u, occ = o, privateInfo = Nothing }
 
@@ -45,15 +53,16 @@ type NodeInfoF = [NodeInfo] -> [NodeInfo]
 %%]
 
 %%[8 hs import({%{EH}Base.Common}, {%{GRIN}GRINCCommon}, {%{EH}GrinCode}) export(inliner)
-inliner :: HsName -> IdentNameMap -> GrModule -> (GrModule, String)
-inliner e m grmod = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod))
-                               (Inh_GrAGItf { entry_Inh_GrAGItf = e, nameMap_Inh_GrAGItf = m })
-                    in (grTrf_Syn_GrAGItf t, dot_Syn_GrAGItf t)
+inliner :: Int -> HsName -> IdentNameMap -> GrModule -> (Int, GrModule, String)
+inliner uniq e m grmod = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod))
+                                              (Inh_GrAGItf { entry_Inh_GrAGItf = e, nameMap_Inh_GrAGItf = m, uniq_Inh_GrAGItf = uniq })
+                    in (uniq_Syn_GrAGItf t, grTrf_Syn_GrAGItf t, dot_Syn_GrAGItf t)
 %%]
 
 %%[8
-ATTR GrAGItf [ | | grTrf: GrModule ]
-ATTR AllGrNT [ | | grTrf: SELF ]
+ATTR GrAGItf [ | uniq: Int | grTrf: GrModule ]
+ATTR AllGrNT [ | uniq: Int | grTrf: SELF ]
+--ATTR AllGrNT [ | | self: SELF ]
 
 ATTR GrAGItf GrModule [ entry: HsName  nameMap: IdentNameMap | | dot: String ]
 %%]
@@ -63,11 +72,11 @@ ATTR AllBind            [ | | biggest USE {`max`} {minBound}: Int
                               smallest USE {`min`} {maxBound}: Int
                               nodes USE {.} {id}: NodeInfoF
                         ]
-ATTR AllGrExpr          [ | | calls USE {`undefined`} {Map.empty}: CallList ]
+ATTR AllGrExpr          [ | | calls USE {`Map.union`} {Map.empty}: CallList ] -- TODO combine
 
-ATTR AllGrNT [ | | size USE {+1+} {1} : Int ]
+ATTR AllGrNT [ | | size USE {+1+} {1}: Int ]
 SEM GrBind [ | | sizeIncrease: Int ]
-  | Bind	loc . sizeIncrease = @expr.size - (1 + 1 + length @argNmL)
+  | Bind    loc . sizeIncrease = @expr.size - (1 + 1 + length @argNmL)
 -- (Call nm argL): always saturated, so size = 1 for Call, 1 for nm
 
 
@@ -112,7 +121,7 @@ SEM GrBind
                 .  biggest   = @bindNr
                 .  nodes     = ( (@bindNr, @expr.calls) :)
                 .  globalCallInfoGath = Map.unionWith mergeGlobal @globalCallInfoUpdate
-                                        (Map.insertWith mergeGlobal @bindNr @myInfo @lhs.globalCallInfoGath)
+                                                                  (Map.insertWith mergeGlobal @bindNr @myInfo @lhs.globalCallInfoGath)
 
 {
 mergeGlobal :: GlobalCallInfo -> GlobalCallInfo -> GlobalCallInfo
@@ -136,7 +145,7 @@ mergeBranches (tp,use,occ) (tp',use',occ') = (mergeType tp tp', max use use', oc
 }
 
 SEM GrExpr
-  | Seq   lhs  .  calls	     =  Map.unionWith mergeSeq @expr.calls @body.calls
+  | Seq   lhs  .  calls      =  Map.unionWith mergeSeq @expr.calls @body.calls
   | Call  loc  .  callType   =  if @isLastExpr then TailCall else Call
           lhs  .  calls      =  Map.singleton (getNr @nm) (@callType, 1, 1)
 
@@ -148,23 +157,24 @@ mergeSeq (tp,use,occ) (tp',use',occ') = (mergeType tp tp', use + use', occ + occ
 
 %%[8.graph
 SEM GrModule
-  | Mod  loc  .  nodes  = @bindL.nodes []
-              .  graph  = let buildNode prev outlist = Map.keys outlist 
-                          in accumArray buildNode undefined (@bindL.smallest, @bindL.biggest) @nodes -- map & array in one run :) efficiency
-              . loopBreakers = findLoopBreakers @graph @globalCallInfo
-         bindL . loopBreakers = @loopBreakers
-         bindL . preInline    = Map.filter (preInlineUnconditionally @globalCallInfo) $ Map.keys @graph \\ @loopBreakers
+  | Mod  loc   .  nodes  = @bindL.nodes []
+               .  graph  = let buildNode prev outlist = Map.keys outlist 
+                           in Array.accumArray buildNode [] (@bindL.smallest, @bindL.biggest) @nodes -- map & array in one run :) efficiency
+               . findLoopBreakers = findLoopBreakers @graph @globalCallInfo
+               . allBinds = map fst @nodes
+         bindL . loopBreakers = Set.fromList @findLoopBreakers
+         bindL . preInlines   = (\s -> trace ("PreInlineUnconditionally: " ++ show s) s) $ Set.filter (preInlineUnconditionally @globalCallInfo) $ Set.fromList (@allBinds \\ (\s -> trace ("Loopbreakers: " ++ show s) s) @findLoopBreakers)
 %%]
 
 %%[8
 {
-maxim :: (Ord b, Bounded b) => (a -> b) -> [a] -> a
-maxim f [x] = x
-maxim f (x:xs) | fx == maxBound = fx
-	       | mxs > fx       = mxs
-	       | otherwise      = fx
-	where fx = f x
-	      mxs = maxim xs
+maxim :: (Ord b, Bounded b) => (a -> b) -> [a] -> (a, b)
+maxim f [x] = (x, f x)
+maxim f (x:xs) | fx == maxBound = (x, fx)
+               | mfxs > fx      = m
+               | otherwise      = (x, fx)
+    where fx = f x
+          m@(mxs, mfxs) = maxim f xs
 
 onceSafe :: GlobalCallInfo -> Bool
 multiSafe :: GlobalCallInfo -> Bool
@@ -173,32 +183,34 @@ multiSafe i = use i == 1
 
 findLoopBreakers :: Graph -> GlobalCallInfoMap -> [Vertex]
 findLoopBreakers g info = concatMap (visit . Tree.flatten) forest
-	where forest = scc g -- scc analysis, topologically ordered
-	      -- the component is a [Vertex]
-	      visit :: [Vertex] -> [Vertex]
-	      visit c@[v] | not selfRecursive g v = []
-		              | otherwise 			  = loopBreaker : findLoopBreakers g'
-		where loopBreaker = maxim (heuristic g) c
-		      selfRecursive g v = v `elem` g!v
-		      heuristic g v | selfRecursive g v                 = maxBound -- we really don't want to inline v, so most high score for loop breaking
-				            | preInlineUnconditionally g info v = minBound -- we really do want to inline v 
-		      g' = deleteTerminatingEdges g loopBreaker
+    where forest = scc g -- scc analysis, topologically ordered
+          -- the component is a [Vertex]
+          visit :: [Vertex] -> [Vertex]
+          visit [] = [] -- never happens!
+          visit c | length c == 1 && not (selfRecursive g (head c)) = []
+                  | otherwise                                       = loopBreaker : (findLoopBreakers g' info)
+            where loopBreaker = fst $ maxim (heuristic g) c
+                  selfRecursive g v = v `elem` g!v
+                  heuristic :: Graph -> Vertex -> Int
+                  heuristic g v | selfRecursive g v               = maxBound -- we really don't want to inline v, so most high score for loop breaking
+                                | preInlineUnconditionally info v = minBound -- we really do want to inline v 
+                  g' = deleteTerminatingEdges g loopBreaker
  
 deleteTerminatingEdges :: Graph -> Vertex -> Graph
-deleteTerminatingEdges g v = array (bounds g) [ (vertex, vertices \\ v) | (vertex, vertices) <- Array.elems g ]
+deleteTerminatingEdges g v = array (bounds g) [ (vertex, List.delete v vertices) | (vertex, vertices) <- Array.assocs g ]
 
 noSizeIncrease :: GlobalCallInfo -> Bool
-noSizeIncrease i = size (privateInfo i) <= 0
+noSizeIncrease i = privateSize i <= 0
 
-resultDiscount :: GlobalCallInfo -> Bool
-resultDiscount i | known (privateInfo i) = knownResultDiscount
+resultDiscount :: GlobalCallInfo -> Int
+resultDiscount i | privateKnown i = knownResultDiscount
                  | otherwise   = 0
 
 preInlineUnconditionally :: GlobalCallInfoMap -> Vertex -> Bool
 preInlineUnconditionally info v
   | noSizeIncrease vInfo = True -- GRIN calls don't have environments that matter for this computation
   | otherwise            = onceSafe vInfo -- counts
-     where vInfo = (Map.lookup v info)
+     where vInfo = fromJust (Map.lookup v info)
 }
 
 -- ATTR AllGrExpr [ | | lookupArgs: {HsName} ]
@@ -213,20 +225,27 @@ inlineTreshold = 7
 knownResultDiscount = 1
 }
 
+ATTR AllGrVal [ | listVars: {[HsName]} | ]
+SEM GrVal
+  | Var     lhs . listVars = @nm : @lhs.listVars
+
 -- callSiteInline
-ATTR AllGrNT [ loopBreakers: {Set.Set Vertex}  preInline: {Set.Set Vertex}  dynamicKnown: {Set.Set HsName} | | ]
+ATTR AllGrNT [ loopBreakers: {Set.Set Vertex}  preInlines: {Set.Set Vertex}  dynamicKnown: {Set.Set HsName} | | ]
 SEM GrExpr
-  | Call	loc . key            = (getNr @nm)
-                . info           = Map.lookup @key @lhs.globalCallInfo
-                . preInline      = Set.member @key @lhs.preInline
+  | Call    loc . key            = (getNr @nm)
+                . info           = uPrivateInfo $ fromJust $ Map.lookup @key @lhs.globalCallInfo
+                . preInline    = Set.member @key @lhs.preInlines
                 . callSiteInline = ( (size @info) -- size of Call is constant in GRIN (ever saturated application)
                                       -- @argL.discount
                                       -- (resultDiscount @info)
                                       -- TODO for other trafo's  interesting: Int
                                    ) < inlineTreshold 
+                . (freshSubs, unique) = freshSubs @lhs.uniq (code @info) --(GrExpr_Unit GrVal_Empty) works TODO
+            argL.listVars = []
             lhs . grTrf  = if not (Set.member @key @lhs.loopBreakers) && ( @preInline || @callSiteInline )
-                           then substituteVars (code @info) $ Map.union freshSubs (Map.fromList $ zip (args @info) @argL)
-                           else (GrExpr_Call @nm @argL) -- self
+                           then let argSubs = Map.fromList $ zip (args @info) @argL.listVars
+                                in (\s -> trace ("Inlining: " ++ show @key ++ show s) s) $ substituteVars (code @info) $ Map.union @freshSubs argSubs
+                           else (GrExpr_Call @nm @argL.grTrf) -- self
 
 -- ATTR GrValL [ | | discount: Int ]
 -- SEM GrValL

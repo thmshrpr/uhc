@@ -112,10 +112,23 @@ caIdentity = do
 
 caInliner :: CompileAction ()
 caInliner = do
-    putMsg VerboseALot "Inliner Trans" Nothing
-    code <- gets gcsGrinCode
-    code <- return $ inliner code
-    modify (gcsUpdateGrinCode code)
+    { putMsg VerboseALot "Inliner Trans" Nothing
+    ; code <- gets gcsGrinCode
+    ; unique <- gets gcsUnique
+    ; entry <- gets gcsEntry -- `main' : used to start call graph
+    ; vm    <- gets gcsOrigNms -- making callgraph with real names is nicer :)
+    ; (unique, code, dot) <- return $ inliner unique entry vm code
+    ; modify (gcsUpdateGrinCode code)
+    ; modify (gcsUpdateUnique unique)
+    ; outputCallGraph <- gets (ehcOptDumpCallGraph . gcsOpts)
+    ; when outputCallGraph
+        (do { input <- gets gcsPath
+            ; let output = fpathSetSuff "dot" input
+            ; putMsg VerboseALot ("Writing call graph to " ++ fpathToStr output) Nothing
+            ; liftIO $ writeToFile dot output
+            }
+        )
+    }
 %%]
 
 %%[8.caseHoisting import({%{GRIN}GrinCode.Trf.CaseHoisting})
