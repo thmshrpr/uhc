@@ -246,15 +246,42 @@ SEM Statement
                               then (@dest.resultName, @source.resultName) : @lhs.subs
                               else @lhs.subs
                 loc.sbs    = "   " >|< showSubs (@dest.asubs ++ @source.asubs)
-  | Switch      lhs.code   = text "SWITCH"
-  | Call        lhs.code   = text "CALL"
+
+
+  | Switch      lhs.code       = "switch uint" >#< pct @scrutinee.resultName
+                                 >|< ", label %switch_trap." >|< @uniq 
+                                 >-< "[" >-< @body.jmptbl >|< "]" 
+                                 >-< @body.code >|< "switch_trap." >|< @uniq >|< ":"
+                                 >-< indent 3 ("tail call void %switch_trap()" 
+                                               >-< "ret void")
+                                 >-< "switch_end." >|< @uniq >|< ":"
+
+                loc.uniq       = @lhs.uniq
+                scrutinee.uniq = @lhs.uniq + 1
+                body.uniq      = @scrutinee.uniq
+                lhs.uniq       = @body.uniq
+                body.break     = "br label %switch_end." >|< @uniq
+
+  | Call        lhs.code   = call @name -- explicit params never provided
   | Jump        lhs.code   = call @name
   | Enter       lhs.code   = enter @nLocal @nParam
   | Leave       lhs.code   = exit @diff
 
 
+ATTR Alternatives Alternative [ break : {PP_Doc} | | jmptbl : {PP_Doc} ]
+SEM Alternatives
+  | Nil   lhs.jmptbl  = text ""
+          lhs.code    = text ""
+  | Cons  lhs.jmptbl  = @hd.jmptbl >-< @tl.jmptbl
+          lhs.code    = @hd.code   >-< @tl.code
+
 SEM Alternative
-  | Alternative lhs.code   = text "ALT"
+  | Alternative lhs.jmptbl     = indent 3 ("uint" >#< @when.code >|< ", label %" >|< @label)
+                lhs.code       = @label >|< ":" >-< indent 3 (@body.code >-< @lhs.break)
+                loc.label      = "case." >|< @uniq
+                loc.uniq       = @lhs.uniq
+                body.uniq      = @uniq + 1
+                lhs.uniq       = @body.uniq
 
 SEM Values
   | Nil         lhs.codes  = []
