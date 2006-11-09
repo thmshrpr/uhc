@@ -65,6 +65,8 @@ header = comment "LLVM Code Generated From Grin"
          >-< "declare void %main()"
          >-< "declare void %switch_trap()"
          >-< "declare %thunk_type* %heapalloc( uint )"
+         >-< "declare uint %primGtInt( uint, uint)"
+         >-< "declare uint %primAddInt( uint, uint)"
          >-< ""
          >-< comment "Runtime Library Constant Variables"
          >-< "%Heap       = external global %thunk_type*"
@@ -186,6 +188,7 @@ p x = text $ show x
 --------------------------------------------------------------------------------
 
 ATTR Variable Value [ | | resultName : {String} ]
+ATTR Values [ | | resultNames : {[String]} ]
 
 SEM Statement
   | Comment     lhs.code   = comment @comment
@@ -249,16 +252,23 @@ SEM Alternative
                 lhs.uniq       = @body.uniq
 
 SEM Values
-  | Nil         lhs.codes  = []
-  | Cons        lhs.codes  = @hd.code : @tl.codes
+  | Nil         lhs.codes       = []
+                lhs.resultNames = []
+  | Cons        lhs.codes       = @hd.code : @tl.codes
+                lhs.resultNames = @hd.resultName : @tl.resultNames
 
 SEM Value
   | Con         lhs.code       = empty
                 lhs.resultName = show @con.code
   | Var         lhs.code       = @var.code
                 lhs.resultName = @var.resultName
-  | Call        lhs.code       = text "CALL"
-                lhs.resultName = "CALL-RESULT-NAME"
+  | Call        lhs.code       = (foldr (>-<) empty @args.codes)
+                                 >-< "%" >|< @resultName >#< "=" >#< call' @name @args.resultNames @ty
+                loc.resultName = "call." ++ show @uniq
+                lhs.resultName = @resultName
+                loc.uniq       = @lhs.uniq
+                args.uniq      = @uniq + 1
+                lhs.uniq       = @args.uniq
   | Alloc       lhs.code       = "%" >|< @result >#< "=" >#< heapalloc @size
                 lhs.resultName = @result
                 loc.result     = "alloc." ++ show @uniq
@@ -430,14 +440,14 @@ SEM Value
                 lhs.ty  = @loc.ty
   | Alloc       loc.ty  = ThunkPtr
                 lhs.ty  = @loc.ty
-  | Call        loc.ty  = undefined -- calls never occur on rhs
+  | Call        loc.ty  = Thunk
                 lhs.ty  = @loc.ty
 
 
 --------------------------------------------------------------------------------
 -- COMMENTING CODE
 --------------------------------------------------------------------------------
-ATTR Variable Value Constant [ | | descr : {PP_Doc} ]
+ATTR Variable Value Constant Values [ | | descr : {PP_Doc} ]
 
 SEM Variable
   |  Var    lhs.descr = text @name
@@ -450,11 +460,15 @@ SEM Value
   | Con     lhs.descr = @con.descr
   | Var     lhs.descr = @var.descr
   | Alloc   lhs.descr = "heapalloc(" >|< @size >|< ")"
-  | Call    lhs.descr = @name >|< "()"
+  | Call    lhs.descr = @name >|< "(" >#< @args.descr >#< ")"
 
 SEM Constant
   | Literal lhs.descr = "" >|< @value
   | Alias   lhs.descr = text @name
+
+SEM Values
+  | Nil     lhs.descr = empty
+  | Cons    lhs.descr = @hd.descr >#< "," >#< @tl.descr
 
 --------------------------------------------------------------------------------
 -- LL Primitives
@@ -462,7 +476,15 @@ SEM Constant
 
 {
 call :: String -> PP_Doc
-call f = "tail call" >#< "void" >#< pct f >#< "()" 
+call f = "tail call" >#< "void" >#< pct f >#< "()"
+
+call' :: String -> [String] -> PtrType -> PP_Doc
+call' f args rty = 
+  let  pp_args = map (\x -> ptr Thunk >#< pct x) args
+   in  "tail call" >#< ptr rty >#< pct f 
+                   >#< "(" >#< (foldr1 (\x y -> x >#< "," >#< y) pp_args) >#< ")"
+  
+                     
 
 ptrAdd :: String -> String -> PtrType -> Int -> PP_Doc
 ptrAdd l r ty i = pct l >#< "= getelementptr" 

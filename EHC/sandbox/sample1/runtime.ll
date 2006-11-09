@@ -7,9 +7,11 @@ deplibs = [ "c" ]
 declare int %printf(sbyte*, ...)
 declare void %exit(int)
 
-
 declare void %fun_main()
 declare void %initialize()
+
+%global_False = external global %thunk_type
+%global_True  = external global %thunk_type
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Typedefs
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -83,6 +85,30 @@ void %switch_trap() {
   tail call int (sbyte*, ...)* %printf( sbyte* getelementptr ([23 x sbyte]* %__switchErrorMsg, int 0, int 0) )
   tail call void %exit( int 1 )
   unreachable
+}
+
+uint %primGtInt( uint %l, uint %r ) {
+
+  %cond = setgt uint %l, %r
+  br bool %cond, label %gt_True, label %gt_False
+
+  gt_True:
+    %tr.tmp.0 = load %thunk_type* %global_True
+    %tr.tmp.1 = cast %thunk_type %tr.tmp.0 to %thunk_type*
+    %tr.tmp.2 = load %thunk_type* %tr.tmp.1
+    ret uint %tr.tmp.2
+
+  gt_False:
+    %fs.tmp.0 = load %thunk_type* %global_False
+    %fs.tmp.1 = cast %thunk_type %fs.tmp.0 to %thunk_type*
+    %fs.tmp.2 = load %thunk_type* %fs.tmp.1
+    ret uint %fs.tmp.2
+}
+
+uint %primAddInt( uint %l, uint %r ) {
+
+  %tmp.0 = add uint %l, %r
+  ret uint %tmp.0
 }
 
 %thunk_type* %heapalloc( uint %words ) {
