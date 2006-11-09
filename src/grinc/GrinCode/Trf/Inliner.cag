@@ -106,8 +106,8 @@ constfalse _ _ = False
 ATTR AllGrNT [ globalCallInfo : GlobalCallInfoMap | | ]
 SEM GrModule
   | Mod  bindL  .  globalCallInfoGath = Map.empty
-                .  globalCallInfo = @globalCallInfo
          loc    .  globalCallInfo = @bindL.globalCallInfoGath
+         bindL  .  globalCallInfo = @globalCallInfo -- and send it back
 
 ATTR AllExpr [ | | trivial USE {&&} {False}: Bool ]
 SEM GrExpr
@@ -163,9 +163,10 @@ SEM GrModule
                .  graph  = let buildNode prev outlist = Map.keys outlist 
                            in Array.accumArray buildNode [] (@bindL.smallest, @bindL.biggest) @nodes -- map & array in one run :) efficiency
                . findLoopBreakers = findLoopBreakers @graph @globalCallInfo
-               . allBinds = map fst @nodes
+               . allBinds         = map fst @nodes
          bindL . loopBreakers         = Set.fromList ((\s -> trace ("Loopbreakers: " ++ show s) s) @findLoopBreakers)
-         bindL . inlinesUnconditional = (\s -> trace ("InlineUnconditionally: " ++ show s) s) $ Set.fromList (filter (inlineUnconditionally @globalCallInfo) @allBinds)
+         bindL . inlinesUnconditional = Set.fromList (filter (inlineUnconditionally @globalCallInfo) @allBinds)
+                 -- (\s -> trace ("InlineUnconditionally: " ++ show s) s)
                  -- could do allBinds \\ @findLoopBreakers, but don't need to because lazy
 %%]
 
@@ -208,9 +209,10 @@ resultDiscount i | privateKnown i = knownResultDiscount
 inlineUnconditionally :: GlobalCallInfoMap -> Vertex -> Bool
 inlineUnconditionally info v  
   | occ vInfo == 1       = True -- preInlineUnconditionally -- counts
-  | noSizeIncrease vInfo = True -- GRIN calls don't have environments that matter for this computation
   | otherwise            = privateTrivial vInfo -- postInlineUnconditionally -- by the way, most of the cases of `trivial' are recognized by `size'
      where vInfo = fromJust (Map.lookup v info)
+
+-- | noSizeIncrease vInfo = True -- GRIN calls don't have environments that matter for this computation
 
 }
 
@@ -235,15 +237,15 @@ ATTR AllGrNT [ loopBreakers: {Set.Set Vertex}  inlinesUnconditional: {Set.Set Ve
 SEM GrExpr
   | Call    loc . key            = (getNr @nm)
                 . info           = uPrivateInfo $ fromJust $ Map.lookup @key @lhs.globalCallInfo
-                . preInline      = Set.member @key @lhs.inlinesUnconditional
-                . callSiteInline = ( (sizeIncrease @info) -- size of Call is constant in GRIN (ever saturated application)
+                . unconditionallyInline = Set.member @key @lhs.inlinesUnconditional
+                . callsiteInline = ( (sizeIncrease @info) -- size of Call is constant in GRIN (ever saturated application)
                                       -- @argL.discount
                                       -- (resultDiscount @info)
                                       -- TODO for other trafo's  interesting: Int
                                    ) < inlineTreshold 
                 . (freshSubs, unique) = freshSubs @lhs.uniq (code @info) --(GrExpr_Unit GrVal_Empty) works TODO
             argL.listVars = []
-            lhs . (grTrf, size) = if not (Set.member @key @lhs.loopBreakers) && ( @preInline || @callSiteInline )
+            lhs . (grTrf, size) = if not (Set.member @key @lhs.loopBreakers) && (@unconditionallyInline || @callsiteInline)
                                   then let argSubs = Map.fromList $ zip (args @info) @argL.listVars
                                        in (substituteVars (code @info) (Map.union @freshSubs argSubs), (size @info))
                                        -- (\s -> trace ("Inlining: " ++ show @key ++ show s) s) $ 
