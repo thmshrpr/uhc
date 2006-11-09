@@ -3,7 +3,7 @@
 %include afp.fmt
 %%]
 
-%%[8 hs module {%{GRIN}Silly.PrettyLLVM} import(Data.List(intersperse), Char, Data.Maybe, Data.List, Debug.Trace, UU.Pretty, EH.Util.PPUtils,{%{GRIN}GRINCCommon},{%{GRIN}Silly}, {%{GRIN}Config}) export(prettyLL)
+%%[8 hs module {%{GRIN}Silly.PrettyLLVM} import(Char, Data.Maybe, Data.List, UU.Pretty, EH.Util.PPUtils,{%{GRIN}GRINCCommon},{%{GRIN}Silly}, {%{GRIN}Config}) export(prettyLL)
 %%]
 
 %%[8 import({Silly/AbsSyn})
@@ -12,7 +12,7 @@
 %%[8 hs
 prettyLL :: Bool -> Bool -> SilModule -> PP_Doc
 prettyLL optTrace optDef silmod
-  = let t = wrap_SilModule (sem_SilModule silmod) --  $ traceit silmod) ---- TESTING!!! 
+  = let t = wrap_SilModule (sem_SilModule silmod) 
                            (Inh_SilModule { }
                            )
      in  code_Syn_SilModule t
@@ -90,12 +90,18 @@ variableDeclaration x = "%" >|< text x >#< "= global %thunk_type undef"
 -- FUNCTION DECLARATION GENERATION
 --------------------------------------------------------------------------------
 SEM Function
-  | Function    lhs.code   = prefix >-< indent 3 @body.code
+  | Function    lhs.code   = prefix >-< indent 3 
+                                          (foldr (\x y -> localVarDecl x >-< y)
+                                                 empty @locals)
+                                    >-< indent 3 @body.code
                                     >-< indent 3 (text "ret void")
                                     >-< postfix
                                    where prefix  = "void %" >|< @name >#< "() {"
                                          postfix = "}" >-< text ""
-
+{
+localVarDecl :: String -> PP_Doc
+localVarDecl x = "%" >|< x >#< "= alloca" >#< ptr Thunk
+}
 --------------------------------------------------------------------------------
 -- PROPOGATION OF INFORMATION WITHIN FUNCTION
 --------------------------------------------------------------------------------
@@ -103,11 +109,10 @@ ATTR Statements Statement
      Alternatives Alternative 
      Variables Variable 
      Values Value
-     [ islocal : {String -> Bool} | subs : {[(String,String)]} uniq : {Int} | ]
+     [ islocal : {String -> Bool} | uniq : {Int} | ]
 
 SEM Function
   | Function    body.islocal  = (\x -> x `elem` @locals)
-                body.subs     = []
                 body.uniq     = 0
 
                 
@@ -175,87 +180,47 @@ get name table = if null res then error msg else head res
 p :: Show a => a -> PP_Doc
 p x = text $ show x
 }
---------------------------------------------------------------------------------
--- Testing
---------------------------------------------------------------------------------
-{
-traceit :: Show a => a -> a
-traceit x = trace (show x) x
-
-traceloud :: Show a => String -> a -> a
-traceloud s x = trace (s ++ show x) x
-}
-{-
-test1 = SilModule_SilModule [] [] [func]
-   where func   = Function_Function "func" False ["p1", "p2"] ["loc"] [swtch]
-         swtch  = Statement_Switch (Value_Var (Variable_Var "scr")) [alt1,alt2]
-         alt1   = Alternative_Alternative (Constant_Literal 1) [(Statement_Call "fun1" [])]
-         alt2   = Alternative_Alternative (Constant_Literal 2) [(Statement_Call "fun2" [arg1, arg2])]
-         arg1   = Value_Var (Variable_Var "x")
-         arg2   = Value_Con (Constant_Literal 3)
--}
 
 --------------------------------------------------------------------------------
---------------------------------------------------------------------------------
---------------------------------------------------------------------------------
---------------------------------------------------------------------------------
+-- Code for Statements
 --------------------------------------------------------------------------------
 
 ATTR Variable Value [ | | resultName : {String} ]
 
-
-
 SEM Statement
   | Comment     lhs.code   = comment @comment
-
+  {- Possible optimization: If a variable local to a function is defined only once
+                            , then we can omit allocating a variable on the stack and
+                            suffice giving it a name in an LLVM assignment. -}
   | Assignment  lhs.code   = ";------------------------------------------------------"
-                             >-< (";" >#< @dest.descr >#< "=" >#< @source.descr >|< @sbs)
+                             >-< (";" >#< @dest.descr >#< "=" >#< @source.descr)
                              >-< ";------------------------------------------------------"
                              >-< @source.code 
                              >-< @dest.code 
-                             >-< if @dest.local
-                                 then if @doCast
-                                      then cast @dest.resultName @source.ty 
-                                                @source.resultName @dest.ty    
-                                      else comment $ "aliasing: " 
-                                                  ++ @dest.resultName 
-                                                  ++ " = "
-                                                  ++ @source.resultName -- add to subs 
-                                 else (if @doCast
-                                       then cast @storee 
-                                                 @source.ty 
-                                                 @source.resultName 
-                                                 @storety
-                                       else empty
-                                      )
-                                      >-< store @storee @storety @dest.resultName
-                loc.doCast = if @dest.local
-                             then @dest.ty /= @source.ty
-                             else not $ isPtrTypeOf @dest.ty @source.ty
+                             >-< (if @doCast
+                                  then cast @storee @source.ty 
+                                            @source.resultName @storety
+                                  else empty
+                                 )
+                             >-< store @storee @storety @dest.resultName
+                loc.doCast = not $ isPtrTypeOf @dest.ty @source.ty
                 loc.storee = if @doCast 
                              then "cast." ++ show @uniq
                              else @source.resultName
                 loc.storety = deref @dest.ty
-
                 loc.uniq    = @lhs.uniq
                 dest.uniq   = @uniq + 1
                 source.uniq = @dest.uniq
                 lhs.uniq    = @source.uniq
-                
-                lhs.subs    = if @dest.local && not @doCast
-                              then (@dest.resultName, @source.resultName) : @lhs.subs
-                              else @lhs.subs
-                loc.sbs    = "   " >|< showSubs (@dest.asubs ++ @source.asubs)
 
-
-  | Switch      lhs.code       = "switch uint" >#< pct @scrutinee.resultName
+  | Switch      lhs.code       = @scrutinee.code
+                                 >-< "switch uint" >#< pct @scrutinee.resultName
                                  >|< ", label %switch_trap." >|< @uniq 
                                  >-< "[" >-< @body.jmptbl >|< "]" 
                                  >-< @body.code >|< "switch_trap." >|< @uniq >|< ":"
                                  >-< indent 3 ("tail call void %switch_trap()" 
                                                >-< "ret void")
                                  >-< "switch_end." >|< @uniq >|< ":"
-
                 loc.uniq       = @lhs.uniq
                 scrutinee.uniq = @lhs.uniq + 1
                 body.uniq      = @scrutinee.uniq
@@ -309,23 +274,20 @@ SEM Constant
   | Alias       lhs.code   = "" >|< get @name @lhs.constants
                 lhs.value  = @val
                 loc.val    = get @name @lhs.constants
-                lhs.asubs  = [(@name, show @val)]
 
 SEM Variable
-  | Var         lhs.code   = if @lhs.islocal @name
-                             then empty -- creates substitution at assign
-                             else if isLHS @lhs.side
-                                  then empty
-                                  else load @name @uniq (ptrOf @ty)
+  {- Possible optimization: If a variable local to a function is defined only once
+                            , then you can fetch a substitution here, instead of 
+                            loading the variable
+  -}
+  | Var         lhs.code   = if isLHS @lhs.side
+                             then empty
+                             else load @name @uniq (ptrOf @ty)
                 loc.uniq   = @lhs.uniq
                 lhs.uniq   = @loc.uniq + 1
-                lhs.resultName = if @lhs.islocal @name || isLHS @lhs.side
-                                 then @name'
-                                 else @name' ++ "." ++ show @loc.uniq
-                loc.name'      = maybe @name id $ lookup @name @lhs.subs
-                lhs.asubs      = if @name == @name'
-                                 then []
-                                 else [(@name,@name')]
+                lhs.resultName = if isLHS @lhs.side
+                                 then @name
+                                 else @name ++ "." ++ show @loc.uniq
   | SP          lhs.code       = if isLHS @lhs.side
                                  then empty
                                  else load "SP" @uniq ThunkPtrPtr
@@ -435,11 +397,9 @@ ATTR Variable Value [ | | ty : {PtrType}]
 ATTR Variable [ | | local : {Bool}]
 
 SEM Variable
-  | Var         loc.ty    = if @lhs.islocal @name 
-                            then Thunk 
-                            else if isLHS @lhs.side
-                                 then ThunkPtr
-                                 else Thunk
+  | Var         loc.ty    = if isLHS @lhs.side
+                            then ThunkPtr
+                            else Thunk
                 lhs.ty    = @loc.ty
                 lhs.local = @lhs.islocal @name
   | SP          loc.ty    = if isLHS @lhs.side 
@@ -477,32 +437,23 @@ SEM Value
 --------------------------------------------------------------------------------
 -- COMMENTING CODE
 --------------------------------------------------------------------------------
-
-ATTR Variable Value Constant [ | | descr : {PP_Doc} asubs : {[(String,String)]} ]
+ATTR Variable Value Constant [ | | descr : {PP_Doc} ]
 
 SEM Variable
   |  Var    lhs.descr = text @name
   |  Subs   lhs.descr = @array.descr >|< "[" >|< @index.descr >|< "]"
-            lhs.asubs = @array.asubs
   |  SP     lhs.descr = text "SP"
-            lhs.asubs = []
   |  BP     lhs.descr = text "BP"
-            lhs.asubs = []
   |  RP     lhs.descr = text "RP"
-            lhs.asubs = []
 
 SEM Value
   | Con     lhs.descr = @con.descr
-            lhs.asubs = []
   | Var     lhs.descr = @var.descr
   | Alloc   lhs.descr = "heapalloc(" >|< @size >|< ")"
-            lhs.asubs = []
   | Call    lhs.descr = @name >|< "()"
-            lhs.asubs = []
 
 SEM Constant
   | Literal lhs.descr = "" >|< @value
-            lhs.asubs = []
   | Alias   lhs.descr = text @name
 
 --------------------------------------------------------------------------------
