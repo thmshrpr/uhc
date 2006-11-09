@@ -1,0 +1,70 @@
+\documentclass{beamer}
+\usepackage{beamerthemesplit}
+
+\usepackage{graphicx}
+\usepackage{epstopdf}
+\usepackage{subfigure}
+
+\usepackage{multirow}
+\usepackage{amsfonts}
+\usepackage{amsmath}
+
+\title[GRIN]{Grin Optimizing Transformations}
+\author[]{Aris \& Gideon}
+\institute[]{Efficient Implementation of Functional Languages Seminar 2006}
+%abusing the institute field.
+
+\begin{document}
+
+\section{New Horizons}
+\begin{frame}
+The identity transformation
+\end{frame}
+
+\section{Boquists Transformations}
+\begin{frame}
+\frametitle{Already implemented transformations}
+Many optimizing transformations were already implemented:
+Copy propagation (\texttt{CopyPropagation.cag})
+Trivial case elimination (\texttt{CaseElimination.cag})
+Sparse case elimination (\texttt{SparseCase.cag})
+Constant Propagation (\texttt{})
+
+Dead code elimination
+
+\end{frame}
+
+\begin{frame}
+\frametitle{Ueber Eval/Apply Inline}
+Evaluated case elimination
+
+Update elimination
+WHNF update elminiation
+\end{frame}
+
+\begin{frame}
+
+Possible transformations
+Late inlining
+Case hoisting
+Common subexpression elimination
+
+Impossible transformations
+Generalized unboxing
+Case copy propagation
+Arity raising
+
+\end{frame}
+
+\section{Simon Peyton-Jones' Inliner}
+\begin{frame}
+Boquist only inlines functions on two criteria (see p. 137):
+\begin{enumerate}
+\item called only once (and non-recursively)
+\item size is smaller than a certain limit
+\end{enumerate}
+
+etc...
+\end{frame}
+
+\end{document}
