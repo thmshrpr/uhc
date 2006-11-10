@@ -1,5 +1,5 @@
 \documentclass{beamer}
-\usepackage{beamerthemesplit}
+\usetheme[style=fancy,includehead=true]{uu}
 
 \usepackage{graphicx}
 \usepackage{epstopdf}
@@ -9,6 +9,9 @@
 \usepackage{amsfonts}
 \usepackage{amsmath}
 
+\newcommand{\grin}{$Grin$ }
+\newcommand{\ehc}{\textbf{EHC} }
+
 \title[GRIN]{Grin Optimizing Transformations}
 \author[]{Aris \& Gideon}
 \institute[]{Efficient Implementation of Functional Languages Seminar 2006}
@@ -16,55 +19,345 @@
 
 \begin{document}
 
-\section{New Horizons}
 \begin{frame}
-The identity transformation
+\maketitle
+\end{frame}
+\begin{frame}
+\tableofcontents
 \end{frame}
 
-\section{Boquists Transformations}
-\begin{frame}
-\frametitle{Already implemented transformations}
-Many optimizing transformations were already implemented:
-Copy propagation (\texttt{CopyPropagation.cag})
-Trivial case elimination (\texttt{CaseElimination.cag})
-Sparse case elimination (\texttt{SparseCase.cag})
-Constant Propagation (\texttt{})
+\section{Optimizing Transformations Overview}
+\begin{frame}[fragile]
+\frametitle{Already implemented optimizations}
 
-Dead code elimination
+A lot of optimizations were already implemented
+\begin{itemize}
+\item Copy propagation (in \texttt{CopyPropagation.cag})
+\item Trivial case elimination (\texttt{CaseElimination.cag})
+\item Sparse case elimination (\texttt{SparseCase.cag})
+\item Dead code elimination (\texttt{DropUnusedBindings.cag})
+\end{itemize}
+
+\vspace{0.7cm}
+
+The eval and apply inliner also performs the evaluated case elimination
+
+\vspace{0.7cm}
+
+Since there is no update specialization yet, \\
+there is no need for (whnf) update elimination.
+\end{frame}
+
+
+
+\begin{frame}[fragile]
+\frametitle{Opportunities for us}
+
+We decided not to do the unboxing optimizations
+\begin{itemize}
+\item Generalized unboxing
+\item Case copy propagation
+\item Arity raising
+\end{itemize}
+
+\vspace{0.6cm}
+
+but to go for the remaining transformations
+\begin{itemize}
+\item Case hoisting
+\item Late inlining
+\item Common subexpression elimination \\
+\emph{which we dropped because llvm can do it}
+\end{itemize}
+\end{frame}
+
+
+
+\section{Case Hoisting}
+
+\begin{frame}[fragile]
+\begin{center}
+\LARGE{Case Hoisting}
+\end{center}
+\end{frame}
+
+
+
+\subsection{Boquist's Case Hoisting}
+\begin{frame}[fragile]
+\frametitle{Case Hoisting according to Boquist}
+
+\begin{exampleblock}{}
+\begin{verbatim}
+(case v of                 (case v of 
+  (CNil) ->                  (CNil) -> 
+    unit (CNil)                unit (CNil); \u1 ->
+  (CCons x xs)->               (case u1 of
+    unit (CCons x xs)            (CNil)       -> <m1>
+  (Ffoo a) ->                    (CCons y ys) -> <m2> 
+    foo a              =>      )
+); \u ->                     (CCons x xs) ->
+(case u of                     unit (CCons x xs); \u2 ->
+  (CNil) ->                    (case ...)
+    <m1>                     (Ffoo a) ->
+  (CCons y ys) ->                foo a; \u3 -> (case ...)
+    <m2>                   )
+)                          
+\end{verbatim}
+\end{exampleblock}
+\end{frame}
+
+
+
+\begin{frame}[fragile]
+\frametitle{Case Hoisting according to Boquist}
+
+We inline the second case of a case sequence \\
+if \emph{enough} return tags are known
+
+\vspace{1cm}
+
+Note that Boquist
+\begin{itemize}
+\item inlines the entire case, renaming the variable u and probably others
+\item lets copy and constant propagation remove the case statements
+\item allows code duplication but suggests to limit or disable duplication
+\end{itemize}
 
 \end{frame}
 
-\begin{frame}
-\frametitle{Ueber Eval/Apply Inline}
-Evaluated case elimination
 
-Update elimination
-WHNF update elminiation
-\end{frame}
 
-\begin{frame}
+\subsection{Our Case Hoisting}
+\begin{frame}[fragile]
+\frametitle{When to hoist}
+One important difference with Boquist: \\
+\textbf{no duplication} and \textbf{no variable renaming}
 
-Possible transformations
-Late inlining
-Case hoisting
-Common subexpression elimination
+\vspace{1cm}
 
-Impossible transformations
-Generalized unboxing
-Case copy propagation
-Arity raising
+Given a sequence of cases we hoist if
+\begin{itemize}
+\item all alternatives of the first case have a known return tag
+\item no two alternatives of the first case have the same return tag
+\item we have \texttt{(case ...); $\lambda$u -> (case ...); $\lambda$v -> <m>}\\
+\texttt{u} may not be used in \texttt{<m>}
+\end{itemize}
 
 \end{frame}
 
-\section{Simon Peyton-Jones' Inliner}
-\begin{frame}
-Boquist only inlines functions on two criteria (see p. 137):
+
+
+\begin{frame}[fragile]
+\frametitle{Hoisting: An Example}
+\begin{verbatim}
+(case v of                      (case v of                     
+  CTrue  -> <a1>                  CTrue  -> 
+            unit CNil               <a1>                              
+  CFalse -> <a2>                    <b1>[w/CNil]                      
+            unit (CCons x xs) =>  CFalse ->                           
+); \w ->                            <a2>                              
+case w of                           <b2>[w/CCons y/x ys/xs]           
+  CNil       -> <b1>            ); \u ->                              
+  CCons y ys -> <b2>            <m>                                   
+); \u ->
+<m>
+\end{verbatim}
+\end{frame}
+
+
+\begin{frame}[fragile]
+\frametitle{Problems and Questions}
+
+Currently matching and hoisting 'bottom-up'. \\
+\texttt{(case ...); $\lambda$ a -> \\
+(case ...); $\lambda$ b -> \\
+(case ...); $\lambda$ b -> \\
+(case ...)} \\
+
+What is the best approach? \\
+
+\vspace{0.5cm}
+
+The code produced by EHC contains no hoisting opportunities! \\
+Not even for the following example: \\
+\texttt{foo a b = if (if a < b then False else True) then 1 else 2} \\
+
+\vspace{0.2cm}
+
+\emph{We need inlining!}
+
+\end{frame}
+
+
+
+
+%(case v of                     
+%  CTrue  -> 
+%    <a1>               
+%    <b1>[w/CNil]          
+%  CFalse ->
+%    <a2>               
+%    <b2>[w/CCons y/x ys/xs]
+%); \u ->
+%<m>                                 
+%(case v of                     
+%  CTrue  -> <a1>               
+%            <b1>[w/CNil]          
+%  CFalse -> <a2>               
+%            <b2>[w/CCons y/x ys/xs]
+%); \u ->
+%<m>                                 
+%(case v of                              
+%  (CNil) -> 
+%    unit (CNil); \u1 ->
+%    (case u1 of                              
+%      (CNil)       -> <m1>                
+%      (CCons y ys) -> <m2>                
+%    )
+%  (CCons x xs) -> 
+%    unit (CCons x xs); \u2 ->
+%    (case u of                              
+%      (CNil)       -> <m1>                
+%      (CCons y ys) -> <m2>                
+%    )                                       
+%    (Ffoo a) -> 
+%      foo a; \u3 ->
+%      (case u of                              
+%        (CNil)       -> <m1>                
+%        (CCons y ys) -> <m2>                
+%      )                                       
+%)                  
+
+\section{Inlining}
+
+\begin{frame}[fragile]
+\begin{center}
+\LARGE{Inlining}
+\end{center}
+\end{frame}
+
+\subsection{Boquist}
+\begin{frame}[fragile]
+\frametitle{What is inlining?}
+
+Inlining in \grin falls apart into:
+\begin{itemize}
+\item copy propagation
+\item \emph{(late) call inlining}
+\end{itemize}
+
+\emph{Late} because it is done after inlining the $eval$ and $apply$ functions, which add \texttt{Call}s to the code. \grin has no unknown calls.
+\end{frame}
+
+
+
+\begin{frame}[fragile]
+\frametitle{Criteria}
+
+Boquist uses only two:
 \begin{enumerate}
 \item called only once (and non-recursively)
 \item size is smaller than a certain limit
 \end{enumerate}
 
-etc...
 \end{frame}
+
+
+
+\subsection{Simons}
+\begin{frame}[fragile]
+\frametitle{What is inlining? --- restricted}
+\begin{itemize}
+\item lower order: no `unsafe' contexts, no `interesting' contexts (application or case scrutinization)
+\item known functions at \texttt{Call} constructs in \grin \texttt{Expr}s
+\end{itemize}
+\end{frame}
+
+
+
+\begin{frame}[fragile]
+\frametitle{Factors}
+\begin{description}
+\item[work duplication] only for self-recursion (using call-graph)
+\item[code duplication] counting calls: only once?
+\item[transformation exposal] more investigation on context-conditional inlining
+\end{description}
+\end{frame}
+
+
+
+\begin{frame}[fragile]
+\frametitle{Synthesizing call information}
+Called the \emph{occurence analyser}.
+
+\begin{itemize}
+\item call graph information
+\begin{itemize}
+\item occurrence counts
+\item tailcall, just call, or bothcall information
+\end{itemize}
+\item bind information
+\begin{itemize}
+\item size (special case for \texttt{Call} nodes: if it inlines, gets from synthesized-inherited size of call)
+\item if the function returns a \emph{known} tag
+\item for the actual inlining: code of the body, and the names of the parameters
+\end{itemize}
+\end{itemize}
+\end{frame}
+
+
+
+\begin{frame}[fragile]
+\frametitle{Context-independent inlining}
+\begin{description}
+\item[PreInlineUnconditionally] once-occurrence
+\item[noSizeIncrease] no `interesting' context, thus context-independent
+\item[PostInlineUnconditionally] trivial \texttt{Unit}s\footnote{each call is `exported' from the module (because of global analysis)}
+\end{description}
+\end{frame}
+
+
+
+\begin{frame}[fragile]
+\frametitle{Context-conditional inlining}
+This was called \emph{CallSiteInline}.
+
+The function \emph{considerInline} as a synthization of the attribute \texttt{grTrf}.
+Criterium function \emph{inline}:
+\begin{description}
+\item[LoopBreaker] inherited set \texttt{loopBreakers}
+\item[Once] inherited set \texttt{inlinesUnconditional}
+\item[Multi] we jump into function \emph{inlineMulti} for closer analyse 
+\end{description}
+\end{frame}
+
+
+
+\begin{frame}[fragile]
+\frametitle{\ldots continued \ldots}
+\emph{inlineMulti}: 
+\begin{itemize}
+\item \emph{boring}ness of the context for the call
+\begin{itemize}
+\item dynamic information of the arguments of the function
+\item but always veryBoring call context \ldots
+\end{itemize}
+\item otherwise a \emph{smallEnough} score
+\begin{itemize}
+\item size increase
+\item for opening up other transformations: \emph{argument discount} and \emph{result discount}
+should be \grin tuned!
+\end{itemize}
+\end{itemize}
+\end{frame}
+
+
+\begin{frame}[fragile]
+\begin{thebibliography}{Secrets}
+\bibitem{Simons} Secrets of the Glasgow Haskell Compiler inliner, Simon Peyton Jones and Simon Marlow, 1 sep 1999.
+\end{thebibliography}
+\end{frame}
+
 
 \end{document}
