@@ -12,7 +12,7 @@ lyrkeys = [ "layer", "extends", "params", "uses", "pattern"
 
 main :: IO ()
 main = do { impls <- compile "Equation"
-          ; putStr $ show impls
+          ; putStr $ show (sem_Implementation impls)
           }
 
 compile :: String -> IO Implementation
@@ -106,7 +106,7 @@ usedParams l = ps2n $ layerParams (const False) (const True) l
 
 
 layerParams :: ParamFilter -> ParamFilter -> Layer -> [(String,[Parameter])]
-layerParams pf uf l = map (\i->(name i, tracer $ params pf uf i)) (ifaces l)
+layerParams pf uf l = map (\i->(name i, params pf uf i)) (ifaces l)
 
 ifaces :: Layer -> [Interface]
 ifaces (Layer_Layer n p is) = is
@@ -115,7 +115,7 @@ ifaces (Layer_Layer n p is) = is
 params :: ParamFilter -> ParamFilter -> Interface -> [Parameter]
 params pf uf (Interface_Interface n ps us p) = filter pf ps ++ filter uf us
 
-tracer = (\x -> trace (show x) x) 
+--tracer = (\x -> trace (show x) x) 
 
 
 get :: Named a => String -> [a] -> a
