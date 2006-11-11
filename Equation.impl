@@ -1,10 +1,67 @@
 implementation of Equation
-  rule fitsIn implements Expr
-    post Expr.R | abc = "kiGam"
-       where asdf = "asdfkj"
-             xyz  = "asdfasdfasdf"
+  rule fitsIn_Ty_Con implements fitsIn
+    post fitsIn.R
+           | guard     = "x==y"
+           | typeLeft  = "TyCon x"
+           | typeRight = "TyCon y"
+           | subs      = "emptyFO {foTy = typeRight}"
 
-  rule fitsOut implements Expr
-    post Expr.X
-      | blah = "abc" | blechh = "asdf" 
-        where asdf = "asdfkj"
+  rule fitsIn_Ty_Any_Left implements fitsIn
+    post fitsIn.R
+           | typeLeft  = "Ty_Any"
+           | typeRight = "typeRight"
+           | subs      = "emptyFO {foTy = typeRight}"
+
+  rule fitsIn_Ty_Any_Right implements fitsIn
+    post fitsIn.R
+           | typeLeft  = "typeLeft"
+           | typeRight = "Ty_Any"
+           | subs      = "emptyFO {foTy = typeLeft}"
+
+  rule fitsIn_Ty_App_Ty_App implements fitsIn
+    pre fitsIn.PreArgs
+          | typeLeft  = "ta2"
+          | typeRight = "ta1"
+          | subs      = "afo"
+        fitsIn.PreFun
+          | typeLeft  = "tr1"
+          | typeRight = "tr2"
+          | subs      = "ffo" 
+        checkSubs.CheckSubs
+          | iSubs     = "[ffo,afo,emptyFO {foTy = (\\a r -> [a] `mkArrow` r) (foTy ffo) (foTy afo)}]"
+          | oSubs     = "res"
+    post fitsIn.R
+           | guard     = "hsnIsArrow c1"
+           | guard     = "c1 == c2"
+           | typeLeft  = "Ty_App (Ty_App (Ty_Con c1) ta1) tr1"
+           | typeRight = "Ty_App (Ty_App (Ty_Con c2) ta2) tr2"
+           | subs      = "res"
+
+  rule fitsIn_Ty_App implements fitsIn
+    pre fitsIn.PreArgs
+          | typeLeft  = "ta2"
+          | typeRight = "ta1"
+          | subs      = "afo"
+        fitsIn.PreFun
+          | typeLeft  = "tf1"
+          | typeRight = "tf2"
+          | subs      = "ffo" 
+        checkSubs.CheckSubs
+          | iSubs     = "[ffo,afo,emptyFO {foTy = Ty_App (foTy ffo) (foTy afo)}]"
+          | oSubs     = "res"
+    post fitsIn.R
+           | typeLeft  = "Ty_App tf1 ta1"
+           | typeRight = "Ty_App tf2 ta2"
+           | subs      = "res"
+
+  rule fitsIn_Error implements fitsIn
+    post fitsIn.R
+           | typeLeft  = "typeLeft"
+           | typeRight = "typeRight"
+           | subs      = "emptyFO {foErrL = [Err_UnifyClash typeLeft typeRight typeLeft typeRight]}"
+
+
+  rule checkSubs implements checkSubs
+    post checkSubs.R
+           | iSubs  = "iSubs"
+           | oSubs  = "foldr1  (\\fo1 fo2 -> if foHasErrs fo1 then fo1 else fo2) iSubs"

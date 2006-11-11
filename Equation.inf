@@ -1,10 +1,14 @@
-layer Equation extends Base
-   interface Expr
-      params
-         node  e         : Expr
-         in    valGam    : ValGam
-         in    tyGam     : TyGam
-         in    kiGam     : KiGam
-      uses
-         inout ty        : Ty
-      pattern "kiGam ; tyGam ; valGam :- e : ty"
+layer Equation
+  interface checkSubs
+    params
+         in    iSubs     : FIOut
+         out   oSubs     : FIOut
+      pattern "iSubs ~> oSubs"
+
+  interface fitsIn
+    params
+         in    guard     : Bool
+         in    typeLeft  : Ty
+         in    typeRight : Ty
+         out   subs      : FIOut
+      pattern "guard ==> typeLeft ~= typeRight"
