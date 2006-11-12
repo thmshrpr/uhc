@@ -85,24 +85,29 @@ DATA RuleSet
 DATA Rule
   | RawRule           name           : {String}
                       interface      : {String}
+                      directives     : {[String]}
                       preconditions  : Judgments
                       postcondition  : Judgment
   | Rule              name           : {String}
                       interface      : Interface
+                      directives     : {[String]}
                       preconditions  : Judgments
                       postcondition  : Judgment
 
 DATA Judgment
   | RawJudgment1      name           : {String}
                       interface      : {String}
+                      directives     : {[String]}
                       body           : {String}
                       defs           : {[(String,String)]}
   | RawJudgment2      name           : {String}
                       interface      : {String}
+                      directives     : {[String]}
                       body           : {[(String,String)]}
                       defs           : {[(String,String)]}
   | Judgment          name           : {String}
                       interface      : Interface
+                      directives     : {[String]}
                       body           : BodyAssignments
                       defs           : {[(String,String)]} 
                       

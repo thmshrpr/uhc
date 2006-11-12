@@ -96,10 +96,10 @@ foldImpl (n2l, n2i, nn2p) = f0
              = Implementation_Implementation (n2l nm) (map f1a rs)
          f1a (RuleSet_RuleSet nm ni ds rs)
              = RuleSet_RuleSet nm ni ds $ map f1b rs
-         f1b (Rule_RawRule nm ni pres post) 
-             = Rule_Rule nm (n2i ni) (map f2 pres) (f2 post)
-         f2 (Judgment_RawJudgment2 nm ni bdy defs) 
-             = Judgment_Judgment nm (n2i ni) (map (f3 ni) bdy) defs
+         f1b (Rule_RawRule nm ni ds pres post) 
+             = Rule_Rule nm (n2i ni) ds (map f2 pres) (f2 post)
+         f2 (Judgment_RawJudgment2 nm ni ds bdy defs) 
+             = Judgment_Judgment nm (n2i ni) ds (map (f3 ni) bdy) defs
          f3 ni (pnm,expr) = BodyAssignment_BodyAssignment (nn2p ni pnm) expr
 
 
@@ -157,16 +157,16 @@ zipRules (x:xs) below = makeOne x match : zipRules xs nomatch
          makeOne r rs = mergeRule r (head rs)
 
 mergeRule :: Rule -> Rule -> Rule
-mergeRule (Rule_Rule nm i pre1 post1) 
-          (Rule_Rule _ _ pre2 post2)
-   = Rule_Rule nm i (mergeJudges pre1 pre2) (mergeJudge post1 post2) 
+mergeRule (Rule_Rule nm i ds pre1 post1) 
+          (Rule_Rule _ _ _ pre2 post2)
+   = Rule_Rule nm i ds (mergeJudges pre1 pre2) (mergeJudge post1 post2) 
 
 mergeJudges j1 j2 = undefined
 
 mergeJudge = undefined
 
 matchRule :: Rule -> Rule -> Bool
-matchRule (Rule_Rule n1 i1 _ _) (Rule_Rule n2 i2 _ _) = n1 == n2 && i1 == i2
+matchRule (Rule_Rule n1 i1 _ _ _) (Rule_Rule n2 i2 _ _ _) = n1 == n2 && i1 == i2
 
 
 --------------------------------------------------------------------------------
