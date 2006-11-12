@@ -49,7 +49,7 @@ checkParamAccess child@(Layer_Layer n (Just parent) is)
                                  then return () 
                                  else error $ msg ba
          badaccess us vs = foldr (++) [] (zipWith notin us (repeat vs))
-         msg ba = "you lose" ++ show ba
+         msg ba = "Access Error: " ++ show ba
    
 
 notin (i,ps) vis = map (\x -> i ++ "." ++ x) [p | p <- ps, not (elem p vs)]
@@ -137,14 +137,9 @@ resolveImpls (l:ls) = do impl <- parseImpl (name l)
                          impls <- resolveImpls ls
                          return $ impl : impls
 
-
 --------------------------------------------------------------------------------
 -- MERGING IMPLEMENTATION LAYERS
 --------------------------------------------------------------------------------
-
-
-
--- combining layers:
 
 mergeImpls :: Implementation -> Implementation -> Implementation
 mergeImpls (Implementation_Implementation l rs1) 
@@ -152,36 +147,55 @@ mergeImpls (Implementation_Implementation l rs1)
    = Implementation_Implementation l $ mergeRuleSets rs1 rs2
 
 mergeRuleSets :: RuleSets -> RuleSets -> RuleSets
-mergeRuleSets rs []     = rs
-mergeRuleSets [] rs     = rs
-mergeRuleSets (x:xs) ys = if x `elem` ys
-                          then mergeRuleSetPair x y' : mergeRuleSets xs ys'
-                          else x : mergeRuleSets xs ys
-   where (y',ys') = extract x ys
+mergeRuleSets = mergePreserveOrder mergeRuleSetPair
 
 mergeRuleSetPair :: RuleSet -> RuleSet -> RuleSet
-mergeRuleSetPair rs1 rs2 = undefined
+mergeRuleSetPair r1@(RuleSet_RuleSet n i d rs1)
+                 r2@(RuleSet_RuleSet _ _ _ rs2)
+   = if hasDirective r1 "overwrite"
+     then r1
+     else RuleSet_RuleSet n i d $ mergePreserveOrder mergeRulePair rs1 rs2
+
+mergeRulePair :: Rule -> Rule -> Rule
+mergeRulePair r1@(Rule_Rule n i ds pre1 post1) 
+              r2@(Rule_Rule _ _ _  pre2 post2) 
+   = if hasDirective r1 "overwrite"
+     then r1
+     else Rule_Rule n i ds pre post
+   where pre  = mergePreserveOrder mergeJudgmentPair pre1 pre2
+         post = mergeJudgmentPair post1 post2
 
 
-zipRules :: [Rule] -> [Rule] -> [Rule]
-zipRules above  []    = above
-zipRules []     below = below
-zipRules (x:xs) below = makeOne x match : zipRules xs nomatch
-   where (match,nomatch) = partition (== x) below
-         makeOne r [] = r
-         makeOne r rs = mergeRule r (head rs)
-
-mergeRule :: Rule -> Rule -> Rule
-mergeRule (Rule_Rule nm i ds pre1 post1) 
-          (Rule_Rule _ _ _ pre2 post2)
-   = Rule_Rule nm i ds (mergeJudges pre1 pre2) (mergeJudge post1 post2) 
-
-mergeJudges j1 j2 = undefined
-
-mergeJudge = undefined
+mergeJudgmentPair :: Judgment -> Judgment -> Judgment
+mergeJudgmentPair j1@(Judgment_Judgment n i ds bdy1 defs1) 
+                  j2@(Judgment_Judgment _ _ _  bdy2 defs2)
+   = if j1 /= j2 || hasDirective j1 "overwrite"
+     then j1 
+     else Judgment_Judgment n i ds bdy defs
+   where bdy  = mergeAssignments bdy1 bdy2
+         defs = if hasDirective j1 "overwrite_defs" 
+                then defs1
+                else mergeDefinitions defs1 defs2
 
 
+mergeAssignments = mergePreserveOrder const
 
+mergeDefinitions = mergePreserveOrder' eqFst const
+
+
+mergePreserveOrder :: Eq a => (a -> a -> a) -> [a] -> [a] -> [a]
+mergePreserveOrder = mergePreserveOrder' (==)
+
+mergePreserveOrder' :: Eq a => (a -> a -> Bool) 
+                            -> (a -> a -> a) 
+                            -> [a] -> [a] -> [a]
+mergePreserveOrder' e m []     bs     = bs
+mergePreserveOrder' e m as     []     = as
+mergePreserveOrder' e m (a:as) (bs)   = if elemBy e a bs
+                                        then neq ++ (m a (head eq) : mergeRest)
+                                        else a : mergePreserveOrder m as bs
+   where (neq,eq)  = break (\x -> not $ e a x) bs
+         mergeRest = mergePreserveOrder' e m as (tail eq)
 
 --------------------------------------------------------------------------------
 -- UTILITY FUNCTIONS
@@ -202,8 +216,8 @@ get' nm xs = if null fs then err else head fs
 getR :: Named a => [a] -> String -> a
 getR = flip get
 
-extract :: Eq a => a -> [a] -> (a,[a])
-extract x xs = (\(a,b) -> (head a, b)) $ partition (== x) xs
+elemBy :: (a -> a -> Bool) -> a -> [a] -> Bool
+elemBy eq x xs = not $ null [y | y <- xs, eq x y]
 
-
-
+eqFst :: Eq a => (a,a) -> (a,a) -> Bool
+eqFst (a,b) (c,d) = a == c

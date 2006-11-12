@@ -136,6 +136,9 @@ instance Eq Judgment where
    (==) (Judgment_Judgment n1 i1 _ _ _)
         (Judgment_Judgment n2 i2 _ _ _) = n1 == n2 && i1 == i2
 
+instance Eq BodyAssignment where
+   (==) (BodyAssignment_BodyAssignment p1 _)
+        (BodyAssignment_BodyAssignment p2 _) = p1 == p2
    
 class HasDirectives a where
    getDirectives :: a -> [String]
