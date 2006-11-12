@@ -128,6 +128,15 @@ instance Eq Rule where
    (==) (Rule_RawRule n1 i1 _ _ _)
         (Rule_RawRule n2 i2 _ _ _) = n1 == n2 && i1 == i2
 
+instance Eq Judgment where
+   (==) (Judgment_RawJudgment1 n1 i1 _ _ _)
+        (Judgment_RawJudgment1 n2 i2 _ _ _) = n1 == n2 && i1 == i2
+   (==) (Judgment_RawJudgment2 n1 i1 _ _ _)
+        (Judgment_RawJudgment2 n2 i2 _ _ _) = n1 == n2 && i1 == i2
+   (==) (Judgment_Judgment n1 i1 _ _ _)
+        (Judgment_Judgment n2 i2 _ _ _) = n1 == n2 && i1 == i2
+
+   
 class HasDirectives a where
    getDirectives :: a -> [String]
    hasDirective  :: a -> String -> Bool 
