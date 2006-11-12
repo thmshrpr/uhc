@@ -3,21 +3,15 @@ implementation of Equation
   rule fitsIn_Ty_Con implements fitsIn
     post fitsIn.R
            | guard     = "x==y"
-           | typeLeft  = "TyCon x"
-           | typeRight = "TyCon y"
+           | typeLeft  = "Ty_Con x"
+           | typeRight = "Ty_Con y"
            | subs      = "emptyFO {foTy = typeRight}"
 
-  rule fitsIn_Ty_Any_Left implements fitsIn
+  rule fitsIn_Ty_Any implements fitsIn (symmetric)
     post fitsIn.R
            | typeLeft  = "Ty_Any"
            | typeRight = "typeRight"
            | subs      = "emptyFO {foTy = typeRight}"
-
-  rule fitsIn_Ty_Any_Right implements fitsIn
-    post fitsIn.R
-           | typeLeft  = "typeLeft"
-           | typeRight = "Ty_Any"
-           | subs      = "emptyFO {foTy = typeLeft}"
 
   rule fitsIn_Ty_App_Ty_App implements fitsIn
     pre fitsIn.PreArgs

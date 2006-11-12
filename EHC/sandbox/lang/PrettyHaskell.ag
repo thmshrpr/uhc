@@ -9,8 +9,10 @@ type SplitAssignments = (Assignments, Assignments, Assignments)
 
 ATTR Implementation RuleSets RuleSet Rules Rule [ | | ppHaskell USE {>-< text "" >-<} {empty}: {PP_Doc} ]
      
+ATTR Implementation [ moduleName : {String} | | ]
 SEM Implementation
-  | Implementation        lhs.ppHaskell = @rulesets.ppHaskell
+  | Implementation        lhs.ppHaskell = "module" >#< @lhs.moduleName >#< "where"
+                                          >-< @rulesets.ppHaskell
 
 SEM RuleSet
   | RuleSet               lhs.ppHaskell = @rules.ppHaskell
@@ -23,12 +25,13 @@ SEM Rule
                                               --signature  = mkSig fnNm (map fst @input) (map fst @output)
                                               guardedEx  = mkGuardExpr @guards
                                               patterns   = mkInputPatterns @input
+                                              patternsR  = mkInputPatterns (reverse @input)
                                               letbindings= mkLetBindings @preconditions.paramAssignments
                                               outputTup  = mkOutputTuple @output
-                                           in text fnNm >#< patterns >|< guardedEx >#< "="
-                                              >-< indent 2 (text "let")
-                                              >-< indent 4 letbindings
-                                              >-< indent 2 (text "in" >#< outputTup)
+                                           in mkFunction fnNm patterns guardedEx letbindings outputTup
+                                              >-< if "symmetric" `elem` @directives
+                                                  then mkFunction fnNm patternsR guardedEx letbindings outputTup
+                                                  else empty 
   
 ATTR Interface [ | | functionName : {String} ]
 SEM  Interface 
@@ -94,6 +97,13 @@ isOut :: Direction -> Bool
 isOut (InOut) = True
 isOut (Out)   = True
 isOut _       = False
+
+mkFunction :: String -> PP_Doc -> PP_Doc -> PP_Doc -> PP_Doc -> PP_Doc
+mkFunction fnNm patterns guardedEx letbindings outputTup =
+  text fnNm >#< patterns >|< guardedEx >#< "="
+       >-< indent 2 (text "let")
+       >-< indent 4 letbindings
+       >-< indent 2 (text "in" >#< outputTup)
 
 mkSig :: String -> [ParameterData] -> [ParameterData] -> PP_Doc
 mkSig fName inParams outParams =
