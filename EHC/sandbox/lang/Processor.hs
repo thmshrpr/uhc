@@ -20,8 +20,9 @@ processLayer file layer = do { checkLayerName file layer
 resolveParents :: Layer -> IO Layer
 resolveParents (Layer_RawLayer n Nothing is) = return $ Layer_Layer n Nothing is
 resolveParents (Layer_RawLayer n (Just p) is) 
-   = do parent <- parseLayer p
-        return $ Layer_Layer n (Just parent) is
+   = do parent    <- parseLayer p
+        processed <- processLayer p parent
+        return $ Layer_Layer n (Just processed) is
 
 checkLayerName :: String -> Layer -> IO Layer
 checkLayerName nm l@(Layer_RawLayer n p is) = if n == nm then return l else error msg
