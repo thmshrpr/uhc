@@ -31,4 +31,21 @@ implementation of Known
            | guard     = "c1 == c2"
            | typeLeft  = "Ty_App (Ty_App (Ty_Con c1) ta1) tr1"
            | typeRight = "Ty_App (Ty_App (Ty_Con c2) ta2) tr2"
-           | subs      = "res"        
+           | subs      = "res"  
+
+  rule fitsIn_Ty_App implements fitsIn
+    pre fitsIn.PreFun
+          | typeLeft  = "tf1"
+          | typeRight = "tf2"
+          | subs      = "ffo" 
+        fitsIn.PreArgs
+          | typeLeft  = "(foCnstr ffo) |=> ta2"
+          | typeRight = "(foCnstr ffo) |=> ta1"
+          | subs      = "afo"
+        checkSubs.CheckSubs
+          | iSubs     = "[ffo,afo,emptyFO { foTy = Ty_App ((foCnstr afo) |=> foTy ffo) (foTy afo), foCnstr = (foCnstr afo) |=> (foCnstr ffo)}]"
+          | oSubs     = "res"
+    post fitsIn.R
+           | typeLeft  = "Ty_App tf1 ta1"
+           | typeRight = "Ty_App tf2 ta2"
+           | subs      = "res"      

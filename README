@@ -1,0 +1,2 @@
+uuagc -a Lang.ag
+ghc --make Main.hs -o compiler
