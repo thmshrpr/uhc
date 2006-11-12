@@ -36,11 +36,11 @@ implementation of Equation
     pre fitsIn.PreArgs
           | typeLeft  = "ta2"
           | typeRight = "ta1"
-          | subs      = "afo"
+          | subs      = "ffo"
         fitsIn.PreFun
           | typeLeft  = "tf1"
           | typeRight = "tf2"
-          | subs      = "ffo" 
+          | subs      = "afo" 
         checkSubs.CheckSubs
           | iSubs     = "[ffo,afo,emptyFO {foTy = Ty_App (foTy ffo) (foTy afo)}]"
           | oSubs     = "res"

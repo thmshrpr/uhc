@@ -140,7 +140,7 @@ mergeRuleSetPair r1@(RuleSet_RuleSet n i d rs1)
 mergeRulePair :: Rule -> Rule -> Rule
 mergeRulePair r1@(Rule_Rule n i ds pre1 post1) 
               r2@(Rule_Rule _ _ _  pre2 post2) 
-   = tracer $ if hasDirective r1 "overwrite"
+   = if hasDirective r1 "overwrite"
      then r1
      else Rule_Rule n i ds pre post
    where pre  = mergePreserveOrder mergeJudgmentPair pre1 pre2
@@ -184,9 +184,6 @@ mergePreserveOrder' e m (a:as) (bs)   = if not $ elemBy e a bs
 --------------------------------------------------------------------------------
 -- UTILITY FUNCTIONS
 --------------------------------------------------------------------------------
-
-tracer :: Show a => a -> a
-tracer = (\x -> trace (show x) x) 
 
 get :: Named a => String -> [a] -> a
 get nm xs = if null fs then err else head fs
