@@ -1,0 +1,16 @@
+layer Known extends Equation
+  interface checkSubs
+    params
+    uses
+      in    iSubs     : FIOut
+      out   oSubs     : FIOut
+    pattern "iSubs ~> oSubs"
+
+  interface fitsIn
+    params
+    uses
+      in    guard     : Bool
+      in    typeLeft  : Ty
+      in    typeRight : Ty
+      out   subs      : FIOut
+    pattern "guard ==> typeLeft ~= typeRight"
