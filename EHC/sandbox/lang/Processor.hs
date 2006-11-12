@@ -134,7 +134,7 @@ mergeRuleSetPair :: RuleSet -> RuleSet -> RuleSet
 mergeRuleSetPair r1@(RuleSet_RuleSet n i d rs1)
                  r2@(RuleSet_RuleSet _ _ _ rs2)
    = if hasDirective r1 "overwrite"
-     then r1
+     then r2
      else RuleSet_RuleSet n i d $ mergePreserveOrder mergeRulePair rs1 rs2
 
 mergeRulePair :: Rule -> Rule -> Rule
