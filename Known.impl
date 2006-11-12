@@ -33,7 +33,7 @@ implementation of Known
            | typeRight = "Ty_App (Ty_App (Ty_Con c2) ta2) tr2"
            | subs      = "res"  
 
-  rule fitsIn_Ty_App implements fitsIn
+  rule fitsIn_Ty_App implements fitsIn (overwrite)
     pre fitsIn.PreFun
           | typeLeft  = "tf1"
           | typeRight = "tf2"

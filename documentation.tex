@@ -1,0 +1,203 @@
+\documentclass[10pt]{article}
+
+\begin{document}
+\title{Doucmentation of the FOSA ruler project}
+\author{Mark Snyder, mark.snyder@gmail.com\\John van Schie, jcschie@cs.uu.nl}
+\date{}
+\maketitle
+
+\section{Language decisions}
+%Marks stuff
+
+\section{Haskell Output}
+\subsection{Haskell output overview}
+Currently out compiler can only output haskell code. To be more precise, for each ruleset that complies to an interface, a function is generated. Such a function has as many cases as there are rules within the ruleset.
+
+So when we have a ruleset definition like this :
+\begin{verbatim}
+ruleset typeInference implements exprTypeInference
+  rule typeInference_Int = ...
+  rule typeInference_Var = ...
+\end{verbatim}
+will be translated to the following haskell function skeleton :
+
+\begin{verbatim}
+exprTypeInference (CInt x) = ...
+exprTypeInference (CVar x) = ...
+\end{verbatim}
+
+One big problem with this is, is that order within such haskell function does matter for the matching and thus that the order of our rules defined in the ruleset also matters. So in our implementation the invariant holds that the order of the rules in the ruleset also defines the order for the cases in the function.
+
+It gets more compilicated when a ruleset extends a ruleset from another layer. Then the newly defined rules in the extending ruleset get a higher precendence than the rules from the extended ruleset. The rules in the extending ruleset that are overwriting rules in the extended ruleset, will get the precendence of the rule in the extended ruleset.
+
+\subsection{The Haskell translation scheme}
+The translation scheme from our ruler-like language is programmed in an AG (\texttt{PrettyHaskell.ag}), so changes to the Haskell output should be made there.
+
+The scheme is quite straightforward and can be summarized as follows
+
+For the \emph{post judgment} of a rule, we create a new case with the \texttt{In} and \texttt{InOut} parameters (and their values) as input parameters. The body of the case consists of a let expression.
+
+The bindings of the let expression are all \emph{pre judgments}. For each pre judgment a binding is created. The value of the binding will be the \texttt{InOut} and \texttt{Out} parameters tupled of the judgment and the \texttt{In} and \texttt{InOut} parameters will be the parameters of the call to the interface of the pre judgment.
+
+That leaves us with the result of the let-expression. This wil simply be the \texttt{InOut} and \texttt{Out} parameters of the post judgment tupled.
+This can be seen in the following example
+
+\begin{verbatim}
+-- File Equation.inf
+layer Equation
+  interface checkSubs
+    params
+         in    iSubs     : FIOut
+         out   oSubs     : FIOut
+      pattern "iSubs ~> oSubs"
+
+  interface fitsIn
+    params
+         in    guard     : Bool
+         in    typeLeft  : Ty
+         in    typeRight : Ty
+         out   subs      : FIOut
+      pattern "guard ==> typeLeft ~= typeRight"
+\end{verbatim}
+We see here a layer description of the Equation layer. This layer contains two interfaces, checkSubs which is used to 'hide' a functioncall, and the fitsIn interface, an interface for the unification of two types. The patterns noted in the interface, although required by the parser, are not used yet.
+
+\begin{verbatim}
+-- File Equation.impl
+implementation of Equation
+ ruleset fitsIn implements fitsIn
+  rule fitsIn_Ty_Con implements fitsIn
+    post fitsIn.R
+           | guard     = "x==y"
+           | typeLeft  = "Ty_Con x"
+           | typeRight = "Ty_Con y"
+           | subs      = "emptyFO {foTy = typeRight}"
+
+  rule fitsIn_Ty_Any implements fitsIn (symmetric)
+    post fitsIn.R
+           | typeLeft  = "Ty_Any"
+           | typeRight = "typeRight"
+           | subs      = "emptyFO {foTy = typeRight}"
+
+  rule fitsIn_Ty_App implements fitsIn
+    pre fitsIn.PreArgs
+          | typeLeft  = "ta2"
+          | typeRight = "ta1"
+          | subs      = "ffo"
+        fitsIn.PreFun
+          | typeLeft  = "tf1"
+          | typeRight = "tf2"
+          | subs      = "afo" 
+        checkSubs.CheckSubs
+          | iSubs     = "[ffo,afo,emptyFO {foTy = Ty_App (foTy ffo) (foTy afo)}]"
+          | oSubs     = "res"
+    post fitsIn.R
+           | typeLeft  = "Ty_App tf1 ta1"
+           | typeRight = "Ty_App tf2 ta2"
+           | subs      = "res"
+\end{verbatim}
+
+In Equation.impl the implementation of the interfaces is described. We see three rules here: fitsIn\_Ty\_Con, fitsIn\_Ty\_Any and fitsIn\_Ty\_App.
+
+\emph{fitsIn\_Ty\_Con} tries to unify two constructors. The special parameter guard is used as a keyword for the Haskell prettyprinter. Every parameter that is named guard will be added to the guard expression of the function case. So for this rule we expect a case that will be guarded by $x == y$ and as body has an let expression without bindings.
+
+\emph{fitsIn\_Ty\_Any} has the directive \emph{symmetric}. This means that if the input of the case is mirrored, we get another desired case. In this case we want one case to match the Ty\_Any constructor to the left and one constructor to match the case where the Ty\_Any is at the right. The symmetric directive accomplishes this.
+
+\emph{fitsIn\_Ty\_App} is a rule with pre judgments. One of these judgments is of the interface \texttt{checkSubs}. So for this rule we expect a let expression with three bindings, two recursive and one binding that is utilizing the checkSubs function.
+
+So we run our compilertool and get the following (expected) output. Please note that the order of the rules is preserved.
+\begin{verbatim}
+-- File Equation.hs
+module Equation where
+fitsIn typeLeft@(Ty_Con x) typeRight@(Ty_Con y) | x==y  =
+  let
+  in ( emptyFO {foTy = typeRight} )
+
+fitsIn typeLeft@(Ty_Any) (typeRight)  =
+  let
+  in ( emptyFO {foTy = typeRight} )
+fitsIn (typeRight) typeLeft@(Ty_Any)  =
+  let
+  in ( emptyFO {foTy = typeRight} )
+
+fitsIn typeLeft@(Ty_App tf1 ta1) typeRight@(Ty_App tf2 ta2)  =
+  let
+    ( ffo ) = fitsIn (ta2) (ta1) 
+    ( afo ) = fitsIn (tf1) (tf2) 
+    ( res ) = checkSubs ([ffo,afo,emptyFO {foTy = Ty_App (foTy ffo) (foTy afo)}]) 
+  in ( res )
+\end{verbatim}
+
+We will now extend the previous implementation by the unification that has to be performed by EHC version 2. Our interface does not need to be extended, so we need only to declare all parameters that we will use under the \emph{uses} section. This can be found in the file \texttt{Known.inf}.
+
+When we look at the file \texttt{Known.impl} we see a couple of rules.
+\begin{verbatim}
+implementation of Known
+ ruleset fitsIn implements fitsIn
+
+  rule fitsIn_Ty_Var_Ty_Var implements fitsIn
+    post fitsIn.R
+      | guard     = "v1==v2"
+      | typeLeft  = "Ty_Var v1"
+      | typeRight = "Ty_Var v2"
+      | subs      = "emptyFO {foTy = typeLeft}"
+
+  rule fitsIn_Ty_App implements fitsIn (overwrite)
+    pre fitsIn.PreFun
+          | typeLeft  = "tf1"
+          | typeRight = "tf2"
+          | subs      = "ffo" 
+        fitsIn.PreArgs
+          | typeLeft  = "(foCnstr ffo) |=> ta2"
+          | typeRight = "(foCnstr ffo) |=> ta1"
+          | subs      = "afo"
+        checkSubs.CheckSubs
+          | iSubs     = "[ffo,afo
+                         ,emptyFO { foTy = Ty_App ((foCnstr afo) |=> foTy ffo) 
+                                                  (foTy afo)
+                                  , foCnstr = (foCnstr afo) |=> (foCnstr ffo)}]"
+          | oSubs     = "res"
+    post fitsIn.R
+           | typeLeft  = "Ty_App tf1 ta1"
+           | typeRight = "Ty_App tf2 ta2"
+           | subs      = "res"    
+\end{verbatim}
+The diffence between these rules, except the lenghth, is that the first rule is an addition while the second one is an overwrite of an previous rule. The latter is annoted by the directive \emph{overwrite}. And thus the output will be:
+
+\begin{verbatim}
+module Known where
+
+fitsIn typeLeft@(Ty_Var v1) typeRight@(Ty_Var v2) | v1==v2  =
+  let
+  in ( emptyFO {foTy = typeLeft} )
+
+fitsIn typeLeft@(Ty_Con x) typeRight@(Ty_Con y) | x==y  =
+  let
+  in ( emptyFO {foTy = typeRight} )
+
+fitsIn typeLeft@(Ty_Any) (typeRight)  =
+  let
+  in ( emptyFO {foTy = typeRight} )
+fitsIn (typeRight) typeLeft@(Ty_Any)  =
+  let
+  in ( emptyFO {foTy = typeRight} )
+
+fitsIn typeLeft@(Ty_App tf1 ta1) typeRight@(Ty_App tf2 ta2)  =
+  let
+    ( ffo ) = fitsIn (tf1) (tf2) 
+    ( afo ) = fitsIn ((foCnstr ffo) |=> ta2) ((foCnstr ffo) |=> ta1) 
+    ( res ) = checkSubs ([ffo,afo
+                         ,emptyFO { foTy = Ty_App ((foCnstr afo) |=> foTy ffo) 
+                                                  (foTy afo)
+                                  , foCnstr = (foCnstr afo) |=> (foCnstr ffo)}]) 
+  in ( res )
+\end{verbatim}
+
+Note the order. The new rule gets translated as a case at the top, while the overwritten function gets its original postion.
+
+All these examples can be found in the *.impl and *.inf files in this directory.
+
+\section{Generic Output}
+We realize that programming an AG to generate output is not nice for a DSL and limits the usability severly. 
+
+As future work we would like that the language is extended with an template language. This template language, in our opinion, should not be integrated with the DSL itself because we believe that these concerns should be seperated. So the template language could be a DSL on itself.
+\end{document}
