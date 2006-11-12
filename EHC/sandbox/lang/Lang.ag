@@ -39,6 +39,11 @@ TYPE Parameters      = [Parameter]
 TYPE Rules           = [Rule]
 TYPE Judgments       = [Judgment]
 TYPE BodyAssignments = [BodyAssignment]
+TYPE RuleSets        = [RuleSet]
+
+--------------------------------------------------------------------------------
+-- LAYER INTERFACE STRUCTURE
+--------------------------------------------------------------------------------
 
 DATA Layer
   |  RawLayer          name       : {String}
@@ -61,14 +66,21 @@ DATA Parameter
                        visible    : {Bool}
                        directives : {[String]}
 
-
+--------------------------------------------------------------------------------
 -- IMPLEMENTATION STRUCTURE
+--------------------------------------------------------------------------------
 
 DATA Implementation
-  | RawImplementation     layer      : {String}
-                          rules      : Rules
-  | Implementation        layer      : Layer
-                          rules      : Rules
+  | RawImplementation layer       : {String}
+                      rulesets    : RuleSets
+  | Implementation    layer       : Layer
+                      rulesets    : RuleSets
+
+DATA RuleSet
+  | RuleSet           name        : {String}
+                      interface   : {String}
+                      directives  : {[String]}
+                      rules       : Rules
 
 DATA Rule
   | RawRule           name           : {String}
@@ -100,6 +112,6 @@ DATA BodyAssignment
 
 DERIVING Interface Parameter : Eq
 
-DERIVING Layer Interface Parameter Implementation Rule Judgment BodyAssignment : Show 
+DERIVING Layer Interface Parameter Implementation RuleSet Rule Judgment BodyAssignment : Show 
 
 INCLUDE "PrettyHaskell.ag"
