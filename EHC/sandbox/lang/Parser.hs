@@ -117,4 +117,4 @@ pBinding = (,) <$> pId <* pKey "=" <*> pString
 
 pId :: Parser Token String
 pId = pConid <|> pVarid
-) 
+
