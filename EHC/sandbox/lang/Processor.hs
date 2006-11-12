@@ -172,7 +172,7 @@ mergePreserveOrder' :: (Eq a, Show a) => (a -> a -> Bool)
                             -> [a] -> [a] -> [a]
 mergePreserveOrder' e m []     bs     = bs
 mergePreserveOrder' e m as     []     = as
-mergePreserveOrder' e m (a:as) (bs)   = if not $elemBy e a bs
+mergePreserveOrder' e m (a:as) (bs)   = if not $ elemBy e a bs
                                         then a : mergePreserveOrder m as bs
                                         else neq' ++ (m a match : mergeRest)
 
