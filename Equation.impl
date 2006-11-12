@@ -61,7 +61,7 @@ implementation of Equation
            | typeRight = "typeRight"
            | subs      = "emptyFO {foErrL = [Err_UnifyClash typeLeft typeRight typeLeft typeRight]}"
 
-
+ ruleset checkSubs implements checkSubs
   rule checkSubs implements checkSubs
     post checkSubs.R
            | iSubs  = "iSubs"
