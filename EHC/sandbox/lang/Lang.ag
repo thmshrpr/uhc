@@ -147,6 +147,11 @@ instance HasDirectives RuleSet where
 instance HasDirectives Rule where
    getDirectives (Rule_RawRule _ _ ds _ _) = ds
    getDirectives (Rule_Rule _ _ ds _ _)    = ds
+   
+instance HasDirectives Judgment where
+   getDirectives (Judgment_RawJudgment1 _ _ ds _ _) = ds
+   getDirectives (Judgment_RawJudgment2 _ _ ds _ _) = ds
+   getDirectives (Judgment_Judgment _ _ ds _ _)     = ds
 }
 
 DERIVING Interface Parameter : Eq
