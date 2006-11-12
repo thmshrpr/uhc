@@ -82,6 +82,7 @@ pRule = Rule_RawRule <$  pKey "rule"
                   <*> pVarid
                   <*  pKey "implements"
                   <*> pId
+                  <*> pDirectives
                   <*> opt (pKey "pre" *> pList pJudge) []
                   <* pKey "post" <*> pJudge
 
@@ -92,15 +93,17 @@ pRawJudge1 = mkJudge1 <$> pId
                       <*> pConid
                       <*  pKey "="
                       <*> pString
+                      <*> pDirectives
                       <*> pDefinitions
-   where mkJudge1 int nm bdy defs = Judgment_RawJudgment1 nm int bdy defs
+   where mkJudge1 int nm bdy ds defs = Judgment_RawJudgment1 nm int ds bdy defs
 
 pRawJudge2 = mkJudge2 <$> pId 
                       <*  pKey "."
                       <*> pConid
+                      <*> pDirectives
                       <*> pList (pKey "|" *> pBinding)
                       <*> pDefinitions
-   where mkJudge2 int nm bdy defs = Judgment_RawJudgment2 nm int bdy defs
+   where mkJudge2 int nm ds bdy defs = Judgment_RawJudgment2 nm int ds bdy defs
 
 pDirectives :: Parser Token [String]
 pDirectives = (opt (pParens_pCommas pVarid) [])
