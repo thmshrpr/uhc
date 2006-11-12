@@ -134,13 +134,13 @@ mergeRuleSetPair :: RuleSet -> RuleSet -> RuleSet
 mergeRuleSetPair r1@(RuleSet_RuleSet n i d rs1)
                  r2@(RuleSet_RuleSet _ _ _ rs2)
    = if hasDirective r1 "overwrite"
-     then r2
+     then r1
      else RuleSet_RuleSet n i d $ mergePreserveOrder mergeRulePair rs1 rs2
 
 mergeRulePair :: Rule -> Rule -> Rule
 mergeRulePair r1@(Rule_Rule n i ds pre1 post1) 
               r2@(Rule_Rule _ _ _  pre2 post2) 
-   = if hasDirective r1 "overwrite"
+   = tracer $ if hasDirective r1 "overwrite"
      then r1
      else Rule_Rule n i ds pre post
    where pre  = mergePreserveOrder mergeJudgmentPair pre1 pre2
@@ -173,7 +173,7 @@ mergePreserveOrder' :: (Eq a, Show a) => (a -> a -> Bool)
 mergePreserveOrder' e m []     bs     = bs
 mergePreserveOrder' e m as     []     = as
 mergePreserveOrder' e m (a:as) (bs)   = if not $ elemBy e a bs
-                                        then a : mergePreserveOrder m as bs
+                                        then a : mergePreserveOrder' e m as bs
                                         else neq' ++ (m a match : mergeRest)
 
    where (neq,eq)   = span (\x -> not $ e a x) bs
