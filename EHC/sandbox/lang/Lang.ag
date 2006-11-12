@@ -115,8 +115,41 @@ DATA BodyAssignment
   | BodyAssignment    param          : Parameter
                       value          : String                                        
 
-DERIVING Interface Parameter : Eq
 
+-- equivalence of rules and rulesets is according to name and interface
+{ 
+instance Eq RuleSet where
+   (==) (RuleSet_RuleSet n1 i1 _ _)
+        (RuleSet_RuleSet n2 i2 _ _) = n1 == n2 && i1 == i2
+
+instance Eq Rule where
+   (==) (Rule_Rule n1 i1 _ _ _) 
+        (Rule_Rule n2 i2 _ _ _) = n1 == n2 && i1 == i2
+   (==) (Rule_RawRule n1 i1 _ _ _)
+        (Rule_RawRule n2 i2 _ _ _) = n1 == n2 && i1 == i2
+
+class HasDirectives a where
+   getDirectives :: a -> [String]
+   hasDirective  :: a -> String -> Bool 
+   getDirective  :: a -> [String] -> Maybe String
+
+   hasDirective x s  = s `elem` getDirectives x
+
+   getDirective x ss = result matches
+      where matches    = [s' | s' <- getDirectives x, s' `elem` ss]
+            result []  = Nothing
+            result [x] = Just x
+            result xs  = error ("Conflicting Directives: " ++ show xs)
+
+instance HasDirectives RuleSet where
+   getDirectives (RuleSet_RuleSet _ _ ds _) = ds
+
+instance HasDirectives Rule where
+   getDirectives (Rule_RawRule _ _ ds _ _) = ds
+   getDirectives (Rule_Rule _ _ ds _ _)    = ds
+}
+
+DERIVING Interface Parameter : Eq
 DERIVING Layer Interface Parameter Implementation RuleSet Rule Judgment BodyAssignment : Show 
 
 INCLUDE "PrettyHaskell.ag"

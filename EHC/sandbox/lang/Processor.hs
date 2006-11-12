@@ -18,7 +18,6 @@ compile name = do rawlayer <- parseLayer name
                   impls  <- resolveImpls layers
                   return $ head impls ------------------ foldImpls   
 
-
 --------------------------------------------------------------------------------
 -- LAYER POST PROCESSING
 --------------------------------------------------------------------------------
@@ -138,21 +137,37 @@ resolveImpls (l:ls) = do impl <- parseImpl (name l)
                          impls <- resolveImpls ls
                          return $ impl : impls
 
+
+--------------------------------------------------------------------------------
+-- MERGING IMPLEMENTATION LAYERS
+--------------------------------------------------------------------------------
+
+
+
 -- combining layers:
 
-zipImpls :: Implementation -> Implementation -> Implementation
-zipImpls (Implementation_Implementation l rs1) 
-         (Implementation_Implementation _ rs2)
-   = Implementation_Implementation l $ zipRuleSets rs1 rs2
+mergeImpls :: Implementation -> Implementation -> Implementation
+mergeImpls (Implementation_Implementation l rs1) 
+           (Implementation_Implementation _ rs2)
+   = Implementation_Implementation l $ mergeRuleSets rs1 rs2
 
-zipRuleSets = undefined
--- TODO: assumes we checked for (erroneous duplication of rules in file) 
+mergeRuleSets :: RuleSets -> RuleSets -> RuleSets
+mergeRuleSets rs []     = rs
+mergeRuleSets [] rs     = rs
+mergeRuleSets (x:xs) ys = if x `elem` ys
+                          then mergeRuleSetPair x y' : mergeRuleSets xs ys'
+                          else x : mergeRuleSets xs ys
+   where (y',ys') = extract x ys
+
+mergeRuleSetPair :: RuleSet -> RuleSet -> RuleSet
+mergeRuleSetPair rs1 rs2 = undefined
+
 
 zipRules :: [Rule] -> [Rule] -> [Rule]
 zipRules above  []    = above
 zipRules []     below = below
 zipRules (x:xs) below = makeOne x match : zipRules xs nomatch
-   where (match,nomatch) = partition (matchRule x) below
+   where (match,nomatch) = partition (== x) below
          makeOne r [] = r
          makeOne r rs = mergeRule r (head rs)
 
@@ -165,8 +180,7 @@ mergeJudges j1 j2 = undefined
 
 mergeJudge = undefined
 
-matchRule :: Rule -> Rule -> Bool
-matchRule (Rule_Rule n1 i1 _ _ _) (Rule_Rule n2 i2 _ _ _) = n1 == n2 && i1 == i2
+
 
 
 --------------------------------------------------------------------------------
@@ -187,4 +201,9 @@ get' nm xs = if null fs then err else head fs
 
 getR :: Named a => [a] -> String -> a
 getR = flip get
+
+extract :: Eq a => a -> [a] -> (a,[a])
+extract x xs = (\(a,b) -> (head a, b)) $ partition (== x) xs
+
+
 
