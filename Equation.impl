@@ -17,11 +17,11 @@ implementation of Equation
     pre fitsIn.PreArgs
           | typeLeft  = "ta2"
           | typeRight = "ta1"
-          | subs      = "afo"
+          | subs      = "ffo"
         fitsIn.PreFun
           | typeLeft  = "tr1"
           | typeRight = "tr2"
-          | subs      = "ffo" 
+          | subs      = "afo" 
         checkSubs.CheckSubs
           | iSubs     = "[ffo,afo,emptyFO {foTy = (\\a r -> [a] `mkArrow` r) (foTy ffo) (foTy afo)}]"
           | oSubs     = "res"
