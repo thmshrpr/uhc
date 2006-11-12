@@ -1,4 +1,5 @@
 implementation of Equation
+ ruleset fitsIn implements fitsIn
   rule fitsIn_Ty_Con implements fitsIn
     post fitsIn.R
            | guard     = "x==y"

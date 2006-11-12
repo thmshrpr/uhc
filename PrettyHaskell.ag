@@ -7,10 +7,13 @@ type Assignments    = [Assignment]
 type SplitAssignments = (Assignments, Assignments, Assignments)
 }
 
-ATTR Implementation Rules Rule [ | | ppHaskell USE {>-< text "" >-<} {empty}: {PP_Doc} ]
+ATTR Implementation RuleSets RuleSet Rules Rule [ | | ppHaskell USE {>-< text "" >-<} {empty}: {PP_Doc} ]
      
 SEM Implementation
-  | Implementation        lhs.ppHaskell = @rules.ppHaskell
+  | Implementation        lhs.ppHaskell = @rulesets.ppHaskell
+
+SEM RuleSet
+  | RuleSet               lhs.ppHaskell = @rules.ppHaskell
   
 SEM Rule
   | Rule                  loc.(guards,input,output)
@@ -37,6 +40,7 @@ SEM Judgments
   | Nil                 lhs.paramAssignments = []
                                           
 ATTR Judgment [ | | paramAssignments : SplitAssignments fnName : String ]
+
 SEM  Judgment
   | Judgment            lhs.paramAssignments = let (guards,params) = partition (isGuard.getParam) (sortParams @body.assignments)
                                                    input           = filter (\x -> isIn (getDir (getParam x)) ) params

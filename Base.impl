@@ -1,4 +1,6 @@
 implementation of Base
+
+ruleset fitsIn implements Expr
   rule fitsIn implements Expr
     post Expr.R | abc = "kiGam"
        where asdf = "asdfkj"
