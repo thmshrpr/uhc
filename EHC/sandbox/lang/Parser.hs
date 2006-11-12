@@ -3,6 +3,7 @@ module Parser (parseLayer,parseImpl) where
 import Lang
 import UU.Parsing
 import UU.Scanner
+import Debug.Trace
 
 
 --------------------------------------------------------------------------------
@@ -106,7 +107,7 @@ pRawJudge2 = mkJudge2 <$> pId
    where mkJudge2 int nm ds bdy defs = Judgment_RawJudgment2 nm int ds bdy defs
 
 pDirectives :: Parser Token [String]
-pDirectives = (opt (pParens_pCommas pVarid) [])
+pDirectives = tracer <$> (opt (pParens_pCommas pVarid) [])
 
 pDefinitions :: Parser Token [(String,String)]
 pDefinitions = opt (pKey "where" *> pList pBinding) []
@@ -116,3 +117,6 @@ pBinding = (,) <$> pId <* pKey "=" <*> pString
 
 pId :: Parser Token String
 pId = pConid <|> pVarid
+
+tracer :: Show a => a -> a
+tracer = (\x -> trace (show x) x) 
