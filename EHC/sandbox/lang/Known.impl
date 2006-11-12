@@ -1,2 +1,8 @@
 implementation of Known
  ruleset fitsIn implements fitsIn
+  rule fitsIn_Ty_Con implements fitsIn
+    post fitsIn.R
+           | guard     = "TEST TEST"
+           | typeLeft  = "Ty_Con TEST"
+           | typeRight = "Ty_Con TEST"
+           | subs      = "TEST"
