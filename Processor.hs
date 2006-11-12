@@ -6,18 +6,6 @@ import Data.List
 import Parser
 
 
-main :: IO ()
-main = do { impls <- compile "Equation"
-          ; putStr $ show impls
-          }
-
-compile :: String -> IO Implementation
-compile name = do rawlayer <- parseLayer name
-                  target   <- processLayer name rawlayer 
-                  let layers = hierarchy target
-                  impls  <- resolveImpls layers
-                  return $ head impls ------------------ foldImpls   
-
 --------------------------------------------------------------------------------
 -- LAYER POST PROCESSING
 --------------------------------------------------------------------------------
@@ -75,7 +63,7 @@ layerParams pf uf l = map (\i->(name i, tracer $ params pf uf i)) (ifaces l)
 
 ifaces :: Layer -> [Interface]
 ifaces (Layer_Layer n p is) = is
-
+ifaces (Layer_RawLayer n p is) = is
 
 params :: ParamFilter -> ParamFilter -> Interface -> [Parameter]
 params pf uf (Interface_Interface n ps us p) = filter pf ps ++ filter uf us
@@ -106,23 +94,12 @@ hierarchy :: Layer -> [Layer]
 hierarchy l@(Layer_Layer _ Nothing _) = [l]
 hierarchy l@(Layer_Layer _ (Just p) _) = hierarchy p ++ [l]
 
-parameters :: Layer -> [(String, Parameter)]
-parameters = undefined
-
-
 resolve :: Layer -> Implementation -> IO Implementation
 resolve l i = return $ foldImpl (a,b,c) i
    where a = getR $ hierarchy l
          b = getR $ ifaces l
          c pi p2 = get p2 $ get' pi (allParams l)
          allParams = layerParams (const True) (const True)
-
-linkLayer :: Layer -> IO [Implementation]
-linkLayer l 
-   = do let hier = hierarchy l
-        let intsd = getR $ ifaces l
-        let alg = (getR hier, intsd, undefined)
-        return undefined
 
 
 
@@ -140,6 +117,9 @@ resolveImpls (l:ls) = do impl <- parseImpl (name l)
 --------------------------------------------------------------------------------
 -- MERGING IMPLEMENTATION LAYERS
 --------------------------------------------------------------------------------
+
+merge :: [Implementation] -> Implementation
+merge (x:xs) = foldl mergeImpls x xs
 
 mergeImpls :: Implementation -> Implementation -> Implementation
 mergeImpls (Implementation_Implementation l rs1) 
