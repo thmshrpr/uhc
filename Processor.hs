@@ -60,7 +60,7 @@ usedParams l = ps2n $ layerParams (const False) (const True) l
 
 
 layerParams :: ParamFilter -> ParamFilter -> Layer -> [(String,[Parameter])]
-layerParams pf uf l = map (\i->(name i, tracer $ params pf uf i)) (ifaces l)
+layerParams pf uf l = map (\i->(name i, params pf uf i)) (ifaces l)
 
 ifaces :: Layer -> [Interface]
 ifaces (Layer_Layer n p is) = is
@@ -164,24 +164,28 @@ mergeAssignments = mergePreserveOrder const
 mergeDefinitions = mergePreserveOrder' eqFst const
 
 
-mergePreserveOrder :: Eq a => (a -> a -> a) -> [a] -> [a] -> [a]
+mergePreserveOrder :: (Eq a, Show a) => (a -> a -> a) -> [a] -> [a] -> [a]
 mergePreserveOrder = mergePreserveOrder' (==)
 
-mergePreserveOrder' :: Eq a => (a -> a -> Bool) 
+mergePreserveOrder' :: (Eq a, Show a) => (a -> a -> Bool) 
                             -> (a -> a -> a) 
                             -> [a] -> [a] -> [a]
 mergePreserveOrder' e m []     bs     = bs
 mergePreserveOrder' e m as     []     = as
-mergePreserveOrder' e m (a:as) (bs)   = if elemBy e a bs
-                                        then neq ++ (m a (head eq) : mergeRest)
-                                        else a : mergePreserveOrder m as bs
-   where (neq,eq)  = break (\x -> not $ e a x) bs
-         mergeRest = mergePreserveOrder' e m as (tail eq)
+mergePreserveOrder' e m (a:as) (bs)   = if not $elemBy e a bs
+                                        then a : mergePreserveOrder m as bs
+                                        else neq' ++ (m a match : mergeRest)
+
+   where (neq,eq)   = span (\x -> not $ e a x) bs
+         match      = head eq
+         (neq',eq') = break (`elem` as) neq
+         mergeRest = mergePreserveOrder' e m as (eq' ++ tail eq)
 
 --------------------------------------------------------------------------------
 -- UTILITY FUNCTIONS
 --------------------------------------------------------------------------------
 
+tracer :: Show a => a -> a
 tracer = (\x -> trace (show x) x) 
 
 get :: Named a => String -> [a] -> a
