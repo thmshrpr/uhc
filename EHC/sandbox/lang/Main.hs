@@ -17,10 +17,22 @@ main = do { args <- getArgs
           }
 
 errOut :: String
-errOut = "The application shoud be passed at least one parameter, being the name of the implementation to be transformed. E.g. if your implementation is in 'Equational.impl', you should invoke the appliation with the parameter 'Equational'\n" 
+errOut = unlines [ ""
+                 , "Usage:  compile <layer_name>\n"
+                 , "   where <layer_name> is the name of the layer to compile"
+                 , ""
+                 , "Example:  compile Equational"
+                 , "   Equational.inf and Equational.impl must be in the local"
+                 , "   directory as should all of their parent layers."
+                 , ""
+                 ]
 
 succesMsg :: String -> String
-succesMsg fName = "Succesfully wrote the transformed output to " ++ fName ++ ".hs\n"
+succesMsg nm = unlines [ ""
+                       , "Succesfully wrote the transformed output to:  " ++ fnm
+                       , ""
+                       ]
+   where fnm = nm ++ ".hs"
 
 compile :: String -> IO ()
 compile name = do rawlayer <- parseLayer name
@@ -29,4 +41,5 @@ compile name = do rawlayer <- parseLayer name
                   impls  <- resolveImpls layers
                   let merged = merge (reverse impls)
                   writeFile (name ++ ".hs") $ show (sem_Implementation merged name)
+
 
