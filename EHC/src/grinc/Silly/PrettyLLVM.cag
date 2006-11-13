@@ -279,8 +279,10 @@ SEM Value
 
 ATTR Constant [ | | value : {Int} ]
 SEM Constant
-  | Literal     lhs.code   = text $ show @value
+  | LiteralInt  lhs.code   = text $ show @value
                 lhs.value  = @value
+  | LiteralStr  lhs.code   = error "Code generation for LiteralStr is not supported (yet)"
+                lhs.value  = error "Code generation for LiteralStr is not supported (yet)"
   | Alias       lhs.code   = "" >|< get @name @lhs.constants
                 lhs.value  = @val
                 loc.val    = get @name @lhs.constants
@@ -463,8 +465,9 @@ SEM Value
   | Call    lhs.descr = @name >|< "(" >#< @args.descr >#< ")"
 
 SEM Constant
-  | Literal lhs.descr = "" >|< @value
-  | Alias   lhs.descr = text @name
+  | LiteralStr lhs.descr = text @value
+  | LiteralInt lhs.descr = "" >|< show @value
+  | Alias      lhs.descr = text @name
 
 SEM Values
   | Nil     lhs.descr = empty
