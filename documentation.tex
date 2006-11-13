@@ -5,41 +5,76 @@
 \author{Mark Snyder, mark.snyder@gmail.com\\John van Schie, jcschie@cs.uu.nl}
 \date{}
 \maketitle
+\parindent=0in
 
-\section{Language decisions}
-%Marks stuff
+\section{Language Design}
+There were two major motivations behind the language's design.  The first motivation is to
+embrace common language paradigms and terminology.  By doing this we hope to minimize
+the ramp up time for new users.  The second motivation is to create a malleable syntax that 
+can be easily adapted to different applications.  For this reason, we added a directives hook
+that makes it possible to annotate rulesets, rules, and judgments with application specific
+information.  \\
+
+Another major goal of this language is to address some of the software engineering challenges
+brought about by the ever increasing EHC code size.  We use Java style inheritance to decompose
+different versions of the system and a combination of the \emph{private} directive and the \emph{uses}
+clause to manage data visibility between layers.
+
+In our prototype implementation interfaces and implementations are tied to each other by name
+and the inheritance relationship is expressed in the interface specification itself.  One possible
+improvement to our prototype would be to extract the inheritance information and keep the 
+inheritance hierarchy separate from the interface and implementation files.  By externalizing this
+information we make it possible to experiment with different layer assemblies.\\
+
+To make the above discussion concrete, we show a portion of the Known type layer specification below.
+
+\begin{verbatim}
+layer Known extends Equation  interface checkSubs    params    uses      in    iSubs     : FIOut      out   oSubs     : FIOut    pattern "iSubs ~> oSubs"\end{verbatim}
 
 \section{Haskell Output}
 \subsection{Haskell output overview}
-Currently out compiler can only output haskell code. To be more precise, for each ruleset that complies to an interface, a function is generated. Such a function has as many cases as there are rules within the ruleset.
+Currently our compiler is limited to generating Haskell code. To be more precise, for each ruleset that complies to an interface, a function is generated. Such a function has as many cases as there are rules within the ruleset.\\
 
-So when we have a ruleset definition like this :
+So when we have a ruleset definition like this:
 \begin{verbatim}
 ruleset typeInference implements exprTypeInference
   rule typeInference_Int = ...
   rule typeInference_Var = ...
 \end{verbatim}
-will be translated to the following haskell function skeleton :
 
+will be translated to the following haskell function skeleton:
 \begin{verbatim}
 exprTypeInference (CInt x) = ...
 exprTypeInference (CVar x) = ...
 \end{verbatim}
 
-One big problem with this is, is that order within such haskell function does matter for the matching and thus that the order of our rules defined in the ruleset also matters. So in our implementation the invariant holds that the order of the rules in the ruleset also defines the order for the cases in the function.
 
-It gets more compilicated when a ruleset extends a ruleset from another layer. Then the newly defined rules in the extending ruleset get a higher precendence than the rules from the extended ruleset. The rules in the extending ruleset that are overwriting rules in the extended ruleset, will get the precendence of the rule in the extended ruleset.
+Generating Haskell presents its own challenges.  Unlike AG code fragments, Haskell 
+code fragments, such as pattern matches, are order sensitive.  For this reason we preserve
+the order of rules within a ruleset when we generate Haskell.  The problem becomes more 
+complicated when a ruleset is merged with its cousin from the layer below.  In particular,
+it isn't clear where to place newly introduced rules within the order of the lower ruleset.\\
+
+In the most pathological cases, an explicit rule sequence will have to be provided.   In 
+our prototype we preserve the order of lower layers, inserting new layers in the "holes"
+between pre-existing rule positions.  We also provide an "overwrite" directive which 
+makes it possible to completely replace a ruleset in the lower layer with the upper layer's
+version.  \\
+
+One possible extension to the existing language definition would be additional syntax
+that allows users to specify the exact rule order in the upper layer.  The decision to 
+extend the language in this way must be balanced against the aesthetic cost of 
+cluttering up the syntax. 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \subsection{The Haskell translation scheme}
-The translation scheme from our ruler-like language is programmed in an AG (\texttt{PrettyHaskell.ag}), so changes to the Haskell output should be made there.
+The translation scheme from our ruler-like language is implemented via an attribute
+grammar (\texttt{PrettyHaskell.ag}), so changes to the Haskell output should be made 
+there.  The scheme is quite straightforward and can be summarized as follows. \\
 
-The scheme is quite straightforward and can be summarized as follows
+For the \emph{post judgment} of a rule, we create a new case with the \texttt{In} and \texttt{InOut} parameters (and their values) as input parameters. The body of the case consists of a let expression. The bindings of the let expression are all \emph{pre judgments}. For each pre judgment a binding is created. The value of the binding will be the \texttt{InOut} and \texttt{Out} parameters tupled of the judgment and the \texttt{In} and \texttt{InOut} parameters will be the parameters of the call to the interface of the pre judgment. That leaves us with the result of the let-expression. This wil simply be the \texttt{InOut} and \texttt{Out} parameters of the post judgment tupled. \\
 
-For the \emph{post judgment} of a rule, we create a new case with the \texttt{In} and \texttt{InOut} parameters (and their values) as input parameters. The body of the case consists of a let expression.
-
-The bindings of the let expression are all \emph{pre judgments}. For each pre judgment a binding is created. The value of the binding will be the \texttt{InOut} and \texttt{Out} parameters tupled of the judgment and the \texttt{In} and \texttt{InOut} parameters will be the parameters of the call to the interface of the pre judgment.
-
-That leaves us with the result of the let-expression. This wil simply be the \texttt{InOut} and \texttt{Out} parameters of the post judgment tupled.
 This can be seen in the following example
 
 \begin{verbatim}
@@ -59,7 +94,10 @@ layer Equation
          out   subs      : FIOut
       pattern "guard ==> typeLeft ~= typeRight"
 \end{verbatim}
-We see here a layer description of the Equation layer. This layer contains two interfaces, checkSubs which is used to 'hide' a functioncall, and the fitsIn interface, an interface for the unification of two types. The patterns noted in the interface, although required by the parser, are not used yet.
+
+The code above specifies the shape of rules in the Equation layer.  It serves the same purpose
+as the interface construct in Java.  This specification describes two functional abstractions, checkSubs which is used to 'hide' a functioncall, and the fitsIn interface, which is the  interface for the unification of two types. The patterns noted in the interface, although required by the parser, are not used yet.  Their
+purpose is to specify a more compact concrete syntax through which judgments can be specified.
 
 \begin{verbatim}
 -- File Equation.impl
@@ -96,15 +134,15 @@ implementation of Equation
            | subs      = "res"
 \end{verbatim}
 
-In Equation.impl the implementation of the interfaces is described. We see three rules here: fitsIn\_Ty\_Con, fitsIn\_Ty\_Any and fitsIn\_Ty\_App.
+In the above code, we see that three rules: fitsIn\_Ty\_Con, fitsIn\_Ty\_Any and fitsIn\_Ty\_App are specified.  For each interface file there must be a corresponding implementation file (.impl).  We briefly review the meaning behind these rules in the paragraphs below.\\
 
-\emph{fitsIn\_Ty\_Con} tries to unify two constructors. The special parameter guard is used as a keyword for the Haskell prettyprinter. Every parameter that is named guard will be added to the guard expression of the function case. So for this rule we expect a case that will be guarded by $x == y$ and as body has an let expression without bindings.
+\emph{fitsIn\_Ty\_Con} tries to unify two constructors. The special parameter guard is used as a keyword for the Haskell prettyprinter. Every parameter that is named guard will be added to the guard expression of the function case. So for this rule we expect a case that will be guarded by $x == y$ and as body has an let expression without bindings. \\
 
-\emph{fitsIn\_Ty\_Any} has the directive \emph{symmetric}. This means that if the input of the case is mirrored, we get another desired case. In this case we want one case to match the Ty\_Any constructor to the left and one constructor to match the case where the Ty\_Any is at the right. The symmetric directive accomplishes this.
+\emph{fitsIn\_Ty\_Any} has the directive \emph{symmetric}. This means that if the input of the case is mirrored, we get another desired case. In this case we want one case to match the Ty\_Any constructor to the left and one constructor to match the case where the Ty\_Any is at the right. The symmetric directive accomplishes this. \\
 
-\emph{fitsIn\_Ty\_App} is a rule with pre judgments. One of these judgments is of the interface \texttt{checkSubs}. So for this rule we expect a let expression with three bindings, two recursive and one binding that is utilizing the checkSubs function.
+\emph{fitsIn\_Ty\_App} is a rule with pre judgments. One of these judgments is of the interface \texttt{checkSubs}. So for this rule we expect a let expression with three bindings, two recursive and one binding that is utilizing the checkSubs function. \\
 
-So we run our compilertool and get the following (expected) output. Please note that the order of the rules is preserved.
+So we run our compiler tool and get the following  output. Please note that the order of the rules is preserved.
 \begin{verbatim}
 -- File Equation.hs
 module Equation where
@@ -127,9 +165,14 @@ fitsIn typeLeft@(Ty_App tf1 ta1) typeRight@(Ty_App tf2 ta2)  =
   in ( res )
 \end{verbatim}
 
-We will now extend the previous implementation by the unification that has to be performed by EHC version 2. Our interface does not need to be extended, so we need only to declare all parameters that we will use under the \emph{uses} section. This can be found in the file \texttt{Known.inf}.
+We will now look at how the Equation layer is extended in order to specify the know type rules that correspond to the unification logic performed by EHC version 2.  Our interface does not need to be extended (no new parameters are needed) but we do declare those parameters that the Known layer will use from the layer below (all parameters).  This redundancy, the copying of information from the layer below, is introduced so that developers won't be forced to inspect several files in the interface hierarchy in order to determine what parameters are available to the implementation.  Please inspect
+the \texttt{Known.inf} file in order to see how inheritance and parameter usage is expressed.\\
 
-When we look at the file \texttt{Known.impl} we see a couple of rules.
+The implementation refinements for the known types unification logic are displayed below.
+Only two rules are specified in this implementation - one which is a new addition to the ruleset
+and the other which overwrites the original rule in the Equation layer.  The latter is annotated with the \emph{overwrite} directive.  The rest of the rules are inherited, without interference, from the Equation layer.
+
+
 \begin{verbatim}
 implementation of Known
  ruleset fitsIn implements fitsIn
@@ -161,7 +204,10 @@ implementation of Known
            | typeRight = "Ty_App tf2 ta2"
            | subs      = "res"    
 \end{verbatim}
-The diffence between these rules, except the lenghth, is that the first rule is an addition while the second one is an overwrite of an previous rule. The latter is annoted by the directive \emph{overwrite}. And thus the output will be:
+
+
+The compiler output for this implementation is shown below.
+
 
 \begin{verbatim}
 module Known where
@@ -194,10 +240,17 @@ fitsIn typeLeft@(Ty_App tf1 ta1) typeRight@(Ty_App tf2 ta2)  =
 
 Note the order. The new rule gets translated as a case at the top, while the overwritten function gets its original postion.
 
-All these examples can be found in the *.impl and *.inf files in this directory.
+All these examples can be found in *.impl and *.inf files of this directory.
 
-\section{Generic Output}
-We realize that programming an AG to generate output is not nice for a DSL and limits the usability severly. 
+\subsection{Generalizing the Output Target}
+We realize that programming an AG so that it generates Haskell output directly is not an ideal solution.  This decision was motivated by time constraints and not design principles.  If future work is to be done on this language, we think that adapting Ruler's template framework would be a worthwhile investment.
 
-As future work we would like that the language is extended with an template language. This template language, in our opinion, should not be integrated with the DSL itself because we believe that these concerns should be seperated. So the template language could be a DSL on itself.
+\section{Restoring Type Safety}
+One of the most obvious differences between our prototype and the Ruler language is our template
+based approach.  We allow function calls, boolean expressions, etc. to be expressed as text.  This
+choice was an expedient one based largely upon time constraints and it comes at a high price, since
+we give up front-end type checking in the process.  Aside from time constraints, this approach was taken in reaction to Ruler's relation construct which we found peculiarly cumbersome.  \\
+
+Another possible improvement to this prototype would be to replace the textual code fragments with Haskell expressions - only supporting a small subset of Haskell, of course.  In order to decide whether this is a viable idea, one would have to review the unification code for more complex layers and determine whether these rules can be expressed naturally in a tiny subset of Haskell.
+
 \end{document}
