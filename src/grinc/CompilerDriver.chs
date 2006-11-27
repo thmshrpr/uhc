@@ -86,26 +86,23 @@ caParseGrin = do
 
 %%[8.identity import({%{GRIN}GrinCode.Trf.Identity})
 
-{-
-caIdentity1 :: CompileAction ()
-caIdentity1 = do
-    code <- gets gcsGrinCode
-    changed <- return $ identity code
-    modify (gcsUpdateGrinCode code)
-    putDebugMsg (if changed then "Changes" else "No change")
-    return ()
-
-
-caIdentityFix :: CompileAction ()
-caIdentityFix = task VerboseALot "Unskewing" (caFix caIdentity1) (\i -> Just $ show i ++ " iteration(s)")
--}
-
 caIdentity :: CompileAction ()
 caIdentity = do
-    putMsg VerboseALot "Identity Trans" Nothing
+    putMsg VerboseALot "Identity Transformation" Nothing
     code <- gets gcsGrinCode
     code <- return $ identity code
     modify (gcsUpdateGrinCode code)
+
+-- %%[8.identity import({%{GRIN}GrinCode.Trf.SubstituteVars})
+--caIdentity :: CompileAction ()
+--caIdentity = do
+--    putMsg VerboseALot "Identity Transformation" Nothing
+--    code <- gets gcsGrinCode
+--    unique <- gets gcsUnique
+--    (code, unique') <- return $ idSubst unique code
+--    modify (gcsUpdateUnique unique')
+--    modify (gcsUpdateGrinCode code)
+
 %%]
 
 %%[8.identity import({%{GRIN}GrinCode.Trf.Inliner})
@@ -114,12 +111,10 @@ caInliner :: CompileAction ()
 caInliner = do
     { putMsg VerboseALot "Inliner Trans" Nothing
     ; code <- gets gcsGrinCode
-    ; unique <- gets gcsUnique
     ; entry <- gets gcsEntry -- `main' : used to start call graph
     ; vm    <- gets gcsOrigNms -- making callgraph with real names is nicer :)
-    ; (unique, code, dot) <- return $ inliner unique entry vm code
+    ; (code, dot) <- return $ inliner entry vm code
     ; modify (gcsUpdateGrinCode code)
-    ; modify (gcsUpdateUnique unique)
     ; outputCallGraph <- gets (ehcOptDumpCallGraph . gcsOpts)
     ; when outputCallGraph
         (do { input <- gets gcsPath
@@ -277,7 +272,7 @@ caInlineEA = do
                     , gcsUnique     = unique'
                     , gcsMbHptMap   = Just hptMap
                     , gcsMbCode     = Just code
-		    -- TODO store the callgraph in the state
+                    -- TODO store the callgraph in the state
                     }
            )
     return $ unique' - unique
@@ -435,7 +430,7 @@ caAnalyse = task_ VerboseNormal "Analyzing"
 -- simplification part I
 caKnownCalls = task_ VerboseNormal "Removing unknown calls"
     ( do { --caIdentity 
-	 ; caInlineEA -- inline eval, inline apply, whnf update elimination, 
+         ; caInlineEA -- inline eval, inline apply, whnf update elimination, 
          ; caRightSkew -- bind normalisation -- caFix
          ; caWriteGrin True "3-knownCalls"
          }
@@ -445,7 +440,9 @@ caOptimizePartly = task_ VerboseNormal "Optimizing (partly)"
     ( do { caSparseCase
          ; caEliminateCases -- trivial, evaluated case
          ; caDropUnusedExpr
+         ; caWriteGrin True "4-beforeInline"
          ; caInliner
+         ; caInliner --drop unused bindings introduced by inlining (todo: separate or integrate)
          ; caWriteGrin True "4-partlyOptimized"
          }
     )
@@ -460,7 +457,7 @@ caNormalize = task_ VerboseNormal "Normalizing"
 caOptimize = task_ VerboseNormal "Optimizing (full)"
     ( do { caCopyPropagation -- caFix
          ; caWriteGrin True "6-after-cp"
-         ; caCaseHoisting
+         --; caCaseHoisting
          ; caWriteGrin True "6-after-hoisting"
          ; caDropUnusedExpr
          ; caWriteGrin True "7-optimized"
@@ -472,7 +469,7 @@ caFinalize = task_ VerboseNormal "Finalizing"
     ( do { caSplitFetch -- , right hoist
          ; caDropUnusedExpr
          ; caDropUnusedTags
-         ; caReturningCatch -- ...
+         ; caReturningCatch
          ; caNameIdents
          ; caWriteGrin True "8-final"
          }

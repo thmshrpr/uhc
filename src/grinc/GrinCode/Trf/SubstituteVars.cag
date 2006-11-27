@@ -8,44 +8,85 @@
 
 %%[8.wrapper
 WRAPPER GrExpr
+WRAPPER GrBindL
 %%]
 
 %%[8 hs module {%{GRIN}GrinCode.Trf.SubstituteVars} import({%{EH}Base.Common}, {%{EH}GrinCode}, qualified Data.Map as Map, qualified Data.Set as Set) export(substituteVars, allVars, freshSubs)
 type GrSubs = Map.Map HsName HsName
 
 substituteVars :: GrExpr -> GrSubs -> GrExpr
-substituteVars grExpr subs = let t = wrap_GrExpr (sem_GrExpr grExpr) (Inh_GrExpr { subs_Inh_GrExpr = subs, vars_Inh_GrExpr = Set.empty })
-                             in grTrf_Syn_GrExpr t
+substituteVars grExpr subs = 
+  let t = wrap_GrExpr (sem_GrExpr grExpr) attr
+      attr = Inh_GrExpr { subs_Inh_GrExpr = subsLookup subs, vars_Inh_GrExpr = Set.empty }
+  in grTrf_Syn_GrExpr t
 
 allVars :: GrExpr -> Set.Set HsName
-allVars grExpr = let t = wrap_GrExpr (sem_GrExpr grExpr) (Inh_GrExpr { subs_Inh_GrExpr = Map.empty, vars_Inh_GrExpr = Set.empty })
-                 in vars_Syn_GrExpr t
+allVars grExpr = 
+  let t = wrap_GrExpr (sem_GrExpr grExpr) attr
+      attr = Inh_GrExpr { subs_Inh_GrExpr = id, vars_Inh_GrExpr = Set.empty }
+  in vars_Syn_GrExpr t
 
 freshSubs :: Int -> GrExpr -> (GrSubs, Int)
-freshSubs i grExpr = let av = Set.toList $ allVars grExpr
-		     in (Map.fromList $ zipWith (\x y ->(x, HNPos y)) av [i..], i + length av)
+freshSubs i grExpr = 
+  let av = Set.toList $ allVars grExpr
+  in (Map.fromList $ zipWith (\x y ->(x, HNPos y)) av [i..], i + length av)
+
+
+--
+--freshSubs' :: Int -> GrBindL -> (GrSubs, Int)
+--freshSubs' i grExpr = 
+--  let av = Set.toList $ allVars' grExpr
+--  in (Map.fromList $ zipWith (\x y ->(x, HNPos y)) av [i..], i + length av)
+--
+--allVars' :: GrBindL -> Set.Set HsName
+--allVars' grExpr = 
+--  let t = wrap_GrBindL (sem_GrBindL grExpr) (Inh_GrBindL 
+--             { subs_Inh_GrBindL = Map.empty, vars_Inh_GrBindL = Set.empty })
+--  in vars_Syn_GrBindL t
+--
+--idSubst :: Int -> GrModule -> (GrModule, Int)
+--idSubst i (GrModule_Mod nm gl bl ct em am) = 
+--  let bl' = grTrf_Syn_GrBindL $ wrap_GrBindL (sem_GrBindL bl) (Inh_GrBindL 
+--                { subs_Inh_GrBindL = subs, vars_Inh_GrBindL = Set.empty })
+--      (subs, i') = freshSubs' i bl
+--  in (GrModule_Mod nm gl bl' ct em am, i')
+--
 %%]
 
 %%[8
-ATTR AllExpr [ | vars: {Set.Set HsName} | ]
+ATTR AllExpr AllBind [ | vars: {Set.Set HsName} | ]
 -- only introduced in patterns (Case Alt, or Seq)
 SEM GrPat
-  | Var	lhs . vars  = Set.insert @nm @lhs.vars
+  | Var     lhs . vars  = Set.insert @nm @lhs.vars
 SEM GrExpr
-  | Catch lhs . vars = Set.insert @arg @lhs.vars --FIXME
+  | Catch   lhs . vars = Set.insert @arg @lhs.vars --FIXME
 
-ATTR AllExpr AllAdapt AllSplit [ subs:GrSubs | | grTrf:SELF ]
-SEM GrVal
-  | Var 	lhs . grTrf = GrVal_Var (subsLookup @nm @lhs.subs)
-SEM GrPat
-  | Var 	lhs . grTrf = GrPat_Var (subsLookup @nm @lhs.subs)
+ATTR AllExpr AllAdapt AllSplit AllBind [ subs:{HsName -> HsName}| | grTrf:SELF ]
 SEM GrExpr
-  | Fetch	lhs . grTrf = GrExpr_Fetch (subsLookup @nm @lhs.subs) @mbOffset @mbTag
-  | Catch       lhs . grTrf = GrExpr_Catch @body.grTrf (subsLookup @arg @lhs.subs) @handler.grTrf
+  | Call    lhs . grTrf = GrExpr_Call (@lhs.subs @nm) @argL.grTrf
+  | FFI     lhs . grTrf = GrExpr_FFI @nm (map @lhs.subs @argL) @resTagL.grTrf
+  | App     lhs . grTrf = GrExpr_App (@lhs.subs @nm) @argL.grTrf
+  | Eval    lhs . grTrf = GrExpr_Eval (@lhs.subs @nm)
+  | Fetch   lhs . grTrf = GrExpr_Fetch (@lhs.subs @nm) @mbOffset @mbTag
+  | Update  lhs . grTrf = GrExpr_Update (@lhs.subs @nm) @val.grTrf @mbTag
+  | Throw   lhs . grTrf = GrExpr_Throw (@lhs.subs @nm)
+  | Catch   lhs . grTrf = GrExpr_Catch @body.grTrf (@lhs.subs @arg) @handler.grTrf
+SEM GrVal
+  | NodeAdapt  lhs . grTrf = GrVal_NodeAdapt (@lhs.subs @nm) @fldL.grTrf
+  | Var     lhs . grTrf = GrVal_Var (@lhs.subs @nm)
+SEM GrPat
+  | Node    lhs . grTrf = GrPat_Node @tag.grTrf (map @lhs.subs @fldL)
+  | NodeSplit  lhs . grTrf = GrPat_NodeSplit @tag.grTrf (@lhs.subs @nm) @fldL.grTrf
+  | Var     lhs . grTrf = GrPat_Var (@lhs.subs @nm)
+SEM GrSplit
+  | Sel     lhs . grTrf = GrSplit_Sel (@lhs.subs @nm) @off.grTrf
+SEM GrTag
+  | Lit     lhs . grTrf = GrTag_Lit @categ @int (@lhs.subs @nm)
+  | Var     lhs . grTrf = GrTag_Var (@lhs.subs @nm)
 
 {
-subsLookup :: HsName -> GrSubs -> HsName
-subsLookup nm subs = Map.findWithDefault nm nm subs
+subsLookup :: GrSubs -> HsName -> HsName
+subsLookup subs nm = Map.findWithDefault nm nm subs
 }
 
 %%]
