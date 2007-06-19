@@ -1,0 +1,132 @@
+%%[0
+%include lhs2TeX.fmt
+%include afp.fmt
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Common AG for Core
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Level
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8
+ATTR AllCodeNT [ lev: Int | | ]
+
+SEM CodeAGItf
+  | AGItf       module      .   lev         =   cLevModule
+
+SEM CExpr
+  | Lam         loc         .   lev         =   @lhs.lev + 1
+
+SEM CAlt
+  | Alt         loc         .   lev         =   @lhs.lev + 1
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Is CExpr the creation of a tuple?
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8
+ATTR CExpr [ | | mbTupApp: {Maybe CTag} ]
+
+SEM CExpr
+  | Tup         lhs         .   mbTupApp    =   Just @tag
+  | App         lhs         .   mbTupApp    =   @func.mbTupApp
+  | * - Tup App
+                lhs         .   mbTupApp    =   Nothing
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Is expr a lam?
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8
+ATTR CExpr [ | | isLam: Bool ]
+
+SEM CExpr
+  | Lam         lhs         .   isLam       =   True
+  | * - Lam     lhs         .   isLam       =   False
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Is expr otherwise (apart from isLam) a candidate for making a closure out of it?
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8
+ATTR CExpr [ | | isClosurable: Bool ]
+
+SEM CExpr
+  | Case TupDel TupIns TupUpd Let
+                lhs         .   isClosurable    =   True
+  | * - Case TupDel TupIns TupUpd Let
+                lhs         .   isClosurable    =   False
+%%]
+
+%%[8
+SEM CBind
+  | Bind        loc         .   isClosurable    =   @lhs.letBindCateg /= CBindStrict
+                                                    && @expr.isClosurable
+                                                    && isNothing @expr.mbTupApp
+                                                    
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Is expr a var?
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8
+ATTR CExpr [ | | mbVar: {Maybe HsName} ]
+
+SEM CExpr
+  | Var         loc         .   mbVar       =   Just @nm
+  | * - Var     lhs         .   mbVar       =   Nothing
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Let context
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8
+ATTR AllBind [ letBindCateg: CBindCateg | | ]
+
+SEM CExpr
+  | Let         loc         .   letBindCateg    =   @categ
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Is top App? Is top Tup adapt?
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8
+ATTR CExpr [ isTopApp: Bool  isTopTup: Bool | | ]
+
+SEM CExpr
+  | App         func        .   isTopApp    =   False
+                arg         .   isTopApp    =   True
+  | * - App     loc         .   isTopApp    =   True
+  | TupUpd TupIns TupDel
+                expr        .   isTopTup    =   False
+                loc         .   isTopTup    =   True
+  | * - TupUpd TupIns TupDel
+                loc         .   isTopTup    =   True
+
+SEM CModule
+  | Mod         expr        .   isTopApp    =   True
+                            .   isTopTup    =   True
+
+SEM CBind
+  | Bind        expr        .   isTopApp    =   True
+                            .   isTopTup    =   True
+
+SEM CPatBind
+  | Bind        offset      .   isTopApp    =   True
+                            .   isTopTup    =   True
+
+SEM CAlt
+  | Alt         expr        .   isTopApp    =   True
+                            .   isTopTup    =   True
+%%]
+
+

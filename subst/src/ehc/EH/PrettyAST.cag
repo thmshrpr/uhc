@@ -1,0 +1,628 @@
+%%[0
+%include lhs2TeX.fmt
+%include afp.fmt
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Pretty printing of internal AST structure
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[1 hs
+ppNest :: PP a => [a] -> [PP_Doc] -> [PP_Doc] -> PP_Doc
+ppNest nms attrs ps = ppNestInfo defaultEHCOpts nms attrs ps []
+
+ppNestInfo :: PP a => EHCOpts -> [a] -> [PP_Doc] -> [PP_Doc] -> AssocL String PP_Doc -> PP_Doc
+ppNestInfo opts nms attrs ps infos
+  = ppListSep "" "" "_" nms
+    >#< (   (if null attrs then empty else ppSpaced attrs)
+        >-< (if ehcOptDebug opts then vlist (map (\(i,p) -> pp i >|< ":" >#< p) infos) else empty)
+        )
+    >-< indent 2 (vlist ps)
+
+ppNm :: HsName -> PP_Doc
+ppNm = text . show . show
+
+mkInfo1 :: String -> PP_Doc -> (String,PP_Doc)
+mkInfo1 = (,)
+%%]
+
+%%[1
+ATTR AllNT AGItf [ | | ppAST USE {>-<} {empty} : PP_Doc ]
+
+SEM AGItf
+  | AGItf       lhs     .  ppAST    =   ppNestInfo @lhs.opts ["AGItf","AGItf"] [] [@expr.ppAST] (@info ++ @info_2 ++ @info_3 ++ @info_4_2 ++ @info_8 ++ @info_9)
+                loc     .  info     =   []
+                        .  info_2   =   []
+                        .  info_3   =   []
+                        .  info_4_2 =   []
+                        .  info_8   =   []
+                        .  info_9   =   []
+
+SEM Decl
+  | Val         lhs     .  ppAST    =   ppNestInfo @lhs.opts ["Decl","Val"] [] [@patExpr.ppAST,@expr.ppAST] (@info_1 ++ @info_2 ++ @info_9)
+                loc     .  info_1   =   [ mkInfo1 "lhs.tySigGam" (ppGam @lhs.tySigGam)
+                                        ]
+                        .  info_2   =   [ ]
+                        .  info_9   =   [ ]
+  | TySig       lhs     .  ppAST    =   ppNestInfo @lhs.opts ["Decl","TySig"] [ppNm @nm] [@tyExpr.ppAST] (@info_1 ++ @info_5)
+                loc     .  info_1   =   [ mkInfo1 "tyExpr.ty" (ppTy @tyExpr.ty)
+                                        ]
+                        .  info_5   =   [ ]
+
+SEM Expr
+  | IConst      lhs     .  ppAST    =   ppNestInfo @lhs.opts ["Expr","IConst"] [@pp] [] (@info_1 ++ @info_2)
+                loc     .  info_1   =   [ mkInfo1 "knTy" (ppTy @lhs.knTy)
+                                        ]
+                        .  info_2   =   []
+  | CConst      lhs     .  ppAST    =   ppNestInfo @lhs.opts ["Expr","CConst"] [@pp] [] (@info_1 ++ @info_2)
+                loc     .  info_1   =   [ mkInfo1 "knTy" (ppTy @lhs.knTy)
+                                        ]
+                        .  info_2   =   []
+  | Var         lhs     .  ppAST    =   ppNestInfo @lhs.opts ["Expr","Var"] [ppNm @nm] [] (@info ++ @info_2 ++ @info_4 ++ @info_4_2 ++ @info_9)
+                loc     .  info     =   [ mkInfo1 "knTy" (ppTy @lhs.knTy)
+                                        , mkInfo1 "ty_g_" (ppTy @ty_g_)
+                                        , mkInfo1 "ty" (ppTy @ty)
+                                        ]
+                        .  info_2   =   []
+                        .  info_4   =   []
+                        .  info_4_2 =   []
+                        .  info_9   =   []
+  | Con         lhs     .  ppAST    =   ppNestInfo @lhs.opts ["Expr","Con"] [ppNm @nm] [] (@info ++ @info_4)
+                loc     .  info     =   [ mkInfo1 "knTy" (ppTy @lhs.knTy)
+                                        , mkInfo1 "ty" (ppTy @ty)
+                                        ]
+                        .  info_4   =   []
+  | Let         lhs     .  ppAST    =   ppNestInfo @lhs.opts ["Expr","Let"] [] [@decls.ppAST] (@info_2 ++ @info_3 ++ @info_4_2 ++ @info_6 ++ @info_9)
+                                        >-< @body.ppAST
+                loc     .  info_2   =   []
+                        .  info_3   =   []
+                        .  info_4_2 =   []
+                        .  info_6   =   []
+                        .  info_9   =   []
+  | App         lhs     .  ppAST    =   ppNestInfo @lhs.opts ["Expr","App"] [] [@func.ppAST,@arg.ppAST] (@info_1 ++ @info_2 ++ @info_4_2 ++ @info_9)
+                loc     .  info_1   =   [ mkInfo1 "knTy" (ppTy @lhs.knTy)
+                                        ]
+                        .  info_2   =   []
+                        .  info_4_2 =   []
+                        .  info_9   =   []
+  | Parens      lhs     .  ppAST    =   ppNest ["Expr","Parens"] [] [@expr.ppAST]
+  | AppTop      lhs     .  ppAST    =   ppNestInfo @lhs.opts ["Expr","AppTop"] [] [@expr.ppAST] (@info ++ @info_2 ++ @info_4 ++ @info_9)
+                loc     .  info     =   [ mkInfo1 "knTy" (ppTy @lhs.knTy)
+                                        , mkInfo1 "expr.ty" (ppTy @expr.ty)
+                                        ]
+                        .  info_2   =   []
+                        .  info_4   =   []
+                        .  info_9   =   []
+  | Lam         lhs     .  ppAST    =   ppNestInfo @lhs.opts ["Expr","Lam"] [] [@arg.ppAST,@body.ppAST] (@info ++ @info_2 ++ @info_9 ++ @info_4_2)
+                loc     .  info     =   [ mkInfo1 "knTy" (ppTy @lhs.knTy)
+                                        , mkInfo1 "arg.valGam" (ppGam @arg.valGam)
+                                        ]
+                        .  info_2   =   []
+                        .  info_9   =   []
+                        .  info_4_2 =   []
+  | TypeAs      lhs     .  ppAST    =   ppNestInfo @lhs.opts ["Expr","TypeAs"] [] [@expr.ppAST,@tyExpr.ppAST] @info_3
+                loc     .  info_3   =   []
+
+SEM PatExpr
+  | IConst      lhs     .  ppAST    =   ppNest ["PatExpr","IConst"] [@pp] []
+  | CConst      lhs     .  ppAST    =   ppNest ["PatExpr","CConst"] [@pp] []
+  | Var         lhs     .  ppAST    =   ppNestInfo @lhs.opts ["PatExpr","Var"] [ppNm @nm] [] (@info_1 ++ @info_2 ++ @info_9)
+                loc     .  info_1   =   [ mkInfo1 "knTy" (ppTy @lhs.knTy)
+                                        ]
+                        .  info_2   =   []
+                        .  info_9   =   []
+  | VarAs       lhs     .  ppAST    =   ppNest ["PatExpr","VarAs"] [ppNm @nm] [@patExpr.ppAST]
+  | Con         lhs     .  ppAST    =   ppNestInfo @lhs.opts ["PatExpr","Con"] [ppNm @nm] [] (@info ++ @info_2 ++ @info_4)
+                loc     .  info     =   [ mkInfo1 "knTy" (ppTy @lhs.knTy)
+                                        ]
+                        .  info_2   =   []
+                        .  info_4   =   []
+  | App         lhs     .  ppAST    =   ppNestInfo @lhs.opts ["PatExpr","App"] [] [@func.ppAST,@arg.ppAST] @info
+                loc     .  info     =   []
+  | Parens      lhs     .  ppAST    =   ppNest ["PatExpr","Parens"] [] [@patExpr.ppAST]
+  | AppTop      lhs     .  ppAST    =   ppNestInfo @lhs.opts ["PatExpr","AppTop"] [] [@patExpr.ppAST] (@info ++ @info_2)
+                loc     .  info     =   [ mkInfo1 "knTy" (ppTy @lhs.knTy)
+                                        ]
+                        .  info_2   =   []
+  
+SEM TyExpr
+  | Con         lhs     .  ppAST    =   ppNest ["TyExpr","Con"] [ppNm @nm] []
+  | App         lhs     .  ppAST    =   ppNestInfo @lhs.opts ["TyExpr","App"] [] [@func.ppAST,@arg.ppAST] @info
+                loc     .  info     =   []
+  | Parens      lhs     .  ppAST    =   ppNest ["TyExpr","Parens"] [] [@tyExpr.ppAST]
+  | AppTop      lhs     .  ppAST    =   ppNestInfo @lhs.opts ["TyExpr","AppTop"] [] [@tyExpr.ppAST] @info
+                loc     .  info     =   [ mkInfo1 "appFunNm" (ppNm @tyExpr.appFunNm)
+                                        ]
+
+SEM Decls
+  | Nil         lhs     .  ppAST    =   ppNest ["Decls","Nil"] [] []
+  | Cons        lhs     .  ppAST    =   ppNest ["Decls","Cons"] [] [@hd.ppAST,@tl.ppAST]
+%%]
+
+%%[2
+SEM Decl
+  | Val         loc     .  info_2   :=  [ mkInfo1 "ty_sig_" (ppTy @ty_sig_)
+                                        , mkInfo1 "patExpr.ty" (ppTy @patExpr.ty)
+                                        , mkInfo1 "expr.ty" (ppTy @expr.ty)
+                                        , mkInfo1 "lhs.tyVarMp" (ppVarMpV @lhs.tyVarMp)
+                                        , mkInfo1 "expr.tyVarMp" (ppVarMpV @expr.tyVarMp)
+                                        ]
+
+SEM TyExpr
+  | Wild        lhs     .  ppAST    =   ppNest ["TyExpr","Wild"] [] []
+
+SEM Expr
+  | IConst CConst
+                loc     .  info_2   :=  [ mkInfo1 "knTy+lhs.cnstr" (ppTy (@lhs.tyVarMp |=> @lhs.knTy))
+                                        , mkInfo1 "foVarMp fo" (pp (foVarMp @fo_))
+                                        ]
+  | Var         loc     .  info_2   :=  [ mkInfo1 "lhs.cnstr" (ppVarMpV @lhs.tyVarMp)
+                                        , mkInfo1 "knTy+lhs.cnstr" (ppTy (@lhs.tyVarMp |=> @lhs.knTy))
+                                        , mkInfo1 "foVarMp fo" (pp (foVarMp @fo_))
+                                        ]
+  | App         loc     .  info_2   :=  [ mkInfo1 "knTy+lhs.cnstr" (ppTy (@lhs.tyVarMp |=> @lhs.knTy))
+                                        , mkInfo1 "func.ty" (ppTy @func.ty)
+                                        , mkInfo1 "ty" (ppTy @ty)
+                                        ]
+  | AppTop      loc     .  info_2   :=  [ mkInfo1 "lhs.tyVarMp" (ppVarMpV @lhs.tyVarMp)
+                                        , mkInfo1 "expr.tyVarMp" (ppVarMpV @expr.tyVarMp)
+                                        ]
+  | Lam         loc     .  info_2   :=  [ mkInfo1 "knTy+lhs.tyVarMp" (ppTy (@lhs.tyVarMp |=> @lhs.knTy))
+                                        , mkInfo1 "foTy @fo_fitF_" (ppTy (foTy @fo_fitF_))
+                                        , mkInfo1 "foVarMp @fo_fitF_" (pp (foVarMp @fo_fitF_))
+                                        , mkInfo1 "ty" (ppTy @ty)
+                                        , mkInfo1 "body.tyVarMp" (pp @body.tyVarMp)
+                                        , mkInfo1 "lhs.finTyVarMp" (pp @lhs.finTyVarMp)
+                                        ]
+  | Let         loc     .  info_2   :=  [ mkInfo1 "decls.gathTySigGam" (pp @decls.gathTySigGam)
+                                        , mkInfo1 "valGam_l_" (pp (gamTop @decls.patValGam))
+                                        , mkInfo1 "valGam_l_+decls.tyVarMp" (pp (@decls.tyVarMp |=> gamTop @decls.patValGam))
+                                        ]
+
+SEM PatExpr
+  | Var         loc     .  info_2   :=  [ mkInfo1 "ty" (ppTy @ty)
+                                        ]
+  | AppTop      loc     .  info_2   :=  [ mkInfo1 "patExpr.patFunTy" (ppTy @patExpr.patFunTy)
+                                        , mkInfo1 "patExpr.ty" (ppTy @patExpr.ty)
+                                        , mkInfo1 "ty" (ppTy @ty)
+                                        , mkInfo1 "lhs.tyVarMp" (pp @lhs.tyVarMp)
+                                        , mkInfo1 "patExpr.tyVarMp" (pp @patExpr.tyVarMp)
+                                        ]
+  | Con         loc     .  info_2   :=  [ mkInfo1 "ty" (ppTy @ty)
+                                        ]
+%%]
+                                        -- , mkInfo1 "decls.tyVarMp" (ppVarMpV @decls.tyVarMp)
+
+%%[3
+SEM TyExpr
+  | Var         lhs     .  ppAST    =   ppNestInfo @lhs.opts ["TyExpr","Var"] [ppNm @nm] [] @info
+                loc     .  info     =   []
+  | VarWild     lhs     .  ppAST    =   ppNest ["TyExpr","VarWild"] [ppNm @nm] []
+
+SEM Expr
+  | Let         loc     .  info_3   :=  [ mkInfo1 "lSubsValGam_" (ppGam @lSubsValGam_)
+                                        ]
+  | TypeAs      loc     .  info_3   :=  [ mkInfo1 "knTy+lhs.tyVarMp" (ppTy (@lhs.tyVarMp |=> @lhs.knTy))
+                                        , mkInfo1 "lhs.tyVarMp" (ppVarMpV @lhs.tyVarMp)
+                                        , mkInfo1 "foVarMp fo" (pp (foVarMp @fo_))
+                                        , mkInfo1 "ty_q_" (ppTy @ty_q_)
+                                        ]
+
+%%]
+
+%%[4
+SEM Expr
+  | Var         loc     .  info_4   :=  [ mkInfo1 "lhs.fiOpts" (pp @lhs.fiOpts)
+                                        ]
+  | AppTop      loc     .  info_4   :=  [ mkInfo1 "lhs.fiOpts" (pp @lhs.fiOpts)
+                                        ]
+  | Con         loc     .  info_4   :=  [ mkInfo1 "foVarMp" (pp (foVarMp @fo_))
+                                        ]
+  | AppImpred   lhs     .  ppAST    =   ppNestInfo @lhs.opts ["Expr","AppImpred"] [] [@func.ppAST,@arg.ppAST] (@info_2 ++ @info_4_2 ++ @info_9)
+                loc     .  info_2   =   [ mkInfo1 "knTy" (ppTy @lhs.knTy)
+                                        , mkInfo1 "knTy+lhs.cnstr" (ppTy (@lhs.tyVarMp |=> @lhs.knTy))
+                                        , mkInfo1 "func.ty" (ppTy @func.ty)
+                                        , mkInfo1 "ty" (ppTy @ty)
+                                        ]
+                        .  info_4_2 =   []
+                        .  info_9   =   []
+
+SEM PatExpr
+  | TypeAs      lhs     .  ppAST    =   ppNestInfo @lhs.opts ["PatExpr","TypeAs"] [] [@patExpr.ppAST,@tyExpr.ppAST] @info
+                loc     .  info     =   [ mkInfo1 "knTy" (ppTy @lhs.knTy)
+                                        , mkInfo1 "tyExpr.ty" (ppTy @tyExpr.ty)
+                                        , mkInfo1 "patExpr.ty" (ppTy @patExpr.ty)
+                                        , mkInfo1 "foVarMp fo" (pp (foVarMp @fo_))
+                                        , mkInfo1 "lhs.fiOpts" (pp @lhs.fiOpts)
+                                        ]
+  | Con         loc     .  info_4   :=  [ mkInfo1 "ty_r_" (ppTy @ty_r_)
+                                        ]
+
+SEM TyExpr
+  | Quant       lhs     .  ppAST    =   ppNest ["TyExpr","Quant"] [text (showTyQu @qu),ppNm @tyVar] [@tyExpr.ppAST]
+%%]
+
+%%[4_2
+SEM AGItf
+  | AGItf       loc     .  info_4_2 :=  [ mkInfo1 "expr.imprTyVarMp" (ppVarMpV @expr.imprTyVarMp)
+                                        ]
+
+SEM Expr
+  | Var         loc     .  info_4_2 :=  [ mkInfo1 "imprTy" (ppTy @imprTy)
+                                        , mkInfo1 "lhs.imprTyVarMp" (ppVarMpV @lhs.imprTyVarMp)
+                                        ]
+  | Let         loc     .  info_4_2 :=  [ mkInfo1 "decls.imprTyVarMp" (ppVarMpV @decls.imprTyVarMp)
+                                        , mkInfo1 "lhs.tyVarMp" (ppVarMpV @lhs.tyVarMp)
+                                        , mkInfo1 "decls.patTyVarMp" (ppVarMpV @decls.patTyVarMp)
+                                        , mkInfo1 "decls.tyVarMp" (ppVarMpV @decls.tyVarMp)
+                                        , mkInfo1 "body.imprTyVarMp" (ppVarMpV @body.imprTyVarMp)
+                                        , mkInfo1 "imprTyVarMp_elim_" (ppVarMpV @imprTyVarMp_elim_)
+                                        , mkInfo1 "quValGam_ex_" (ppGam (@quValGam_ex_))
+                                        ]
+  | App AppImpred
+                loc     .  info_4_2 :=  [ mkInfo1 "arg.imprTy" (ppTy @arg.imprTy)
+                                        , mkInfo1 "func.imprTy" (ppTy @func.imprTy)
+                                        , mkInfo1 "foTy fo_fitA_ (arg)" (ppTy (foTy @fo_fitA_))
+                                        , mkInfo1 "foTy fo_fitF_ (fun)" (ppTy (foTy @fo_fitF_))
+                                        , mkInfo1 "imprTy" (ppTy @imprTy)
+                                        ]
+  | Lam         loc     .  info_4_2 :=  [ mkInfo1 "valGam_l_" (ppGam @valGam_l_)
+                                        , mkInfo1 "lArgElimValGam" (ppGam @lArgElimValGam)
+                                        , mkInfo1 "knTy+lhs.imprTyVarMp" (ppTy (@lhs.imprTyVarMp |=> @lhs.knTy))
+                                        , mkInfo1 "lhs.imprTyVarMp" (ppVarMpV @lhs.imprTyVarMp)
+                                        , mkInfo1 "arg.tyVarMp" (ppVarMpV @arg.tyVarMp)
+                                        , mkInfo1 "body.imprTyVarMp" (ppVarMpV @body.imprTyVarMp)
+                                        , mkInfo1 "foTy @fo_ifitF_" (ppTy (foTy @fo_ifitF_))
+                                        , mkInfo1 "foVarMp @fo_ifitF_" (pp (foVarMp @fo_ifitF_))
+                                        , mkInfo1 "imprTyVarMp_elim_" (ppVarMpV @imprTyVarMp_elim_)
+                                        , mkInfo1 "lhs.tyVarMp" (ppVarMpV @lhs.tyVarMp)
+                                        , mkInfo1 "lhs.fiOpts" (pp @lhs.fiOpts)
+                                        ]
+%%]
+
+%%[5
+SEM Decl
+  | Data        lhs     .  ppAST    =   ppNestInfo @lhs.opts ["Decl","Data"] [ppNm @tyNm] [@tyVars.ppAST,@constrs.ppAST] (@info_5 ++ @info_6 ++ @info_7)
+                loc     .  info_5   =   [ mkInfo1 "dataTy" (ppTy @dataTy)
+                                        ]
+                        .  info_6   =   []
+                        .  info_7   =   []
+  | TySig       loc     .  info_5   :=  [ mkInfo1 "ty_sig_" (ppTy @ty_sig_)
+                                        ]
+
+SEM Expr
+  | SConst      lhs     .  ppAST    =   ppNestInfo @lhs.opts ["Expr","SConst"] [@pp] [] []
+  | Case        lhs     .  ppAST    =   ppNestInfo @lhs.opts ["Expr","Case"] [] [@expr.ppAST,@alts.ppAST] @info
+                loc     .  info     =   [ mkInfo1 "knTy" (ppTy (@lhs.tyVarMp |=> @lhs.knTy))
+                                        ]
+
+SEM PatExpr
+  | SConst      lhs     .  ppAST    =   ppNestInfo @lhs.opts ["PatExpr","SConst"] [@pp] [] []
+
+SEM CaseAlt
+  | Pat         lhs     .  ppAST    =   ppNest ["CaseAlt","Pat"] [] [@patExpr.ppAST,@expr.ppAST]
+
+SEM CaseAlts
+  | Nil         lhs     .  ppAST    =   ppNestInfo @lhs.opts  ["CaseAlts","Nil"] [] [] @info
+                loc     .  info     =   [ mkInfo1 "knTy" (ppTy (@lhs.tyVarMp |=> @lhs.knTy))
+                                        ]
+  | Cons        lhs     .  ppAST    =   ppNestInfo @lhs.opts ["CaseAlts","Cons"] [] [@hd.ppAST,@tl.ppAST] @info
+                loc     .  info     =   [ mkInfo1 "knTy" (ppTy (@lhs.tyVarMp |=> @lhs.knTy))
+                                        ]
+
+SEM TyExprs
+  | Nil         lhs     .  ppAST    =   ppNest ["TyExprs","Nil"] [] []
+  | Cons        lhs     .  ppAST    =   ppNest ["TyExprs","Cons"] [] [@hd.ppAST,@tl.ppAST]
+
+SEM TyVar
+  | Var         lhs     .  ppAST    =   ppNestInfo @lhs.opts ["TyVar","Var"] [ppNm @nm] [] @info_6
+                loc     .  info_6   =   []
+
+SEM TyVars
+  | Nil         lhs     .  ppAST    =   ppNest ["TyVars","Nil"] [] []
+  | Cons        lhs     .  ppAST    =   ppNest ["TyVars","Cons"] [] [@hd.ppAST,@tl.ppAST]
+
+SEM DataConstr
+  | Constr      loc     .  ppAST    =   ppNestInfo @lhs.opts ["DataConstr","Constr"] [ppNm @conNm] [@fields.ppAST] @info_6
+                loc     .  info_6   =   []
+
+SEM DataConstrs
+  | Nil         lhs     .  ppAST    =   ppNest ["DataConstrs","Nil"] [] []
+  | Cons        lhs     .  ppAST    =   ppNest ["DataConstrs","Cons"] [] [@hd.ppAST,@tl.ppAST]
+%%]
+
+%%[6
+SEM TyVar
+  | Var         loc     .  info_6   :=  [ mkInfo1 "tgi_" (pp @tgi_)
+                                        ]
+SEM TyExpr
+  | Var         loc     .  info     :=  [ mkInfo1 "tgi_" (pp @tgi_)
+                                        ]
+SEM Decl
+  | Data        loc     .  info_6   :=  [ mkInfo1 "dataKi" (ppTy @dataKi)
+                                        , mkInfo1 "lhs.tyGam" (ppGam @lhs.tyGam)
+                                        ]
+
+SEM DataConstr
+  | Constr      loc     .  info_6   :=  [ mkInfo1 "fields.kiVarMp" (pp @fields.kiVarMp)
+                                        , mkInfo1 "foVarMp @fo_" (pp (foVarMp @fo_))
+                                        ]
+
+SEM Expr
+  | Let         loc     .  info_6   :=  [ mkInfo1 "tyGam_l_" (ppGam @tyGam_l_)
+                                        , mkInfo1 "decls.kiVarMp" (pp @decls.kiVarMp)
+                                        ]
+%%]
+
+%%[7
+SEM Expr
+  | DataFields  loc     .  ppAST    =   ppNestInfo @lhs.opts ["Expr","DataFields"] [] [@dataFieldExpr.ppAST] @info
+                        .  info     =   [ mkInfo1 "ty" (pp @dataFieldExpr.ty)
+                                        ]
+  | Rec         loc     .  ppAST    =   ppNestInfo @lhs.opts ["Expr","Rec"] [] [@recExpr.ppAST] @info
+                        .  info     =   [ mkInfo1 "lhs.knTy" (pp @lhs.knTy)
+                                        , mkInfo1 "lhs.knTy+subst" (pp (@recExpr.tyVarMp |=> @lhs.knTy))
+                                        , mkInfo1 "recExpr.ty" (pp @recExpr.ty)
+                                        , mkInfo1 "ty" (pp @ty)
+                                        ]
+  | Sel         loc     .  ppAST    =   ppNestInfo @lhs.opts ["Expr","Sel"] [ppNm @lbl] [@expr.ppAST] @info
+                        .  info     =   [ mkInfo1 "lhs.knTy" (pp @lhs.knTy)
+                                        ]
+
+SEM PatExpr
+  | DataFields  loc     .  ppAST    =   ppNestInfo @lhs.opts ["PatExpr","DataFields"] [] [@dataFieldPatExpr.ppAST] @info
+                        .  info     =   [ mkInfo1 "ty" (pp @dataFieldPatExpr.ty)
+                                        ]
+  | Rec         loc     .  ppAST    =   ppNest ["PatExpr","Rec"] [] [@recPatExpr.ppAST]
+
+SEM TyExpr
+  | Row         loc     .  ppAST    =   ppNest ["TyExpr","Row"] [] [@rowTyExpr.ppAST]
+
+SEM RecExpr
+  | Empty       loc     .  ppAST    =   ppNestInfo @lhs.opts ["RecExpr","Empty"] [] [] @info
+                        .  info     =   [ mkInfo1 "lhs.knTy" (pp @lhs.knTy)
+                                        , mkInfo1 "ty" (pp @ty)
+                                        ]
+  | Ext         loc     .  ppAST    =   ppNestInfo @lhs.opts ["RecExpr","Ext"] [ppNm @nm] [@recExpr.ppAST,@expr.ppAST] @info
+                        .  info     =   [ mkInfo1 "lhs.knTy" (pp @lhs.knTy)
+                                        , mkInfo1 "foTy foKnRec" (pp (foTy @foKnRec))
+                                        , mkInfo1 "recTy" (pp @recTy)
+                                        , mkInfo1 "ty" (pp @ty)
+                                        ]
+  | Upd         loc     .  ppAST    =   ppNestInfo @lhs.opts ["RecExpr","Upd"] [ppNm @nm] [@recExpr.ppAST,@expr.ppAST] @info
+                        .  info     =   [ mkInfo1 "lhs.knTy" (pp @lhs.knTy)
+                                        , mkInfo1 "foTy foKnRec" (pp (foTy @foKnRec))
+                                        , mkInfo1 "recTy" (pp @recTy)
+                                        , mkInfo1 "ty" (pp @ty)
+                                        , mkInfo1 "finRecTy" (pp (@lhs.finTyVarMp |=> @recExpr.ty))
+                                        ]
+  | Expr        loc     .  ppAST    =   ppNestInfo @lhs.opts ["RecExpr","Expr"] [] [@expr.ppAST] @info
+                        .  info     =   [ mkInfo1 "expr.ty" (pp @expr.ty)
+                                        ]
+
+SEM RecPatExpr
+  | Empty       loc     .  ppAST    =   ppNest ["RecPatExpr","Empty"] [] []
+  | Ext         loc     .  ppAST    =   ppNest ["RecPatExpr","Ext"] [ppNm @nm] [@recPatExpr.ppAST,@patExpr.ppAST]
+  | Expr        loc     .  ppAST    =   ppNestInfo @lhs.opts ["RecPatExpr","Expr"] [] [@patExpr.ppAST] @info
+                        .  info     =   []
+
+SEM RowTyExpr
+  | Empty       loc     .  ppAST    =   ppNest ["RowTyExpr","Empty"] [] []
+  | Ext         loc     .  ppAST    =   ppNest ["RowTyExpr","Ext"] [ppNm @nm] [@rowTyExpr.ppAST,@tyExpr.ppAST]
+
+SEM DataField
+  | Field       loc     .  ppAST    =   ppNest ["DataField","Field"] [pp (maybe [] (map ppNm) @mbLabels)] [@tyExpr.ppAST]
+
+SEM DataFields
+  | Nil         lhs     .  ppAST    =   ppNest ["DataFields","Nil"] [] []
+  | Cons        lhs     .  ppAST    =   ppNest ["DataFields","Cons"] [] [@hd.ppAST,@tl.ppAST]
+
+SEM DataFieldExpr
+  | Con         loc     .  ppAST    =   ppNestInfo @lhs.opts ["DataFieldExpr","Con"] [ppNm @nm] [] @info
+                        .  info     =   [ mkInfo1 "ty" (pp @ty)
+                                        ]
+  | Upd         loc     .  ppAST    =   ppNestInfo @lhs.opts ["DataFieldExpr","Upd"] [ppNm @nm] [@dataFieldExpr.ppAST,@expr.ppAST] @info
+                        .  info     =   [ mkInfo1 "ty" (pp @ty)
+                                        , mkInfo1 "foTy fo_" (pp (foTy @fo_))
+                                        ]
+  | Expr        loc     .  ppAST    =   ppNestInfo @lhs.opts ["DataFieldExpr","Expr"] [] [@expr.ppAST] @info
+                        .  info     =   [ mkInfo1 "ty" (pp @ty)
+                                        ]
+SEM DataFieldPatExpr
+  | Con         loc     .  ppAST    =   ppNestInfo @lhs.opts ["DataFieldPatExpr","Con"] [ppNm @nm] [] @info
+                        .  info     =   [ mkInfo1 "ty" (pp @ty)
+                                        ]
+  | Ext         loc     .  ppAST    =   ppNestInfo @lhs.opts ["DataFieldPatExpr","Ext"] [ppNm @nm] [@dataFieldPatExpr.ppAST,@patExpr.ppAST] @info
+                        .  info     =   [ mkInfo1 "ty" (pp @ty)
+                                        ]
+SEM Decl
+  | Data        loc     .  info_7   :=  [ mkInfo1 "dataAltTy" (pp @dataAltTy)
+                                        ]
+%%]
+
+%%[8
+SEM Decl
+  | FFI         loc     .  ppAST    =   ppNestInfo @lhs.opts ["Decl","FFI"] [pp (show @impEnt),ppNm @nm] [@tyExpr.ppAST] @info
+                        .  info     =   []
+
+SEM AGItf
+  | AGItf       loc     .  info_8   :=  [ mkInfo1 "expr.cexpr" (pp @expr.cexpr)
+                                        ]
+%%]
+
+%%[9
+SEM RowTyExpr
+  | Var         loc     .  ppAST    =   ppNest ["RowTyExpr","Var"] [ppNm @nm] []
+
+SEM TyExpr
+  | Pred        loc     .  ppAST    =   ppNest ["TyExpr","Pred"] [] [@prExpr.ppAST]
+
+SEM PrExpr
+  | Class       loc     .  ppAST    =   ppNest ["PrExpr","Class"] [ppNm @nm] [@tyExprs.ppAST]
+  | Arrow       loc     .  ppAST    =   ppNest ["PrExpr","Arrow"] [] [@arg.ppAST,@res.ppAST]
+
+SEM Decl
+  | Val         loc     .  info_9   :=  [ mkInfo1 "predScope" (pp @predScope)
+                                        ]
+  | Class       loc     .  ppAST    =   ppNestInfo @lhs.opts ["Decl","Class"] [] [ @tyPrExpr.ppAST
+%%[[15
+                                                                                 , @funcDeps.ppAST
+%%]]
+                                                                                 , @decls.ppAST] @info
+                        .  info     =   []
+  | Instance    loc     .  ppAST    =   ppNestInfo @lhs.opts ["Decl","Instance"] (maybe [] (\(n,_) -> [ppNm n]) @mbNmElim) [@tyPrExpr.ppAST,@decls.ppAST] @info
+                        .  info     =   [ mkInfo1 "predScope" (pp @predScope)
+                                        , mkInfo1 "toProveDeclsVarMpMp" (ppAssocLV $ assocLMapElt ppBracketsCommas $ Map.toList @toProveDeclsVarMpMp)
+                                        , mkInfo1 "chrSolveDeclsDoneConstraints" (ppBracketsCommasV @chrSolveDeclsDoneConstraints)
+                                        , mkInfo1 "chrSolveDeclsRemVarMpMp" (ppAssocLV $ assocLMapElt ppBracketsCommas $ Map.toList @chrSolveDeclsRemVarMpMp)
+                                        , mkInfo1 "chrSolveDeclsEvidBindMp" (ppAssocLV $ assocLMapElt ppCBindL $ Map.toList @chrSolveDeclsEvidBindMp)
+                                        , mkInfo1 "chrSolveDeclsScopeBindMp" (ppAssocLV $ assocLMapElt ppCBindL $ Map.toList @chrSolveDeclsScopeBindMp)
+                                        , mkInfo1 "chrSolveDeclsTrace" (ppSolveTrace @chrSolveDeclsTrace)
+                                        , mkInfo1 "chrSolveDeclsRedGraph" (pp $ show @chrSolveDeclsRedGraph)
+                                        , mkInfo1 "toProveSuperVarMpMp" (ppAssocLV $ assocLMapElt ppBracketsCommas $ Map.toList @toProveSuperVarMpMp)
+                                        , mkInfo1 "chrSolveSuperDoneConstraints" (ppBracketsCommasV @chrSolveSuperDoneConstraints)
+                                        , mkInfo1 "chrSolveSuperRemVarMpMp" (ppAssocLV $ assocLMapElt ppBracketsCommas $ Map.toList @chrSolveSuperRemVarMpMp)
+                                        , mkInfo1 "chrSolveSuperEvidBindMp" (ppAssocLV $ assocLMapElt ppCBindL $ Map.toList @chrSolveSuperEvidBindMp)
+                                        , mkInfo1 "chrSolveSuperScopeBindMp" (ppAssocLV $ assocLMapElt ppCBindL $ Map.toList @chrSolveSuperScopeBindMp)
+                                        , mkInfo1 "chrSolveSuperTrace" (ppSolveTrace @chrSolveSuperTrace)
+                                        , mkInfo1 "chrSolveSuperRedGraph" (pp $ show @chrSolveSuperRedGraph)
+                                        , mkInfo1 "prTyFix" (ppTy @prTyFix)
+                                        , mkInfo1 "tyPrExpr.evTy" (ppTy @tyPrExpr.evTy)
+                                        , mkInfo1 "recTy" (ppTy @recTy)
+                                        ]
+  | InstanceIntro
+                loc     .  ppAST    =   ppNestInfo @lhs.opts ["Decl","InstanceIntro"] [] [@expr.ppAST,@prExpr.ppAST] @info
+                        .  info     =   []
+
+SEM AGItf
+  | AGItf       loc     .  info_9   :=  [ mkInfo1 "chrStore" (ppCHRStore @chrStore)
+                                        ]
+%%]
+
+%%[9
+SEM Expr
+  | Var         loc     .  info_9   :=  [ mkInfo1 "foGathVarMpMp @fo_" (ppAssocLV $ assocLMapElt ppBracketsCommas $ Map.toList $ foGathVarMpMp @fo_)
+                                        , mkInfo1 "foLCoeL @fo_" (ppBracketsCommas (lrcoeLeftL  $ foLRCoe @fo_))
+                                        , mkInfo1 "foRCoeL @fo_" (ppBracketsCommas (lrcoeRightL $ foLRCoe @fo_))
+                                        , mkInfo1 "@fe" (pp @fe)
+                                        ]
+  | Let         loc     .  info_9   :=  [ mkInfo1 "decls.gathVarMpMp" (ppAssocLV $ assocLMapElt ppBracketsCommas $ Map.toList @decls.gathVarMpMp)
+                                        , mkInfo1 "toProveHereVarMpMp" (ppAssocLV $ assocLMapElt ppBracketsCommas $ Map.toList @toProveHereVarMpMp)
+                                        , mkInfo1 "toProveHereVarMpMpCanon" (ppAssocLV $ assocLMapElt ppBracketsCommas $ Map.toList @toProveHereVarMpMpCanon)
+                                        , mkInfo1 "toProveElsewhereVarMpMp" (ppAssocLV $ assocLMapElt ppBracketsCommas $ Map.toList @toProveElsewhereVarMpMp)
+                                        -- , mkInfo1 "chrSolveWorkConstraints" (ppBracketsCommasV @chrSolveWorkConstraints)
+                                        , mkInfo1 "predScope" (pp @predScope)
+                                        -- , if @lhs.isFirstLet then mkInfo1 "chrStore" (ppCHRStore @chrStore) else ("",empty)
+                                        , mkInfo1 "chrSolve1DoneConstraints" (ppBracketsCommasV @chrSolve1DoneConstraints)
+                                        , mkInfo1 "chrSolve1RemVarMpMp" (ppAssocLV $ assocLMapElt ppBracketsCommas $ Map.toList @chrSolve1RemVarMpMp)
+                                        , mkInfo1 "chrSolve1EvidMp" (ppAssocLV $ Map.toList @chrSolve1EvidMp)
+                                        , mkInfo1 "chrSolve1EvidBindMp" (ppAssocLV $ assocLMapElt ppCBindL $ Map.toList @chrSolve1EvidBindMp)
+                                        , mkInfo1 "chrSolve1ScopeBindMp" (ppAssocLV $ assocLMapElt ppCBindL $ Map.toList @chrSolve1ScopeBindMp)
+                                        , mkInfo1 "chrSolve1Trace" (ppSolveTrace @chrSolve1Trace)
+                                        , mkInfo1 "chrSolve1RedGraph" (pp $ show @chrSolve1RedGraph)
+                                        , mkInfo1 "chrSolve1EvidCoreMp" (ppAssocLV $ assocLMapElt (\(c,s,sc) -> c >-< show s >-< sc) $ Map.toList @chrSolve1EvidCoreMp)
+                                        , mkInfo1 "quantPrOccL (decl)" (ppBracketsCommasV @quantPrOccL)
+                                        , mkInfo1 "quantVarMpMp" (ppAssocLV $ assocLMapElt ppBracketsCommas $ Map.toList @quantVarMpMp)
+                                        , mkInfo1 "coeArgIdMp" (ppAssocLV $ assocLMapElt ppBracketsCommas $ Map.toList @coeArgIdMp)
+                                        , mkInfo1 "tqoGam" (ppGam @tqoGam)
+                                        , mkInfo1 "chrSolve2DoneConstraints" (ppBracketsCommasV @chrSolve2DoneConstraints)
+                                        , mkInfo1 "chrSolve2RemVarMpMp" (ppAssocLV $ assocLMapElt ppBracketsCommas $ Map.toList @chrSolve2RemVarMpMp)
+                                        , mkInfo1 "chrSolve2EvidBindMp" (ppAssocLV $ assocLMapElt ppCBindL $ Map.toList @chrSolve2EvidBindMp)
+                                        , mkInfo1 "chrSolve2ScopeBindMp" (ppAssocLV $ assocLMapElt ppCBindL $ Map.toList @chrSolve2ScopeBindMp)
+                                        , mkInfo1 "chrSolve2RedGraph" (pp $ show @chrSolve2RedGraph)
+                                        , mkInfo1 "cSubst" (ppAssocLV . Map.toList $ @cSubst)
+                                        ]
+  | Lam         loc     .  info_9   :=  [ mkInfo1 "imTy" (pp @imTy)
+                                        , mkInfo1 "imTy+subst" (pp (@body.tyVarMp |=> @imTy))
+                                        , mkInfo1 "knImpls" (pp @knImpls)
+                                        , mkInfo1 "knPrL" (ppBracketsCommas @knPrL)
+                                        , mkInfo1 "lamBodyCoeL" (ppBracketsCommas @lamBodyCoeL)
+                                        , mkInfo1 "lamArgCoeL" (ppBracketsCommas @lamArgCoeL)
+                                        , mkInfo1 "impls2KnHd" (pp @impls2KnHd)
+                                        , mkInfo1 "impls2KnTl" (pp @impls2KnTl)
+                                        , mkInfo1 "poiL" (ppBracketsCommas @poiL)
+                                        , mkInfo1 "predScope" (pp @predScope)
+                                        , mkInfo1 "lhs.chrScopeBindMp" (ppAssocLV $ assocLMapElt ppCBindL $ Map.toList @lhs.chrScopeBindMp)
+                                        ]
+  | AppTop      loc     .  info_9   :=  [ mkInfo1 "resTy" (pp @resTy)
+                                        , mkInfo1 "foVarMp @foKnRes" (pp (foVarMp @foKnRes))
+                                        , mkInfo1 "ty" (pp @ty)
+                                        , mkInfo1 "imTy" (pp @imTy)
+                                        , mkInfo1 "imTy+subst" (pp (@expr.tyVarMp |=> @imTy))
+                                        ]
+%%]
+
+%%[9
+SEM PatExpr
+  | Var         loc     .  info_9   :=  [ mkInfo1 "@fe" (pp @fe)
+                                        ]
+%%]
+
+%%[10
+SEM Expr
+  | DynVar      lhs     .  ppAST    =   ppNestInfo @lhs.opts ["Expr","DynVar"] [ppNm @nm] [] (@info)
+                loc     .  info     =   [
+                                        ]
+
+SEM PrExpr
+  | Lacks       loc     .  ppAST    =   ppNest ["PrExpr","Lacks"] [ppNm @nm] [@rowTyExpr.ppAST]
+  | DynVar      loc     .  ppAST    =   ppNest ["PrExpr","DynVar"] [ppNm @nm] [@tyExpr.ppAST]
+%%]
+
+%%[12
+SEM Expr
+  | AppImpl     lhs     .  ppAST    =   ppNestInfo @lhs.opts ["Expr","AppImpl"] [] [@func.ppAST,@arg.ppAST,@argPr.ppAST] @info_9
+                loc     .  info_9   =   [ mkInfo1 "knTy" (ppTy @lhs.knTy)
+                                        ]
+  | LamImpl     lhs     .  ppAST    =   ppNestInfo @lhs.opts ["Expr","LamImpl"] [] [@arg.ppAST,@argPr.ppAST,@body.ppAST] @info_9
+                loc     .  info_9   =   [ mkInfo1 "lhs.knTy" (pp @lhs.knTy)
+                                        , mkInfo1 "funTy" (pp @funTy)
+                                        , mkInfo1 "foTy @fo_fitF_" (ppTy (foTy @fo_fitF_))
+                                        , mkInfo1 "foTy @foPr" (pp (foTy @foPr))
+                                        , mkInfo1 "ty" (pp @ty)
+                                        , mkInfo1 "knPrL" (ppBracketsCommas @knPrL)
+                                        , mkInfo1 "lamBodyCoeL" (ppBracketsCommas @lamBodyCoeL)
+                                        , mkInfo1 "lamArgCoeL" (ppBracketsCommas @lamArgCoeL)
+                                        ]
+%%]
+
+%%[15
+SEM FuncDep
+  | Dep         loc     .  ppAST    =   ppNest ["FuncDep","Dep"] [] [@fromTvs.ppAST,@toTvs.ppAST]
+
+SEM FuncDeps
+  | Nil         lhs     .  ppAST    =   ppNest ["FuncDeps","Nil"] [] []
+  | Cons        lhs     .  ppAST    =   ppNest ["FuncDeps","Cons"] [] [@hd.ppAST,@tl.ppAST]
+
+%%]
+
+%%[1010
+SEM Decl
+  | DynVal      lhs     .  ppAST    =   ppNestInfo @lhs.opts ["Decl","DynVal"] [ppNm @nm] [@expr.ppAST] @info
+                loc     .  info     =   [
+                                        ]
+  | DynTySig    lhs     .  ppAST    =   ppNestInfo @lhs.opts ["Decl","DynTySig"] [ppNm @nm] [@tyExpr.ppAST] @info
+                loc     .  info     =   [
+                                        ]
+%%]
+
+%%[50
+SEM DataConstrEq
+  | Eq          lhs     .  ppAST    =   ppNest ["DataConstrEq","Eq"] [] [@tyVar.ppAST,@tyExpr.ppAST]
+
+SEM DataConstrEqs
+  | Nil         lhs     .  ppAST    =   ppNest ["DataConstrEqs","Nil"] [] []
+  | Cons        lhs     .  ppAST    =   ppNest ["DataConstrEqs","Cons"] [] [@hd.ppAST,@tl.ppAST]
+
+SEM DataConstr
+  | Constr      loc     .  ppAST    :=  ppNestInfo @lhs.opts  ["DataConstr","Constr"] [ppNm @conNm] [@fields.ppAST,@eqs.ppAST] @info
+                loc     .  info     =   [ mkInfo1 "eqs.eqTyVarMp" (pp @eqs.eqTyVarMp)
+                                        ]
+%%]
+
+%%[97
+SEM Expr
+  | IIConst     lhs     .  ppAST    =   ppNestInfo @lhs.opts ["Expr","IIConst"] [@pp] [] []
+%%]
+
+

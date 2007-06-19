@@ -1,0 +1,194 @@
+%%[0
+%include lhs2TeX.fmt
+%include afp.fmt
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Haskell interface to AG generated code for compiler
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[1 hs module {%{EH}EH.MainAG} import(Data.Char,Data.List as List,EH.Util.Pretty,{%{EH}Base.Common},{%{EH}Base.Builtin},{%{EH}Base.Opts}, {%{EH}Ty},{%{EH}Gam},{%{EH}Error},{%{EH}Error.Pretty},{%{EH}Ty.FitsIn},{%{EH}Ty.FitsInCommon},{%{EH}Ty.Pretty},{%{EH}EH})
+%%]
+
+%%[1 hs import(qualified EH.Util.FastSeq as Seq,EH.Util.Utils)
+%%]
+
+%%[2 hs import({%{EH}VarMp},{%{EH}Substitutable},Data.Maybe)
+%%]
+
+%%[3 hs import({%{EH}Ty.Trf.Quantify},{%{EH}Ty.Trf.Instantiate})
+%%]
+
+%%[4 hs import({%{EH}Base.Debug})
+%%]
+
+%%[4_2 hs import(qualified Data.Set as Set,{%{EH}Gam.Utils},{%{EH}Ty.Trf.ElimAlts},{%{EH}Ty.Trf.FreshVar})
+%%]
+
+%%[7 hs import(qualified Data.Set as Set,qualified Data.Map as Map,{%{EH}Ty.Trf.FreshVar},{%{EH}Ty.Ftv})
+%%]
+
+%%[7_2 hs import({%{EH}Ty.AnnCommon},{%{EH}Ty.Trf.InfuseAnn},{%{EH}Ty.TyConPat},{%{EH}Ty.AnnInferKind}, {%{EH}Ty.InferExposedAnns}, {%{EH}Ty.Trf.InfuseExp}, {%{EH}Annotations.Constraints}, {%{EH}Ty.AnnSubst}, {%{EH}Ty.Expand}, {%{EH}EH.ConstrInferTy}, {%{EH}Annotations.ConstraintSolver}, {%{EH}Annotations.BelownessSolver}, {%{EH}Annotations.VarianceSolver}, {%{EH}Annotations.UniquenessSolver}, {%{EH}Ty.InfuseDataTruncs}, {%{EH}Base.HtmlCommon}, {%{EH}Ty.PrettyHTML}, Debug.Trace(trace))
+%%]
+
+%%[7_2 hs import(qualified Data.Set as Set,Data.Set(Set),qualified Data.Map as Map,Data.Map(Map))
+%%]
+
+%%[8 hs import(EH.Util.Utils(groupSortOn))
+%%]
+
+%%[8 hs import({%{EH}Core},{%{EH}Core.Utils},{%{EH}Core.Pretty},{%{EH}Core.SubstCaseAltFail})
+%%]
+
+%%[9 hs import({%{EH}Core.Subst})
+%%]
+
+%%[9 hs import({%{EH}Ty.Trf.MergePreds})
+%%]
+
+%%[9 hs import({%{EH}Pred},{%{EH}CHR},{%{EH}CHR.Constraint},{%{EH}Pred.CHR},{%{EH}Pred.ToCHR},{%{EH}Pred.Heuristics},{%{EH}CHR.Solve},{%{EH}Pred.EvidenceToCore})
+%%]
+
+%%[9 hs import({%{EH}Ty.Trf.Canonic})
+%%]
+
+%%[50 hs import({%{EH}Ty.Trf.ElimEqual},{%{EH}Gam.Utils})
+%%]
+
+%%[95 hs import({%{EH}Deriving})
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Import of all separate aspects
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[1 ag import({EH/AbsSyn},EHRulerRules,{EH/Infer},{EH/InferExpr},{EH/InferPatExpr},{EH/InferTyExpr},{EH/Range})
+WRAPPER AGItf
+%%]
+
+%%[1.PrettyAST ag import({EH/PrettyAST})
+%%]
+
+%%[100 -1.PrettyAST
+%%]
+
+%%[1.GatherError ag import({EH/GatherError},{EH/ExtraChecks})
+%%]
+
+%%[101 -1.GatherError
+%%]
+
+%%[1.Pretty ag import({EH/Pretty})
+%%]
+
+%%[101 -1.Pretty
+%%]
+
+%%[2 ag import({EH/Uniq})
+%%]
+
+%%[5 ag import({EH/InferCaseExpr},{EH/InferData})
+%%]
+
+%%[6 ag import({EH/InferKiExpr})
+%%]
+
+%%[7_2 ag import({Ty/TyConPatCollect},{Annotations/AnnDT},{Ty/AnnDecomposePat},{EH/ConstrInferExpr},{EH/ConstrInferData}, {Annotations/AnnSolvers}, {EH/PrettyHTML})
+%%]
+
+%%[8.ToCore ag import({EH/ToCore})
+%%]
+
+%%[9 ag import({EH/ResolvePred},{EH/InferClass},{EH/InferClassCHR},{EH/ResolvePredCHR})
+%%]
+
+%%[99
+PRAGMA strictcase
+PRAGMA strictsem
+%%]
+PRAGMA splitsems
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Global info: options, module name, name mapping, fixity (for deriving)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[1
+ATTR AllNT AGItf [ opts: EHCOpts | | ]
+%%]
+
+%%[8
+ATTR AGItf [ moduleNm: HsName | | ]
+%%]
+
+%%[20
+ATTR AllNT AGItf [ idQualGam: IdQualGam | | ]
+%%]
+
+%%[95
+%%]
+ATTR NTPrf AGItf [ fixityGam: FixityGam | | ]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Tying together gam's, combining with imported info, gathering for following modules and/or global use
+%%% Note: will move to AG files where attr's are actually defined/used
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[20
+ATTR AGItf Expr [ | | gathValGam: ValGam ]
+
+SEM Expr
+  | Let         lhs         .   gathValGam          =   @body.gathValGam `gamUnion` @finValGamDecls
+  | * - Let     lhs         .   gathValGam          =   emptyGam
+%%]
+
+%%[20
+ATTR AGItf Expr [ | | gathTyGam: TyGam ]
+
+SEM Expr
+  | Let         lhs         .   gathTyGam           =   @body.gathTyGam `gamUnion` @tyGam_l_
+  | * - Let     lhs         .   gathTyGam           =   emptyGam
+%%]
+
+%%[20
+ATTR AGItf Expr [ | | gathTyKiGam: TyKiGam ]
+
+SEM Expr
+  | Let         lhs         .   gathTyKiGam         =   @body.gathTyKiGam `gamUnion` @lQuTyKiGam 
+  | * - Let     lhs         .   gathTyKiGam         =   emptyGam
+%%]
+
+%%[20
+ATTR AGItf Expr [ | | gathKiGam: KiGam ]
+
+SEM Expr
+  | Let         lhs         .   gathKiGam           =   @body.gathKiGam -- `gamUnion` @xxx
+  | * - Let     lhs         .   gathKiGam           =   emptyGam
+%%]
+
+%%[20
+ATTR AGItf Expr [ | | gathClGam: ClGam ]
+
+SEM Expr
+  | Let         lhs         .   gathClGam           =   @body.gathClGam `gamUnion` @lClGam
+  | * - Let     lhs         .   gathClGam           =   emptyGam
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Is toplevel mod?
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[20
+ATTR AGItf [ isTopMod: Bool | | ]
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% For mem retainment experiments
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[101
+%%]
+ATTR AGItf [ | | dummy: Int ]
+
+SEM AGItf
+  | AGItf		lhs			.	dummy				=	1
+

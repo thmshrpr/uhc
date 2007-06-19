@@ -1,0 +1,173 @@
+Drop expression when the results are not used.
+TODO: drop global variables
+
+%%[0
+%include lhs2TeX.fmt
+%include afp.fmt
+%%]
+
+%%[8 import({GrinCode/AbsSyn})
+%%]
+
+%%[8.wrapper
+WRAPPER GrAGItf
+%%]
+
+Should be checked later:
+
+%%[8
+PRAGMA nocycle novisit
+%%]
+
+%%[8 hs module {%{GRIN}GrinCode.Trf.DropUnusedExpr} import(qualified Data.Set as Set)
+%%]
+
+%%[8 hs import({%{EH}Base.Common}, {%{GRIN}GRINCCommon}, {%{EH}GrinCode}, Data.Maybe) export(dropUnusedExpr)
+dropUnusedExpr :: (GrModule,Int,HptMap) -> (GrModule,Int,HptMap)
+dropUnusedExpr (input,unique,hptMap)
+  = let inh = Inh_GrAGItf {hptMap_Inh_GrAGItf=hptMap}
+        syn = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf input)) inh
+    in  (grTrf_Syn_GrAGItf syn, unique, hptMap)
+
+%%]
+
+%%[8
+ATTR GrAGItf [ hptMap: HptMap | | grTrf: GrModule ]
+ATTR AllNT [ hptMap: HptMap | | grTrf: SELF ]
+%%]
+
+TODO: A unit statement can insert used variables for each variable not bounded
+to a wildcard or constant pattern. Example:
+
+unit (T a1 ... an); \_ ->     ==>    'a1' t/m 'an' are unused in this expression.
+
+This can be generalized to all other constructs. (e.g when an expr is dead,
+don't count its variables as live) (shown in testgrinc/throw.grin)
+
+alternative solution: use current tranformation in fixpoint
+
+%%[8.retrieveUsedVariables
+ATTR AllExpr [ | usedVars: {Set.Set HsName} | ]
+
+SEM GrBind
+  | Bind  expr  .  usedVars  =  Set.empty
+
+SEM GrVal
+  | Var   lhs   .  usedVars  =  Set.insert @nm @lhs.usedVars
+
+SEM GrExpr
+  | FFI     lhs   .  usedVars  =  foldr Set.insert @lhs.usedVars @argL
+  | App     argL  .  usedVars  =  Set.insert @nm @lhs.usedVars
+  | Eval    lhs   .  usedVars  =  Set.insert @nm @lhs.usedVars
+  | FetchNode  lhs.  usedVars  =  Set.insert @nm @lhs.usedVars
+  | FetchField lhs.  usedVars  =  Set.insert @nm @lhs.usedVars
+  | UpdateUnit val.  usedVars  =  Set.insert @nm @lhs.usedVars
+  | FetchUpdate  
+            lhs   .  usedVars  =  Set.insert @src @lhs.usedVars
+  | Throw   lhs   .  usedVars  =  Set.insert @nm @lhs.usedVars
+  | Seq     body  .  usedVars  =  @lhs.usedVars
+            pat   .  usedVars  =  @body.usedVars
+            expr  .  usedVars  =  @body.usedVars
+            lhs   .  usedVars  =  @expr.usedVars
+
+SEM GrAlt
+  | Alt     expr  .  usedVars  =  @lhs.usedVars
+            pat   .  usedVars  =  @expr.usedVars
+            lhs   .  usedVars  =  @pat.usedVars
+%%]
+
+if an exception is ALWAYS thrown in this code path, all code after the throw statement is not needed
+%%[8.exceptionThrown
+ATTR AllGrExpr [ | throws: {Bool} | ]
+
+SEM GrBind
+  | Bind   expr     .  throws  =  False
+
+-- case throws an exception if all alternative throw an exception
+-- if exception is thrown before the case statement, make each alternative aware
+SEM GrAltL
+  | Cons   lhs      .  throws = @hd.throws && @tl.throws
+           hd       .  throws = @lhs.throws
+           tl       .  throws = @lhs.throws
+  | Nil    lhs      .  throws = True -- TODO: only valid if a at least one alternative is availible!!
+                      
+SEM GrExpr
+  | Throw  lhs      .  throws = True
+  | Catch  lhs      .  throws = @lhs.throws || @handler.throws
+           handler  .  throws = @lhs.throws
+  | Call   lhs      .  throws = isBottom (getEnvVar @lhs.hptMap (getNr @nm)) && not (isBottom (getEnvVar @lhs.hptMap (getNr @nm + 1)))
+                                -- function call without normal return value, but with exception results will always throw exceptions
+                                -- TODO: hpt must make difference between `no value' (denoted with `()') and `unknown value'
+%%]
+
+-- AD 20060526: avoid AGC error msg
+%%[10
+SEM GrAdapt
+  | *    loc      .  usedVars  =  Set.empty
+
+SEM GrSplit
+  | *    loc      .  usedVars  =  Set.empty
+%%]
+%%[8
+SEM GrGlobal
+  | *    loc      .  usedVars  =  Set.empty
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Remove unused variable bindings %%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+Remove expressions when its result is not bound to some variable and the
+possible side effect is useless without that result. (The ones 
+retained are update, throw and FFI)
+
+%%[8.removeUnusedSeqExpr
+ATTR GrPatLam [ | | isDead : Bool ]
+ATTR GrVarL GrVar  [ | | names USE {++} {[]} : {[HsName]} ]
+
+SEM GrVar
+  | Var  lhs. names = [ @nm ]
+
+SEM GrPatLam
+  | VarNode lhs  .  isDead  =  not (any (`Set.member` @lhs.usedVars) @fldL.names)
+  | Var     lhs  .  isDead  =  not (@nm `Set.member` @lhs.usedVars)
+  | * - Var VarNode
+            lhs  .  isDead  =  True
+ 
+SEM GrExpr [ | | sideEffect : Bool ]
+  |     FFI Throw FetchUpdate UpdateUnit  lhs  .  sideEffect  =  True
+  | * - UpdateUnit FFI Throw FetchUpdate  lhs  .  sideEffect  =  False
+
+SEM GrExpr
+  | Seq  lhs  .  grTrf      =  if @expr.throws then @expr.grTrf
+                               else if @isDead then @body.grTrf
+                               else                 @grTrf
+         loc  .  isDead     =  @pat.isDead && not @expr.sideEffect
+%%]
+
+
+Fields and tag variables in node patterns which are never used are replaced
+with wildcards.
+
+%%[8.removeUnusedNamedBinding
+SEM GrPatLam
+  | Var      lhs  .  grTrf  =  GrPatLam_Var                  (mkWildcard @lhs.usedVars  @nm)
+
+SEM GrPatAlt
+  | Node     lhs  .  grTrf  =  GrPatAlt_Node @tag.grTrf (map (mkWildcard @lhs.usedVars) @fldL)
+
+SEM GrVar
+  | Var      lhs  .  grTrf  = if @nm `Set.member` @lhs.usedVars then GrVar_Var @nm else GrVar_Ignore
+  
+%%]
+
+%%[8.renameToWildcard hs
+mkWildcard m x = if x `Set.member` m then x else wildcardNr
+%%]
+
+%%[8.dropUnusedCatchStatements
+SEM GrExpr
+  | Catch  loc  .  isUnused  =  isBottom (getEnvVar @lhs.hptMap (getNr @arg))
+           lhs  .  grTrf     =  if @isUnused then @body.grTrf else @grTrf
+%%]

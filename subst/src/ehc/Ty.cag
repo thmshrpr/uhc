@@ -1,0 +1,1195 @@
+%%[0
+%include lhs2TeX.fmt
+%include afp.fmt
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Haskell importable interface to Ty
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[1 hs module {%{EH}Ty} import(EH.Util.Utils,{%{EH}Base.Common}, {%{EH}Base.Builtin}) export(TyAGItf(..), Ty(..), TyL, tyInt, tyChar, mkTyCon)
+%%]
+
+%%[1 hs export(tyLHdAndTl, tyArrowArgRes, tyArrowArgsRes, tyArrowArgs, tyArrowRes, tyAppFunArgs, tyProdArgs, tyAppArgs) 
+%%]
+
+%%[2 hs export(TyVarId, mkTyVar, mkNewTyVar, mkNewUIDTyVarL, mkNewTyVarL, mkTyFreshProd, mkTyFreshProdFrom, tyEnsureNonAny) 
+%%]
+
+%%[2 hs import(qualified Data.Set as Set) 
+%%]
+
+%%[3 hs export(mkTyQu, TyVarCateg(..))
+%%]
+
+%%[3 hs import(Data.Maybe) export(tyVar) 
+%%]
+
+%%[4 hs export(TyQu(..), tyquExists, tyquIsExists, tyquIsForall, showTyQu) 
+%%]
+
+%%[4 hs export(tyConNm) 
+%%]
+
+%%[4 hs import(qualified Data.Map as Map) export(TvCatMp) 
+%%]
+
+%%[4_2 hs export(tyMbQu,tyIsQu,tyIsVar,tyIsAlts) 
+%%]
+
+%%[4_2 hs export(TyPlus(..),TyPlusL,tyPlusTy) 
+%%]
+
+%%[4_2 hs export(TyHardness(..)) 
+%%]
+
+%%[4_2 hs export(TyNeed(..)) 
+%%]
+
+%%[6 hs export(kiStar) 
+%%]
+
+%%[6_4 hs export(tvIsEx) 
+%%]
+
+%%[7 hs import(Data.List) export(kiRow,tyRowEmpty,tyRecEmpty,tySumEmpty,tyRowExtr,tyRecExtr,mkTyRow,mkTyRec,mkTySum,mkTyRecExt,tyRowExts) 
+%%]
+
+%%[7 hs export(tyAppFunArg,tyAppFunConNm) 
+%%]
+
+%%[7_2 hs import(Data.Set(Set), qualified Data.Map as Map, Data.Map(Map))
+%%]
+
+%%[7_2 hs export(tyInsertAnnRec, tyReplaceAnnRec, touchAnn, touchAnnTy, addAnn, mkTruncArrow, rightmostResultAnnotation, annotationsStar, mkAnnArrow, addTrunc, tyAnnSubst)
+%%]
+
+%%[7_2 hs export(TyExpConstr(..),TyExpConstrs,TyExpFields,TyExpField(..),Annotations,Annotation(..), DecomposedAnnMap)
+%%]
+
+%%[8 hs export(tyRecOffset) 
+%%]
+
+%%[9 hs export(Pred(..),predNm,predTy,tyPredNm,tyPredMatchNm,predMatchNm,tyPred,tyLImplsPreds,tyArrowImplsRes,tyArrowImplsArgRes,mkTyImpls,mkTyPr,tyPrArrowArgsRes)
+%%]
+
+%%[9 hs export(tyRecExts,tyRecRow,tyArrowArity,tyQuant)
+%%]
+
+%%[9 hs export(Impls(..),ImplsVarId,mkImplsVar)
+%%]
+
+%%[9 hs export(TyCtxt(..))
+%%]
+
+%%[9 hs export(tyEnsureNonAnyImpl)
+%%]
+
+%%[9_1 hs export(TyPlusId)
+%%]
+
+%%[10 hs export(Label(..),LabelAGItf(..),RowExts(..))
+%%]
+
+%%[10 hs export(tyExtsOffset)
+%%]
+
+%%[11 hs export(tyLamArgsRes)
+%%]
+
+%%[13 hs export(PredSeq(..))
+%%]
+
+%%[97 hs export(tyInteger) 
+%%]
+
+%%[1 ag import({Ty/AbsSyn})
+DERIVING *     : Show, Eq, Ord
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Misc types
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[1.TyL hs
+type TyL        = [Ty]
+%%]
+
+%%[2.TyVarId.Base hs
+type TyVarId    = UID
+%%]
+
+%%[2.TyVarId.Rest hs export(TyVarIdL,TyVarIdS)
+type TyVarIdL   = [TyVarId]
+type TyVarIdS   = Set.Set TyVarId
+%%]
+
+%%[4_2 -1.TyL
+%%]
+
+%%[7 hs export(FldTyL)
+type FldTyL = AssocL (Maybe HsName) Ty
+%%]
+
+%%[9 hs
+type ImplsVarId    = UID
+%%]
+
+%%[9_1 hs
+type TyPlusId      = UID
+%%]
+
+%%[10 hs export(LabelVarId)
+type LabelVarId      = UID
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Tyvar category
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[4 hs export(tvCatIsPlain,tvCatIsFixed)
+tvCatIsPlain :: TyVarCateg -> Bool
+tvCatIsPlain TyVarCateg_Plain  = True
+tvCatIsPlain _                 = False
+
+tvCatIsFixed :: TyVarCateg -> Bool
+tvCatIsFixed = not . tvCatIsPlain
+%%]
+
+%%[4 hs
+type TvCatMp = Map.Map TyVarId TyVarCateg
+%%]
+
+%%[4 hs export(tvIsPlain)
+tvIsPlain :: TvCatMp -> TyVarId -> Bool
+tvIsPlain fvM tv = maybe False tvCatIsPlain (Map.lookup tv fvM)
+%%]
+
+%%[6_4 hs
+tvIsEx :: TvCatMp -> TyVarId -> Bool
+tvIsEx fvM tv = maybe False (== TyVarCateg_Exist) (Map.lookup tv fvM)
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Offered or required
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[4_2 hs
+data TyNeed
+  = TyRequired | TyOffered | TyNoNeed
+  deriving (Eq,Ord)
+
+instance Show TyNeed where
+  show TyRequired    = "R"
+  show TyOffered     = "O"
+  show TyNoNeed      = "-"
+
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Hardness of type
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[4_2 hs
+data TyHardness
+  = TyHard | TySoft TyVarId
+  deriving (Eq,Ord)
+
+instance Show TyHardness where
+  show TyHard          = "H"
+  show (TySoft     i)  = "S" -- "S:" ++ show i
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Label offset
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[10 hs export(LabelOffset(..))
+data LabelOffset
+  = LabelOffset_Off !Int
+  | LabelOffset_Var !UID
+  deriving (Eq,Ord)
+%%]
+
+%%[10 hs
+instance Show LabelOffset where
+  show (LabelOffset_Off o) = show o
+  show (LabelOffset_Var v) = "off_" ++ show v
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Pred scope
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[9 hs export(PredScope(..),initPredScope)
+data PredScope
+  = PredScope_Lev ![Int]
+  | PredScope_Var !TyVarId
+  deriving (Eq,Ord)
+
+initPredScope :: PredScope
+initPredScope = PredScope_Lev []
+%%]
+
+%%[9 hs
+instance Show PredScope where
+  show (PredScope_Lev l) = show l
+  show (PredScope_Var v) = "[sc_" ++ show v ++ "]"
+%%]
+
+%%[9 hs export(pscpEnter,pscpLeave)
+pscpEnter :: Int -> PredScope -> (Int,PredScope)
+pscpEnter x (PredScope_Lev s) = (x+1,PredScope_Lev (s ++ [x]))
+
+pscpLeave :: PredScope -> PredScope
+pscpLeave (PredScope_Lev s) = PredScope_Lev $ init s
+%%]
+
+%%[9 hs export(pscpIsVisibleIn,pscpCommon)
+pscpIsVisibleIn :: PredScope -> PredScope -> Bool
+pscpIsVisibleIn (PredScope_Lev sOuter) (PredScope_Lev sInner) = sOuter `isPrefixOf` sInner
+pscpIsVisibleIn _                      _                      = False
+
+pscpCommon :: PredScope -> PredScope -> Maybe PredScope
+pscpCommon (PredScope_Lev s1) (PredScope_Lev s2)
+  = Just $ PredScope_Lev $ commonPrefix s1 s2
+  where commonPrefix (x:xs)  (y:ys)  | x == y     = x : commonPrefix xs ys
+                                     | otherwise  = []
+        commonPrefix _       _                    = []
+pscpCommon _                  _                  
+  = Nothing        
+%%]
+
+%%[9 hs export(pscpParents)
+pscpParents :: PredScope -> [PredScope]
+pscpParents (PredScope_Lev s@(_:_)) = map PredScope_Lev $ inits $ init s
+pscpParents _                       = []
+%%]
+
+%%[9 hs export(pscpCmp,pscpCmpByLen)
+pscpCmp :: PredScope -> PredScope -> Maybe Ordering                  
+pscpCmp (PredScope_Lev s) (PredScope_Lev t) = Just $ s `compare` t                   
+pscpCmp _                 _                 = Nothing                 
+
+pscpCmpByLen :: PredScope -> PredScope -> Ordering                  
+pscpCmpByLen (PredScope_Lev s) (PredScope_Lev t) = (length s) `compare` (length t)                    
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Possible prove occurrence of predicate, but not yet known which
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Of Impls it is yet unknown to which pred it will bind.
+Nevertheless, it can occur at locations which normally would give rise to prove obligations.
+Hence we need to remember all required info except the yet unknown predicate.
+
+%%[9 hs export(ImplsProveOcc(..),mkImplsProveOcc)
+data ImplsProveOcc
+  = ImplsProveOcc
+      { ipoId		:: !UID
+      , ipoScope	:: !PredScope
+      }
+  deriving (Eq,Show,Ord)
+
+mkImplsProveOcc :: UID -> PredScope -> ImplsProveOcc
+mkImplsProveOcc = ImplsProveOcc
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Pred occurrence, to be obsolete when fully moved to CHR
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[9 hs export(PredOcc(..),poId,mkPredOcc)
+data PredOcc
+  =  PredOcc
+       { poPr               :: !Pred
+       , poPoi              :: !PredOccId
+       , poScope			:: !PredScope
+       }
+  deriving (Show,Eq,Ord)
+
+poId :: PredOcc -> UID
+poId = poiId . poPoi
+
+mkPredOcc :: Pred -> PredOccId -> PredScope -> PredOcc
+mkPredOcc p i sc = PredOcc p i sc
+%%]
+
+%%[9 hs export(mkPredOccCHR)
+mkPredOccCHR :: UID -> Pred -> PredScope -> PredOcc
+mkPredOccCHR u p sc = PredOcc p (emptyPredOccId {poiId = u}) sc
+%%]
+
+%%[9 hs export(poUpdPoiSc)
+poUpdPoiSc :: PredOccId -> PredScope -> PredOcc -> PredOcc
+poUpdPoiSc poi sc po = po {poPoi = poi, poScope = sc}
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% CHR Pred occurrence
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[9 hs export(CHRPredOcc(..),mkCHRPredOcc)
+data CHRPredOcc
+  =  CHRPredOcc
+       { cpoPr               :: !Pred
+       , cpoScope			 :: !PredScope
+       }
+  deriving (Show,Eq,Ord)
+
+mkCHRPredOcc :: Pred -> PredScope -> CHRPredOcc
+mkCHRPredOcc p sc = CHRPredOcc p sc
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Properties of quantifier
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[4 hs
+tyquIsExists, tyquIsForall :: TyQu -> Bool
+%%]
+
+%%[4.tyQuProps hs
+tyquIsForall TyQu_Forall              = True
+tyquIsForall _                        = False
+
+tyquIsExists TyQu_Exists              = True
+tyquIsExists _                        = False
+%%]
+
+%%[6.tyQuProps -4.tyQuProps hs
+tyquIsForall TyQu_Forall              = True
+tyquIsForall TyQu_KiForall            = True
+tyquIsForall _                        = False
+
+tyquIsExists TyQu_Exists              = True
+tyquIsExists TyQu_KiExists            = True
+tyquIsExists _                        = False
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Type quantifier utils
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[4 hs
+tyquExists, tyquForall :: TyQu -> TyQu
+%%]
+
+%%[4.tyquMisc hs
+tyquForall   TyQu_Exists              = TyQu_Forall
+tyquForall   q                        = q
+
+tyquExists   TyQu_Forall              = TyQu_Exists
+tyquExists   q                        = q
+%%]
+
+%%[6.tyquMisc -4.tyquMisc hs
+tyquForall   TyQu_Exists              = TyQu_Forall
+tyquForall   TyQu_KiExists            = TyQu_KiForall
+tyquForall   q                        = q
+
+tyquExists   TyQu_Forall              = TyQu_Exists
+tyquExists   TyQu_KiForall            = TyQu_KiExists
+tyquExists   q                        = q
+%%]
+
+%%[showTyQu.4
+showTyQu  TyQu_Forall     =  "forall"
+showTyQu  TyQu_Exists     =  "exists"
+%%]
+
+%%[4.showTyQu hs
+%%@showTyQu.4
+%%]
+
+%%[6.showTyQu -4.showTyQu hs
+%%@showTyQu.4
+showTyQu  TyQu_KiForall   =  "Forall"
+showTyQu  TyQu_KiExists   =  "Exists"
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Properties of type
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[4_2 hs
+tyIsVar :: Ty -> Bool
+tyIsVar = isJust . tyMbVar
+
+tyIsAlts :: Ty -> Bool
+tyIsAlts t = case t of {Ty_Alts _ _ -> True; _ -> False}
+
+tyMbQu :: Ty -> Maybe TyQu
+tyMbQu t = case t of {Ty_Quant q _ _ -> Just q; _ -> Nothing}
+
+tyIsQu :: Ty -> Bool
+tyIsQu = isJust . tyMbQu
+%%]
+
+%%[10 hs export(tyIsEmptyRow)
+tyIsEmptyRow :: Ty -> Bool
+tyIsEmptyRow = maybe False (== hsnRowEmpty) . tyMbCon
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Construction of type
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[1.SemApp hs
+instance SemApp Ty where
+  semApp         = Ty_App
+  semAppTop      = id
+  semCon         = Ty_Con . mkHNm
+  semParens      = id
+  mkRngCon _     = Ty_Con . mkHNm
+%%]
+%%[1.mkRngVar hs
+  mkRngVar       = mkRngCon
+%%]
+%%[3 -1.mkRngVar hs
+  mkRngVar _     = panic "Ty:mkRngVar"
+%%]
+%%[7 hs
+  mkProdApp tyL  = mkTyRec (zip positionalFldNames tyL)
+%%]
+
+%%[1.mkTyCon hs
+mkTyCon :: String -> Ty
+mkTyCon n = semCon (hsnFromString n)
+%%]
+
+%%[2.mkTyVar hs
+mkTyVar :: TyVarId -> Ty
+mkTyVar tv = Ty_Var tv
+%%]
+
+%%[3.mkTyVar -2.mkTyVar hs
+mkTyVar :: TyVarId -> Ty
+mkTyVar tv = Ty_Var tv TyVarCateg_Plain
+%%]
+
+%%[2.NewTyVar hs
+mkNewTyVar :: UID -> Ty
+mkNewTyVar u = let  (_,v) = mkNewUID u in mkTyVar v
+%%]
+
+%%[2.NewTyVarL hs
+mkNewUIDTyVarL :: Int -> UID -> ([UID],TyL)
+mkNewUIDTyVarL sz u = let vs = mkNewUIDL sz u in (vs,map mkTyVar vs)
+
+mkNewTyVarL :: Int -> UID -> TyL
+mkNewTyVarL sz u = snd (mkNewUIDTyVarL sz u)
+%%]
+
+%%[2.tyEnsureNonAny hs
+tyEnsureNonAny :: UID -> Ty -> Ty
+tyEnsureNonAny u t = if t /= Ty_Any then t else mkNewTyVar u
+%%]
+
+%%[9.tyEnsureNonAnyImpl hs
+tyEnsureNonAnyImpl :: UID -> Ty -> Ty
+tyEnsureNonAnyImpl u t
+  = if t /= Ty_Any then  t
+                   else  let  [i,r] = mkNewUIDL 2 u
+                         in   [mkImplsVar i] `mkArrow` mkTyVar r
+%%]
+
+%%[3.mkTyQu hs
+mkTyQu :: TyVarIdL -> Ty -> Ty
+mkTyQu tvL t = foldr (\tv t -> Ty_Quant tv t) t tvL
+%%]
+
+%%[4.mkTyQu -3.mkTyQu hs
+mkTyQu :: TyQu -> TyVarIdL -> Ty -> Ty
+mkTyQu q tvL t = foldr (\tv t -> Ty_Quant q tv t) t tvL
+%%]
+
+%%[2.mkTyFreshProd hs
+mkTyFreshProdFrom :: UID -> Int -> Ty
+mkTyFreshProdFrom uid arity =  mkProdApp . map mkTyVar . mkNewUIDL arity $ uid
+
+mkTyFreshProd :: Int -> Ty
+mkTyFreshProd = mkTyFreshProdFrom uidStart
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Construction of implicitly parameterized (or predicated) type
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[9 hs
+mkImplsVar :: ImplsVarId -> Ty
+mkImplsVar v = Ty_Impls (Impls_Tail v [])
+%%]
+
+%%[9 hs
+mkTyImpls :: [Pred] -> Ty -> Ty
+mkTyImpls prL t = map Ty_Pred prL `mkArrow` t
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Construction of pred type
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[9 hs
+mkTyPr :: Pred -> Ty
+mkTyPr p
+  =  case p of
+       Pred_Pred t  -> t
+       _            -> Ty_Pred p
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Constants
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[1.tyInt hs
+tyInt   = Ty_Con hsnInt
+%%]
+
+%%[1.tyChar hs
+tyChar  = Ty_Con hsnChar
+%%]
+
+%%[5.tyString hs export(tyString)
+tyString :: Ty
+tyString  = mkConApp hsnDataList [tyChar]
+%%]
+
+%%[11.tyString -5.tyString hs
+%%]
+
+%%[6 hs
+kiStar  = Ty_Con hsnStar
+%%]
+
+%%[7 hs
+kiRow       = Ty_Con hsnRow
+tyRowEmpty  = Ty_Con hsnRowEmpty
+tyRecEmpty  = mkTyRec []
+tySumEmpty  = mkTySum []
+%%]
+
+%%[97 hs
+tyInteger   = Ty_Con hsnInteger
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Destruction
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[1.unMkTy.sigs.tyArrow hs
+tyArrowArgRes   :: Ty -> (Ty,Ty)
+%%]
+
+%%[1.unMkTy.sigs.Rest hs
+tyArrowArgsRes  :: Ty -> (TyL,Ty)
+tyAppFunArgs    :: Ty -> (Ty,TyL)
+tyAppArgs       :: Ty -> TyL
+tyArrowArgs     :: Ty -> TyL
+tyArrowRes      :: Ty -> Ty
+tyProdArgs      :: Ty -> TyL
+tyLHdAndTl      :: [Ty] -> (Ty,TyL)
+%%]
+
+%%[1.unMkTy.tyArrowArgRes hs
+tyArrowArgRes t
+  =  case t of
+       Ty_App (Ty_App (Ty_Con nm) a) r
+         | hsnIsArrow nm  -> (a,r)
+       _                  -> (Ty_Any,t)
+%%]
+
+%%[1.unMkTy.tyArrowArgsRes hs
+tyArrowArgsRes t
+  =  case t of
+%%[[7
+       Ty_Quant _ _ t     -> tyArrowArgsRes t
+%%]]
+       Ty_App (Ty_App (Ty_Con nm) a) r
+         | hsnIsArrow nm  -> let (as,r') = tyArrowArgsRes r in (a:as,r')
+       _                  -> ([],t)
+%%]
+
+%%[1.unMkTy.tyAppFunArgs hs
+tyAppFunArgs
+  =  extr []
+  where  extr as t
+           =  case t of
+                Ty_App f a  -> extr (a:as) f
+                _           -> (t,as)
+%%]
+
+%%[6.unMkTy.tyAppFunArgs -1.unMkTy.tyAppFunArgs hs
+tyAppFunArgs
+  =  extr []
+  where  extr as t
+           =  case t of
+                Ty_Quant _ _ t  -> tyAppFunArgs t
+                Ty_App f a      -> extr (a:as) f
+                _               -> (t,as)
+%%]
+
+%%[11 hs export(tyAppFunArgs')
+tyAppFunArgs'    :: Ty -> (Ty, TyL, Ty -> TyL -> Ty)
+tyAppFunArgs'
+  =  extr []
+  where  extr as t
+           =  case t of
+                Ty_Quant q v t  -> (f,as,\f as -> Ty_Quant q v $ mk f as)
+                                where (f,as,mk) = tyAppFunArgs' t
+                Ty_App f a      -> extr (a:as) f
+                _               -> (t,as,\f as -> mkApp (f:as))
+%%]
+
+%%[1.unMkTy.funs hs
+tyArrowArgs  = fst . tyArrowArgsRes
+tyArrowRes   = snd . tyArrowArgsRes
+tyAppArgs    = snd . tyAppFunArgs
+%%]
+
+%%[1.unMkTy.tyProdArgs hs
+tyProdArgs   = tyAppArgs
+%%]
+
+%%[1.unMkTy.tyLHdAndTl hs
+tyLHdAndTl   = hdAndTl' Ty_Any
+%%]
+
+%%[4.unMkTy.tyConNm hs export(tyMbCon)
+tyMbCon :: Ty -> Maybe HsName
+tyMbCon t = case t of {Ty_Con nm -> Just nm ; _ -> Nothing}
+
+tyConNm :: Ty -> HsName
+tyConNm = maybe hsnUnknown id . tyMbCon
+%%]
+
+%%[3.unMkTy.tyMbVar hs export(tyMbVar)
+tyMbVar :: Ty -> Maybe TyVarId
+tyMbVar t = case t of {Ty_Var v _ -> Just v ; _ -> Nothing}
+%%]
+
+%%[3.unMkTy.tyVar hs
+tyVar :: Ty -> TyVarId
+tyVar = maybe uidStart id . tyMbVar
+%%]
+
+%%[4_2.tyPlusTy hs
+tyPlusTy :: TyPlus -> Ty
+tyPlusTy (TyPlus_Ty t _ _) = t
+%%]
+
+%%[9_1.tyPlusTy -4_1.tyPlusTy hs
+tyPlusTy :: TyPlus -> Ty
+tyPlusTy (TyPlus_Ty t _) = t
+%%]
+
+%%[7.unMkTy.tyProdArgs -1.unMkTy.tyProdArgs hs
+tyProdArgs ty = let (t,al) = tyRecExts ty in map snd al
+%%]
+
+%%[7 hs
+tyAppFunArg :: Ty -> (Ty,Ty)
+tyAppFunArg t =  case t of {Ty_App f a -> (f,a); _ -> (Ty_Any,Ty_Any)}
+%%]
+
+%%[7 hs
+tyAppFunConNm :: Ty -> HsName
+tyAppFunConNm = tyConNm . fst . tyAppFunArgs
+%%]
+
+%%[9 hs
+tyQuant :: Ty -> Ty
+tyQuant t
+  =  case t of
+       Ty_Quant _ _ t'  -> tyQuant t'
+       _                -> t
+
+tyArrowArity :: Ty -> Int
+tyArrowArity = length . tyArrowArgs
+%%]
+
+%%[9 hs
+tyArrowImplsRes  :: Ty -> (TyL,Ty)
+tyArrowImplsRes t
+  =  case t of
+       (Ty_App (Ty_App (Ty_Con nm) a) r)
+         | hsnIsArrow nm && isImpls a
+           -> let (as,r') = tyArrowImplsRes r in (a:as,r')
+         where  isImpls (Ty_Pred  _)  = True
+                isImpls (Ty_Impls _)  = True
+                isImpls _             = False
+       _                  -> ([],t)
+
+tyArrowImplsArgRes  :: Ty -> (TyL,Ty,Ty)
+tyArrowImplsArgRes t
+  =  let  (i,t')  = tyArrowImplsRes  t
+          (a,r)   = tyArrowArgRes    t'
+     in   (i,a,r)
+
+tyLImplsPreds :: TyL -> ([Pred],Impls)
+tyLImplsPreds = foldr (\t (ps,i) -> case t of {Ty_Pred p -> (p:ps,i); Ty_Impls i -> (ps,i)}) ([],Impls_Nil)
+%%]
+
+%%[11 hs
+tyLamArgsRes :: Ty -> ([TyVarId],Ty)
+tyLamArgsRes
+  =  extr
+  where  extr t
+           =  case t of
+                Ty_Lam a r  -> (a:as',r')
+                            where (as',r') = extr r
+                _           -> ([],t)
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Mapping through Ty_App structure
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[11 hs
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Construction for records/variants
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[7 hs
+mkTyRow :: Ty -> AssocL HsName Ty -> Ty
+mkTyRow r = foldl (\t (n,e) -> Ty_Ext t n e) r
+
+mkTyRec :: AssocL HsName Ty -> Ty
+mkTyRec al = hsnRec `mkConApp` [tyRowEmpty `mkTyRow` al]
+
+mkTyRecExt :: Ty -> AssocL HsName Ty -> Ty
+mkTyRecExt rec al
+  =  let  (row,exts) = tyRowExts (tyRecRow rec)
+     in   hsnRec `mkConApp` [row `mkTyRow` (exts ++ al)]
+
+mkTySum :: AssocL HsName Ty -> Ty
+mkTySum al = hsnSum `mkConApp` [tyRowEmpty `mkTyRow` al]
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Destruction for records
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[7 hs
+tyRecRow :: Ty -> Ty
+tyRecRow t
+  =  case tyAppFunArgs t of
+       (Ty_Con n,[row]) | hsnIsRec n || hsnIsSum n -> row
+       _                                           -> Ty_Any
+
+tyRowExts :: Ty -> (Ty,AssocL HsName Ty)
+tyRowExts
+  =  extr []
+  where  extr as t
+           =  case t of
+                (Ty_Ext r l e) -> extr ((l,e):as) r
+                _              -> (t,as)
+
+tyRecExts :: Ty -> (Ty,AssocL HsName Ty)
+tyRecExts t
+  =  case tyRecRow t of
+       Ty_Any  -> (Ty_Any,[])
+       row     -> tyRowExts row
+
+tyRowExtr :: HsName -> Ty -> Maybe (Ty,Ty)
+tyRowExtr lbl t
+  =  case t of
+       (Ty_Ext r l e)   | lbl == l   -> Just (r,e)
+                        | otherwise  -> maybe Nothing (\(r',e') -> Just (Ty_Ext r' l e,e')) (tyRowExtr lbl r)
+       _                             -> Nothing
+
+tyRecExtr :: HsName -> Ty -> Maybe (Ty,Ty)
+tyRecExtr lbl t
+  =  case tyRowExtr lbl (tyRecRow t) of
+       Nothing    -> Nothing
+       Just (r,e) -> Just (hsnRec `mkConApp` [r],e)
+%%]
+
+%%[95 hs export(tyRecExts2)
+tyRecExts2 :: Ty -> AssocL HsName (AssocL HsName Ty)
+tyRecExts2
+  = assocLMapElt (snd . tyRecExts) . snd . tyRecExts
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Canonical ordering of fields of record
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[7 hs export(rowExtCmp,rowLabCmp,tyRowCanonOrder,tyRowCanonOrderBy,tyRowCanonOrderOn,tyRowCanonLblOrder)
+rowLabCmp :: HsName -> HsName -> Ordering
+rowLabCmp = compare
+
+rowExtCmp :: (HsName,a) -> (HsName,a) -> Ordering
+rowExtCmp (n1,_) (n2,_) = n1 `rowLabCmp` n2
+
+tyRowCanonOrderOn :: (o -> HsName) -> AssocL o a -> AssocL o a
+tyRowCanonOrderOn sel = sortByOn rowLabCmp (sel . fst)
+
+tyRowCanonOrderBy :: (o -> o -> Ordering) -> AssocL o a -> AssocL o a
+tyRowCanonOrderBy cmp = sortByOn cmp fst
+
+tyRowCanonOrder :: AssocL HsName a -> AssocL HsName a
+tyRowCanonOrder = tyRowCanonOrderBy rowLabCmp
+
+tyRowCanonLblOrder :: [HsName] -> [HsName]
+tyRowCanonLblOrder = sortBy rowLabCmp
+%%]
+
+%%[8 hs export(tyRowOffsetOrder)
+tyRowOffsetOrder :: (a -> Int) -> AssocL HsName a -> AssocL HsName a
+tyRowOffsetOrder off = sortOn (off . snd)
+%%]
+
+%%[8 hs
+tyExtsOffset :: HsName -> AssocL HsName a -> Int
+tyExtsOffset lbl exts
+  = find 0 lbl exts
+  where find o l (e:es) = case (l,undefined) `rowExtCmp` e of
+                            GT -> find (o+1) l es
+                            _  -> o
+        find o _ []     = o
+
+tyRecOffset :: HsName -> Ty -> Int
+tyRecOffset lbl t
+  =  let (_,exts) = tyRecExts t
+      in tyExtsOffset lbl . tyRowCanonOrder $ exts
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Destruction for predicates
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[9 hs
+tyPred :: Ty -> Pred
+tyPred t
+  =  case t of
+       Ty_Pred pt  -> pt
+       _           -> Pred_Pred t
+
+predNm :: Pred -> HsName
+predNm = tyAppFunConNm . predTy
+
+tyPredNm :: Ty -> HsName
+tyPredNm = predNm . tyPred
+
+tyPrArrowArgsRes :: Ty -> ([Pred],Pred)
+tyPrArrowArgsRes tp = let (tl,t) = tyArrowArgsRes tp in (map tyPred tl, tyPred t)
+%%]
+
+%%[9 hs
+tyPredMatchNm :: Ty -> HsName
+tyPredMatchNm = predMatchNm . tyPred
+
+predMatchNm :: Pred -> HsName
+predMatchNm p
+  =  case p of
+       Pred_Class t    -> tyAppFunConNm t
+       Pred_Pred  t    -> predMatchNm $ snd $ tyPrArrowArgsRes t
+%%]
+%%[10 hs
+       Pred_Lacks _ (Label_Lab l)  -> hsnPrefix "_Lab_" l
+       Pred_Lacks _ _              -> mkHNm "_LabVar_"		-- necessary? only used by CHR's
+%%]
+
+%%[9 hs
+predTy :: Pred -> Ty
+predTy p
+  =  case p of
+       Pred_Class t    -> t
+       Pred_Pred  t    -> t
+%%]
+%%[10 hs
+       Pred_Lacks    t _  -> t
+%%]
+
+%%[13 hs export(predSeqToList,predLFlatten)
+predSeqToList :: PredSeq -> [Pred]
+predSeqToList (PredSeq_Cons h t) = h : predSeqToList t
+predSeqToList _                  = []
+
+predLFlatten :: [Pred] -> [Pred]
+predLFlatten
+  = concatMap fl
+  where fl (Pred_Preds s) = predSeqToList s
+        fl p              = [p]
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Deconstruction for implicits
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[9 hs export(tyImpls,implsPredsTail,implsPredsMbTail,implsIsTail,tyIsImplsTail,tyImplsPreds,implsPrIds)
+tyImpls :: Ty -> Impls
+tyImpls (Ty_Impls i) = i
+
+implsPredsTail' :: PredScope -> Impls -> ([(PredOcc,[ImplsProveOcc])],Impls)
+implsPredsTail' sc (Impls_Cons _ p pv ipos t)  = ((mkPredOcc p pv sc,ipos) : p',mi)
+                                               where (p',mi) = implsPredsTail' sc t
+implsPredsTail' _  t                           = ([],t)
+
+implsPredsTail :: PredScope -> Impls -> ([PredOcc],Impls)
+implsPredsTail sc i
+  = (map fst is,t)
+  where (is,t) = implsPredsTail' sc i
+
+implsPredsMbTail :: Impls -> ([(PredOcc,[ImplsProveOcc])],Maybe Impls)
+implsPredsMbTail i =  case implsPredsTail' initPredScope i of
+                        (i',t@(Impls_Tail _ _)) -> (i',Just t)
+                        (i',   Impls_Nil      ) -> (i',Nothing)
+
+tyImplsPreds :: PredScope -> Ty -> [PredOcc]
+tyImplsPreds sc = fst . implsPredsTail sc . tyImpls
+
+implsIsTail :: Impls -> Bool
+implsIsTail (Impls_Tail _ _)  = True
+implsIsTail _                 = False
+
+tyIsImplsTail :: Ty -> Bool
+tyIsImplsTail = implsIsTail . tyImpls
+
+implsPrIds :: Impls -> [PredOccId]
+implsPrIds = map poPoi . fst . implsPredsTail initPredScope
+%%]
+tyIsImplsTail :: Ty -> Bool
+tyIsImplsTail (Ty_Impls (Impls_Tail _ _))  = True
+tyIsImplsTail _                            = False
+
+%%[9 hs export(implsTailVar)
+implsTailVar :: Impls -> ImplsVarId
+implsTailVar (Impls_Tail v _) = v
+implsTailVar _                = panic "implsTailVar"
+%%]
+
+%%[9 hs export(implsIsEmpty)
+implsIsEmpty :: Impls -> Bool
+implsIsEmpty (Impls_Cons _ _ _ _ _) = False
+implsIsEmpty _                      = True
+%%]
+
+%%[9 hs export(tyIsPredicated)
+tyIsPredicated :: Ty -> Bool
+tyIsPredicated (Ty_Impls i) = not $ implsIsEmpty i
+tyIsPredicated t            = isPr a
+                            where a = tyArrowArgs t
+                                  isPr (Ty_Pred p:_) = True
+                                  isPr _             = False
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Key into TyKiGam
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[6 hs export(TyKiKey(..))
+data TyKiKey
+  = TyKiKey_Name 	!HsName
+  | TyKiKey_TyVar	!TyVarId
+  deriving (Eq,Ord)
+
+instance Show TyKiKey where
+  show (TyKiKey_Name  n) = show n
+  show (TyKiKey_TyVar v) = show v
+%%]
+
+%%[6 hs export(tyKiKeyIsName)
+tyKiKeyIsName :: TyKiKey -> Bool
+tyKiKeyIsName (TyKiKey_Name _) = True
+tyKiKeyIsName _                = False
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Context of type
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[9 hs
+data TyCtxt = TyCtxt_Ty | TyCtxt_Pred | TyCtxt_Class deriving (Show,Eq)
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Annotations
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+An annotation is an immutable, opaque value attached to certain components of a type. Each
+annotation is globally distinguishable and can be used as a key to some property in an
+environment. This is a design decision: we could have stored properties directly on the
+annotation, but that requires updating of the annotation of the type, and we rather keep
+an annotation immutable, and propably it's also easier to add new properties to an
+annotation by introducing yet another environment, than adding and maintaining an
+additional field to the Annotation data type.
+
+The phantom parameter is intended to reflect the type the annotation is put on,
+such that we can restrict certain operations on annotations to specific
+annotations. And make sure that we do not, by accident, mix annotations of
+different type.
+
+%%[7_2.annotation hs
+
+type Annotations a = Set (Annotation a)
+data Annotation a
+  = Annotation { annUID      :: UID
+               , annInstFrom :: Maybe (Annotation a)
+               , annOnRefTp  :: Maybe (Annotation a)
+               }
+
+instance Eq (Annotation a) where
+  a == b = annUID a == annUID b
+  a /= b = annUID a /= annUID b
+
+instance Ord (Annotation a) where
+  a <= b = annUID a <= annUID b
+  a >= b = annUID a >= annUID b
+  a < b  = annUID a <  annUID b
+  a > b  = annUID a >  annUID b
+  compare a b = compare (annUID a) (annUID b)
+
+instance Show (Annotation a) where
+  show = ('d' :) . show . annUID
+
+type DecomposedAnnMap = Map HsName Ty
+
+touchAnn :: Annotation Ty
+touchAnn = Annotation { annUID      = uidNull
+                      , annInstFrom = Nothing
+                      , annOnRefTp  = Nothing
+                      }
+
+addAnn :: UID -> Ty -> Ty
+addAnn uid ty
+  = case ty of
+      Ty_App tl tr      -> addAnn uid tl `Ty_App` tr
+      Ty_Quant qu var t -> Ty_Quant qu var (addAnn uid t)
+      _                 -> Ty_Ann (Annotation uid Nothing Nothing) ty
+
+touchAnnTy :: Ty
+touchAnnTy = Ty_Ann touchAnn Ty_Any
+
+mkTruncArrow :: Ty -> Ty -> Ty
+mkTruncArrow a b
+  = Ty_App (Ty_App (Ty_TruncTyCon Set.empty (Ty_Con hsnArrow)) a) b
+
+%%]
+
+
+Get the rightmost result annotation. I.e. when applied to a kind:
+get the annotation on the rightmost star.
+
+%%[7_2 hs
+
+rightmostResultAnnotation :: Ty -> Annotation Ty
+rightmostResultAnnotation kind
+  = rec kind
+  where
+    rec kind
+      = case kind of
+          Ty_Ann ann _   -> ann
+          Ty_Quant _ _ k -> rec k
+          Ty_App _ k     -> rec k
+          _              -> error ("rightmostResultAnnotation: no such annotation: " ++ show kind)
+
+annotationsStar :: Ty -> [Annotation Ty]
+annotationsStar
+  = fst . anns_
+  where
+    anns_ kind
+      = case kind of
+          Ty_Ann ann k   -> (if snd (anns_ k) then [ann] else [], False)
+          Ty_Quant _ _ k -> anns_ k
+          Ty_Con hsn     -> ([], hsn == hsnStar || hsn == hsnRow)
+          Ty_Var _ _     -> ([], False)
+          Ty_App f a     -> let (af, _) = anns_ f
+                                (aa, _) = anns_ a
+                             in (af ++ aa, False)
+          _              -> error ("anns_: don't know how to deal with: " ++ show kind)
+
+%%]
+
+
+%%[7_2 hs
+
+mkAnnArrow :: Ty -> TyL -> UID -> Ty
+mkAnnArrow ty tyL uid
+  = fst (foldr mkArr (ty, uid) tyL)
+  where
+    mkArr :: Ty -> (Ty, UID) -> (Ty, UID)
+    mkArr arg (res, uid)
+      = let (uid', aUid) = mkNewLevUID uid
+            res' = addAnn aUid (arg `mkTruncArr` res)
+         in (res', uid')
+    
+    mkTruncArr :: Ty -> Ty -> Ty
+    mkTruncArr arg res
+      = Ty_App (Ty_App (Ty_TruncTyCon Set.empty (Ty_Con hsnArrow)) arg) res
+
+%%]
+
+
+%%[7_2 hs
+
+addTrunc :: Annotations Ty -> Ty -> Ty
+addTrunc anns
+  = rec
+  where
+    rec ty
+      = case ty of
+          Ty_App tl tr      -> rec tl `Ty_App` tr
+          Ty_Quant qu var t -> Ty_Quant qu var (rec t)
+          Ty_Ann ann t      -> Ty_Ann ann (Ty_TruncTyCon anns t)
+
+%%]
+
+
+Some utility functions to combine annotated records.
+
+%%[7_2.annRecUtils hs
+
+tyInsertAnnRec :: Ty -> Maybe HsName -> Ty -> Ty
+tyInsertAnnRec (Ty_App tyInit tyExts) mbNm addTy
+  = let (tyEmpty, exts) = tyRowExts tyExts
+        exts' = insert mbNm exts
+     in tyInit `Ty_App` (tyEmpty `mkTyRow` exts')
+  where
+    insert Nothing   exts = (HNPos (1 + maxHnPos exts), addTy) : exts
+    insert (Just nm) exts = (nm, addTy) : exts
+tyInsertAnnRec _ _ _ = Ty_Any
+
+maxHnPos :: AssocL HsName a -> Int
+maxHnPos l = maximum (0 : [n | (HNPos n, _) <- l ])
+
+tyReplaceAnnRec :: Ty -> HsName -> Ty -> Ty
+tyReplaceAnnRec (Ty_App tyInit tyExts) nm replTy
+  = let (tyEmpty, exts) = tyRowExts tyExts
+        exts' = replace exts
+     in tyInit `Ty_App` (tyEmpty `mkTyRow` exts')
+  where
+    replace (x@(n, t) : xs) | n == nm   = (nm, replTy) : xs
+                            | otherwise = x : replace xs
+    replace []            = []
+tyReplaceAnnRec _ _ _ = Ty_Any
+
+%%]
+
+Substitution on an annotated type.
+
+%%[7_2 hs
+
+tyAnnSubst :: Map (Annotation Ty) (Annotation Ty) -> Ty -> Ty
+tyAnnSubst mp
+  = rec
+  where
+    rec (Ty_App f a)            = Ty_App (rec f) (rec a)
+    rec (Ty_Ann a t)            = Ty_Ann (repl a) (rec t)
+    rec (Ty_Quant tv cat ty)    = Ty_Quant tv cat (rec ty)
+    rec (Ty_TruncTyCon anns ty) = Ty_TruncTyCon (Set.map repl anns) (rec ty)
+    rec (Ty_ExpTyCon cs as ty)  = Ty_ExpTyCon (map recCon cs) as (rec ty)
+    rec t                       = t
+
+    recCon (TyExpConstr_Constr nm fs)
+      = TyExpConstr_Constr nm (map recFld fs)
+    recFld (TyExpField_Field ty)
+      = TyExpField_Field (rec ty)
+
+    repl a = Map.findWithDefault a a mp
+
+%%]
+

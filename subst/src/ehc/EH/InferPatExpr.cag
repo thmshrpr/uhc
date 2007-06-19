@@ -1,0 +1,292 @@
+%%[0
+%include lhs2TeX.fmt
+%include afp.fmt
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Type inferencing for PatExpr
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Arity of pattern app
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[1.arity
+ATTR PatExpr [ | | arity: Int ]
+
+SEM PatExpr
+  | App         lhs         .  arity                =   @func.arity + 1
+  | Con Var AppTop IConst CConst
+                lhs         .  arity                =   0
+%%]
+
+%%[5
+SEM PatExpr
+  | SConst      lhs         .  arity                =   0
+%%]
+
+%%[7
+SEM PatExpr
+  | Rec DataFields
+                lhs         .  arity                =   0
+%%]
+
+%%[97
+SEM PatExpr
+  | Expr        lhs         .  arity                =   0
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Destruction function, known ty
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[2.patFunTy
+ATTR PatExpr [ | | patFunTy USE {`const`} {Ty_Any}: Ty ]
+%%]
+
+-- generated from ruler rules into EHRulerRules, was 2.patFunTy
+%%[5.patFunTy
+SEM PatExpr
+  | Con         loc         .  patFunTy             =   let  prTy = mkTyFreshProdFrom @lUniq (hsnProdArity @nm)
+                                                        in   ([prTy] `mkArrow` prTy)
+  | App         lhs         .  patFunTy             =   @func.patFunTy
+  | AppTop      loc         .  patFunTy             =   @patExpr.patFunTy
+%%]
+
+%%[5.patFunTy
+SEM PatExpr
+  | Con         loc         .  (knUnTy,nmErrs)      :=  valGamLookupTy (hsnUn @nm) @lhs.valGam
+                            .  patFunFo             :=  let  [a,r]  = mkNewTyVarL 2 @lUniq
+                                                        in   fitsIn  instFIOpts @fe @lUniq2 emptyVarMp @knUnTy ([a] `mkArrow` r)
+                            .  patFunTy             :=  foTy @patFunFo
+%%]
+
+!!!!!!! fix following later (20050407)
+%%[50.patFunTy
+SEM PatExpr
+  | Con         loc         .  patFunTy             :=  let  [a,r]  = mkNewTyVarL 2 @lUniq
+                                                             fo     = fitsIn  (instFIOpts {fioInstCoConst = instCoFixed})
+                                                                              @fe @lUniq2 @knUnTy ([a] `mkArrow` r)
+                                                        in   foTy fo
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Distribution of known ty
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[1.knTy
+ATTR AllPatExpr [ knTy: Ty | | ]
+ATTR PatExpr [ knTyL: TyL | | ]
+%%]
+
+-- generated from ruler rules into EHRulerRules, was 1.knTy.App
+%%[5.knTy.App
+SEM PatExpr
+  | AppTop      loc         .  knProdTy
+                                                    =   @lhs.knTy
+                            .  (knTyL,arityErrs)
+                                                    =   case tyProdArgs @knProdTy of
+                                                            tL | @patExpr.arity == length tL
+                                                                ->  (reverse tL,[])
+                                                            _   ->  (repeat Ty_Any
+                                                                    ,  [rngLift @range Err_PatArity
+                                                                         @knProdTy @patExpr.arity])
+  | App         loc         .  (knArgTy,knTyL)
+                                                    =   hdAndTl @lhs.knTyL
+                arg         .  knTy                 =   @knArgTy
+%%]
+
+%%[1.knTy.Init
+SEM Decl
+  | Val         patExpr     .  knTyL                =   []
+
+SEM Expr
+  | Lam         arg         .  knTyL                =   []
+%%]
+
+-- generated from ruler rules into EHRulerRules, was 1.knTy
+%%[5.knTy
+SEM PatExpr
+  | AppTop      loc         .  (ty_r_,knProdTy)     :=  tyArrowArgRes @patFunTy
+%%]
+
+%%[5
+SEM CaseAlt
+  | Pat         patExpr     .  knTyL                =   []
+%%]
+
+%%[7
+SEM RecPatExpr
+  | Ext Expr    patExpr     .  knTyL                =   []
+
+SEM DataFieldPatExpr
+  | Ext         patExpr     .  knTyL                =   []
+%%]
+
+%%[12
+SEM Expr
+  | LamImpl     arg         .  knTyL                =   []
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Type of PatExpr
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+-- generated from ruler rules into EHRulerRules, was 1.xxx
+%%[5.xxx
+SEM PatExpr
+  | Var VarAs   loc         .   ty                  =   @lhs.knTy
+                            .   varTy               =   @ty
+                            .   addToGam            =   if @lhs.inclVarBind && @nm /= hsnWild
+                                                        then  \g ->  gamAdd @nm
+                                                                       (ValGamInfo @varTy) g
+                                                        else  id
+  | Var         lhs         .   valGam              =   @addToGam @lhs.valGam
+  | VarAs       lhs         .   valGam              =   @addToGam @patExpr.valGam
+%%]
+
+%%[2.tyNtyVarMp
+ATTR AllPatExpr [ | tyVarMp: VarMp | ty: Ty ]
+%%]
+
+-- generated from ruler rules into EHRulerRules, was 2.Var
+%%[5.Var
+SEM PatExpr
+  | Var VarAs   loc         .   ty                  :=  tyEnsureNonAny @lUniq @lhs.knTy
+  | VarAs       patExpr     .   knTy                =   @ty
+%%]
+
+-- generated from ruler rules into EHRulerRules, was 4.Var
+%%[5.Var
+SEM PatExpr
+  | Var VarAs   loc         .   ty                  :=  tyInst1Exists @lUniq2 (tyEnsureNonAny @lUniq @lhs.knTy)
+%%]
+
+-- generated from ruler rules into EHRulerRules, was 4_2.Var
+%%[90.Var
+SEM PatExpr
+  | Var VarAs   loc         .   (varTy,varTyVarMp)  :=  tyAsVarMp @lUniq @ty
+  | Var         lhs         .   tyVarMp             =   @varTyVarMp |=> @lhs.tyVarMp
+  | VarAs       patExpr     .   tyVarMp             =   @varTyVarMp |=> @lhs.tyVarMp
+
+%%]
+ATTR AllPatExpr [ | gathPatTyVarMp: VarMp | ]
+SEM PatExpr
+  | AppTop TypeAs
+                patExpr     .   gathPatTyVarMp      =   foVarMp @fo_ |=> @lhs.gathPatTyVarMp
+  | Con         lhs         .   gathPatTyVarMp      =   foVarMp @fo_ |=> @lhs.gathPatTyVarMp
+  | Var         lhs         .   gathPatTyVarMp      =   @varTyVarMp |=> @lhs.gathPatTyVarMp
+  | VarAs       patExpr     .   gathPatTyVarMp      =   @varTyVarMp |=> @lhs.gathPatTyVarMp
+
+%%[9.Var
+SEM PatExpr
+  | Var         loc         .   ty                  :=  tyInst1Exists @lUniq2 (tyEnsureNonAnyImpl @lUniq @lhs.knTy)
+%%]
+
+-- generated from ruler rules into EHRulerRules, was 4.TypeAs
+-- 20070205 - AD, this does not match ruler rules anymore: options to fit, type expr is passed further on, uninstantiated
+%%[5.TypeAs
+SEM PatExpr
+  | TypeAs      loc         .   ty_q_               =   @lhs.tyVarMp |=> @tyExpr.ty
+                            .   fo_                 =   fitsIn strongFIOpts @fe @lUniq @lhs.tyVarMp (@lhs.tyVarMp |=> @lhs.knTy) @ty_q_
+                patExpr     .   knTy                =   foVarMp @fo_ |=> @ty_q_
+                            .   tyVarMp             =   foVarMp @fo_ |=> @lhs.tyVarMp
+%%]
+                            .   fo_                 =   fitsIn @lhs.fiOpts @fe @lUniq (@lhs.tyVarMp |=> @lhs.knTy) @ty_q_
+                patExpr     .   knTy                =   foTy @fo_
+
+-- generated from ruler rules into EHRulerRules, was 2.Rest
+%%[5.Rest
+SEM PatExpr
+  | AppTop      loc         .   fo_fitR_            =   @lhs.knTy `fitsIn` @ty_r_
+                            .   ty                  =   foTy @fo_fitR_
+                patExpr     .   tyVarMp             =   foVarMp @fo_fitR_ |=> @lhs.tyVarMp
+                lhs         .   ty                  =   @patExpr.tyVarMp |=> @ty
+  | App         arg         .   knTy                :=  @func.tyVarMp |=> @knArgTy
+  | Con         loc         .   ty                  =   Ty_Any
+%%]
+
+-- generated from ruler rules into EHRulerRules, was 2.Rest
+%%[5.Rest
+SEM PatExpr
+  | IConst      loc         .   ty                  =   tyInt
+  | CConst      loc         .   ty                  =   tyChar
+%%]
+
+-- generated from ruler rules into EHRulerRules, was 4.Rest
+%%[5.Rest
+SEM PatExpr
+  | AppTop Con  loc         .   fo_fitR_            :=  fitsIn @lhs.fiOpts @fe @lUniq @lhs.tyVarMp (@lhs.tyVarMp |=> @lhs.knTy) @ty_r_
+  | Con         loc         .   (ty_r_,_)           =   tyArrowArgRes @patFunTy
+                            .   ty                  :=  foTy @fo_fitR_
+                lhs         .   tyVarMp             =   foVarMp @fo_fitR_ |=> @lhs.tyVarMp
+%%]
+
+%%[97
+SEM PatExpr
+  | Expr        loc         .   eqFldNm             =   ehbnClassEqFldEq $ ehcOptBuiltinNames @lhs.opts
+                            .   (eqTy,nmErrs)       =   valGamLookupTy @eqFldNm @lhs.valGam
+                            .   knExprTy            =   mkTyVar @lUniq
+                            .   fo_                 =   fitsIn strongFIOpts @fe @lUniq2 @lhs.tyVarMp
+                                                            (@lhs.tyVarMp |=> @eqTy)
+                                                            ([@knExprTy,@lhs.knTy] `mkArrow` (semCon $ ehbnDataBool $ ehcOptBuiltinNames @lhs.opts))
+                expr        .   knTy                =   @knExprTy
+                            .   tyVarMp             =   foVarMp @fo_ |=> @lhs.tyVarMp
+%%]
+SEM PatExpr
+  | Expr        loc         .   (eqTy,nmErrs)       =   valGamLookupTy hsnClassEqFldEq @lhs.valGam
+                            .   knExprTy            =   mkTyVar @lUniq
+                            .   fo_                 =   fitsIn strongFIOpts @fe @lUniq2
+                                                            (@lhs.tyVarMp |=> @eqTy)
+                                                            ([@knExprTy,@lhs.tyVarMp |=> @lhs.knTy] `mkArrow` tyBool)
+                expr        .   knTy                =   @knExprTy
+                            .   tyVarMp             =   foVarMp @fo_ |=> @lhs.tyVarMp
+
+%%[50.ApptopCon
+SEM PatExpr
+  | AppTop Con  loc         .   fo_fitR_            :=  fitsIn  (@lhs.fiOpts {fioAllowEqOpen = True})
+                                                                @fe @lUniq @lhs.tyVarMp (@lhs.tyVarMp |=> @lhs.knTy) @ty_r_
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Data based records
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[7
+SEM DataFieldPatExpr
+  | Ext         loc         .   (gTy,nmErrs)        =   valGamLookupTy @nm @lhs.valGam
+                            .   knFldTy             =   mkNewTyVar @lUniq
+                            .   fo_                 =   let t = @lhs.tyVarMp |=> @lhs.knTy
+                                                        in  fitsIn @lhs.fiOpts @fe @lUniq2 @lhs.tyVarMp (@lhs.tyVarMp |=> @gTy) ([t] `mkArrow` @knFldTy)
+                patExpr     .   knTy                =   @knFldTy
+                dataFieldPatExpr
+                            .   tyVarMp             =   foVarMp @fo_ |=> @lhs.tyVarMp
+                loc         .   ty                  =   @patExpr.tyVarMp |=> @dataFieldPatExpr.ty
+  | Con         loc         .   (gTy,nmErrs)        =   valGamLookupTy (hsnUn @nm) @lhs.valGam
+                            .   fo_                 =   let [u] = mkNewTyVarL 1 @lUniq
+                                                            t = @lhs.tyVarMp |=> @lhs.knTy
+                                                            fo = fitsIn @lhs.fiOpts @fe @lUniq2 @lhs.tyVarMp (@lhs.tyVarMp |=> @gTy) ([t] `mkArrow` u)
+                                                        in  fo {foTy = foVarMp fo |=> t}
+                            .   ty                  =   foTy @fo_
+                lhs         .   tyVarMp             =   foVarMp @fo_ |=> @lhs.tyVarMp
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Row based records
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[7
+SEM RecPatExpr
+  | Empty       loc         .   fo_                 =   fitsIn (@lhs.fiOpts) @fe @lUniq @lhs.tyVarMp (@lhs.tyVarMp |=> @lhs.knTy) tyRecEmpty
+                            .   ty                  =   foTy @fo_
+                lhs         .   tyVarMp             =   foVarMp @fo_ |=> @lhs.tyVarMp
+  | Ext         loc         .   recTy               =   let  [r,e] = mkNewTyVarL 2 @lUniq
+                                                        in   (hsnRec `mkConApp` [r]) `mkTyRecExt` [(@nm,e)]
+                            .   fo_                 =   fitsIn (@lhs.fiOpts) @fe @lUniq2 @lhs.tyVarMp (@lhs.tyVarMp |=> @lhs.knTy) @recTy
+                            .   ty                  =   foTy @fo_
+                (loc.knRecTy,patExpr.knTy)          =   maybe (Ty_Any,Ty_Any) id . tyRecExtr @nm $ @ty
+                recPatExpr  .   knTy                =   @knRecTy
+                            .   tyVarMp             =   foVarMp @fo_ |=> @lhs.tyVarMp
+                lhs         .   ty                  =   @patExpr.tyVarMp |=> @ty
+%%]
+

@@ -1,0 +1,79 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Unbox which are known to end up unboxed
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Values are all represented by nodes, boxed thus.
+This transformation removes the boxing for unboxable values,
+allowing direct manipulation.
+
+Although designed with use by GrinByteCode in mind, the transformation is
+parameterised with a function telling whether a node represents an unboxed value.
+
+%%[8 import({GrinCode/AbsSyn})
+%%]
+
+%%[8 hs module {%{GRIN}GrinCode.TrfLocal.Unbox}
+%%]
+
+%%[8 hs import({%{EH}Base.Common}, {%{GRIN}GRINCCommon}, {%{EH}GrinCode})
+%%]
+
+%%[8 hs export(grUnbox)
+grUnbox :: (GrTag -> Unbox) -> GrModule -> GrModule
+grUnbox tagUnbox grmod
+  = trf_Syn_GrAGItf t
+  where t = wrap_GrAGItf (sem_GrAGItf $ GrAGItf_AGItf grmod)
+            $ Inh_GrAGItf
+                { tagUnbox_Inh_GrAGItf = tagUnbox
+                }
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Wrapper
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8.wrapper
+WRAPPER GrAGItf
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Unbox check
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8
+ATTR GrAGItf AllNT [ tagUnbox: {GrTag -> Unbox} | | ]
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Transformation: replace by unboxed equivalents
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8
+ATTR GrAGItf [ | | trf: GrModule ]
+ATTR AllNT [ | | trf: SELF ]
+%%]
+
+%%[8
+SEM GrPatLam
+  | VarNode     lhs . trf   =   case @fldL.trf of
+                                  [GrVar_KnownTag t, GrVar_Var v]  -> case @lhs.tagUnbox t of
+                                                                        Unbox_FirstField -> GrPatLam_Var v
+                                                                        _                -> @trf                                  
+                                  _ -> @trf
+
+SEM GrVal
+  | Node        lhs . trf   =   case (@fldL.trf,@lhs.tagUnbox @tag.trf) of
+                                  ([f],Unbox_FirstField)
+                                    -> f
+                                  ([],Unbox_Tag t)
+                                    -> GrVal_LitInt t
+                                  _ -> @trf
+
+SEM GrExpr
+  | Store       lhs . trf   =   case @val.trf of
+                                  GrVal_Node _ _        -> @trf
+%%[[10
+                                  GrVal_NodeAdapt _ _   -> @trf
+%%]]
+                                  v                     -> GrExpr_Unit v
+%%]

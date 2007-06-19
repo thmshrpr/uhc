@@ -1,0 +1,126 @@
+This transformation drops all not directly called functions. Because only
+direct calls are counted, this should be used after inlining eval and apply
+calls. (When no hidden function calls exists anymore.)
+
+%%[0
+%include lhs2TeX.fmt
+%include afp.fmt
+%%]
+
+%%[8 import({GrinCode/AbsSyn})
+%%]
+
+%%[8.wrapper
+WRAPPER GrAGItf
+%%]
+
+%%[8 hs module {%{GRIN}GrinCode.Trf.DropUnusedBindings} import(qualified Data.Set as Set,qualified Data.Map as Map,Data.Graph,Data.List,Data.Array)
+type EdgeF   = [Edge] -> [Edge]
+type VertexF = [Vertex] -> [Vertex]
+
+type CallInfo = Map.Map Vertex CallType
+data CallType = Call | TailCall | BothCall deriving (Eq, Show)
+
+
+type NodeInfo  = (Vertex, CallInfo)
+type NodeInfoF = [NodeInfo] -> [NodeInfo]
+%%]
+
+%%[8 hs import({%{EH}Base.Common}, {%{GRIN}GRINCCommon}, {%{EH}GrinCode}) export(dropUnusedBindings)
+dropUnusedBindings :: GrModule -> (GrModule, String)
+dropUnusedBindings grmod = let t = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf grmod))
+                                                (Inh_GrAGItf {})
+                           in (grTrf_Syn_GrAGItf t, dot_Syn_GrAGItf t)
+%%]
+
+%%[8
+ATTR GrAGItf [ | | grTrf: GrModule ]
+ATTR AllNT [ | | grTrf: SELF ]
+
+ATTR GrAGItf GrModule [ | | dot: String ]
+
+%%]
+
+%%[8.graphInfo import({GrinCode/LastExpr})
+ATTR AllBind            [ | | biggest USE {`max`} {minBound}: Int
+                              smallest USE {`min`} {maxBound}: Int
+                              nodes USE {.} {id}: NodeInfoF
+                        ]
+ATTR AllGrExpr          [ | calls: CallInfo | ]
+ATTR AllBind AllGrExpr  [ | | ]
+
+SEM GrBind
+  | Bind  loc   .  bindNr    = getNr @nm
+          lhs   .  smallest  = @bindNr
+                .  biggest   = @bindNr
+                .  nodes     = ( (@bindNr, @expr.calls) :)
+          expr  .  calls     = Map.empty
+
+SEM GrExpr
+  | Call  loc  .  mergeCall  =  (\p n -> if p == n then p else BothCall)
+               .  callType   =  if @isLastExpr then TailCall else Call
+               .  calls      =  Map.insertWith @mergeCall (getNr @nm) @callType @lhs.calls
+%%]
+
+%%[8.graph
+SEM GrModule
+  | Mod  loc  .  nodes  = @bindL.nodes []
+              .  graph  = let buildNode prev outlist = Map.keys outlist
+                          in accumArray buildNode undefined (@bindL.smallest, @bindL.biggest) @nodes
+%%]
+
+%%[8.dropUnusedBindings
+ATTR AllBind [ lifeBindings: {Set.Set Int} | | ]
+
+SEM GrModule
+  | Mod  loc   . entry         =  mainNr
+               . lifeBindings  =  Set.fromList $ reachable @graph (getNr @loc.entry)
+         
+SEM GrBind [ | | dropBinding: Bool ]
+  | Bind  lhs  . dropBinding  =  not (@bindNr `Set.member` @lhs.lifeBindings)
+  | Rec   lhs  . dropBinding  =  @bindL.count == 0
+
+
+SEM GrBindL [ | | count: Int ]
+  | Cons  lhs  .  grTrf  =  if @hd.dropBinding
+                            then @tl.grTrf
+                            else @hd.grTrf : @tl.grTrf
+               .  count  =  if @hd.dropBinding then @tl.count else 1 + @tl.count
+  | Nil   lhs  .  count  =  0
+%%]
+
+%%[8.dot
+SEM GrModule
+  | Mod   loc  .  dot        = unlines (mkDot @loc.entry
+                                              (show @moduleNm) 
+                                              (foldl (mkNodeEdges @lifeBindings)
+                                                     id
+                                                     @nodes
+                                              )
+                                       )
+%%]
+
+%%[8.dot hs
+mkDot e n nodeEdges = let header     = (  (("digraph \"" ++ n ++ "\" {") :)
+                                       .  ("margin = 0" :)
+                                       )
+                          entryNode  = ( (show e ++ " [ shape = diamond ]") :)
+                          footer     = ( "}" :)
+                      in (header . entryNode . nodeEdges . footer) []
+
+mkNodeEdges lns sf (n,es) = 
+    let  style  =  if n `Set.member` lns
+                   then ""
+                   else "color = gray, fontcolor = gray"
+         node   =  ( (show n ++ " [ label = \"" ++ show n ++ "\"" ++ style ++ "];") :)
+    in Map.foldWithKey (mkEdge n) (sf . node) es
+
+mkEdge from to callType sf = sf . ( (show from ++ " -> " ++ show to ++ style) :)
+    where
+    style = case callType of
+               Call      ->  ";"
+               TailCall  ->  " [style=\"dotted\"];"
+               BothCall  ->  " [style=\"dashed\"];"
+%%]
+
+% vim:ts=4:et:ai:

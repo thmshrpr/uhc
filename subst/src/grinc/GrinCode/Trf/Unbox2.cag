@@ -1,0 +1,95 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Unbox Int and Char
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8 import({GrinCode/AbsSyn})
+%%]
+%%[8 hs import(qualified Data.Set as Set)
+%%]
+%%[8 hs module {%{GRIN}GrinCode.Trf.Unbox2}
+%%]
+%%[8 hs import({%{EH}Base.Common}, {%{EH}Base.Builtin}, {%{GRIN}GRINCCommon}, {%{EH}GrinCode})
+%%]
+
+%%[8 hs export(unbox2)
+unbox2 :: (GrModule,Int,HptMap) -> (GrModule,Int,HptMap)
+unbox2 (input,unique,hptMap)
+  = let inh = Inh_GrAGItf {hptMap_Inh_GrAGItf=hptMap}
+        syn = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf input)) inh
+    in  (trf_Syn_GrAGItf syn, unique, hptMap)
+
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Wrapper
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8.wrapper
+WRAPPER GrAGItf
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Transformation: replace #C/Int and #C/Char by #U
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8
+ATTR GrAGItf [ | | trf: GrModule ]
+ATTR AllNT [ | | trf: SELF ]
+
+ATTR GrAGItf AllNT [ hptMap: {HptMap} | | ]
+
+%%]
+
+%%[8 hs
+
+
+typeCanbeUnboxed :: HsName -> Bool
+typeCanbeUnboxed nm 
+  =   nm == hsnInt  ||  nm == hsnChar
+
+
+tagCanbeUnboxed :: HptMap -> GrTag -> Bool
+tagCanbeUnboxed hptMap gt
+  = case gt of
+      GrTag_Con _ _ nm -> typeCanbeUnboxed nm
+      _                -> False
+
+varCanbeUnboxed :: HptMap -> HsName -> Bool
+varCanbeUnboxed hptMap (HNmNr n _)
+  =  case getEnvVar hptMap n of
+      AbsTags set -> case Set.elems set of
+                        [tag] -> tagCanbeUnboxed hptMap tag
+                        _     -> False
+      _           -> False
+
+%%]
+
+
+%%[8
+
+SEM GrVarL [ | | headCanbeUnboxed : {Bool} ]
+  | Nil lhs. headCanbeUnboxed = False
+  | Cons lhs.headCanbeUnboxed = @hd.varCanbeUnboxed
+SEM GrVar [ | | varCanbeUnboxed : {Bool} ]
+  | KnownTag  lhs.varCanbeUnboxed = tagCanbeUnboxed @lhs.hptMap @tag.trf
+  | Var       lhs.varCanbeUnboxed = varCanbeUnboxed @lhs.hptMap @nm
+  | Ignore    lhs.varCanbeUnboxed = False
+
+SEM GrPatAlt
+  | Node    lhs . trf   =  if tagCanbeUnboxed @lhs.hptMap @tag.trf
+                            then GrPatAlt_Node GrTag_Unboxed @fldL
+                            else @trf
+            
+SEM GrPatLam                
+  | VarNode lhs . trf   =  if @fldL.headCanbeUnboxed
+                            then GrPatLam_VarNode (GrVar_KnownTag GrTag_Unboxed :tail @fldL.trf)
+                            else @trf
+
+SEM GrVal
+  | Node     lhs . trf  =  if tagCanbeUnboxed @lhs.hptMap @tag.trf
+                            then GrVal_Node GrTag_Unboxed @fldL.trf
+                            else @trf
+  | VarNode  lhs . trf  =  if varCanbeUnboxed @lhs.hptMap ((\(GrVal_Var v)->v) (head @fldL.trf))
+                            then GrVal_Node GrTag_Unboxed (tail @fldL.trf)
+                            else @trf
+%%]

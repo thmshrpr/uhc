@@ -1,0 +1,184 @@
+%%[0
+%include lhs2TeX.fmt
+%include afp.fmt
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Haskell importable interface to HI/AbsSyn
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[20 hs module {%{EH}HI} import({%{EH}Base.Common},{%{EH}Ty},{%{EH}Core},{%{EH}GrinCode},{%{EH}Gam},{%{EH}NameAspect},qualified {%{EH}Pred} as Pr)
+%%]
+
+%%[20 hs import({%{EH}Module},{%{EH}Pred.ToCHR},{%{EH}CHR.Solve})
+%%]
+
+%%[20 hs import(qualified Data.Map as Map,qualified EH.Util.Rel as Rel,qualified EH.Util.FastSeq as Seq,EH.Util.Utils)
+%%]
+
+%%[20 hs export(AGItf(..),Module(..),Binding(..),Bindings)
+%%]
+
+%%[20 hs export(Visible(..))
+%%]
+
+%%[20 ag import({HI/AbsSyn})
+%%]
+
+%%[99 hs import({%{EH}Base.ForceEval},{%{EH}GrinCode.Trf.ForceEval})
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Additional defs
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[20 hs
+data Visible
+  = VisibleNo | VisibleYes
+  deriving Eq
+
+instance Show Visible where
+  show VisibleNo  = "visibleno"
+  show VisibleYes = "visibleyes"
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% HI info
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[20 hs export(HIInfo(..), emptyHIInfo)
+data HIInfo
+  = HIInfo
+      { hiiExps             :: !ModEntRel
+      , hiiHiddenExps       :: !ModEntRel
+      , hiiFixityGam        :: !FixityGam
+      , hiiIdDefOccGam      :: !IdDefOccGam
+      , hiiValGam           :: !ValGam
+      , hiiTyGam            :: !TyGam
+      , hiiTyKiGam          :: !TyKiGam
+      , hiiDataGam          :: !DataGam
+      , hiiClGam            :: !Pr.ClGam
+      , hiiCHRStore         :: !ScopedPredStore
+      , hiiCArityMp         :: !CArityMp
+      , hiiGrInlMp          :: !GrInlMp
+      }
+
+emptyHIInfo :: HIInfo
+emptyHIInfo = HIInfo Rel.empty Rel.empty emptyGam emptyGam emptyGam emptyGam emptyGam emptyGam emptyGam emptyCHRStore Map.empty Map.empty
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Building
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[20 hs export(hiFromHIInfo)
+hiFromHIInfo :: HIInfo -> Seq.FastSeq Binding
+hiFromHIInfo i
+  = hiFromAllGams
+      (hiiExps          i)
+      (hiiHiddenExps    i)
+      (hiiFixityGam     i)
+      (hiiIdDefOccGam   i)
+      (hiiValGam        i)
+      (hiiTyGam         i)
+      (hiiTyKiGam       i)
+      (hiiDataGam       i)
+      (hiiClGam         i)
+      (hiiCHRStore      i)
+      (hiiCArityMp      i)
+      (hiiGrInlMp       i)
+%%]
+
+%%[20 hs
+hiFromGam :: (HsName -> v -> Binding) -> Gam HsName v -> Seq.FastSeq Binding
+hiFromGam mk g = Seq.fromList [ mk n v | (n,v) <- gamToAssocL g ]
+
+hiFromAllGams 
+  :: ModEntRel
+     -> ModEntRel
+     -> FixityGam
+     -> IdDefOccGam
+     -> ValGam
+     -> TyGam
+     -> TyKiGam
+     -> DataGam
+     -> Pr.ClGam
+     -> ScopedPredStore
+     -> CArityMp
+     -> GrInlMp
+     -> Seq.FastSeq Binding
+hiFromAllGams exps hiddenExps fg idg vg tg tkg dg ig chrStore arityMp inlMp
+  =          Seq.fromList [Binding_Export VisibleYes exps]
+    Seq.:++: Seq.fromList [Binding_Export VisibleNo hiddenExps]
+    Seq.:++: Seq.fromList [Binding_Ids [ (o,doccOcc docc) | (o,docc) <- gamToAssocL idg ]]
+    Seq.:++: Seq.fromList [Binding_Arities $ Map.toList arityMp]
+    Seq.:++: Seq.fromList [Binding_GrInlines [ (n,(a,g)) | (n,GrInl_Call a g) <- Map.toList inlMp ] ]
+    Seq.:++: Seq.fromList [Binding_TyKinds [ (k,tkgiKi i) | (k,i) <- gamToAssocL tkg ]]
+    Seq.:++: hiFromGam  (\n fgi  -> Binding_Fixity n (fgiPrio fgi) (fgiFixity fgi)) fg
+    Seq.:++: hiFromGam  (\n vgi  -> Binding_Val n (vgiTy vgi)) vg
+    Seq.:++: hiFromGam  (\n tgi  -> Binding_Ty n (tgiTy tgi)) tg
+    Seq.:++: hiFromGam  (\n dgi  -> let mkt i = (dtiCTag i,Map.toList $ Map.map dfiOffset $ dtiFldMp i)
+                                    in  Binding_DataCon n (dgiDataTy dgi) (assocLMapElt mkt $ dgiConstrTagAssocL dgi) (dgiIsNewtype dgi)
+                        ) dg
+    Seq.:++: hiFromGam  (\n clgi -> Binding_Class n (Pr.clgiPrToEvidTy clgi) (Pr.clgiRuleTy clgi) (Pr.clgiDfltDictNm clgi)) ig
+    Seq.:++: Seq.fromList [Binding_CHRStore $ chrStoreElems chrStore]
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% ForceEval
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[99 hs
+instance ForceEval HIInfo where
+%%[[99
+  forceEval x@(HIInfo
+				  { hiiExps             = e
+				  , hiiHiddenExps       = he
+				  , hiiFixityGam        = fg
+				  , hiiIdDefOccGam      = idg
+				  , hiiValGam           = vg
+				  , hiiTyGam            = tg
+				  , hiiTyKiGam          = tkg
+				  , hiiDataGam          = dg
+				  , hiiClGam            = cg
+				  , hiiCHRStore         = cs
+				  , hiiCArityMp         = am
+				  , hiiGrInlMp          = im
+				  }
+              )
+              = x
+%%][101
+  fevCount  (HIInfo
+                { hiiExps             = e
+                , hiiHiddenExps       = he
+                , hiiFixityGam        = fg
+                , hiiIdDefOccGam      = idg
+                , hiiValGam           = vg
+                , hiiTyGam            = tg
+                , hiiTyKiGam          = tkg
+                , hiiDataGam          = dg
+                , hiiClGam            = cg
+                , hiiCHRStore         = cs
+                , hiiCArityMp         = am
+                , hiiGrInlMp          = im
+                }
+            )
+            = cmUnions [cm1 "HIInfo"
+                       ,fevCount e
+                       ,fevCount he
+                       ,fevCount fg
+                       ,fevCount idg
+                       ,fevCount vg
+                       ,fevCount tg
+                       ,fevCount tkg
+                       ,fevCount dg
+                       ,fevCount cg
+                       ,fevCount cs
+                       ,fevCount am
+                       ,fevCount im
+                       ]
+%%]]
+%%]
+
+
+

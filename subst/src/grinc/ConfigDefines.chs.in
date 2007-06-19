@@ -1,0 +1,56 @@
+%%[0
+{-# OPTIONS_GHC -cpp #-}
+%%]
+
+%%[8 module {%{GRIN}ConfigDefines} import({%{EH}ConfigDefines}) export(module {%{EH}ConfigDefines})
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Sizes
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8 export(sizeofPointer)
+#undef SIZEOF_UINTPTR_T
+
+sizeofPointer :: Integer
+sizeofPointer = SIZEOF_UINTPTR_T
+%%]
+
+%%[8 export(sizeofGrWord,use64Bits,use32Bits)
+sizeofGrWord :: Integer
+sizeofGrWord = SIZEOF_UINTPTR_T
+
+use64Bits, use32Bits :: Bool
+(use64Bits,use32Bits)
+  = if sizeofGrWord == 8
+    then (True,False)
+    else (False,True)
+%%]
+
+%%[8 export(gbLabelOffsetSize)
+gbLabelOffsetSize :: Int
+gbLabelOffsetSize = fromInteger sizeofGrWord
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Endianness
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8 export(machineIsBigEndian)
+#undef BIGENDIAN
+#undef LITTLEENDIAN
+
+machineIsBigEndian :: Bool
+machineIsBigEndian = mkB BIGENDIAN
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% RTS related
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8 export(rtsGlobalVarPrefix)
+#undef RTS_GLOBAL_VAR_PREFIX
+
+rtsGlobalVarPrefix :: String
+rtsGlobalVarPrefix = RTS_GLOBAL_VAR_PREFIX
+%%]

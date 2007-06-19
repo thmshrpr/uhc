@@ -1,0 +1,124 @@
+%%[0
+%include lhs2TeX.fmt
+%include afp.fmt
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Haskell importable interface to making canonical type structure
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Compute canonic form of type w.r.t. Eq and Ord.
+This matters at:
+- rows, where fields may be in arbitrary order
+
+This matters for:
+- comparing types, in particular within predicates during proving
+
+%%[9 hs module {%{EH}Ty.Trf.Canonic} import({%{EH}Base.Common},{%{EH}Base.Builtin},{%{EH}Ty},{%{EH}Ty.FitsIn})
+%%]
+
+%%[9 hs import(Data.Maybe,qualified Data.Set as Set)
+%%]
+
+%%[11 hs import({%{EH}Base.Opts})
+%%]
+
+%%[9.WRAPPER ag import({Ty/AbsSyn},{Ty/CommonAG})
+WRAPPER TyAGItf
+%%]
+
+%%[99
+PRAGMA strictcase
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Haskell importable interface to making canonical type structure
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[9 hs 
+tyCanonic :: FIIn -> Ty -> Ty
+tyCanonic fi ty
+  =  let  t =  wrap_TyAGItf
+                 (sem_TyAGItf (TyAGItf_AGItf ty))
+                 (Inh_TyAGItf
+%%[[11
+                   { fi_Inh_TyAGItf = fi
+                   }
+%%]]
+                 )
+     in   repl_Syn_TyAGItf t
+%%]
+
+%%[9 hs export(predCanonic)
+predCanonic :: FIIn -> Pred -> Pred
+predCanonic fi pr
+  = case tyCanonic fi $ Ty_Pred pr of
+      Ty_Pred pr' -> pr'
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Context info
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[11
+ATTR TyAGItf AllTy [ fi: FIIn | | ]
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Possible preds
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[9 hs
+type MbPredL = Maybe [Pred]
+
+mbPredLCmb :: MbPredL -> MbPredL -> MbPredL
+mbPredLCmb Nothing Nothing = Nothing
+mbPredLCmb m1      m2      = Just $ concat $ maybeToList m1 ++ maybeToList m2
+%%]
+
+%%[9
+ATTR Ty Impls Pred [ | | mbPredL USE {`mbPredLCmb`} {Nothing}: MbPredL ]
+
+SEM Impls
+  | Tail            lhs     .   mbPredL         =   Just []
+
+SEM Pred
+  | *               lhs     .   mbPredL         =   Just [@repl]
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Replacement
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[9
+ATTR AllTyAndFlds [ | | repl: SELF ]
+ATTR TyAGItf  [ | | repl: Ty ]
+%%]
+
+%%[9
+SEM Ty
+  | App             loc     .   replNoImplNil   =   case @func.mbPredL of
+                                                      Nothing | @func.isPred
+                                                        -> @arg.repl
+                                                      _ -> @repl
+                    lhs     .   repl            =   @replNoImplNil
+%%]
+
+%%[10
+SEM Ty
+  | Ext             lhs     .   repl            =   if @isSpineRoot
+                                                    then let (row,exts) = tyRowExts @repl
+                                                             exts' = tyRowCanonOrder exts
+                                                         in  mkTyRow row exts'
+                                                    else @repl
+%%]
+
+%%[11
+SEM Ty
+  | App             lhs     .   repl            :=  if @isSpineRoot
+                                                    then tyBetaRedFull @lhs.fi @replNoImplNil
+                                                    else @replNoImplNil
+  | Con             lhs     .   repl            =   tyBetaRedFull @lhs.fi @repl
+%%]
+
+

@@ -1,0 +1,256 @@
+Rename all identifiers to unique numbers. exceptions are the FFI names (and
+primitives) as well as the eval and apply function names (which do not exist anymore).
+
+To rename efficient we can use the fact that the scope of a variable is local
+to a binding, but it's easier not to.
+
+Note: after each binding we skip one number (binding needs two number in the HPTA)
+
+
+%%[0
+%include lhs2TeX.fmt
+%include afp.fmt
+%%]
+
+%%[8 import({GrinCode/AbsSyn})
+%%]
+
+%%[8 hs import({%{GRIN}Config})
+%%]
+%%[8 hs import(Debug.Trace)
+%%]
+
+%%[8.wrapper
+WRAPPER GrAGItf
+%%]
+
+%%[8 hs module {%{GRIN}GrinCode.Trf.NumberIdents} import({%{GRIN}GRINCCommon}, {%{EH}Base.Common}, {%{EH}Base.Builtin}, {%{EH}GrinCode}, Data.Array.IArray, qualified Data.Map as Map, Data.Maybe) export(numberIdents)
+
+numberIdents :: (GrModule,Int,HptMap) -> (GrModule,Int,HptMap)
+numberIdents (code,unique,hptMap)
+  = let inh = Inh_GrAGItf {unique_Inh_GrAGItf=unique}
+        syn = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf code)) inh
+    in  (grTrf_Syn_GrAGItf syn, unique_Syn_GrAGItf syn, hptMap)
+
+
+%%]
+
+%%[8.lookup hs
+type LookupList = Map.Map HsName HsName
+
+findNewVar _  e@(HNmNr nr orig) = e
+findNewVar fm e                 = Map.findWithDefault (error $ "undeclared variable " ++ show e ++ " in " ++ show fm) e fm
+
+
+addMaybe :: Int -> LookupList -> Maybe HsName -> (LookupList, Int)
+addMaybe u fm = maybe (fm, u) addName
+    where
+    addName e | e == wildcardNm  = (fm                                , u  )
+              | otherwise        = (Map.insert e (HNmNr u (Just e)) fm, u+1)
+
+addList :: Int -> LookupList -> [HsName] -> (LookupList, [HsName], Int)
+addList u fm = onFst (flip listInsert fm) . foldr addName ([], [], u)
+    where
+    onFst f (a, b, c)                       = (f a          , b             , c  )
+    addName e (l, l2, u) | e == wildcardNm  = (l            , wildcardNr:l2 , u  )
+                         | otherwise        = let newname = HNmNr u (Just e)
+                                              in ((e,newname):l, (newname:l2), u+1)
+                                              
+listInsert l fm = foldl (flip $ uncurry Map.insert) fm l                                              
+%%]
+
+%%[8.grTrf
+ATTR GrAGItf [ | | grTrf: GrModule ]
+ATTR AllNT [ | | grTrf: SELF     ]
+%%]
+
+%%[8.unique
+ATTR GrAGItf          [ | unique: Int | ]
+ATTR AllNT          [ | unique: Int | ]
+
+SEM GrAGItf
+  | AGItf  loc     .  low         = @lhs.unique
+                   .  high        = @module.unique
+%%]
+
+
+%%[8.maps
+ATTR AllNT          [ bind2id: LookupList  | var2id: LookupList | ]
+ATTR GrModule AllBind [ | bind2idFrag: LookupList | ]
+
+SEM GrAGItf
+  | AGItf  module  .  bind2idFrag  = Map.empty
+                   .  var2id       = Map.empty
+           loc     .  bind2id      = Map.insert hsnMain mainNr (Map.insert evalNm evalNr (Map.insert applyNm applyNr @module.bind2idFrag))
+
+%%]
+
+retrieving names and their mapping
+
+%%[8.addMbFM hs
+addMbToMap fm mbk mbv = maybe fm id mbMap
+    where
+    mbMap = do
+        k <- mbk
+        v <- mbv
+        return $ Map.insert k v fm
+%%]
+
+%%[8.bindings
+SEM GrBind
+  | Bind  loc . bindName    :  HsName
+          loc . bindName    =  if      @nm == applyNm
+                               then applyNr
+                               else if @nm == evalNm
+                               then evalNr
+                               else if @nm == hsnMain
+                               then mainNr
+                               else case @nm of
+                                     HNmNr nr (Just orig) -> @nm
+                                     _                    -> HNmNr @lhs.unique (Just (hsnPrefix "fun_" @nm))
+          loc . unique2     :  Int
+          loc . unique2     =  if      @nm == applyNm
+                               then @lhs.unique
+                               else if @nm == evalNm
+                               then @lhs.unique
+                               else if @nm == hsnMain
+                               then @lhs.unique
+                               else case @nm of
+                                     HNmNr nr (Just orig) -> @lhs.unique
+                                     _                    -> @lhs.unique + 2
+          loc . bind2idFrag =  if      @nm == applyNm
+                               then @lhs.bind2idFrag
+                               else if @nm == evalNm
+                               then @lhs.bind2idFrag
+                               else if @nm == hsnMain
+                               then @lhs.bind2idFrag
+                               else case @nm of
+                                     HNmNr nr (Just orig) -> Map.insert orig @nm @lhs.bind2idFrag
+                                     _                    -> Map.insert @nm @bindName @lhs.bind2idFrag
+%%]
+
+%%[8.GetDefinedNames
+
+ATTR GrVarL GrVar  [ | | names USE {++} {[]} : {[HsName]} ]
+SEM GrVar
+  | Var  lhs. names = [ @nm ]
+
+
+SEM GrGlobal
+  | Global    loc   .  newName  : HsName
+              loc   .  newName  = HNmNr @lhs.unique (Just (hsnPrefix rtsGlobalVarPrefix @nm))
+              lhs   .  var2id   = Map.insert @nm @newName @lhs.var2id
+                    .  unique   = @lhs.unique + 1
+
+SEM GrPatAlt
+  | Node       loc  .  (var2id, newNames, unique) = addList @lhs.unique @lhs.var2id @fldL
+  			   loc  .  var2id                     :  LookupList
+  			        .  newNames                   :  {[HsName]}
+  			        .  unique                     :  Int
+
+SEM GrPatLam
+  | VarNode    loc  .  (var2id, newNames, unique) = addList @lhs.unique @lhs.var2id @fldL.names
+  			   loc  .  var2id                     :  LookupList
+  			        .  newNames                   :  {[HsName]}
+  			        .  unique                     :  Int
+  | Var        lhs  .  var2id   = Map.insert @nm @newName @lhs.var2id
+                    .  unique   = @lhs.unique + 1
+               loc  .  newName  : HsName
+               loc  .  newName  = HNmNr @lhs.unique (Just @nm)
+
+SEM GrExpr
+  | Catch      handler  .  var2id   = Map.insert @arg @newName @body.var2id
+                        .  unique   = @body.unique + 1
+               loc      .  newName  : HsName
+               loc      .  newName  = HNmNr @body.unique (Just @arg)
+
+
+-- addList processes arguments back-to-front.
+-- because we need arguments to be numbered in increasing order, we first reverse them,
+-- and then reverse the resulting newNames back to the original order
+
+SEM GrBind
+  | Bind      loc   .  (var2id2, nn, unique3)   =  addList @loc.unique2 @lhs.var2id (reverse @argNmL)
+                    .  newNames                 =  reverse @nn
+  			  loc   .  var2id2                  :  LookupList
+  			        .  nn                       :  {[HsName]}
+  			        .  unique3                  :  Int
+              expr  .  var2id                   =  @loc.var2id2
+                    .  unique                   =  @loc.unique3
+              lhs   .  unique                   =  @expr.unique
+                    .  var2id                   =  @expr.var2id
+%%]
+
+replacing every identifier with a number
+
+%%[8.ReplaceIdents
+SEM GrGlobal
+  | Global  lhs  .  grTrf  =  GrGlobal_Global @newName @val.grTrf
+
+SEM GrPatAlt
+  | Node  lhs  .  grTrf  = GrPatAlt_Node @tag.grTrf @newNames
+  
+SEM GrPatLam
+  | Var   lhs  .  grTrf  = GrPatLam_Var  @newName
+
+SEM GrBind
+  | Bind  lhs  .  grTrf    = GrBind_Bind @bindName @newNames @newExpr
+          loc  .  newExpr  = @expr.grTrf
+
+SEM GrVal
+  | Var  lhs  .  grTrf  = GrVal_Var (findNewVar @lhs.var2id @nm)
+SEM GrVar
+  | Var  lhs  .  grTrf  = GrVar_Var (findNewVar @lhs.var2id @nm)
+
+SEM GrExpr
+  | App Eval FetchNode FetchField Throw UpdateUnit
+                loc  .  newName  =  findNewVar @lhs.var2id @nm
+  | App         lhs  .  grTrf    =  GrExpr_App     @newName @argL.grTrf
+  | Eval        lhs  .  grTrf    =  GrExpr_Eval    @newName
+  | Call        loc  .  newName  =  findNewVar     @lhs.bind2id @nm
+                lhs  .  grTrf    =  GrExpr_Call    @newName @argL.grTrf
+  | FetchNode   lhs  .  grTrf    =  GrExpr_FetchNode  @newName
+  | FetchField  lhs  .  grTrf    =  GrExpr_FetchField @newName @offset @mbTag
+  | UpdateUnit  lhs  .  grTrf    =  GrExpr_UpdateUnit @newName @val.grTrf
+  | FetchUpdate lhs  .  grTrf    =  GrExpr_FetchUpdate (findNewVar @lhs.var2id @src) (findNewVar @lhs.var2id @dst)
+  | Throw       lhs  .  grTrf    =  GrExpr_Throw   @newName
+  | Catch       lhs  .  grTrf    =  GrExpr_Catch   @body.grTrf @newName @handler.grTrf
+  | FFI         lhs  .  grTrf    =  GrExpr_FFI @nm (map (findNewVar @lhs.var2id) @argL) @tagL.grTrf
+
+SEM GrTag
+  | Con Fun PApp App
+                loc  .  newName  =  findNewVar @lhs.bind2id @nm
+--  | Con         lhs  .  grTrf    =  GrTag_Con @grtgAnn @int @loc.newName           
+  | Fun         lhs  .  grTrf    =  GrTag_Fun @loc.newName           
+  | PApp        lhs  .  grTrf    =  GrTag_PApp @needs @loc.newName           
+  | App         lhs  .  grTrf    =  GrTag_App @loc.newName           
+
+
+
+SEM GrModule
+  | Mod  lhs  . grTrf         = GrModule_Mod @moduleNm @globalL.grTrf @bindL.grTrf @ctagsMp @newEvalTagMp @newAppTagMp
+         loc  . bind2idplus   = Map.insert hsnMain mainNr (Map.insert evalNm evalNr (Map.insert applyNm applyNr @lhs.bind2id))
+         loc  . newEvalTagMp  = map (newMap @loc.bind2idplus) @evalTagMp
+              . newAppTagMp   = map (newMap @loc.bind2idplus) @applyTagMp
+%%]
+
+
+
+
+%%[8 hs
+newMap mp ((k,i), EvApTagVar nm)  =  ((substTag mp k,i), EvApTagVar (findNewVar mp nm))
+newMap mp ((k,i), EvApTagTag t)   =  ((substTag mp k,i), EvApTagTag (substTag mp t))                                 
+newMap mp ((k,i), EvApTagUnit)    =  ((substTag mp k,i), EvApTagUnit)                                 
+newMap mp ((k,i), EvApTagThrow)   =  ((            k,i), EvApTagThrow)                                 
+
+
+substTag mp (GrTag_Fun nm) = GrTag_Fun (findNewVar mp nm)
+substTag mp (GrTag_App nm) = GrTag_App (findNewVar mp nm)
+substTag mp (GrTag_PApp n nm) = GrTag_PApp n (findNewVar mp nm)
+--substTag mp (GrTag_Con a i nm) = GrTag_Con a i (findNewVar mp nm)
+substTag mp x = x
+
+
+
+
+%%]

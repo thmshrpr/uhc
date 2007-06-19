@@ -1,0 +1,846 @@
+%%[0
+%include lhs2TeX.fmt
+%include afp.fmt
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Haskell importable interface to Code's GRIN gen
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8 hs module {%{EH}Core.ToGrin} import(Data.Maybe,Data.List,qualified Data.Set as Set,qualified Data.Map as Map,EH.Util.Pretty,{%{EH}Base.Builtin},{%{EH}Base.Common},{%{EH}Base.Opts},{%{EH}Core},{%{EH}Ty},{%{EH}GrinCode},Char)
+%%]
+
+%%[8 hs export(Inh_CodeAGItf(..),Syn_CodeAGItf(..),wrap_CodeAGItf,sem_CodeAGItf)
+%%]
+
+%%[8.WRAPPER ag import({Core/AbsSyn},{Core/CommonLev})
+WRAPPER CodeAGItf
+%%]
+
+%%[8 hs import({%{EH}Gam}(DataGam,dataGamTagsOfTy))
+%%]
+
+%%[96 hs import({%{EH}BuiltinPrims})
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Haskell itf
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Global info
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8
+ATTR AllCodeNT CodeAGItf [ opts: EHCOpts | | ]
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% DataGam required for FFI possible tags
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8
+ATTR AllCodeNT CodeAGItf [ dataGam: DataGam | | ]
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Unique
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8
+ATTR AllCodeNT [ | gUniq: UID | ]
+ATTR CodeAGItf [ gUniq: UID | | ]
+
+SEM CModule
+  | Mod         (loc.gUniq,loc.lUniq1,loc.lUniq2)
+                                            =   mkNewLevUID2  @lhs.gUniq
+
+SEM CExpr
+  | Var         (lhs.gUniq,loc.lUniq)       =   mkNewLevUID   @lhs.gUniq
+  | TupIns TupUpd TupDel
+                (expr.gUniq,loc.lUniq)      =   mkNewUID      @lhs.gUniq
+  | Case        (expr.gUniq,loc.lUniq)      =   mkNewUID      @lhs.gUniq
+  | App         (func.gUniq,loc.lUniq,loc.lUniq2)
+                                            =   mkNewLevUID2  @lhs.gUniq
+
+SEM CBind
+  | FFI         (lhs.gUniq,loc.lUniq)       =   mkNewLevUID   @lhs.gUniq
+
+SEM CPat
+  | Con         (binds.gUniq,loc.lUniq)     =   mkNewLevUID   @lhs.gUniq
+  | Int Char    (lhs.gUniq,loc.lUniq)       =   mkNewLevUID   @lhs.gUniq
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Level, Let's also one level higher
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8
+SEM CExpr
+  | Let         binds       .   lev         =   @lhs.lev + 1
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Context: strict yes/no, rhs of lam yes/no
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8
+ATTR CExpr AllAlt AllBind [ isStrict, isLamBody: Bool | | ]
+
+SEM CModule
+  | Mod         expr        .   isStrict    =   True
+                            .   isLamBody   =   False
+
+SEM CBind
+  | Bind        expr        .   isStrict    =   @lhs.isStrict || not (null @expr.grLamArgL)
+
+SEM CPatBind
+  | Bind        offset      .   isStrict    =   True
+                            .   isLamBody   =   False
+
+SEM CExpr
+  | Let			binds		.	isStrict	=	@lhs.lev == cLevModule || @categ == CBindStrict
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Known function arity
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8
+ATTR
+  CModule CExpr
+%%[[20
+  CodeAGItf
+%%]]
+    [ | | gathArityMp: CArityMp ]
+
+SEM CExpr
+  | Let         lhs         .   gathArityMp =   @binds.bindArityMp `Map.union` @body.gathArityMp
+  | * - Let     lhs         .   gathArityMp =   Map.empty
+%%]
+
+%%[8
+ATTR
+  AllCodeNT
+%%[[20
+  CodeAGItf
+%%]]
+    [ arityMp: CArityMp | | ]
+%%]
+
+%%[8.CodeAGItf.arityMp
+SEM CodeAGItf
+  | AGItf       module      .   arityMp     =   @module.gathArityMp
+%%]
+
+%%[20 -8.CodeAGItf.arityMp
+SEM CodeAGItf
+  | AGItf       module      .   arityMp     =   @module.gathArityMp `Map.union` @lhs.arityMp
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Known function arity
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8
+%%]
+ATTR AllCodeNT [ lamMp: CArityMp | | ]
+
+%%[8.CodeAGItf.lamMp
+%%]
+SEM CodeAGItf
+  | AGItf       module      .   lamMp       =   @module.lamNmMp
+
+%%[20 -8.CodeAGItf.lamMp
+%%]
+ATTR CodeAGItf [ lamMp: CArityMp | | ]
+
+SEM CodeAGItf
+  | AGItf       module      .   lamMp       =   @module.lamNmMp `Map.union` @lhs.lamMp
+
+%%[8
+ATTR AllBind [ | | bindArityMp USE {`Map.union`} {Map.empty}: CArityMp ]
+
+SEM CBind
+  | Bind        lhs         .   bindArityMp =   @nm `Map.singleton` length @expr.grLamArgL
+  | FFI         
+                loc         .   argTyLresTy :   ( TyL, Ty )
+                loc         .   argTyLresTy =   tyArrowArgsRes @ty
+                loc         .   argTyL      :   TyL
+                loc         .   argTyL      =   fst @loc.argTyLresTy
+                loc         .   resTy       =   snd @loc.argTyLresTy
+                lhs         .   bindArityMp =   @nm `Map.singleton` length @argTyL
+%%]
+ATTR AllBind [ | | bindLamMp USE {`Map.union`} {Map.empty}: CArityMp ]
+ATTR AllBind [ | | bindCafMp USE {`Map.union`} {Map.empty}: CArityMp ]
+
+SEM CBind
+  | Bind        lhs         .   (bindLamMp,bindCafMp)
+                                            =   if @expr.isLam
+                                                then (@nm `Map.singleton` length @expr.grLamArgL,Map.empty)
+                                                else (Map.empty,@nm `Map.singleton` 0)
+  | FFI         loc         .   (argTyL,resTy)
+                                            =   tyArrowArgsRes @ty
+                lhs         .   bindLamMp   =   @nm `Map.singleton` length @argTyL
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Gathering known function arity for other modules
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[20
+%%]
+ATTR CodeAGItf CModule [ | | gathLamMp: CArityMp ]
+
+SEM CModule
+  | Mod         lhs         .   gathLamMp   =   @expr.lamNmMp
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% All function names (which only live on top level after lambda lifting), ditto CAF's
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8
+%%]
+ATTR CModule CExpr [ | | lamNmMp USE {`Map.union`} {Map.empty}: CArityMp ]
+ATTR CExpr [ | | cafNmMp USE {`Map.union`} {Map.empty}: CArityMp ]
+
+SEM CExpr
+  | Let         lhs         .   lamNmMp     =   @binds.bindLamMp `Map.union` @body.lamNmMp
+                            .   cafNmMp     =   @binds.bindCafMp `Map.union` @body.cafNmMp
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Variables which are passed as parameter
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8
+ATTR AllCodeNT [ | | asArgNmS USE {`Set.union`} {Set.empty}: FvS ]
+
+SEM CExpr
+  | Var         loc         .   mbLam       =   case arityMpLookupLam @nm @lhs.arityMp of
+                                                    j@(Just arity) | @lhs.isTopApp
+                                                        -> j
+                                                    _   -> Nothing
+                lhs         .   asArgNmS    =   maybe Set.empty (const (Set.singleton @nm)) @mbLam
+  | App         loc         .   mbLam       =   arityMpLookupLam @grAppFun @lhs.arityMp
+                            .   appArity    =   length @grAppArgL
+                lhs         .   asArgNmS    =   @func.asArgNmS
+                                                    `Set.union`  maybe @arg.asArgNmS Set.singleton @arg.mbVar
+                                                    `Set.union`  (case @mbLam of
+                                                                    Just a | @lhs.isTopApp && @appArity < a
+                                                                      -> Set.singleton @grAppFun
+                                                                    _ -> Set.empty
+                                                                 )
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Grin code, top level
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8
+ATTR CodeAGItf CModule [ | | grMod: GrModule ]
+
+SEM CModule
+  | Mod         loc         .   primTyconMp =   map (\n -> let arity = if hsnIsProd n then hsnProdArity n else 1
+                                                           in  (n,[(n,CTag n n 0 arity arity)]))
+                                                    (grBuiltinTyNmL @lhs.opts)
+                            .   constrsMp   =   @primTyconMp ++ @ctagsMp
+
+                            .   allFPTags   =   Map.toList $ arityMpFilterLam @expr.gathArityMp
+                            .   allPTags    =   [ (nm, arity, k)
+                                                | (nm, arity) <- (hsnGrApply,2) : filter ((`Set.member` @expr.asArgNmS) . fst) @allFPTags
+                                                , k <- [1..arity]
+                                                ]
+                            .   allCTags    =   [ ct | (_,xs) <- @constrsMp, (_,ct) <- xs ]
+                            
+                                                -- constructorfunctions are never called via an F-thunk, so no cases for it are generated
+                            .   allFTags    =   filter (\(fNm,_) -> not (fNm `elem` map ctagNm @allCTags))
+                                                       ( {- (hsnUndefined,0)
+                                                       : -} (hsnGrApply,2)
+                                                       : @allFPTags ++ (Map.toList $ arityMpFilterCaf @expr.gathArityMp)
+                                                       )
+
+                            .   applyTagMp  =   map makeApplyMapEntryP @allPTags
+                            .   evalTagMp   =   makeEvalMapEntryH
+                                                :  map makeEvalMapEntryC @allCTags
+                                                ++ map makeEvalMapEntryP @allPTags
+                                                ++ map makeEvalMapEntryF @allFTags
+
+                            .   evalBind    =   let (ui1:ui2:uis) = mkInfNewUIDL @lUniq1
+                                                    n1 = uidHNm ui1
+                                                    n2 = uidHNm ui2
+                                                in GrBind_Bind hsnGrEval
+                                                               [n1]
+                                                               (GrExpr_Seq (GrExpr_FetchNode n1)
+                                                                           (GrPatLam_Var n2)
+                                                                           (GrExpr_Case (GrVal_Var n2)
+                                                                                        (zipWith ($)
+                                                                                                 (       (makeEvalBindEntryH n2)
+                                                                                                  :  map (makeEvalBindEntryC n2) @allCTags
+                                                                                                  ++ map (makeEvalBindEntryP n2) @allPTags
+                                                                                                  ++ map (makeEvalBindEntryF n1) @allFTags
+                                                                                                 )
+                                                                                                 uis
+                                                                                        )
+                                                                           )
+                                                               )
+
+                            .   applyBind   =   let (ui1:ui2:uis) = mkInfNewUIDL @lUniq2
+                                                    nf = uidHNm ui1
+                                                    na = uidHNm ui2
+                                                in GrBind_Bind hsnGrApply
+                                                               [nf,na]
+                                                               (GrExpr_Case (GrVal_Var nf)
+                                                                            (zipWith ($)
+                                                                                     (map (makeApplyBindEntryP na) @allPTags)
+                                                                                     uis
+                                                                            )
+                                                               )
+                            .   undefBind   =   GrBind_Bind hsnUndefined
+                                                            []
+                                                            (GrExpr_FFI "primUndefined" [] [{- GrTag_Any -}])
+
+
+                lhs         .   grMod       =   GrModule_Mod @moduleNm
+                                                    [] -- TODO: this should contain all the caf variables
+                                                    (@expr.grBindL
+                                                     --  ++ [ @evalBind, @applyBind ]  -- See note below
+                                                    )
+                                                    @constrsMp
+                                                    @evalTagMp
+                                                    @applyTagMp
+                                                -- Note: evalBind contains Update-expressions. 
+                                                -- These are wrongly thrown away by cpOptimizeGrin, 
+                                                -- so if you need evalBind, you should fix this or disable the optimization.
+                                                -- But as both backends throw away these two bindings anyway, let's just not generate them.
+    
+%%]
+
+
+%%[8 hs
+
+makeEvApKeyP (nm, arity, k)
+ = ( GrTag_PApp k nm
+   , arity-k
+   )
+
+makeApplyMapEntryP x@(nm, arity, k)
+ = ( makeEvApKeyP x
+   , (if k==1
+      then EvApTagVar nm
+      else EvApTagTag (GrTag_PApp (k-1) nm)
+     )
+   )
+
+makeApplyBindEntryP na x@(nm, arity, k) ui
+ = let names = map uidHNm (mkInfNewUIDL (uidChild ui))
+       parameters = take (arity-k) names
+       parameterList = map GrVal_Var (parameters ++ [na])
+   in  GrAlt_Alt (GrPatAlt_Node (GrTag_PApp k nm) parameters)
+                 (if k==1
+                  then GrExpr_Call nm parameterList
+                  else GrExpr_Unit (mkNdPApp nm (k-1) parameterList)
+                 )
+
+makeEvalMapEntryP x
+ = ( makeEvApKeyP x
+   , EvApTagUnit
+   )
+
+makeEvalMapEntryC (CTag tyNm nm tag arity mxarity)
+ = ( ( GrTag_Con (mkGrTagAnn arity mxarity) tag nm, arity )
+   , EvApTagUnit
+   )
+
+makeEvalMapEntryH
+ = ( ( GrTag_Hole, 0 )
+   , EvApTagUnit
+   )
+
+makeEvalMapEntryF (nm, arity)
+ = ( ( GrTag_Fun nm, arity )
+   , EvApTagVar nm
+   )
+
+makeEvalBindEntryC n2 (CTag tyNm nm tag arity mxarity) ui
+ = let names = repeat hsnWild
+       parameters = take arity names
+   in  GrAlt_Alt (GrPatAlt_Node (GrTag_Con (mkGrTagAnn arity mxarity) tag nm) parameters)
+                 (GrExpr_Unit (GrVal_Var n2))
+
+makeEvalBindEntryH n2 ui
+ =     GrAlt_Alt (GrPatAlt_Node GrTag_Hole [])
+                 (GrExpr_Unit (GrVal_Var n2))
+
+
+
+
+makeEvalBindEntryF n1 (nm, arity) ui
+ = let (result:names) = map uidHNm (mkInfNewUIDL (uidChild ui))
+       parameters = take arity names
+   in  GrAlt_Alt (GrPatAlt_Node (GrTag_Fun nm) parameters)
+                 (GrExpr_Seq (GrExpr_Call nm (map GrVal_Var parameters))
+                             (GrPatLam_Var result)
+                             (GrExpr_UpdateUnit n1 (GrVal_Var result))
+                 )
+
+makeEvalBindEntryP n2 (nm, arity, k) ui
+ = let names = map uidHNm (mkInfNewUIDL (uidChild ui))
+       parameters = take arity names
+   in  GrAlt_Alt (GrPatAlt_Node (GrTag_PApp k nm) parameters)
+                 (GrExpr_Unit (GrVal_Var n2))
+
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Grin code
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8 hs
+grE2V :: GrExpr -> Maybe GrVal
+grE2V e = case e of {GrExpr_Unit v -> Just v; _ -> Nothing}
+
+grV2HNm :: GrVal -> Maybe HsName
+grV2HNm v = case v of {GrVal_Var n -> Just n; _ -> Nothing}
+
+emptyGrExpr = GrExpr_Unit GrVal_Empty
+
+mbMkStrict :: UID -> Bool -> GrVal -> GrExpr
+mbMkStrict u isStrict v
+  = case v of
+      GrVal_Node _ _ -> dflt
+      _ | isStrict   -> GrExpr_Seq (GrExpr_Unit v) (GrPatLam_Var n) (GrExpr_Eval n)
+        | otherwise  -> dflt
+        where n = uidHNm u
+  where dflt = GrExpr_Unit v
+
+retStrict :: Bool -> GrVal -> GrExpr
+retStrict isStrict = if isStrict then (\v->GrExpr_Unit v) else GrExpr_Store
+%%]
+
+%%[8 hs
+mkNdPApp :: HsName -> Int -> GrValL -> GrVal
+mkNdPApp f nMiss argL = GrVal_Node (GrTag_PApp nMiss f) argL
+
+mkNdApp :: HsName -> GrValL -> GrVal
+mkNdApp f argL = GrVal_Node (GrTag_App hsnGrApply) (GrVal_Var f : argL)
+
+mkSq :: GrExpr -> HsName -> GrExpr -> GrExpr
+mkSq e1 p e2 = GrExpr_Seq e1 (GrPatLam_Var p) e2
+%%]
+
+%%[8 hs
+simplArgL :: UID -> CArityMp -> GrValL -> (GrValL,GrExpr->GrExpr)
+simplArgL uniq arityMp vL
+  =  let  nL = map uidHNm . mkNewUIDL (length vL) $ uniq
+     in   foldr  (\(n,a) (aL,wG)
+                    ->  case a of
+                            GrVal_Var v | isJust mbArity
+                                -> (GrVal_Var n : aL,mkSq a' n . wG)
+                                where mbArity = arityMpLookupLam v arityMp
+                                      a' = GrExpr_Store (mkNdPApp v (fromJust mbArity) [])
+                            GrVal_Node _ _
+                                -> (GrVal_Var n : aL,mkSq (GrExpr_Store a) n . wG)
+                            _   -> (a:aL,wG)
+                 )
+                 ([],id)
+          $ zip nL vL
+
+saturateAltL :: UID -> GrExpr -> GrAltL -> GrAltL
+saturateAltL uniq dflt altL
+  =  case altL of
+       (GrAlt_Alt (GrPatAlt_LitInt _) _ : _)
+         | null [ a | a@(GrAlt_Alt (GrPatAlt_Otherwise) _) <- altL ]
+           -> altL ++ [GrAlt_Alt (GrPatAlt_Otherwise) dflt]
+       _   -> altL
+%%]
+
+%%[10 hs
+unboxArg :: UID -> HsName -> GrVal -> (GrVal,GrExpr->GrExpr)
+unboxArg uniq tyNm v
+  =  case v of
+       GrVal_LitInt _
+           -> (v,id)
+       _   -> (GrVal_Var n,GrExpr_Seq (GrExpr_Unit v) (mkGrUnbox tyNm n))
+  where n = uidHNm uniq
+
+unboxArgL :: UID -> HsName -> GrValL -> (GrValL,GrExpr->GrExpr)
+unboxArgL uniq tyNm vL
+  =  let  uL = mkNewUIDL (length vL) $ uniq
+     in   foldr  (\(u,a) (aL,wG)
+                    ->  let (a',w) = unboxArg u tyNm a
+                        in  (a' : aL, w . wG)
+                 )
+                 ([],id)
+          $ zip uL vL
+%%]
+
+
+%%[8
+ATTR CExpr   [ | | grExpr: GrExpr ]
+ATTR CExpr   [ | | grBindL USE {++} {[]}: GrBindL ]
+
+SEM CExpr
+  | Let         (loc.grExpr,lhs.grBindL)    =   if @lhs.lev == cLevModule
+                                                then  (emptyGrExpr
+                                                      ,let
+                                                       in   case @categ of
+                                                              CBindRec     ->  [GrBind_Rec @binds.grBindL] ++ @body.grBindL
+                                                              _            ->  @binds.grBindL ++ @body.grBindL
+                                                      )
+                                                else  (case @categ of
+                                                          CBindRec     ->  mkSt (map (\(GrBind_Bind n _ _) -> n) @binds.grBindL)
+                                                                           . mkVs @binds.grBindL
+                                                                           $ @body.grExpr
+                                                                           where  h             = GrVal_Node GrTag_Hole []
+                                                                                  mkSt nmL e    = foldr (\n e -> GrExpr_Seq (GrExpr_Store h) (GrPatLam_Var n) e) e nmL
+                                                                                  mkV b n n' e
+                                                                                                = GrExpr_Seq b (GrPatLam_Var n')
+                                                                                                    (GrExpr_Seq (GrExpr_FetchUpdate n' n) GrPatLam_Empty e)
+                                                                                  mkVs bs e     = foldr (\(GrBind_Bind n _ v) e -> mkV v n (hsnPrefix "_" n) e) e bs
+                                                          _            ->  foldr  (\(GrBind_Bind n _ v) e -> GrExpr_Seq v (GrPatLam_Var n) e)
+                                                                                  @body.grExpr @binds.grBindL
+                                                      ,[]
+                                                      )
+  | Case        loc         .   grExpr      =   let  w1 = @alts.grWrapCase
+                                                     (sel,w2) = @alts.grWrapCaseSel @expr.grVal
+                                                in   w1 . w2 . GrExpr_Case sel . saturateAltL @lUniq @dflt.grExpr $ @alts.grAltL
+  | App         loc         .   grExpr      =   let  argL = reverse @grAppArgL
+                                                     funNm = @grAppFun
+                                                     mkE  = retStrict @lhs.isStrict
+                                                     n = uidHNm @lUniq
+                                                     (argL',wrapGr) = simplArgL @lUniq2 @lhs.arityMp argL
+                                                in   case @func.mbTupApp of
+                                                       Just t
+                                                         -> let v  =  case t of
+                                                                        CTagRec         -> mkGrRecNode argL'
+                                                                        CTag _ l t a ma -> mkGrConNode (mkGrTagAnn a ma) t l argL'
+                                                            in  wrapGr (mkE v)
+                                                       Nothing
+                                                         -> let ap = case @mbLam of
+                                                                        Just arity
+                                                                          | arity == @appArity && @lhs.isStrict
+                                                                              -> GrExpr_Call funNm argL'
+                                                                          | arity == @appArity
+                                                                              -> GrExpr_Store (GrVal_Node (GrTag_Fun funNm) argL')
+                                                                          | arity > @appArity
+                                                                              -> mkE (mkNdPApp funNm (arity - @appArity) argL')
+                                                                          | arity < @appArity && @lhs.isStrict
+                                                                              -> mkSq (GrExpr_Call funNm (take arity argL')) n (GrExpr_App n (drop arity argL'))
+                                                                          | otherwise
+                                                                              -- -> mkSq (GrExpr_Store (GrVal_Node (GrTag_Fun funNm) (take arity argL'))) n (GrExpr_Store (mkNdApp n (drop arity argL')))
+                                                                              -> mkSq (GrExpr_Store (mkNdPApp funNm 0 (take arity argL'))) n (GrExpr_Store (mkNdApp n (drop arity argL')))
+                                                                        Nothing
+                                                                          | @lhs.isStrict
+                                                                              -> mkSq (GrExpr_Eval funNm) n (GrExpr_App n argL')
+                                                                          | otherwise
+                                                                              -> GrExpr_Store (mkNdApp funNm argL')
+                                                            in  wrapGr ap
+  | Var         loc         .   grExpr      =   mbMkStrict @lUniq @lhs.isStrict @grVal
+  | Tup Int Char
+                loc         .   grExpr      =   retStrict @lhs.isStrict @grVal
+%%[[9
+  | HoleLet     loc         .   grExpr      =   @body.grExpr	-- when this occurs, there were no bindings for the possible (caused by implicit parameters) bindings encoded by HoleLet
+%%]]
+%%[[10
+  | TupIns TupUpd TupDel
+                loc         .   grExpr      =   if @lhs.isTopTup
+                                                then  mkGrAdapt @lUniq @lhs.arityMp @lhs.isStrict (reverse @grTupFldL) (maybe hsnUnknown id (grV2HNm @grTupRec))
+                                                else  GrExpr_Unit GrVal_Empty
+%%]]
+  | * - Let Case App Var Tup Int Char
+%%[[9
+    HoleLet
+%%]]                                      
+%%[[10
+    TupIns TupUpd TupDel
+%%]]                                      
+                loc         .   grExpr      =   GrExpr_Unit @grVal
+%%]
+
+%%[10 hs
+type TupAdaptFldL = [(GrVal,GrVal,GrVal->GrVal->GrAdapt)]
+
+mkGrAdapt :: UID -> CArityMp -> Bool -> TupAdaptFldL -> HsName -> GrExpr
+mkGrAdapt u arityMp isStrict tupFldL tupRecNm
+  =  let  [u1,u2] = mkNewUIDL 2 (uidChild u)
+          (oL,vL,mkAL) = unzip3 tupFldL
+          (oL',wrO) = unboxArgL u1 hsnInt oL
+          (vL',wrV) = simplArgL u2 arityMp vL
+     in   wrV . wrO . retStrict isStrict
+          . GrVal_NodeAdapt tupRecNm
+          . zipWith3 ($) mkAL oL' $ vL'
+%%]
+
+%%[8
+ATTR CExpr   [ | | grVal: GrVal ]
+
+SEM CExpr
+  | Tup         loc         .   grVal       =   ctag (mkGrRecNode []) (\_ l t a ma -> mkGrConNode (mkGrTagAnn a ma) t l []) @tag
+  | Var         loc         .   grVal       =   maybe (GrVal_Var @nm) (\a -> mkNdPApp @nm a []) @mbLam
+  | Int         loc         .   grVal       =   (if @lhs.doBox then mkGrBox hsnInt  else id)  (GrVal_LitInt @int)
+  | Char        loc         .   grVal       =   (if @lhs.doBox then mkGrBox hsnChar else id)  (GrVal_LitInt (ord @char))
+  | String      loc         .   grVal       =   (if @lhs.doBox then mkGrBox (ehbnPackedString $ ehcOptBuiltinNames @lhs.opts) else id)  (GrVal_LitStr @str)
+  | * - Int Char String Var Tup
+                loc         .   grVal       =   GrVal_Empty
+%%]
+
+%%[97
+SEM CExpr
+  | Integer     loc         .   grVal       :=  (if @lhs.doBox then mkGrBox hsnInt  else id)  (GrVal_LitInt $ fromInteger $ @integer)
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Do boxing?
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8
+ATTR CExpr [ doBox: Bool | | ]
+
+SEM CExpr
+  | TupUpd TupIns TupDel
+                offset      .   doBox       =   False
+                loc         .   doBox       =   True
+  | * - TupUpd TupIns TupDel
+                loc         .   doBox       =   True
+
+SEM CModule
+  | Mod         expr        .   doBox       =   True
+
+SEM CBind
+  | Bind        expr        .   doBox       =   True
+
+SEM CPatBind
+  | Bind        offset      .   doBox       =   True
+
+SEM CAlt
+  | Alt         expr        .   doBox       =   True
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Normal bindings
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8
+ATTR CBind CBindL  [ | | grBindL USE {++} {[]}: GrBindL ]
+
+SEM CBind
+  | Bind        lhs         .   grBindL     =   [GrBind_Bind @nm @expr.grLamArgL @expr.grLamBody]
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% FFI binding
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8 hs
+tyNmIsUnboxedForFFIRes :: EHCOpts -> HsName -> Bool
+tyNmIsUnboxedForFFIRes opts
+  = (`elem` ns)
+  where ns = [ hsnInt, hsnChar, ehbnPackedString $ ehcOptBuiltinNames opts ]
+%%]
+
+%%[8
+SEM CBind
+  | FFI         loc         .   isUnboxed   =   tyNmIsUnboxedForFFIRes @lhs.opts
+                            .   (nmRes,nmArgL,nmArgPatL)
+                                            =   let  (nmRes:nmArgL) = take (length @argTyL + 1) (hsnUniqSupply @lUniq)
+                                                     nmArgPatL = map (hsnPrefix "_") nmArgL
+                                                in   (nmRes,nmArgL,nmArgPatL)
+                lhs         .   grBindL     =   let  mkPat ty n
+                                                       =  case tyConNm ty of
+                                                            t | @isUnboxed t -> -- mkGrPatConNode (mkGrTagAnn 1 1) 0 t [n]
+                                                                                mkGrUnbox t n
+                                                            _                -> GrPatLam_Var n
+                                                     resTyNm = tyConNm @resTy
+                                                     resIsUnboxed = @isUnboxed resTyNm
+                                                     resTagL
+                                                       = case dataGamTagsOfTy @resTy @lhs.dataGam of
+                                                           Just ts          -> -- Result type is datatype with known constructors, e.g. for Bool or Ordering
+                                                                               [ GrTag_Con (mkGrTagAnn (ctagArity t) (ctagMaxArity t)) (ctagTag' t) (ctagNm t) | t <- ts ]
+                                                           _ | resIsUnboxed -> -- Result type is one of the unboxable types Int, Char, PackedString
+                                                                               [ GrTag_Unboxed ]
+                                                             | otherwise    -> -- Result type is any other type
+                                                                               [ GrTag_Any ]
+                                                     mkRes v
+                                                       = if resIsUnboxed
+                                                         then \e -> GrExpr_Seq e (mkGrUnboxFFI @nmRes) (GrExpr_Unit (mkGrBox resTyNm (GrVal_Var v)))
+                                                         else id
+%%[[8
+                                                     mkEval (n,p)
+                                                       = GrExpr_Seq (GrExpr_Eval n) p
+%%][96
+                                                     mkEval (n,needEval,p)
+                                                       = GrExpr_Seq (if needEval then GrExpr_Eval n else GrExpr_Unit (GrVal_Var n)) p
+%%]]
+                                                in   [GrBind_Bind @nm @nmArgL
+                                                        (foldr mkEval (mkRes @nmRes (GrExpr_FFI @impEnt @nmArgPatL resTagL))
+%%[[8
+                                                        $ zip @nmArgL
+%%][96
+                                                        $ zip3 @nmArgL (maybe (repeat True) (\p -> primArgNeedEval p ++ repeat True) (lookupPrim @impEnt))
+%%]]
+                                                        $ zipWith mkPat @argTyL
+                                                        $ @nmArgPatL
+                                                        )
+                                                     ]
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Case, pattern
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8 hs
+idGrWrapCaseSel :: GrVal -> (GrVal,GrExpr->GrExpr)
+idGrWrapCaseSel s = (s,id)
+%%]
+
+%%[8
+ATTR CAlt    [ | | grAlt: GrAlt ]
+ATTR CAltL   [ | | grAltL: GrAltL ]
+
+SEM CAlt
+  | Alt         lhs         .   grAlt       =   GrAlt_Alt @pat.grPat @expr.grExpr
+
+SEM CAltL
+  | Cons        lhs         .   grAltL      =   @hd.grAlt : @tl.grAltL
+  | Nil         lhs         .   grAltL      =   []
+%%]
+
+%%[8
+ATTR CPat    [ | | patNm: HsName ]
+
+SEM CPat
+  | Var Con Int Char
+%%[[97
+    BoolExpr
+%%]]
+                loc         .   patNm       =   @pnm
+%%]
+  | Undef       loc         .   patNm       =   hsnUnknown
+
+%%[8
+ATTR CPat    [ | | grPat: GrPatAlt ]
+-- ATTR CPatL   [ | | grPatL: GrPatL ]    -- obsolete? (JF)
+
+SEM CPat
+  | Var         lhs         .   grPat       =   GrPatAlt_Otherwise   -- @patNm
+  | Int         lhs         .   grPat       =   GrPatAlt_LitInt @int
+  | Char        lhs         .   grPat       =   GrPatAlt_LitInt (ord @char)
+  | Con         lhs         .   (grPat,grWrapCase)
+                                            =   case @rest.self of
+                                                   CPatRest_Empty
+                                                     ->  (ctag mkGrPatRecNode (\_ l t a ma -> mkGrPatConNode (mkGrTagAnn a ma) t l) @tag @binds.patNmL,id)
+%%[[10
+                                                   CPatRest_Var r
+                                                     ->  let  (oL,mkSL) = unzip @binds.grTupFldL
+                                                              (oL',wrO) = unboxArgL @lUniq hsnInt oL
+                                                         in   (ctag mkGrPatRecSplit (\_ l t a ma -> mkGrPatConSplit (mkGrTagAnn a ma) t l) @tag r . zipWith ($) mkSL $ oL',wrO)
+%%]]                                                         
+
+
+--SEM CPatL   -- obsolete? (JF)
+--  | Cons        lhs         .   grPatL      =   @hd.grPat : @tl.grPatL
+--  | Nil         lhs         .   grPatL      =   []
+%%]
+
+%%[97
+SEM CPat
+  | BoolExpr    lhs         .   grPat       =   GrPatAlt_Otherwise -- transformed into explicit if-then-else
+                                                                   -- TODO: this is unfinished work, matching on literals does not work yet
+%%]
+
+%%[8
+ATTR AllPatBind [ | | patNmL USE {++} {[]}: {[HsName]} ]
+
+SEM CPatBind
+  | Bind        lhs         .   patNmL      =   [@pat.patNm]
+%%]
+
+%%[10
+ATTR AllPatBind [ | | grTupFldL USE {++} {[]}: {[(GrVal,GrVal->GrSplit)]} ]
+
+SEM CPatBind
+  | Bind        lhs         .   grTupFldL   =   [(@offset.grVal,\o -> GrSplit_Sel @pat.patNm o)]
+%%]
+
+%%[8
+ATTR AllPat AllAlt [ | | grWrapCase USE {`const`} {id}: {GrExpr -> GrExpr} ]
+ATTR AllPat AllAlt [ | | grWrapCaseSel USE {`const`} {idGrWrapCaseSel}: {GrVal -> (GrVal,GrExpr->GrExpr)} ]
+
+SEM CPat
+  | Int Char    lhs         .   grWrapCaseSel
+                                            =   let n = uidHNm @lUniq
+                                                in  \v -> (GrVal_Var n,GrExpr_Seq (GrExpr_Unit v) (mkGrUnbox hsnInt n))
+%%]
+
+%%[8
+ATTR CPatRest [ | | self: SELF ]
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Record fields
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8 hs
+%%]
+
+%%[8
+ATTR CExpr [ | | grTupRec: GrVal]
+
+%%[[10
+ATTR CExpr [ | | grTupFldL: TupAdaptFldL ]
+%%]]
+
+SEM CExpr
+%%[[10
+  | TupIns TupUpd TupDel
+                loc         .   grTupRec    =   @expr.grTupRec
+  | TupIns      loc         .   grTupFldL   =   (@offset.grVal,@fldExpr.grVal,\o v -> GrAdapt_Ins o v) : @expr.grTupFldL
+  | TupUpd      loc         .   grTupFldL   =   (@offset.grVal,@fldExpr.grVal,\o v -> GrAdapt_Upd o v) : @expr.grTupFldL
+  | TupDel      loc         .   grTupFldL   =   (@offset.grVal,GrVal_Empty   ,\o _ -> GrAdapt_Del o  ) : @expr.grTupFldL
+%%]
+  | *
+%%[[10  
+       - TupIns TupUpd TupDel
+                loc         .   grTupFldL   =   []
+%%]]                            
+                loc         .   grTupRec    =   @grVal
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Let body
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8
+ATTR CExpr [ | | grLetBody: GrExpr ]
+
+SEM CExpr
+  | Let         lhs         .   grLetBody   =   @body.grLetBody
+  | * - Let     lhs         .   grLetBody   =   @grExpr
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Lam arg/body info
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8
+ATTR CExpr [ | | grLamArgL: {[HsName]}  grLamBody: GrExpr ]
+
+SEM CExpr
+  | Lam         lhs         .   grLamArgL   =   @arg : @body.grLamArgL
+  | * - Lam     lhs         .   grLamArgL   =   []
+                            .   grLamBody   =   @grExpr
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% App func/args info
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8
+ATTR CExpr [ | | grAppFun: HsName  grAppArgL: GrValL ]
+
+SEM CExpr
+  | App         loc         .   grAppFun    =   @func.grAppFun
+                            .   grAppArgL   =   @arg.grVal : @func.grAppArgL
+  | * - App     lhs         .   grAppFun    =   maybe hsnUnknown id . grV2HNm $ @grVal
+                            .   grAppArgL   =   []
+%%]
+

@@ -1,0 +1,171 @@
+%%[0
+%include lhs2TeX.fmt
+%include afp.fmt
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Abstract syntax for GRIN (Graph Reduction Intermediate Notation)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% GRIN structure
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8
+DATA GrAGItf
+  | AGItf       module          : GrModule
+
+DATA GrModule
+  | Mod         moduleNm        : {HsName}
+                globalL         : GrGlobalL
+                bindL           : GrBindL
+                ctagsMp         : {CTagsMp}
+                evalTagMp       : {EvApTagMp}
+                applyTagMp      : {EvApTagMp}
+
+DATA GrGlobal
+  | Global      nm              : {HsName}
+                val             : GrVal
+
+TYPE GrGlobalL    =   [GrGlobal]
+
+DATA GrBind
+  | Bind        nm              : {HsName}
+                argNmL          : {[HsName]}
+                expr            : GrExpr
+  | Rec         bindL           : GrBindL
+
+TYPE GrBindL    =   [GrBind]
+
+DATA GrExpr
+  | Seq         expr            : GrExpr
+                pat             : GrPatLam
+                body            : GrExpr
+  | Unit        val             : GrVal
+  | UpdateUnit  nm              : {HsName}
+                val             : GrVal
+  | Case        val             : GrVal
+                altL            : GrAltL
+  | FetchNode   nm              : {HsName}
+  | FetchUpdate src             : {HsName}
+                dst             : {HsName}
+  | FetchField  nm              : {HsName}
+                offset          : {Int}
+                mbTag           : {Maybe GrTag}
+  | Store       val             : GrVal
+  | Call        nm              : {HsName}
+                argL            : GrValL
+  | FFI         nm              : {String}
+                argL            : {[HsName]}
+                tagL            : GrTagL
+  | Eval        nm              : {HsName}
+  | App         nm              : {HsName}
+                argL            : GrValL
+  | Throw       nm              : {HsName}
+  | Catch       body            : GrExpr
+                arg             : {HsName}
+                handler         : GrExpr
+
+DATA GrAlt
+  | Alt         pat             : GrPatAlt
+                expr            : GrExpr
+
+TYPE GrAltL     =   [GrAlt]
+
+DATA GrVal
+  | Empty
+  | LitInt      int             : {Int}
+  | LitStr      str             : {String}
+  | Tag         tag             : GrTag
+  | Var         nm              : {HsName}
+  | Node        tag             : GrTag
+                fldL            : GrValL
+  | VarNode     fldL            : GrValL
+%%[[10
+  | NodeAdapt   nm              : {HsName}
+                fldL            : GrAdaptL
+
+%%]]
+
+DATA GrVar
+  | Var         nm              : {HsName}
+  | KnownTag    tag             : GrTag
+  | Ignore
+
+
+TYPE GrValL     =   [GrVal]
+TYPE GrVarL     =   [GrVar]
+
+
+DATA GrPatAlt
+  | LitInt      int             : {Int}
+  | Tag         tag             : GrTag
+  | Node        tag             : GrTag
+                fldL            : {[HsName]}
+  | Otherwise
+%%[[10
+  | NodeSplit   tag             : GrTag
+                nm              : {HsName}
+                fldL            : GrSplitL
+%%]]
+
+DATA GrPatLam
+  | Empty
+  | Var         nm              : {HsName}
+  | VarNode     fldL            : GrVarL
+
+
+DATA GrTag
+  | Con           grtgAnn         : {GrTagAnn}
+                  int             : {Int}
+                  nm              : {HsName}
+  | Fun           nm              : {HsName}
+  | PApp          needs           : {Int}
+                  nm              : {HsName}
+  | App           nm              : {HsName}
+  | Unboxed
+  | Hole
+  | Rec
+  | World
+  | Any
+
+TYPE GrTagL     =   [GrTag]
+%%]
+
+
+%%[10
+DATA GrSplit
+  | Sel         nm              : {HsName}
+                off             : GrVal
+
+DATA GrAdapt
+  | Upd         off             : GrVal
+                val             : GrVal
+  | Ins         off             : GrVal
+                val             : GrVal
+  | Del         off             : GrVal
+
+TYPE GrSplitL   =   [GrSplit]
+TYPE GrAdaptL   =   [GrAdapt]
+
+%%]
+
+%%[8
+SET AllGlobal   =   GrGlobal GrGlobalL
+SET AllBind     =   GrBind GrBindL
+SET AllDef      =   AllGlobal AllBind
+SET AllAlt      =   GrAlt GrAltL
+SET AllGrExpr   =   GrExpr AllAlt
+SET AllGrTag    =   GrTag GrTagL
+SET AllGrVal    =   GrVal GrValL
+SET AllGrPat    =   GrPatAlt GrPatLam GrVar GrVarL
+SET AllExpr     =   AllGrExpr AllGrPat AllGrTag AllGrVal
+SET AllWithName =   AllExpr
+%%[[10
+                    AllAdapt AllSplit
+SET AllAdapt    =   GrAdapt GrAdaptL
+SET AllSplit    =   GrSplit GrSplitL
+%%]]
+SET AllNTNoMod  =   AllWithName AllGlobal AllBind
+SET AllNT       =   GrModule AllNTNoMod
+%%]

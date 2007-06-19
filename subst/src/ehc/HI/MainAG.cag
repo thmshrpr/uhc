@@ -1,0 +1,114 @@
+%%[0
+%include lhs2TeX.fmt
+%include afp.fmt
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Haskell interface to AG generated code for hi files
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+%%[20 hs module {%{EH}HI.MainAG} import({%{EH}Base.Builtin},{%{EH}Base.Opts},{%{EH}Base.Common},{%{EH}Gam},qualified {%{EH}Pred} as Pr,{%{EH}HI})
+%%]
+
+%%[20 hs import(Data.Char,Data.Maybe,Data.List as List,qualified Data.Map as Map,EH.Util.Pretty,qualified EH.Util.Rel as Rel,qualified EH.Util.FastSeq as Seq)
+%%]
+
+%%[20 hs import({%{EH}Ty},{%{EH}Ty.Pretty},{%{EH}Core},{%{EH}GrinCode},{%{EH}GrinCode.Pretty},{%{EH}Config},{%{EH}NameAspect},{%{EH}Module},{%{EH}Base.CfgPP})
+%%]
+
+%%[20 hs import({%{EH}Pred.ToCHR},{%{EH}CHR.Solve})
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Import of all separate aspects
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[20 ag import({HI/AbsSyn},{HI/Pretty})
+WRAPPER AGItf
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Global info
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[20
+ATTR AllNT AGItf [ opts: EHCOpts | | ]
+%%]
+
+%%[99
+PRAGMA strictcase
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Reconstruction of original info
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[20
+ATTR
+  AllNT AGItf
+    [ | |
+      exportRel         USE {`Rel.union`}       {Rel.empty}         : ModEntRel					-- explicit exports
+      exportHideRel     USE {`Rel.union`}       {Rel.empty}         : ModEntRel					-- implicit exports (instances)
+      fixityGam         USE {`gamUnion`}        {emptyGam}          : FixityGam					-- fixity info for identifiers
+      idGam             USE {`gamUnion`}        {emptyGam}          : IdDefOccGam				-- all identifiers which can be used, both explicit or implicit (including instances)
+      valGam            USE {`gamUnion`}        {emptyGam}          : ValGam					-- all values with types, only those which explicitly can be used (name -> type)
+      tyGam             USE {`gamUnion`}        {emptyGam}          : TyGam						-- all types with types (name -> type)
+      tyKiGam           USE {`gamUnion`}        {emptyGam}          : TyKiGam					-- all types with kinds (type -> kind)
+      dataGam           USE {`gamUnion`}        {emptyGam}          : DataGam					-- additional structural info for datatypes
+      clGam             USE {`gamUnion`}        {emptyGam}          : {Pr.ClGam}    			-- classes
+      chrStore          USE {`chrStoreUnion`}   {emptyCHRStore}     : ScopedPredStore			-- CHR
+      arityMp           USE {`Map.union`}       {Map.empty}         : CArityMp					-- arities of identifiers, used for GRIN
+      inlMp             USE {`Map.union`}       {Map.empty}         : GrInlMp					-- inline info, used by GrinByteCode
+   ]
+
+SEM Binding
+    | Export
+        lhs             .   (exportRel,exportHideRel)
+                                        =   case @visible of
+                                              VisibleNo  -> (Rel.empty,@exports)
+                                              VisibleYes -> (@exports,Rel.empty)
+    | Ids
+        lhs             .   idGam       =   gamFromAssocL [ (o,mkIdDefOcc od IdAsp_Any nmLevOutside emptyRange) | (o,od) <- @idOccs ]
+    | Arities
+        lhs             .   arityMp     =   Map.fromList @idArities
+    | GrInlines
+        lhs             .   inlMp       =   Map.fromList [ (n,GrInl_Call a g) | (n,(a,g)) <- @inlMp ]
+    | Fixity
+        lhs             .   fixityGam   =   gamSingleton @nm (FixityGamInfo @prio @fixity)
+    | Val
+        lhs             .   valGam      =   gamSingleton @nm (ValGamInfo @ty)
+    | Ty
+        lhs             .   tyGam       =   gamSingleton @nm (mkTGI @ty)
+    | TyKinds
+        lhs             .   tyKiGam     =   gamFromAssocL [(t,TyKiGamInfo k) | (t,k) <- @tyKinds]
+    | DataCon
+        lhs             .   dataGam     =   gamSingleton @nm (mkDGI @nm
+                                                                    @ty (assocLKeys @tags)
+                                                                    (Map.map (\(t,fm) -> emptyDataTagInfo { dtiCTag = t
+                                                                                                          , dtiFldMp = Map.fromList [ (f,emptyDataFldInfo {dfiOffset = o}) | (f,o) <- fm ]
+                                                                                                          }
+                                                                             )
+                                                                     $ Map.fromList $ @tags
+                                                                    )
+                                                                    False
+                                                             )
+    | Class
+        lhs             .   clGam       =   gamSingleton @nm (Pr.ClGamInfo @prToEvidTy @ruleTy @nmEvid)
+    | CHRStore
+        lhs             .   chrStore    =   chrStoreFromElems @chrs
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Valid version?
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[20
+ATTR AllNT AGItf [ | | isValidVersion USE {||} {False}: Bool ]
+
+SEM Binding
+    | Stamp
+        lhs             .   isValidVersion
+                                        =   @srcSig == verSig version && optsDiscrRecompileRepr @lhs.opts == @compileFlags
+%%]
+
