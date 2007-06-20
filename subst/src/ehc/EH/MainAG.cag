@@ -19,7 +19,7 @@
 %%[3 hs import({%{EH}Ty.Trf.Quantify},{%{EH}Ty.Trf.Instantiate})
 %%]
 
-%%[4 hs import({%{EH}Base.Debug})
+%%[4 hs import({%{EH}Base.Debug},Debug.Trace)
 %%]
 
 %%[4_2 hs import(qualified Data.Set as Set,{%{EH}Gam.Utils},{%{EH}Ty.Trf.ElimAlts},{%{EH}Ty.Trf.FreshVar})

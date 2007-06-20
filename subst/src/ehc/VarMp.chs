@@ -20,7 +20,7 @@
 %%[2 import(EH.Util.Pretty, {%{EH}Ty.Pretty}) export(ppVarMpV)
 %%]
 
-%%[4 export(varmpFilterTy,varmpDel,(|\>) ,varmpPlus)
+%%[4 export(varmpFilterTy,varmpDel,(|\>) ,varmpPlus, (|+>))
 %%]
 
 %%[4 export(assocLToVarMp,varmpToAssocTyL,varmpKeys)
@@ -45,8 +45,8 @@
 %%% Operator prio
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%[4
-infixr `varmpPlus`
+%%[2
+infixr `varmpPlus`, |+>
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -92,12 +92,16 @@ varmpFilter f (VarMp c) = VarMp (Map.filterWithKey f c)
 %%]
 
 %%[2.varmpPlus
-varmpPlus :: VarMp' k v -> VarMp' k v -> VarMp' k v
+varmpPlus, (|+>) :: VarMp' k v -> VarMp' k v -> VarMp' k v
 varmpPlus (VarMp l1) (VarMp l2) = VarMp (l1 ++ l2)
 %%]
 
+%%[2.varmpPlusOp
+(|+>) = varmpPlus
+%%]
+
 %%[9.varmpPlus -2.varmpPlus
-varmpPlus :: Ord k => VarMp' k v -> VarMp' k v -> VarMp' k v
+varmpPlus, (|+>) :: Ord k => VarMp' k v -> VarMp' k v -> VarMp' k v
 varmpPlus (VarMp l1) (VarMp l2) = VarMp (l1 `Map.union` l2)
 %%]
 

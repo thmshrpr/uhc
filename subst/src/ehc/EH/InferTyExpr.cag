@@ -113,14 +113,14 @@ SEM TyExpr
                                                         in   (@lUniq,TyGamInfo t)
                 tyExpr      .   tyGam               =   tvGathFlowIn  (@tyVar `gamSingleton` @tgi_) @lhs.tyGam
                 lhs         .   tyGam               =   tvGathFlowOut @lhs.tyGam @tyExpr.tyGam
-                tyExpr      .   tyKiGam             =   tvGathFlowIn  (tgiTy @tgi_ `tyKiGamSingleton` @tkgi_) @lhs.tyKiGam
-                lhs         .   tyKiGam             =   tvGathFlowOut @lhs.tyKiGam @tyExpr.tyKiGam
 %%]
 
 %%[6
 SEM TyExpr
   | Quant       loc         .   (tv,tgi_,tkgi_)     :=  let  t = mkTyVar @lUniq
                                                         in   (@lUniq,mkTGI t,TyKiGamInfo t)
+                tyExpr      .   tyKiGam             =   tvGathFlowIn  (tgiTy @tgi_ `tyKiGamSingleton` @tkgi_) @lhs.tyKiGam
+                lhs         .   tyKiGam             =   tvGathFlowOut @lhs.tyKiGam @tyExpr.tyKiGam
 %%]
 
 %%[5.tyVarGather

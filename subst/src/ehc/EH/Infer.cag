@@ -784,9 +784,9 @@ SEM Decl
 %%]
 
 %%[9
+%%]
 SEM Decl
   | TySig       loc         .   ty_sig_             :=  tyQuantify (`elem` (@tyExpr.tyVarWildL ++ @gTyTvL)) @tyExpr.ty
-%%]
 
 %%[8
 SEM Decl

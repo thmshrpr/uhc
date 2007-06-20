@@ -49,7 +49,15 @@ tvRepl tv c isBound repl
        _                          -> repl
 %%]
 
-%%[100 -3.tvRepl hs
+%%[4.tvRepl -3.tvRepl hs
+tvRepl :: TyVarId -> VarMp -> IsBound -> Ty -> Ty
+tvRepl tv c isBound repl
+  = case (varmpTyLookup tv c) of
+       Just t | not (isBound tv)  -> tyAppVarMp (varmpFilterTy (\v _ -> not (isBound v)) $ varmpDel [tv] c) t
+       _                          -> repl
+%%]
+
+%%[100 -4.tvRepl hs
 tvRepl :: TyVarId -> VarMp -> IsBound -> Maybe Ty
 tvRepl tv c isBound
   = case (varmpTyLookup tv c) of

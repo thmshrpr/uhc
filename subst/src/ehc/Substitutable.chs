@@ -95,27 +95,26 @@ instance Substitutable (VarMp' TyVarId Ty) TyVarId VarMp where
   ftv (VarMp sl)
     = ftv . map snd $ sl
 %%]
-instance (Ord k,Substitutable v k subst) => Substitutable (VarMp' k v) k subst where
+
+%%[4.SubstitutableVarMp -2.SubstitutableVarMp
+instance Substitutable (VarMp' TyVarId Ty) TyVarId VarMp where
   s1@(VarMp sl1) |=> s2@(VarMp sl2)
-    = VarMp (sl1 ++ map (\(v,t) -> (v,s1 |=> t)) sl2')
-    where sl2' = deleteFirstsBy (\(v1,_) (v2,_) -> v1 == v2) sl2 sl1
+    = s1 `varmpPlus` s2
   ftv (VarMp sl)
     = ftv . map snd $ sl
+%%]
+
+%%[9.SubstitutableVarMp -4.SubstitutableVarMp
+instance Substitutable (VarMp' TyVarId (VarMpInfo Ty)) TyVarId VarMp where
+  s1@(VarMp sl1) |=>   s2@(VarMp sl2)  =   VarMp (sl1 `Map.union` Map.map (s1 |=>) sl2)
+  ftv                  (VarMp sl)      =   ftv $ Map.elems sl
+%%]
 
 %%[7
 instance Substitutable vv k subst => Substitutable (HsName,vv) k subst where
   s |=>  (k,v) =  (k,s |=> v)
   ftv    (_,v) =  ftv v
 %%]
-
-%%[9.SubstitutableVarMp -2.SubstitutableVarMp
-instance Substitutable (VarMp' TyVarId (VarMpInfo Ty)) TyVarId VarMp where
-  s1@(VarMp sl1) |=>   s2@(VarMp sl2)  =   VarMp (sl1 `Map.union` Map.map (s1 |=>) sl2)
-  ftv                  (VarMp sl)      =   ftv $ Map.elems sl
-%%]
-instance (Ord k,Substitutable v k subst) => Substitutable (VarMp' k v) k subst where
-  s1@(VarMp sl1) |=>   s2@(VarMp sl2)  =   VarMp (sl1 `Map.union` Map.map (s1 |=>) sl2)
-  ftv                  (VarMp sl)      =   ftv $ Map.elems sl
 
 %%[9
 instance Substitutable Pred TyVarId VarMp where

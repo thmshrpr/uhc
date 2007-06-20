@@ -89,7 +89,7 @@ explanation:
 	echo  "make helium              : make Helium library" ; \
 	echo  "make heliumdoc           : make Haddock documentation for Helium, Top and Lvm (in hdoc/)" ; \
 	echo  "make test-regress        : run regression test," ; \
-	echo  "                           restrict to versions <v> by specifying 'VERSIONS=<v>'," ; \
+	echo  "                           restrict to versions <v> by specifying 'TEST_VARIANTS=<v>' (default '${TEST_VARIANTS}')," ; \
 	echo  "                           requires corresponding $(EHC_EXEC_NAME)/$(GRINI_EXEC_NAME) already built" ; \
 	echo  "make test-expect         : make expected output (for later comparison with test-regress), see test-regress for remarks" ; \
 	echo  "" ; \
