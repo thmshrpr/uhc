@@ -73,7 +73,7 @@ SEM PatExpr
   | TypeAs      lhs         .   errSq       =   rngLift @range mkNestErr' @pp [@patExpr.errSq, @tyExpr.errSq, foErrSq @fo_]
   | AppTop      lhs         .   errSq       :=  rngLift @range mkNestErr' @pp [@patExpr.errSq, Seq.fromList @arityErrs, foErrSq @fo_fitR_]
 %%]
-  | AppTop      lhs         .   errSq       :=  rngLift @range mkNestErr' @pp [@patExpr.errSq, Seq.fromList @arityErrs, foErrSq @fo_, foErrSq @patFunFo]
+  | AppTop      lhs         .   errSq       :=  rngLift @range mkNestErr' @pp [@patExpr.errSq, Seq.fromList @arityErrs, foErrSq @fo_, foErrSq @fo_fitP_]
 
 %%[4_2
 SEM Expr

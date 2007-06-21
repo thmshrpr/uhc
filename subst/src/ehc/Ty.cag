@@ -412,12 +412,12 @@ showTyQu  TyQu_KiExists   =  "Exists"
 %%% Properties of type
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%[4_2 hs
+%%[4 hs
 tyIsVar :: Ty -> Bool
 tyIsVar = isJust . tyMbVar
 
-tyIsAlts :: Ty -> Bool
-tyIsAlts t = case t of {Ty_Alts _ _ -> True; _ -> False}
+tyIsCon :: Ty -> Bool
+tyIsCon = isJust . tyMbCon
 
 tyMbQu :: Ty -> Maybe TyQu
 tyMbQu t = case t of {Ty_Quant q _ _ -> Just q; _ -> Nothing}
@@ -426,9 +426,21 @@ tyIsQu :: Ty -> Bool
 tyIsQu = isJust . tyMbQu
 %%]
 
+%%[4_2 hs
+tyIsAlts :: Ty -> Bool
+tyIsAlts t = case t of {Ty_Alts _ _ -> True; _ -> False}
+%%]
+
 %%[10 hs export(tyIsEmptyRow)
 tyIsEmptyRow :: Ty -> Bool
 tyIsEmptyRow = maybe False (== hsnRowEmpty) . tyMbCon
+%%]
+
+Only used to steer PP:
+
+%%[4 hs export(tyIsSimple)
+tyIsSimple :: Ty -> Bool
+tyIsSimple t = tyIsVar t || tyIsCon t
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

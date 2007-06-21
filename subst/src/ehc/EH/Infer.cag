@@ -39,7 +39,7 @@ SEM Expr
 %%[5.Let
 SEM Expr
   | Let         loc         .   gathTySigGam_l_     :=  valGamInst1Exists @lUniq @decls.gathTySigGam
-                loc         .   quValGam_ex_        :=  valGamInst1Exists @lUniq2 . valGamQuantify @gTyTvL $ @lSubsValGam_
+                loc         .   quValGam_ex_        :=  valGamInst1Exists @lUniq2 $ valGamQuantify @gTyTvL $ @lSubsValGam_
                             .   quValGam_           :=  emptyGam
                 body        .   valGam              :=  gamPushGam @quValGam_ex_ @gSubsValGam_
 %%]

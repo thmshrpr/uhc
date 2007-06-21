@@ -1678,7 +1678,7 @@ ruleset patexpr.base scheme patexpr viewsel K - * "Pattern expression type rules
     view I1 =
       judge T : tyexpr = tyGam.inh :- tAnn : ty.t ~> tyGam.t ; _
       judge F : fit = fiopt ; tyVarMp.inh :- knTy <= ty.t : fo : ty ~> tyVarMp.f
-      judge P : patexpr = fiopt ; tyGam.t ; valGam.inh ; (tyVarMp.f tyVarMp.inh) ; ty :- pExpr : ty.p ; tyGam.p ; valGam.p ~> tyVarMp.p ; _
+      judge P : patexpr = fiopt ; tyGam.t ; valGam.inh ; (tyVarMp.f tyVarMp.inh) ; knTy :- pExpr : ty.p ; tyGam.p ; valGam.p ~> tyVarMp.p ; _
       ---
       judge R : patexpr = fiopt ; tyGam.inh ; valGam.inh ; tyVarMp.inh ; knTy :- (((node 2 = pExpr) :: (node 1 = tAnn))) : ty.p ; tyGam.p ; valGam.p ~> tyVarMp.p ; ANY
       

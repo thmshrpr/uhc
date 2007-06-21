@@ -153,9 +153,10 @@ SEM Expr
 SEM Expr
   | App AppImpred
                 loc         .   argTy               :=  mkNewTyVar @lUniq
-                            .   ty                  :=  @arg.tyVarMp |=> @ty_
+                            .   ty                  :=  @lhs.knTy
                 arg         .   knTy                :=  @argTy
 %%]
+                            .   ty                  :=  @arg.tyVarMp |=> @ty_
 
 -- generated from ruler rules into EHRulerRules, was 4_2.App
 %%[9090
@@ -235,10 +236,13 @@ SEM Expr
 %%[5.Lam
 SEM Expr
   | Lam         loc         .   lamKnTyVarMp        =   @lhs.tyVarMp
+                            .   fo_fitF_            :=  fitsIn @knFunFIOpts @fe @lUniq2 @lamKnTyVarMp @funTy @lhs.knTy
+                            .   ty                  :=  [@arg.ty] `mkArrow` @body.ty
+%%]
+  | Lam         loc         .   lamKnTyVarMp        =   @lhs.tyVarMp
                             .   knTySubs            =   @lamKnTyVarMp |=> @lhs.knTy
                             .   fo_fitF_            :=  let  fo = fitsIn @knFunFIOpts @fe @lUniq2 @lamKnTyVarMp @funTy @knTySubs
                                                         in   fo {foTy = foVarMp fo |=> @funTy}
-%%]
 
 -- generated from ruler rules into EHRulerRules, was 4_2.Lam
 %%[9090
@@ -346,11 +350,24 @@ SEM Expr
 %%]
 
 -- generated from ruler rules into EHRulerRules, was 4.TypeAs
--- 20070205 - AD, this does not match ruler rules anymore. Split up in check for context and inner expression, latter should have (e.g.) forall skolemized. Which is now does.
+-- 20070205 - AD, this does not match ruler rules anymore. Split up in check for context and inner expression,
+--   latter should have (e.g.) forall skolemized. Which it now does.
 %%[5.TypeAs
 SEM Expr
+  | TypeAs      loc         .   gTyTvL              =   let  (ftvVal,err1) = ftvClosureSet @lhs.tyVarMp @lhs.valGam
+                                                             (ftvTy,err2) = ftvClosureSet @lhs.tyVarMp @lhs.tyGam
+                                                        in   Set.toList $ ftvVal `Set.union` ftvTy
+                            .   tyTy                :=  @lhs.tyVarMp |=> @tyExpr.ty
+                            .   ty_q_               :=  tyQuantify (`elem` (@tyExpr.tyVarWildL ++ @gTyTvL)) @tyTy
+                            .   fo_                 :=  fitsIn strongFIOpts @fe @lUniq @lhs.tyVarMp @ty_q_ @lhs.knTy
+                            .   ty_q_2_VarMp        =   foVarMp @fo_ |=> @lhs.tyVarMp
+                            .   knTyDown            =   mkTyVar @lUniq3
+                            .   fo_fitDown          =   fitsIn (strongFIOpts {fioBindLFirst = False}) @fe @lUniq2 @ty_q_2_VarMp @knTyDown @ty_q_
+                expr        .   knTy                :=  @knTyDown
+                            .   tyVarMp             :=  foVarMp @fo_fitDown |=> @ty_q_2_VarMp
+%%]
   | TypeAs      loc         .   gTyTvL              =   let  ftvVal  = ftv (@lhs.tyVarMp |=> @lhs.valGam)
-                                                             ftvTy   = ftv . (@lhs.tyVarMp |=>) . map (tgiTy.snd) . gamToAssocL $ @lhs.tyGam
+                                                             ftvTy   = ftv (@lhs.tyVarMp |=> @lhs.tyGam)
                                                         in   ftvVal ++ ftvTy
                             .   tyTy                :=  @lhs.tyVarMp |=> @tyExpr.ty
                             .   ty_q_               :=  tyQuantify (`elem` (@tyExpr.tyVarWildL ++ @gTyTvL)) @tyTy
@@ -361,8 +378,6 @@ SEM Expr
                             .   fo_fitDown          =   fitsIn (strongFIOpts {fioBindLFirst = False}) @fe @lUniq2 @ty_q_2_VarMp @knTyDown (foVarMp @fo_ |=> @ty_q_2_)
                 expr        .   knTy                :=  @knTyDown
                             .   tyVarMp             :=  foVarMp @fo_fitDown |=> @ty_q_2_VarMp
-%%]
-                            .   fo_                 :=  fitsIn @lhs.fiOpts @fe @lUniq (@lhs.tyVarMp |=> @ty_q_) (@lhs.tyVarMp |=> @lhs.knTy)
 
 -- generated from ruler rules into EHRulerRules, was 4_2.TypeAs
 %%[9090.TypeAs

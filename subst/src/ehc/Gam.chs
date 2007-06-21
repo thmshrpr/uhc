@@ -940,6 +940,12 @@ instance Substitutable ValGamInfo TyVarId VarMp where
   ftv   vgi         =   ftv (vgiTy vgi)
 %%]
 
+%%[2.Substitutable.inst.TyGamInfo
+instance Substitutable TyGamInfo TyVarId VarMp where
+  s |=> tgi         =   tgi { tgiTy = s |=> tgiTy tgi }
+  ftv   tgi         =   ftv (tgiTy tgi)
+%%]
+
 %%[6.Substitutable.inst.TyKiGamInfo
 instance Substitutable TyKiGamInfo TyVarId VarMp where
   s |=> tkgi         =   tkgi { tkgiKi = s |=> tkgiKi tkgi }

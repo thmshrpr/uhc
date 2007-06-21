@@ -17,13 +17,16 @@
 %%[2 module {%{EH}VarMp} import(Data.List, {%{EH}Base.Common}, {%{EH}Ty}) export(VarMp'(..), VarMp, emptyVarMp, varmpTyUnit, varmpTyLookup)
 %%]
 
+%%[2 import(qualified Data.Map as Map,qualified Data.Set as Set,Data.Maybe)
+%%]
+
 %%[2 import(EH.Util.Pretty, {%{EH}Ty.Pretty}) export(ppVarMpV)
 %%]
 
 %%[4 export(varmpFilterTy,varmpDel,(|\>) ,varmpPlus, (|+>))
 %%]
 
-%%[4 export(assocLToVarMp,varmpToAssocTyL,varmpKeys)
+%%[4 export(assocLToVarMp,varmpToAssocTyL)
 %%]
 
 %%[4_2 import(Maybe) export(varmpMapThrTy,varmpMapTy,varmpDelAlphaRename,varmpFilterAlphaRename,varmpFilterTyAltsMappedBy)
@@ -32,7 +35,7 @@
 %%[4_2 export(tyAsVarMp,varmpTyRevUnit)
 %%]
 
-%%[9 import(qualified Data.Map as Map,{%{EH}Base.Debug}) export(VarMpInfo(..),varmpToAssocL)
+%%[9 import({%{EH}Base.Debug}) export(VarMpInfo(..),varmpToAssocL)
 %%]
 
 %%[50 export(varmpKeys)
@@ -64,11 +67,17 @@ newtype VarMp' k v = VarMp (Map.Map k v)
 %%[2.VarMp.emptyVarMp
 emptyVarMp :: VarMp' k v
 emptyVarMp = VarMp []
+
+varmpIsEmpty :: VarMp' k v -> Bool
+varmpIsEmpty (VarMp l) = null l
 %%]
 
 %%[9.VarMp.emptyVarMp -2.VarMp.emptyVarMp
 emptyVarMp :: VarMp' k v
 emptyVarMp = VarMp Map.empty
+
+varmpIsEmpty :: VarMp' k v
+varmpIsEmpty (VarMp m) = Map.null m
 %%]
 
 %%[2.VarMp.varmpTyUnit
@@ -84,11 +93,21 @@ varmpTyUnit v t = VarMp (Map.fromList [(v,VMITy t)])
 %%[4.varmpFilter
 varmpFilter :: (k -> v -> Bool) -> VarMp' k v -> VarMp' k v
 varmpFilter f (VarMp l) = VarMp (filter (uncurry f) l)
+
+varmpPartition :: (k -> v -> Bool) -> VarMp' k v -> (VarMp' k v,VarMp' k v)
+varmpPartition f (VarMp l)
+  = (VarMp p1, VarMp p2)
+  where (p1,p2) = partition (uncurry f) l
 %%]
 
 %%[9.varmpFilter -4.varmpFilter
 varmpFilter :: Ord k => (k -> v -> Bool) -> VarMp' k v -> VarMp' k v
 varmpFilter f (VarMp c) = VarMp (Map.filterWithKey f c)
+
+varmpPartition :: Ord k => (k -> v -> Bool) -> VarMp' k v -> (VarMp' k v,VarMp' k v)
+varmpPartition f (VarMp m)
+  = (VarMp p1, VarMp p2)
+  where (p1,p2) = Map.partitionWithKey f m
 %%]
 
 %%[2.varmpPlus
@@ -119,6 +138,9 @@ assocLToVarMp = VarMp
 
 varmpToAssocTyL :: VarMp' k v -> AssocL k v
 varmpToAssocTyL (VarMp l) = l
+
+varmpToAssocL :: VarMp' k v -> AssocL k v
+varmpToAssocL = varmpToAssocTyL
 %%]
 
 %%[9.assocLToVarMp -4.assocLToVarMp
@@ -137,14 +159,20 @@ varmpSize :: VarMp' k v -> Int
 varmpSize (VarMp m) = Map.size m
 %%]
 
-%%[4.varmpKeys
+%%[4.varmpKeys export(varmpKeys,varmpKeysSet)
 varmpKeys :: VarMp' k v -> [k]
 varmpKeys (VarMp l) = assocLKeys l
+
+varmpKeysSet :: Ord k => VarMp' k v -> Set.Set k
+varmpKeysSet = Set.fromList . varmpKeys
 %%]
 
-%%[9.varmpKeys -4.varmpKeys
+%%[9.varmpKeys -4.varmpKeys export(varmpKeys,varmpKeysSet)
 varmpKeys :: VarMp' k v -> [k]
 varmpKeys (VarMp fm) = Map.keys fm
+
+varmpKeysSet :: Ord k => VarMp' k v -> Set.Set k
+varmpKeysSet (VarMp fm) = Map.keysSet fm
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -158,6 +186,9 @@ type VarMp  = VarMp' TyVarId Ty
 %%[2.varmpTyLookup
 varmpTyLookup :: Eq k => k -> VarMp' k v -> Maybe v
 varmpTyLookup tv (VarMp s) = lookup tv s
+
+varmpLookup :: Eq k => k -> VarMp' k v -> Maybe v
+varmpLookup = varmpTyLookup
 %%]
 
 %%[9 -(2.VarMp.Base 2.varmpTyLookup)
@@ -189,6 +220,9 @@ varmpLookup' get v (VarMp s)
   = do { ci <- Map.lookup v s
        ; get ci
        }
+
+varmpLookup :: Ord k => k -> VarMp' k (VarMpInfo v) -> Maybe (VarMpInfo v)
+varmpLookup = varmpLookup' id
 
 varmpTyLookup :: Ord k => k -> VarMp' k (VarMpInfo v) -> Maybe v
 varmpTyLookup = varmpLookup' (\ci -> case ci of {VMITy t -> Just t; _ -> Nothing})
@@ -314,6 +348,29 @@ varmpExtsLookup = varmpLookup' (\ci -> case ci of {VMIExts l -> Just l; _ -> Not
 %%[13 export(varmpPredSeqLookup)
 varmpPredSeqLookup :: TyVarId -> VarMp -> Maybe PredSeq
 varmpPredSeqLookup = varmpLookup' (\ci -> case ci of {VMIPredSeq a -> Just a; _ -> Nothing})
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Closure
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[2  export(varmpClosure)
+varmpClosure :: (TyVarId -> Bool) -> (x -> Set.Set TyVarId) -> VarMp' TyVarId x -> (Set.Set TyVarId,VarMp' TyVarId x,VarMp' TyVarId x)
+varmpClosure yes tvof m
+  = cl Set.empty m' emptyVarMp emptyVarMp
+  where m' = varmpFilter (\k _ -> yes k) m
+        cl fvs mnew mcyc mres
+          | varmpIsEmpty mnew
+              = (fvs,mres,mcyc)
+          | otherwise
+              = cl (Set.unions fvsnew `Set.union` fvs) (foldr varmpPlus emptyVarMp mnew2) (varmpPlus mcyc1 mcyc) (varmpPlus mnew1 mres)
+              where (mcyc1,mnew1) = varmpPartition (\k _ -> isJust $ varmpLookup k mres) mnew
+                    (fvsnew,mnew2)
+                      = unzip
+                          [ (tvs,varmpFilter (\k _ -> k `Set.member` tvs) m)
+                          | (_,x) <- varmpToAssocL mnew1
+                          , let tvs = tvof x
+                          ]
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

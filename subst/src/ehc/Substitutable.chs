@@ -20,6 +20,9 @@
 %%[2 import(qualified Data.Set as Set)
 %%]
 
+%%[4 import({%{EH}Error})
+%%]
+
 %%[4_2 export((|>>))
 %%]
 
@@ -41,8 +44,16 @@ class Substitutable vv k subst | vv -> subst k where
 %%]
 
 %%[2 export(ftvSet)
-ftvSet :: (Ord k,Substitutable vv k subst) => vv -> Set.Set k
+ftvSet :: (Ord k,Substitutable x k subst) => x -> Set.Set k
 ftvSet = Set.fromList . ftv
+%%]
+
+%%[4 export(ftvClosureSet)
+ftvClosureSet :: (Substitutable x TyVarId VarMp) => VarMp -> x -> (Set.Set TyVarId,[Err])
+ftvClosureSet varmp x
+  = (fvs `Set.union` fv,[])
+  where fv = ftvSet x
+        (fvs,_,mcyc) = varmpClosure (`Set.member` fv) ftvSet varmp
 %%]
 
 %%[4_2.partialSubstApp
@@ -213,29 +224,4 @@ tyFixTyVars t
   where (sTo,sFr) = fixTyVarsVarMp t
 %%]
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%% Tvar under constr
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-%%[4_1 hs
-%%]
-tvUnderVarMp :: VarMp -> TyVarId -> TyVarId
-tvUnderVarMp c v
-  =  case c |=> mkTyVar v of
-		Ty_Var   v' TyVarCateg_Plain  -> v'
-		Ty_Alts  v' _                 -> v'
-		_                             -> v
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%% Are tvars alpha renaming of eachother?
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-%%[4_1 hs
-%%]
-tvLMbAlphaRename :: VarMp -> TyVarIdL -> TyVarIdL -> Maybe TyVarIdL
-tvLMbAlphaRename c l1 l2
-  =  if l1' == l2' && length l1' == length l1 then Just l1' else Nothing
-  where  r = sort . nub . map (tvUnderVarMp c)
-         l1' = r l1
-         l2' = r l2
 
