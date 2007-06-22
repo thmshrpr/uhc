@@ -27,21 +27,15 @@ SEM CaseAlt
                             .   patTy               =   @patExpr.ty
 
 SEM CaseAlts
+  | Nil         lhs         .   patTy               =   @lhs.knPatTy
+  | Cons        tl          .   knPatTy             =   @lhs.knPatTy
+%%]
   | Nil         lhs         .   patTy               =   @lhs.patTyVarMp |=> @lhs.knPatTy
   | Cons        tl          .   knPatTy             =   @hd.patTyVarMp |=> @lhs.knPatTy
-%%]
 
 %%[6
 SEM Expr
   | Case        alts        .   patTyVarMp          :=  agFakeDependOn @alts.kiVarMp @expr.tyVarMp
-%%]
-
-%%[5_1
-SEM Expr
-  | Case        loc         .   (ebTy,ebVarMp,ebErrs,_)
-                                                    =   tyElimAlts (mkFitsInWrap @fe) joinFIOpts @lUniq @expr.tyVarMp (@expr.ty)
-                alts        .   knPatTy             :=  @ebTy
-                            .   patTyVarMp          :=  @ebVarMp |=> @expr.tyVarMp
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

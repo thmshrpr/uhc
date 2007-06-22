@@ -197,6 +197,13 @@ SEM Err
 %%[[99
                                                         @range
 %%]]
+  | OccurCycle          lhs     .  pp   =   ppMsgErr    "Occur cycle"
+                                                        (    "type var:" >#< pp @tvar
+                                                         >-< "to type :" >#< pp @ty
+                                                        )
+%%[[99
+                                                        @range
+%%]]
 %%]
 
 %%[4_2

@@ -317,7 +317,7 @@ fitsInFI fi ty1 ty2
             err    e                =  emptyFO {foUniq = fioUniq (fiFIOpts fi), foErrL = e}
             errClash fi t1 t2       =  err [rngLift range Err_UnifyClash (fiAppVarMp fi ty1) (fiAppVarMp fi ty2) (fioMode (fiFIOpts fi)) (fiAppVarMp fi t1) (fiAppVarMp fi t2) (fioMode (fiFIOpts fi))]
             occurBind fi v t
-                | v `elem` ftv t    =  err [rngLift range Err_UnifyOccurs (fiAppVarMp fi ty1) (fiAppVarMp fi ty2) (fioMode (fiFIOpts fi)) v t (fioMode (fiFIOpts fi))]
+                | False && v `elem` ftv t    =  err [rngLift range Err_UnifyOccurs (fiAppVarMp fi ty1) (fiAppVarMp fi ty2) (fioMode (fiFIOpts fi)) v t (fioMode (fiFIOpts fi))]
                 | otherwise         =  bind fi v t
 %%]
 

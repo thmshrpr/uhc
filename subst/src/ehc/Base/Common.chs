@@ -672,6 +672,11 @@ assocLMapKey :: (k -> k') -> AssocL k v -> AssocL k' v
 assocLMapKey f = assocLMap (\k v -> (f k,v))
 %%]
 
+%%[4 export(assocLMapUnzip)
+assocLMapUnzip :: AssocL k (v1,v2) -> (AssocL k v1,AssocL k v2)
+assocLMapUnzip l = unzip [ ((k,v1),(k,v2)) | (k,(v1,v2)) <- l ]
+%%]
+
 %%[1
 assocLKeys :: AssocL k v -> [k]
 assocLKeys = map fst

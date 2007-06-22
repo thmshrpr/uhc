@@ -2845,8 +2845,8 @@ relation valGamQuantify =
                        `|`  (i :-> sigma) <- tyVarMp valGam.l
                         ,   alpha..._ === ftv(sigma) `-` ftv(tyVarMp valGam.g)
                         ]
-    judgeuse ag (retain valGam.l.subs) `=` tyVarMp (valGam.l)
-              | (retain valGam.g.subs) `=` tyVarMp (valGam.g)
+    judgeuse ag (valGam.l.subs,cycTyVarMp.l) `=` (tyVarMp |==> (valGam.l))
+              | (valGam.g.subs,cycTyVarMp.g) `=` (tyVarMp |==> (valGam.g))
               | (retain gtvars       ) `=` ftv (valGam.g.subs)
               | (retain valGam.q     ) `=` valGamQuantify gtvars valGam.l.subs
   view I2 =

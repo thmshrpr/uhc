@@ -354,9 +354,9 @@ SEM Expr
 --   latter should have (e.g.) forall skolemized. Which it now does.
 %%[5.TypeAs
 SEM Expr
-  | TypeAs      loc         .   gTyTvL              =   let  (ftvVal,err1) = ftvClosureSet @lhs.tyVarMp @lhs.valGam
-                                                             (ftvTy,err2) = ftvClosureSet @lhs.tyVarMp @lhs.tyGam
-                                                        in   Set.toList $ ftvVal `Set.union` ftvTy
+  | TypeAs      loc         .   (gTyTvL,cycVarMp)   =   let  (vg,cycVarMp1) = @lhs.tyVarMp |==> @lhs.valGam
+                                                             (tg,cycVarMp2) = @lhs.tyVarMp |==> @lhs.tyGam
+                                                        in   (Set.toList $ ftvSet vg `Set.union` ftvSet tg, cycVarMp1 |+> cycVarMp2)
                             .   tyTy                :=  @lhs.tyVarMp |=> @tyExpr.ty
                             .   ty_q_               :=  tyQuantify (`elem` (@tyExpr.tyVarWildL ++ @gTyTvL)) @tyTy
                             .   fo_                 :=  fitsIn strongFIOpts @fe @lUniq @lhs.tyVarMp @ty_q_ @lhs.knTy

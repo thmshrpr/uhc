@@ -20,12 +20,6 @@
 %%[2 import(qualified Data.Set as Set)
 %%]
 
-%%[4 import({%{EH}Error})
-%%]
-
-%%[4_2 export((|>>))
-%%]
-
 %%[9 import(qualified Data.Map as Map)
 %%]
 
@@ -34,13 +28,27 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%[2.Substitutable
-infixr 6 |=>
+infixr 6 |=>, |==>
 %%]
 
 %%[2.Substitutable
 class Substitutable vv k subst | vv -> subst k where
   (|=>)         ::  subst -> vv -> vv
+%%[[4
+  (|==>)        ::  subst -> vv -> (vv,VarMp)
+%%]]
   ftv           ::  vv -> [k]
+
+%%[[4
+  s |==> x = (s |=> x,emptyVarMp)
+%%]]
+%%]
+
+%%[4 export(substLift)
+substLift :: (v' -> v) -> (v' -> v -> v') -> (subst -> v -> (v,r)) -> subst -> v' -> (v',r)
+substLift toV updV app s v'
+  = (updV v' x,r)
+  where (x,r) = app s $ toV v'
 %%]
 
 %%[2 export(ftvSet)
@@ -49,18 +57,11 @@ ftvSet = Set.fromList . ftv
 %%]
 
 %%[4 export(ftvClosureSet)
-ftvClosureSet :: (Substitutable x TyVarId VarMp) => VarMp -> x -> (Set.Set TyVarId,[Err])
+ftvClosureSet :: (Substitutable x TyVarId VarMp) => VarMp -> x -> (Set.Set TyVarId,VarMp)
 ftvClosureSet varmp x
-  = (fvs `Set.union` fv,[])
+  = (fvs `Set.union` fv,mcyc)
   where fv = ftvSet x
         (fvs,_,mcyc) = varmpClosure (`Set.member` fv) ftvSet varmp
-%%]
-
-%%[4_2.partialSubstApp
-infixr 6 |>>
-
-(|>>) :: VarMp -> VarMp -> VarMp
-c1 |>> c2 = varmpMapTy (const (c1 |=>)) c2
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -69,14 +70,11 @@ c1 |>> c2 = varmpMapTy (const (c1 |=>)) c2
 
 %%[2.SubstitutableTy
 instance Substitutable Ty TyVarId VarMp where
-  (|=>)  = tyAppVarMp
-  ftv    = tyFtv
-%%]
-
-%%[9.SubstitutableTy -2.SubstitutableTy
-instance Substitutable Ty TyVarId VarMp where
-  (|=>)  = tyAppVarMp
-  ftv    = tyFtv
+  (|=>)     = tyAppVarMp
+%%[[4
+  (|==>)    = tyAppVarMp2
+%%]]
+  ftv       = tyFtv
 %%]
 
 %%[10
@@ -95,7 +93,11 @@ instance Substitutable LabelOffset TyVarId VarMp where
 %%[2.SubstitutableList
 instance (Ord k,Substitutable vv k subst) => Substitutable [vv] k subst where
   s      |=>  l   =   map (s |=>) l
-  ftv         l   =   unions . map ftv $ l
+%%[[4
+  s      |==> l   =   (l,varmpUnions m)
+                  where (l,m) = unzip $ map (s |==>) l
+%%]]
+  ftv         l   =   unions $ map ftv l
 %%]
 
 %%[2.SubstitutableVarMp
@@ -112,7 +114,7 @@ instance Substitutable (VarMp' TyVarId Ty) TyVarId VarMp where
   s1@(VarMp sl1) |=> s2@(VarMp sl2)
     = s1 `varmpPlus` s2
   ftv (VarMp sl)
-    = ftv . map snd $ sl
+    = ftv $ map snd sl
 %%]
 
 %%[9.SubstitutableVarMp -4.SubstitutableVarMp

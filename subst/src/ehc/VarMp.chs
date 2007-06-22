@@ -29,6 +29,9 @@
 %%[4 export(assocLToVarMp,varmpToAssocTyL)
 %%]
 
+%%[4 import({%{EH}Error})
+%%]
+
 %%[4_2 import(Maybe) export(varmpMapThrTy,varmpMapTy,varmpDelAlphaRename,varmpFilterAlphaRename,varmpFilterTyAltsMappedBy)
 %%]
 
@@ -90,7 +93,7 @@ varmpTyUnit :: Ord k => k -> v -> VarMp' k (VarMpInfo v)
 varmpTyUnit v t = VarMp (Map.fromList [(v,VMITy t)])
 %%]
 
-%%[4.varmpFilter
+%%[4.varmpFilter export(varmpFilter)
 varmpFilter :: (k -> v -> Bool) -> VarMp' k v -> VarMp' k v
 varmpFilter f (VarMp l) = VarMp (filter (uncurry f) l)
 
@@ -122,6 +125,15 @@ varmpPlus (VarMp l1) (VarMp l2) = VarMp (l1 ++ l2)
 %%[9.varmpPlus -2.varmpPlus
 varmpPlus, (|+>) :: Ord k => VarMp' k v -> VarMp' k v -> VarMp' k v
 varmpPlus (VarMp l1) (VarMp l2) = VarMp (l1 `Map.union` l2)
+%%]
+
+%%[4 export(varmpUnion,varmpUnions)
+varmpUnion :: Ord k => VarMp' k v -> VarMp' k v -> VarMp' k v
+varmpUnion = varmpPlus
+
+varmpUnions :: Ord k => [VarMp' k v] -> VarMp' k v
+varmpUnions [x] = x
+varmpUnions l   = foldr varmpPlus emptyVarMp l
 %%]
 
 %%[4.varmpDel
@@ -290,8 +302,6 @@ varmpAssNmUnit v p = VarMp (Map.fromList [(v,VMIAssNm p)])
 assocLToVarMpImpls :: AssocL ImplsVarId Impls -> VarMp
 assocLToVarMpImpls = VarMp . Map.fromList . assocLMapElt VMIImpls
 %%]
-cnstrPoiUnit :: UID -> PredOccId -> VarMp
-cnstrPoiUnit v sc = VarMp (Map.fromList [(v,CIPoi sc)])
 
 
 %%[10 export(varmpLabelUnit,varmpOffsetUnit,varmpExtsUnit)
@@ -330,8 +340,6 @@ varmpPredLookup = varmpLookup' (\ci -> case ci of {VMIPred p -> Just p; _ -> Not
 varmpAssNmLookup :: TyVarId -> VarMp -> Maybe VarUIDHsName
 varmpAssNmLookup = varmpLookup' (\ci -> case ci of {VMIAssNm p -> Just p; _ -> Nothing})
 %%]
-cnstrPoiLookup :: UID -> VarMp -> Maybe PredOccId
-cnstrPoiLookup = varmpLookup' (\ci -> case ci of {CIPoi p -> Just p; _ -> Nothing})
 
 
 %%[10 export(varmpLabelLookup,varmpOffsetLookup,varmpExtsLookup)
@@ -354,16 +362,18 @@ varmpPredSeqLookup = varmpLookup' (\ci -> case ci of {VMIPredSeq a -> Just a; _ 
 %%% Closure
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+Faulty: computes cycles incorrectly
+
 %%[2  export(varmpClosure)
 varmpClosure :: (TyVarId -> Bool) -> (x -> Set.Set TyVarId) -> VarMp' TyVarId x -> (Set.Set TyVarId,VarMp' TyVarId x,VarMp' TyVarId x)
-varmpClosure yes tvof m
+varmpClosure startWith tvof m
   = cl Set.empty m' emptyVarMp emptyVarMp
-  where m' = varmpFilter (\k _ -> yes k) m
+  where m' = varmpFilter (\k _ -> startWith k) m
         cl fvs mnew mcyc mres
           | varmpIsEmpty mnew
               = (fvs,mres,mcyc)
           | otherwise
-              = cl (Set.unions fvsnew `Set.union` fvs) (foldr varmpPlus emptyVarMp mnew2) (varmpPlus mcyc1 mcyc) (varmpPlus mnew1 mres)
+              = cl (Set.unions fvsnew `Set.union` fvs) (varmpUnions mnew2) (varmpPlus mcyc1 mcyc) (varmpPlus mnew1 mres)
               where (mcyc1,mnew1) = varmpPartition (\k _ -> isJust $ varmpLookup k mres) mnew
                     (fvsnew,mnew2)
                       = unzip
@@ -371,6 +381,20 @@ varmpClosure yes tvof m
                           | (_,x) <- varmpToAssocL mnew1
                           , let tvs = tvof x
                           ]
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Error
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[4.varmpOccurErr export(varmpOccurErr)
+varmpOccurErr :: VarMp -> [Err]
+varmpOccurErr = map (uncurry Err_OccurCycle) . varmpToAssocTyL
+%%]
+
+%%[99 -4.varmpOccurErr export(varmpOccurErr)
+varmpOccurErr :: Range -> VarMp -> [Err]
+varmpOccurErr r = map (uncurry (Err_OccurCycle r)) . varmpToAssocTyL
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
