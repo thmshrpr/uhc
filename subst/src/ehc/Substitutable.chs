@@ -56,13 +56,13 @@ ftvSet :: (Ord k,Substitutable x k subst) => x -> Set.Set k
 ftvSet = Set.fromList . ftv
 %%]
 
-%%[4 export(ftvClosureSet)
+%%[4
+%%]
 ftvClosureSet :: (Substitutable x TyVarId VarMp) => VarMp -> x -> (Set.Set TyVarId,VarMp)
 ftvClosureSet varmp x
   = (fvs `Set.union` fv,mcyc)
   where fv = ftvSet x
         (fvs,_,mcyc) = varmpClosure (`Set.member` fv) ftvSet varmp
-%%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Substitutable instances

@@ -293,9 +293,9 @@ SEM Decl
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%[7
+%%]
 SEM DataFieldExpr
   | Con         loc         .   finConTy            =   @lhs.finTyVarMp |=> @ty
-%%]
 
 %%[7
 ATTR DataFieldExpr [ | | mbConNm: {Maybe HsName} ]

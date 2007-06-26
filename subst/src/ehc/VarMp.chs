@@ -14,7 +14,7 @@
 %%% Substitution for types
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%[2 module {%{EH}VarMp} import(Data.List, {%{EH}Base.Common}, {%{EH}Ty}) export(VarMp'(..), VarMp, emptyVarMp, varmpTyUnit, varmpTyLookup)
+%%[2 module {%{EH}VarMp} import(Data.List, {%{EH}Base.Common}, {%{EH}Ty}) export(VarMp'(..), VarMp, emptyVarMp, varmpTyUnit, varmpTyLookup, varmpTyLookup2)
 %%]
 
 %%[2 import(qualified Data.Map as Map,qualified Data.Set as Set,Data.Maybe)
@@ -79,7 +79,7 @@ varmpIsEmpty (VarMp l) = null l
 emptyVarMp :: VarMp' k v
 emptyVarMp = VarMp Map.empty
 
-varmpIsEmpty :: VarMp' k v
+varmpIsEmpty :: VarMp' k v -> Bool
 varmpIsEmpty (VarMp m) = Map.null m
 %%]
 
@@ -199,6 +199,10 @@ type VarMp  = VarMp' TyVarId Ty
 varmpTyLookup :: Eq k => k -> VarMp' k v -> Maybe v
 varmpTyLookup tv (VarMp s) = lookup tv s
 
+-- flipped variant
+varmpTyLookup2 :: Eq k => VarMp' k v -> k -> Maybe v
+varmpTyLookup2 m v = varmpTyLookup v m
+
 varmpLookup :: Eq k => k -> VarMp' k v -> Maybe v
 varmpLookup = varmpTyLookup
 %%]
@@ -234,10 +238,14 @@ varmpLookup' get v (VarMp s)
        }
 
 varmpLookup :: Ord k => k -> VarMp' k (VarMpInfo v) -> Maybe (VarMpInfo v)
-varmpLookup = varmpLookup' id
+varmpLookup = varmpLookup' (Just . id)
 
 varmpTyLookup :: Ord k => k -> VarMp' k (VarMpInfo v) -> Maybe v
 varmpTyLookup = varmpLookup' (\ci -> case ci of {VMITy t -> Just t; _ -> Nothing})
+
+-- flipped variant
+varmpTyLookup2 :: Ord k => VarMp' k (VarMpInfo v) -> k -> Maybe v
+varmpTyLookup2 m v = varmpTyLookup v m
 %%]
 
 %%[4_2.varmpTyRevUnit
@@ -327,9 +335,13 @@ varmpTailAddOcc o (Impls_Tail i os) = (t, varmpImplsUnit i t)
 varmpTailAddOcc _ x                 = (x,emptyVarMp)
 %%]
 
-%%[9 export(varmpImplsLookup,varmpScopeLookup,varmpPredLookup,varmpAssNmLookup)
+%%[9 export(varmpImplsLookup,varmpImplsLookup2,varmpScopeLookup,varmpPredLookup,varmpAssNmLookup)
 varmpImplsLookup :: ImplsVarId -> VarMp -> Maybe Impls
 varmpImplsLookup = varmpLookup' (\ci -> case ci of {VMIImpls i -> Just i; _ -> Nothing})
+
+-- flipped variant
+varmpImplsLookup2 :: VarMp -> ImplsVarId -> Maybe Impls
+varmpImplsLookup2 m v = varmpImplsLookup v m
 
 varmpScopeLookup :: TyVarId -> VarMp -> Maybe PredScope
 varmpScopeLookup = varmpLookup' (\ci -> case ci of {VMIScope s -> Just s; _ -> Nothing})
@@ -364,7 +376,8 @@ varmpPredSeqLookup = varmpLookup' (\ci -> case ci of {VMIPredSeq a -> Just a; _ 
 
 Faulty: computes cycles incorrectly
 
-%%[2  export(varmpClosure)
+%%[2
+%%]
 varmpClosure :: (TyVarId -> Bool) -> (x -> Set.Set TyVarId) -> VarMp' TyVarId x -> (Set.Set TyVarId,VarMp' TyVarId x,VarMp' TyVarId x)
 varmpClosure startWith tvof m
   = cl Set.empty m' emptyVarMp emptyVarMp
@@ -381,7 +394,6 @@ varmpClosure startWith tvof m
                           | (_,x) <- varmpToAssocL mnew1
                           , let tvs = tvof x
                           ]
-%%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Error

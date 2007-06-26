@@ -145,16 +145,6 @@ SEM AGItf
 %%]
 
 %%[7
-%%]
-ATTR AllNT [ finTyGam: TyGam |  | ]
-
-SEM AGItf
-  | AGItf       expr        .   finTyGam            =   emptyGam
-
-SEM Expr
-  | Let         loc         .   finTyGam            =   @lhs.finKiVarMp |=> @decls.patTyGam
-
-%%[7
 ATTR AllNT [ finTyKiGam: TyKiGam |  | ]
 
 SEM AGItf

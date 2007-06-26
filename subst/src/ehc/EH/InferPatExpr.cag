@@ -106,6 +106,7 @@ SEM Expr
 %%[5.knTy
 SEM PatExpr
   | AppTop      loc         .  (knPatTy,knProdTy)   :=  tyArrowArgRes @patFunTy
+  | Con         loc         .  knPatTy              :=  @tvarv1_
 %%]
 
 %%[5
@@ -221,11 +222,19 @@ SEM PatExpr
                             .   (eqTy,nmErrs)       =   valGamLookupTy @eqFldNm @lhs.valGam
                             .   knExprTy            =   mkTyVar @lUniq
                             .   fo_                 =   fitsIn strongFIOpts @fe @lUniq2 @lhs.tyVarMp
-                                                            (@lhs.tyVarMp |=> @eqTy)
+                                                            @eqTy
                                                             ([@knExprTy,@lhs.knTy] `mkArrow` (semCon $ ehbnDataBool $ ehcOptBuiltinNames @lhs.opts))
                 expr        .   knTy                =   @knExprTy
                             .   tyVarMp             =   foVarMp @fo_ |=> @lhs.tyVarMp
 %%]
+  | Expr        loc         .   eqFldNm             =   ehbnClassEqFldEq $ ehcOptBuiltinNames @lhs.opts
+                            .   (eqTy,nmErrs)       =   valGamLookupTy @eqFldNm @lhs.valGam
+                            .   knExprTy            =   mkTyVar @lUniq
+                            .   fo_                 =   fitsIn strongFIOpts @fe @lUniq2 @lhs.tyVarMp
+                                                            (@lhs.tyVarMp |=> @eqTy)
+                                                            ([@knExprTy,@lhs.knTy] `mkArrow` (semCon $ ehbnDataBool $ ehcOptBuiltinNames @lhs.opts))
+                expr        .   knTy                =   @knExprTy
+                            .   tyVarMp             =   foVarMp @fo_ |=> @lhs.tyVarMp
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Data based records
@@ -233,6 +242,19 @@ SEM PatExpr
 
 %%[7
 SEM DataFieldPatExpr
+  | Ext         loc         .   (gTy,nmErrs)        =   valGamLookupTy @nm @lhs.valGam
+                            .   knFldTy             =   mkNewTyVar @lUniq
+                            .   fo_                 =   fitsIn @lhs.fiOpts @fe @lUniq2 @lhs.tyVarMp @gTy ([@lhs.knTy] `mkArrow` @knFldTy)
+                dataFieldPatExpr
+                            .   tyVarMp             =   foVarMp @fo_ |=> @lhs.tyVarMp
+                patExpr     .   knTy                =   @knFldTy
+                loc         .   ty                  =   @dataFieldPatExpr.ty
+  | Con         loc         .   (gTy,nmErrs)        =   valGamLookupTy (hsnUn @nm) @lhs.valGam
+                            .   fo_                 =   let [u] = mkNewTyVarL 1 @lUniq
+                                                        in  fitsIn @lhs.fiOpts @fe @lUniq2 @lhs.tyVarMp @gTy ([@lhs.knTy] `mkArrow` u)
+                            .   ty                  =   @lhs.knTy
+                lhs         .   tyVarMp             =   foVarMp @fo_ |=> @lhs.tyVarMp
+%%]
   | Ext         loc         .   (gTy,nmErrs)        =   valGamLookupTy @nm @lhs.valGam
                             .   knFldTy             =   mkNewTyVar @lUniq
                             .   fo_                 =   let t = @lhs.tyVarMp |=> @lhs.knTy
@@ -248,13 +270,26 @@ SEM DataFieldPatExpr
                                                         in  fo {foTy = foVarMp fo |=> t}
                             .   ty                  =   foTy @fo_
                 lhs         .   tyVarMp             =   foVarMp @fo_ |=> @lhs.tyVarMp
-%%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Row based records
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%[7
+SEM RecPatExpr
+  | Empty       loc         .   fo_                 =   fitsIn (@lhs.fiOpts) @fe @lUniq @lhs.tyVarMp @lhs.knTy tyRecEmpty
+                            .   ty                  =   foTy @fo_
+                lhs         .   tyVarMp             =   foVarMp @fo_ |=> @lhs.tyVarMp
+  | Ext         loc         .   (extTy,recTy,rowTy,patTy)
+                                                    =   let  [r,e] = mkNewTyVarL 2 @lUniq
+                                                             ext = hsnRec `mkConApp` [r]
+                                                        in   (ext, ext `mkTyRecExt` [(@nm,e)], r, e)
+                            .   fo_                 =   fitsIn (@lhs.fiOpts) @fe @lUniq2 @lhs.tyVarMp @lhs.knTy @recTy
+                            .   ty                  =   foTy @fo_
+                recPatExpr  .   knTy                =   @extTy
+                            .   tyVarMp             =   foVarMp @fo_ |=> @lhs.tyVarMp
+                patExpr     .   knTy                =   @patTy
+%%]
 SEM RecPatExpr
   | Empty       loc         .   fo_                 =   fitsIn (@lhs.fiOpts) @fe @lUniq @lhs.tyVarMp (@lhs.tyVarMp |=> @lhs.knTy) tyRecEmpty
                             .   ty                  =   foTy @fo_
@@ -267,5 +302,4 @@ SEM RecPatExpr
                 recPatExpr  .   knTy                =   @knRecTy
                             .   tyVarMp             =   foVarMp @fo_ |=> @lhs.tyVarMp
                 lhs         .   ty                  =   @patExpr.tyVarMp |=> @ty
-%%]
 

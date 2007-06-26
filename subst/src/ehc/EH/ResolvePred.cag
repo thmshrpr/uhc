@@ -10,6 +10,19 @@
 %%[10
 SEM Expr
   | Sel         loc         .   prUid               =   mkPrId basePrfCtxtId @lUniq2
+                            .   prOccL              =   [mkPredOcc (Pred_Lacks @knRowTy (Label_Lab @lbl)) @prUid @lhs.predScope]
+
+SEM RecExpr
+  | Ext         loc         .   prUid               =   mkPrId basePrfCtxtId @lUniq3
+  | Upd         loc         .   prUid               =   mkPrId basePrfCtxtId @lUniq4
+  | Ext Upd     loc         .   prOccL              =   [mkPredOcc (Pred_Lacks @knRowTy (Label_Lab @nm)) @prUid @lhs.predScope]
+
+SEM RecPatExpr
+  | Ext         loc         .   prUid               =   mkPrId basePrfCtxtId @lUniq3
+                            .   prOccL              =   [mkPredOcc (Pred_Lacks @rowTy (Label_Lab @nm)) @prUid @lhs.predScope]
+%%]
+SEM Expr
+  | Sel         loc         .   prUid               =   mkPrId basePrfCtxtId @lUniq2
                             .   prOccL              =   [mkPredOcc (Pred_Lacks (tyRecRow @recTy) (Label_Lab @lbl)) @prUid @lhs.predScope]
 
 SEM RecExpr
@@ -20,7 +33,6 @@ SEM RecExpr
 SEM RecPatExpr
   | Ext         loc         .   prUid               =   mkPrId basePrfCtxtId @lUniq3
                             .   prOccL              =   [mkPredOcc (Pred_Lacks (tyRecRow @knRecTy) (Label_Lab @nm)) @prUid @lhs.predScope]
-%%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Impl prove occurrence
@@ -39,15 +51,16 @@ SEM Expr
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%[9
+%%]
 SEM Expr
   | AppTop      loc         .   imSubsTy            =   @imTy
   | Lam         loc         .   imSubsTy            =   foVarMp @fo_fitF_ |=> @imTy
-%%]
 
 %%[9
 SEM Expr
-  | AppTop Lam  loc         .   (knPrL,knImplsTl)   =   implsPredsTail @predScope $ tyImpls @imSubsTy
+  | AppTop Lam  loc         .   (knPrL,knImplsTl)   =   implsPredsTailWithLkup (varmpImplsLookup2 @furtherTyVarMp) @predScope $ tyImplsWithLkup (varmpTyLookup2 @furtherTyVarMp) @imTy
 %%]
+  | AppTop Lam  loc         .   (knPrL,knImplsTl)   =   implsPredsTail @predScope $ tyImpls @imSubsTy
 
 %%[12
 SEM Expr
@@ -82,11 +95,14 @@ SEM Expr
 
 %%[9
 SEM Expr
+  | Lam AppTop  loc         .   impls2KnHd          =   tyImplsWithLkup (varmpTyLookup2 @furtherTyVarMp) @imTy
+                            .   poiLKnTl            =   implsPrIdsWithLkup (varmpImplsLookup2 @lhs.finTyVarMp) @knImplsTl
+                            .   poiL                =   implsPrIdsWithLkup (varmpImplsLookup2 @furtherTyVarMp) @impls2KnHd ++ @poiLKnTl
+%%]
   | Lam AppTop  loc         .   impls2KnHd          =   tyImpls @imSubsTy
                             .   impls2KnTl          =   @lhs.finTyVarMp |=> @knImplsTl
                             .   poiLKnTl            =   implsPrIds @impls2KnTl
                             .   poiL                =   implsPrIds @impls2KnHd ++ @poiLKnTl
-%%]
 
 %%[12
 SEM Expr

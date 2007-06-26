@@ -52,7 +52,7 @@
 %%[6_4 hs export(tvIsEx) 
 %%]
 
-%%[7 hs import(Data.List) export(kiRow,tyRowEmpty,tyRecEmpty,tySumEmpty,tyRowExtr,tyRecExtr,mkTyRow,mkTyRec,mkTySum,mkTyRecExt,tyRowExts) 
+%%[7 hs import(Data.List) export(kiRow,tyRowEmpty,tyRecEmpty,tySumEmpty,mkTyRow,mkTyRec,mkTySum,mkTyRecExt) 
 %%]
 
 %%[7 hs export(tyAppFunArg,tyAppFunConNm) 
@@ -73,7 +73,7 @@
 %%[9 hs export(Pred(..),predNm,predTy,tyPredNm,tyPredMatchNm,predMatchNm,tyPred,tyLImplsPreds,tyArrowImplsRes,tyArrowImplsArgRes,mkTyImpls,mkTyPr,tyPrArrowArgsRes)
 %%]
 
-%%[9 hs export(tyRecExts,tyRecRow,tyArrowArity,tyQuant)
+%%[9 hs export(tyArrowArity,tyQuant)
 %%]
 
 %%[9 hs export(Impls(..),ImplsVarId,mkImplsVar)
@@ -611,6 +611,11 @@ tyArrowArgRes t
        _                  -> (Ty_Any,t)
 %%]
 
+%%[9 hs export(tyArrowArgResWithLkup)
+tyArrowArgResWithLkup :: (TyVarId -> Maybe Ty) -> Ty -> (Ty,Ty)
+tyArrowArgResWithLkup lookup = tyVarLift lookup tyArrowArgRes tyArrowArgRes
+%%]
+
 %%[1.unMkTy.tyArrowArgsRes hs
 tyArrowArgsRes t
   =  case t of
@@ -631,24 +636,27 @@ tyAppFunArgs
                 _           -> (t,as)
 %%]
 
-%%[6.unMkTy.tyAppFunArgs -1.unMkTy.tyAppFunArgs hs
-tyAppFunArgs
+%%[6.unMkTy.tyAppFunArgs -1.unMkTy.tyAppFunArgs hs export(tyAppFunArgsWithLkup)
+-- Substitution aware
+tyAppFunArgsWithLkup lookup
   =  extr []
   where  extr as t
            =  case t of
-                Ty_Quant _ _ t  -> tyAppFunArgs t
+                Ty_Quant _ _ t  -> tyAppFunArgsWithLkup lookup t
                 Ty_App f a      -> extr (a:as) f
-                _               -> (t,as)
+                _               -> tyVarLift lookup (extr as) (flip (,) as) t
+
+tyAppFunArgs = tyAppFunArgsWithLkup (const Nothing)
 %%]
 
-%%[11 hs export(tyAppFunArgs')
-tyAppFunArgs'    :: Ty -> (Ty, TyL, Ty -> TyL -> Ty)
-tyAppFunArgs'
+%%[11 hs export(tyAppFunArgsMk)
+tyAppFunArgsMk    :: Ty -> (Ty, TyL, Ty -> TyL -> Ty)
+tyAppFunArgsMk
   =  extr []
   where  extr as t
            =  case t of
                 Ty_Quant q v t  -> (f,as,\f as -> Ty_Quant q v $ mk f as)
-                                where (f,as,mk) = tyAppFunArgs' t
+                                where (f,as,mk) = tyAppFunArgsMk t
                 Ty_App f a      -> extr (a:as) f
                 _               -> (t,as,\f as -> mkApp (f:as))
 %%]
@@ -720,6 +728,19 @@ tyArrowArity :: Ty -> Int
 tyArrowArity = length . tyArrowArgs
 %%]
 
+Substitution aware variants
+
+%%[9 hs export(tyArrowImplsResWithLkup,tyArrowImplsArgResWithLkup)
+tyArrowImplsArgResWithLkup :: (TyVarId -> Maybe Ty) -> Ty -> (TyL,Ty,Ty)
+tyArrowImplsArgResWithLkup lookup t
+  = (i,a,r)
+  where (i,t')  = tyArrowImplsResWithLkup lookup t
+        (a,r)   = tyArrowArgResWithLkup   lookup t'
+
+tyArrowImplsResWithLkup :: (TyVarId -> Maybe Ty) -> Ty -> (TyL,Ty)
+tyArrowImplsResWithLkup lookup = tyVarLift lookup tyArrowImplsRes tyArrowImplsRes
+%%]
+
 %%[9 hs
 tyArrowImplsRes  :: Ty -> (TyL,Ty)
 tyArrowImplsRes t
@@ -730,13 +751,10 @@ tyArrowImplsRes t
          where  isImpls (Ty_Pred  _)  = True
                 isImpls (Ty_Impls _)  = True
                 isImpls _             = False
-       _                  -> ([],t)
+       _   -> ([],t)
 
 tyArrowImplsArgRes  :: Ty -> (TyL,Ty,Ty)
-tyArrowImplsArgRes t
-  =  let  (i,t')  = tyArrowImplsRes  t
-          (a,r)   = tyArrowArgRes    t'
-     in   (i,a,r)
+tyArrowImplsArgRes = tyArrowImplsArgResWithLkup (const Nothing)
 
 tyLImplsPreds :: TyL -> ([Pred],Impls)
 tyLImplsPreds = foldr (\t (ps,i) -> case t of {Ty_Pred p -> (p:ps,i); Ty_Impls i -> (ps,i)}) ([],Impls_Nil)
@@ -781,10 +799,65 @@ mkTySum al = hsnSum `mkConApp` [tyRowEmpty `mkTyRow` al]
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%% Destruction for records
+%%% Substitution awareness
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%[7 hs
+withLkupLift :: (t -> Maybe TyVarId) -> (TyVarId -> Maybe t) -> (t -> x) -> (t -> x) -> t -> x
+withLkupLift get lookup yes no t
+  = if isJust mt then yes (fromJust mt) else no t
+  where mt = maybe Nothing lookup $ get t
+
+tyVarLift :: (TyVarId -> Maybe Ty) -> (Ty -> x) -> (Ty -> x) -> Ty -> x
+tyVarLift = withLkupLift tyMbVar
+%%]
+
+%%[9 hs
+implsTailVarLift :: (TyVarId -> Maybe Impls) -> (Impls -> x) -> (Impls -> x) -> Impls -> x
+implsTailVarLift = withLkupLift implsMbVar
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Destruction for records
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Substitution aware variants
+
+%%[7 hs export(tyRowExtsWithLkup,tyRecExtrWithLkup,tyRecExtsWithLkup)
+tyRowExtsWithLkup :: (TyVarId -> Maybe Ty) -> Ty -> (Ty,AssocL HsName Ty)
+tyRowExtsWithLkup lookup
+  =  extr []
+  where  extr as t
+           =  case t of
+                (Ty_Ext r l e) -> extr ((l,e):as) r
+                _              -> tyVarLift lookup (extr as) (flip (,) as) t
+
+tyRecExtsWithLkup :: (TyVarId -> Maybe Ty) -> Ty -> (Ty,AssocL HsName Ty)
+tyRecExtsWithLkup lookup t
+  =  case tyRecRowWithLkup lookup t of
+       Ty_Any  -> (Ty_Any,[])
+       row     -> tyRowExtsWithLkup lookup row
+
+tyRecRowWithLkup :: (TyVarId -> Maybe Ty) -> Ty -> Ty
+tyRecRowWithLkup lookup = tyVarLift lookup tyRecRow tyRecRow
+
+tyRowExtrWithLkup :: (TyVarId -> Maybe Ty) -> HsName -> Ty -> Maybe (Ty,Ty)
+tyRowExtrWithLkup lookup lbl t
+  = extr t
+  where extr t 
+          = case t of
+              (Ty_Ext r l e) | lbl == l   -> Just (r,e)
+                             | otherwise  -> maybe Nothing (\(r',e') -> Just (Ty_Ext r' l e,e')) (tyRowExtr lbl r)
+              _                           -> tyVarLift lookup extr (const Nothing) t
+
+tyRecExtrWithLkup :: (TyVarId -> Maybe Ty) -> HsName -> Ty -> Maybe (Ty,Ty)
+tyRecExtrWithLkup lookup lbl t
+  =  case tyRowExtrWithLkup lookup lbl (tyRecRowWithLkup lookup t) of
+       Nothing    -> Nothing
+       Just (r,e) -> Just (hsnRec `mkConApp` [r],e)
+%%]
+
+%%[7 hs export(tyRowExtr,tyRecExtr,tyRecExts,tyRecRow,tyRowExts)
 tyRecRow :: Ty -> Ty
 tyRecRow t
   =  case tyAppFunArgs t of
@@ -792,31 +865,16 @@ tyRecRow t
        _                                           -> Ty_Any
 
 tyRowExts :: Ty -> (Ty,AssocL HsName Ty)
-tyRowExts
-  =  extr []
-  where  extr as t
-           =  case t of
-                (Ty_Ext r l e) -> extr ((l,e):as) r
-                _              -> (t,as)
+tyRowExts = tyRowExtsWithLkup (const Nothing)
 
 tyRecExts :: Ty -> (Ty,AssocL HsName Ty)
-tyRecExts t
-  =  case tyRecRow t of
-       Ty_Any  -> (Ty_Any,[])
-       row     -> tyRowExts row
+tyRecExts = tyRecExtsWithLkup (const Nothing)
 
 tyRowExtr :: HsName -> Ty -> Maybe (Ty,Ty)
-tyRowExtr lbl t
-  =  case t of
-       (Ty_Ext r l e)   | lbl == l   -> Just (r,e)
-                        | otherwise  -> maybe Nothing (\(r',e') -> Just (Ty_Ext r' l e,e')) (tyRowExtr lbl r)
-       _                             -> Nothing
+tyRowExtr = tyRowExtrWithLkup (const Nothing)
 
 tyRecExtr :: HsName -> Ty -> Maybe (Ty,Ty)
-tyRecExtr lbl t
-  =  case tyRowExtr lbl (tyRecRow t) of
-       Nothing    -> Nothing
-       Just (r,e) -> Just (hsnRec `mkConApp` [r],e)
+tyRecExtr = tyRecExtrWithLkup (const Nothing)
 %%]
 
 %%[95 hs export(tyRecExts2)
@@ -867,6 +925,15 @@ tyRecOffset :: HsName -> Ty -> Int
 tyRecOffset lbl t
   =  let (_,exts) = tyRecExts t
       in tyExtsOffset lbl . tyRowCanonOrder $ exts
+%%]
+
+Substitution aware
+
+%%[8 hs export(tyRecOffsetWithLkup)
+tyRecOffsetWithLkup :: (TyVarId -> Maybe Ty) -> HsName -> Ty -> Int
+tyRecOffsetWithLkup lookup nm
+  = tyVarLift lookup o o
+  where o = tyRecOffset nm
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -932,19 +999,41 @@ predLFlatten
 %%% Deconstruction for implicits
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+Substitution aware
+
+%%[9 hs export(implsPredsTailWithLkup,tyImplsWithLkup,implsPrIdsWithLkup)
+implsPredsTailWithLkup' :: (TyVarId -> Maybe Impls) -> PredScope -> Impls -> ([(PredOcc,[ImplsProveOcc])],Impls)
+implsPredsTailWithLkup' lookup sc i
+  = extr i
+  where extr i
+          = case i of
+              Impls_Cons _ p pv ipos t
+                -> ((mkPredOcc p pv sc,ipos) : p',mi)
+                where (p',mi) = extr t
+              _ -> implsTailVarLift lookup extr ((,) []) i
+
+implsPredsTailWithLkup :: (TyVarId -> Maybe Impls) -> PredScope -> Impls -> ([PredOcc],Impls)
+implsPredsTailWithLkup lookup sc i
+  = (map fst is,t)
+  where (is,t) = implsPredsTailWithLkup' lookup sc i
+
+tyImplsWithLkup :: (TyVarId -> Maybe Ty) -> Ty -> Impls
+tyImplsWithLkup lookup = tyVarLift lookup tyImpls tyImpls
+
+implsPrIdsWithLkup :: (TyVarId -> Maybe Impls) -> Impls -> [PredOccId]
+implsPrIdsWithLkup lookup = map poPoi . fst . implsPredsTailWithLkup lookup initPredScope
+
+%%]
+
 %%[9 hs export(tyImpls,implsPredsTail,implsPredsMbTail,implsIsTail,tyIsImplsTail,tyImplsPreds,implsPrIds)
 tyImpls :: Ty -> Impls
 tyImpls (Ty_Impls i) = i
 
 implsPredsTail' :: PredScope -> Impls -> ([(PredOcc,[ImplsProveOcc])],Impls)
-implsPredsTail' sc (Impls_Cons _ p pv ipos t)  = ((mkPredOcc p pv sc,ipos) : p',mi)
-                                               where (p',mi) = implsPredsTail' sc t
-implsPredsTail' _  t                           = ([],t)
+implsPredsTail' = implsPredsTailWithLkup' (const Nothing)
 
 implsPredsTail :: PredScope -> Impls -> ([PredOcc],Impls)
-implsPredsTail sc i
-  = (map fst is,t)
-  where (is,t) = implsPredsTail' sc i
+implsPredsTail = implsPredsTailWithLkup (const Nothing)
 
 implsPredsMbTail :: Impls -> ([(PredOcc,[ImplsProveOcc])],Maybe Impls)
 implsPredsMbTail i =  case implsPredsTail' initPredScope i of
@@ -954,9 +1043,12 @@ implsPredsMbTail i =  case implsPredsTail' initPredScope i of
 tyImplsPreds :: PredScope -> Ty -> [PredOcc]
 tyImplsPreds sc = fst . implsPredsTail sc . tyImpls
 
+implsMbVar :: Impls -> Maybe TyVarId
+implsMbVar (Impls_Tail v _)  = Just v
+implsMbVar _                 = Nothing
+
 implsIsTail :: Impls -> Bool
-implsIsTail (Impls_Tail _ _)  = True
-implsIsTail _                 = False
+implsIsTail = isJust . implsMbVar
 
 tyIsImplsTail :: Ty -> Bool
 tyIsImplsTail = implsIsTail . tyImpls
@@ -964,9 +1056,10 @@ tyIsImplsTail = implsIsTail . tyImpls
 implsPrIds :: Impls -> [PredOccId]
 implsPrIds = map poPoi . fst . implsPredsTail initPredScope
 %%]
-tyIsImplsTail :: Ty -> Bool
-tyIsImplsTail (Ty_Impls (Impls_Tail _ _))  = True
-tyIsImplsTail _                            = False
+implsPredsTail' :: PredScope -> Impls -> ([(PredOcc,[ImplsProveOcc])],Impls)
+implsPredsTail' sc (Impls_Cons _ p pv ipos t)  = ((mkPredOcc p pv sc,ipos) : p',mi)
+                                               where (p',mi) = implsPredsTail' sc t
+implsPredsTail' _  t                           = ([],t)
 
 %%[9 hs export(implsTailVar)
 implsTailVar :: Impls -> ImplsVarId
