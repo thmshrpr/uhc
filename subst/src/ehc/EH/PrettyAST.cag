@@ -168,7 +168,7 @@ SEM Expr
                 loc     .  info_2   :=  [ mkInfo1 "knTy" (ppTy2 @lhs.tyVarMp @lhs.knTy)
                                         , mkInfo1 "foVarMp fo" (pp (foVarMp @fo_))
                                         ]
-  | Var         loc     .  info_2   :=  [ mkInfo1 "lhs.cnstr" (ppVarMpV @lhs.tyVarMp)
+  | Var         loc     .  info_2   :=  [ mkInfo1 "lhs.tyVarMp" (ppVarMpV @lhs.tyVarMp)
                                         , mkInfo1 "knTy" (ppTy2 @lhs.tyVarMp @lhs.knTy)
                                         , mkInfo1 "foVarMp fo" (pp (foVarMp @fo_))
                                         ]
@@ -189,6 +189,7 @@ SEM Expr
   | Let         loc     .  info_2   :=  [ mkInfo1 "decls.gathTySigGam" (pp @decls.gathTySigGam)
                                         , mkInfo1 "valGam_l_" (pp (gamTop @decls.patValGam))
                                         , mkInfo1 "valGam_l_+decls.tyVarMp" (pp (@decls.tyVarMp |=> gamTop @decls.patValGam))
+                                        -- , mkInfo1 "decls.tyVarMp" (ppVarMpV @decls.tyVarMp)
                                         ]
 
 SEM PatExpr
@@ -415,7 +416,7 @@ SEM RecExpr
                                         , mkInfo1 "foTy foKnRec" (ppTy2 (foVarMp @foKnRec |=> @lhs.tyVarMp) (foTy @foKnRec))
                                         , mkInfo1 "recTy" (ppTy2 @expr.tyVarMp @recTy)
                                         , mkInfo1 "ty" (ppTy2 @expr.tyVarMp @ty)
-                                        , mkInfo1 "finRecTy" (pp (@lhs.finTyVarMp |=> @recExpr.ty))
+                                        , mkInfo1 "finRecTy" (ppTy2 @lhs.finTyVarMp @recExpr.ty)
                                         ]
   | Expr        loc     .  ppAST    =   ppNestInfo @lhs.opts ["RecExpr","Expr"] [] [@expr.ppAST] @info
                         .  info     =   [ mkInfo1 "expr.ty" (ppTy2 @expr.tyVarMp @expr.ty)
@@ -569,7 +570,7 @@ SEM Expr
                                         , mkInfo1 "foVarMp @foKnRes" (pp (foVarMp @foKnRes))
                                         , mkInfo1 "ty" (pp @ty)
                                         , mkInfo1 "imTy" (pp @imTy)
-                                        , mkInfo1 "imTy+subst" (pp (@expr.tyVarMp |=> @imTy))
+                                        , mkInfo1 "imSubsTy" (ppTy2 @expr.tyVarMp @imSubsTy)
                                         ]
 %%]
 

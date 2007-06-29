@@ -180,11 +180,12 @@ SEM Expr
 %%[9.App
 SEM Expr
   | App AppImpred
-                loc         .   (knFunTy,imTy)      :=  let  [i,a] = mkNewUIDL 2 @lUniq
+                loc         .   (knFunTy,imTy,argTy):=  let  [i,a] = mkNewUIDL 2 @lUniq
                                                              im = mkImplsVar i
-                                                        in   ([im,mkTyVar a] `mkArrow` @lhs.knTy,im)
-                (_,arg.knTy,loc.ty_)                :=  tyArrowImplsArgResWithLkup (varmpTyLookup2 @func.tyVarMp) @func.ty
-                loc         .   (prOccL,implsTl)    =   implsPredsTailWithLkup (varmpImplsLookup2 @arg.tyVarMp) @lhs.predScope $ tyImplsWithLkup (varmpTyLookup2 @arg.tyVarMp) @imTy
+                                                             at = mkTyVar a
+                                                        in   ([im,at] `mkArrow` @lhs.knTy,im,at)
+                loc         .   ty_                 :=  @lhs.knTy
+                loc         .   (prOccL,implsTl)    =   implsPredsTailWithLkup (varmpImplsLookupCyc2 @arg.tyVarMp) @lhs.predScope $ tyImplsWithLkup (varmpTyLookupCyc2 @arg.tyVarMp) @imTy
                 lhs			.	tyVarMp				=	@prvOccTlVarMp |=> @arg.tyVarMp
 %%]
   | App AppImpred
@@ -276,7 +277,7 @@ SEM Expr
                                                              a = mkTyVar av
                                                              r = mkTyVar rv
                                                         in   (i,a,r,[i,a] `mkArrow` r)
-                loc         .   (knImpls,_,_)       =   tyArrowImplsArgResWithLkup (varmpTyLookup2 @furtherTyVarMp) (foTy @fo_fitF_)
+                loc         .   (knImpls,_,_)       =   tyArrowImplsArgResWithLkup (varmpTyLookupCyc2 @furtherTyVarMp) @funTy
                             .   ty                  :=  (@knImpls ++ [@arg.ty]) `mkArrow` @body.ty
 %%]
   | Lam         loc         .   (imTy,argTy,resTy,funTy)
@@ -321,11 +322,13 @@ SEM Expr
 
 %%[9.AppTop
 SEM Expr
-  | AppTop      loc         .   resTy               =   let  [i,r] = mkNewUIDL 2 @lUniq
-                                                        in   [mkImplsVar i] `mkArrow` mkTyVar r
+  | AppTop      loc         .   (imTy,knTopTy,resTy)=   let  [i,r] = mkNewUIDL 2 @lUniq
+                                                             im = mkImplsVar i
+                                                             rt = mkTyVar r
+                                                        in   (im,rt,[im] `mkArrow` rt)
                             .   foKnRes             =   fitsIn @lhs.fiOpts @fe @lUniq2 @lhs.tyVarMp @resTy @lhs.knTy
+                            .   knTy                :=  @knTopTy
                             .   furtherTyVarMp      =   foVarMp @foKnRes |=> @lhs.tyVarMp
-                            .   (imTy,knTy)         :=  tyArrowArgResWithLkup (varmpTyLookup2 @furtherTyVarMp) @resTy
                 expr        .   tyVarMp             =   @furtherTyVarMp
                 loc         .   ty                  =   [@imTy] `mkArrow` @expr.ty
 %%]
@@ -339,6 +342,8 @@ SEM Expr
                 loc         .   ty                  =   [@expr.tyVarMp |=> @imTy] `mkArrow` @expr.ty
   | AppTop      loc         .   knTy                =   tyEnsureNonAnyImpl @lUniq3 @lhs.knTy
                             .   foKnRes             =   let  fo = fitsIn (@lhs.fiOpts {fioBindRFirst = True}) @fe @lUniq2 @lhs.tyVarMp @resTy (@lhs.tyVarMp |=> @lhs.knTy)
+
+                            .   (imTy,knTy)         :=  tyArrowArgResWithLkup (varmpTyLookupCyc2 @furtherTyVarMp) @resTy
 
 %%[8.Undefined
 SEM Expr
@@ -547,20 +552,20 @@ SEM RecExpr
                                                         in   (r, tl `mkTyRecExt` [(@nm,e)])
                             .   foKnRec             =   fitsIn strongFIOpts @fe @lUniq2 @lhs.tyVarMp @knRecTy @lhs.knTy
                 (loc.knRecHasLab,loc.recKnTlTy,expr.knTy)
-                                                    =   maybe (False,foTy @foKnRec,Ty_Any) (\(r,e) -> (True,r,e)) $ tyRecExtrWithLkup (varmpTyLookup2 $ foVarMp @foKnRec) @nm $ foTy @foKnRec
+                                                    =   maybe (False,foTy @foKnRec,Ty_Any) (\(r,e) -> (True,r,e)) $ tyRecExtrWithLkup (varmpTyLookupCyc2 $ foVarMp @foKnRec) @nm $ foTy @foKnRec
                 recExpr     .   tyVarMp             =   foVarMp @foKnRec |=> @lhs.tyVarMp
                 loc         .   ty                  =   foTy @foKnRec
   | Ext         recExpr     .   knTy                =   @recKnTlTy
                             .   fiOpts              =   @lhs.fiOpts {fioNoRLabElimFor = @nm : fioNoRLabElimFor @lhs.fiOpts}
                 loc         .   recTy               =   @recExpr.ty
   | Upd         recExpr     .   knTy                =   if @knRecHasLab then @recKnTlTy `mkTyRecExt` [(@nm,mkNewTyVar @lUniq3)] else @recKnTlTy
-                loc         .   recTy               =   maybe Ty_Any fst $ tyRecExtrWithLkup (varmpTyLookup2 @expr.tyVarMp) @nm $ @recExpr.ty
+                loc         .   recTy               =   maybe Ty_Any fst $ tyRecExtrWithLkup (varmpTyLookupCyc2 @expr.tyVarMp) @nm $ @recExpr.ty
 
 SEM Expr
   | Sel         (loc.knRowTy,loc.knExprTy)          =   let r = mkNewTyVar @lUniq
                                                         in  (r, (hsnRec `mkConApp` [r]) `mkTyRecExt` [(@lbl,@lhs.knTy)])
                 expr		.	knTy				=	@knExprTy
-                loc         .   (_,ty)              =   maybe (Ty_Any,Ty_Any) id (tyRecExtrWithLkup (varmpTyLookup2 @expr.tyVarMp) @lbl @expr.ty)
+                loc         .   (_,ty)              =   maybe (Ty_Any,Ty_Any) id (tyRecExtrWithLkup (varmpTyLookupCyc2 @expr.tyVarMp) @lbl @expr.ty)
   | Rec         loc         .   knRecTy             =   let  r = mkNewTyVar @lUniq
                                                         in   hsnRec `mkConApp` [r]
                             .   fo_                 =   fitsIn @fiOpts @fe @lUniq2 @lhs.tyVarMp @knRecTy @lhs.knTy
@@ -599,7 +604,7 @@ SEM Expr
 SEM Expr
   | Sel         (loc.knRowTy,loc.knExprTy)          :=  let r = mkNewTyVar @lUniq
                                                         in  (r, [Ty_Impls Impls_Nil] `mkArrow` ((hsnRec `mkConApp` [r]) `mkTyRecExt` [(@lbl,@lhs.knTy)]))
-                loc         .   (_,ty)              :=  maybe (Ty_Any,Ty_Any) id (tyRecExtrWithLkup (varmpTyLookup2 @expr.tyVarMp) @lbl $ snd $ tyArrowImplsResWithLkup (varmpTyLookup2 @expr.tyVarMp) @expr.ty)
+                loc         .   (_,ty)              :=  maybe (Ty_Any,Ty_Any) id (tyRecExtrWithLkup (varmpTyLookupCyc2 @expr.tyVarMp) @lbl $ snd $ tyArrowImplsResWithLkup (varmpTyLookupCyc2 @expr.tyVarMp) @expr.ty)
 %%]
 SEM Expr
   | Sel         expr        .   knTy                :=  [Ty_Impls Impls_Nil] `mkArrow` ((hsnRec `mkConApp` [mkNewTyVar @lUniq]) `mkTyRecExt` [(@lbl,@lhs.knTy)])

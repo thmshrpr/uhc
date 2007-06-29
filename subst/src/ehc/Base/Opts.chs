@@ -28,6 +28,9 @@
 %%[8 import(Data.List,Data.Char,{%{EH}Base.Builtin}) export(cmdLineTrfs,trfOptOverrides)
 %%]
 
+%%[9 import(qualified Data.Set as Set)
+%%]
+
 %%[9 export(predFIOpts,implFIOpts)
 %%]
 
@@ -482,16 +485,12 @@ data FIOpts =  FIOpts   {  fioLeaveRInst     ::  Bool                ,  fioBindR
                         ,  fioBindLFirst     ::  Bool                ,  fioBindLBeforeR         ::  Bool
                         ,  fioMode           ::  FIMode              ,  fioUniq                 ::  UID
 %%]
-%%[4_2
-                        ,  fioBindToTyAlts   ::  Bool
-                        ,  fioDontBind       ::  TyVarIdL
-%%]
 %%[7.FIOpts
                         ,  fioNoRLabElimFor  ::  [HsName]
 %%]
 %%[9.FIOpts
                         ,  fioPredAsTy       ::  Bool                ,  fioAllowRPredElim       ::  Bool
-                        ,  fioDontBind       ::  TyVarIdL
+                        ,  fioDontBind       ::  TyVarIdS
 %%]
 %%[50.FIOpts
                         ,  fioAllowEqOpen    ::  Bool                ,  fioInstCoConst          ::  HowToInst
@@ -506,16 +505,12 @@ strongFIOpts =  FIOpts  {  fioLeaveRInst     =   False               ,  fioBindR
                         ,  fioBindLFirst     =   True                ,  fioBindLBeforeR         =   True
                         ,  fioMode           =   FitSubLR            ,  fioUniq                 =   uidStart
 %%]
-%%[4_2
-                        ,  fioBindToTyAlts   =   False
-                        ,  fioDontBind       =   []
-%%]
 %%[7.strongFIOpts
                         ,  fioNoRLabElimFor  =   []
 %%]
 %%[9.strongFIOpts
                         ,  fioPredAsTy       =   False               ,  fioAllowRPredElim       =   True
-                        ,  fioDontBind       =   []
+                        ,  fioDontBind       =   Set.empty
 %%]
 %%[50.FIOpts
                         ,  fioAllowEqOpen    =   False               ,  fioInstCoConst          =   instCoConst

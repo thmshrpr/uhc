@@ -14,7 +14,7 @@
 %%% Substitution for types
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%[2 module {%{EH}VarMp} import(Data.List, {%{EH}Base.Common}, {%{EH}Ty}) export(VarMp'(..), VarMp, emptyVarMp, varmpTyUnit, varmpTyLookup, varmpTyLookup2)
+%%[2 module {%{EH}VarMp} import(Data.List, {%{EH}Base.Common}, {%{EH}Ty}) export(VarMp'(..), VarMp, emptyVarMp, varmpTyUnit, varmpTyLookup)
 %%]
 
 %%[2 import(qualified Data.Map as Map,qualified Data.Set as Set,Data.Maybe)
@@ -196,14 +196,9 @@ type VarMp  = VarMp' TyVarId Ty
 %%]
 
 %%[2.varmpTyLookup
-varmpTyLookup :: Eq k => k -> VarMp' k v -> Maybe v
+varmpTyLookup, varmpLookup :: Eq k => k -> VarMp' k v -> Maybe v
 varmpTyLookup tv (VarMp s) = lookup tv s
 
--- flipped variant
-varmpTyLookup2 :: Eq k => VarMp' k v -> k -> Maybe v
-varmpTyLookup2 m v = varmpTyLookup v m
-
-varmpLookup :: Eq k => k -> VarMp' k v -> Maybe v
 varmpLookup = varmpTyLookup
 %%]
 
@@ -217,7 +212,7 @@ data VarMpInfo v
 %%[[10
   | VMILabel   !Label
   | VMIOffset  !LabelOffset
-  | VMIExts    !RowExts
+--  | VMIExts    !RowExts
 %%]]
 %%[[13
   | VMIPredSeq !PredSeq
@@ -242,10 +237,30 @@ varmpLookup = varmpLookup' (Just . id)
 
 varmpTyLookup :: Ord k => k -> VarMp' k (VarMpInfo v) -> Maybe v
 varmpTyLookup = varmpLookup' (\ci -> case ci of {VMITy t -> Just t; _ -> Nothing})
+%%]
 
--- flipped variant
+Cycle check variants
+
+%%[4 export(varmpTyLookupCyc)
+varmpTyLookupCyc :: TyVarId -> VarMp -> Maybe Ty
+varmpTyLookupCyc x m = lookupLiftCyc2 tyMbVar (varmpTyLookup2 m) Nothing Just x
+%%]
+
+Flipped variants
+
+%%[4.varmpTyLookup2
+varmpTyLookup2 :: Eq k => VarMp' k v -> k -> Maybe v
+varmpTyLookup2 m v = varmpTyLookup v m
+%%]
+
+%%[9 -4.varmpTyLookup2
 varmpTyLookup2 :: Ord k => VarMp' k (VarMpInfo v) -> k -> Maybe v
 varmpTyLookup2 m v = varmpTyLookup v m
+%%]
+
+%%[4 export(varmpTyLookupCyc2)
+varmpTyLookupCyc2 :: VarMp -> TyVarId -> Maybe Ty
+varmpTyLookupCyc2 x m = varmpTyLookupCyc m x
 %%]
 
 %%[4_2.varmpTyRevUnit
@@ -319,9 +334,9 @@ varmpLabelUnit v l = VarMp (Map.fromList [(v,VMILabel l)])
 varmpOffsetUnit :: UID -> LabelOffset -> VarMp
 varmpOffsetUnit v l = VarMp (Map.fromList [(v,VMIOffset l)])
 
+%%]
 varmpExtsUnit :: UID -> RowExts -> VarMp
 varmpExtsUnit v l = VarMp (Map.fromList [(v,VMIExts l)])
-%%]
 
 %%[13 export(varmpPredSeqUnit)
 varmpPredSeqUnit :: TyVarId -> PredSeq -> VarMp
@@ -335,13 +350,9 @@ varmpTailAddOcc o (Impls_Tail i os) = (t, varmpImplsUnit i t)
 varmpTailAddOcc _ x                 = (x,emptyVarMp)
 %%]
 
-%%[9 export(varmpImplsLookup,varmpImplsLookup2,varmpScopeLookup,varmpPredLookup,varmpAssNmLookup)
+%%[9 export(varmpImplsLookup,varmpScopeLookup,varmpPredLookup)
 varmpImplsLookup :: ImplsVarId -> VarMp -> Maybe Impls
 varmpImplsLookup = varmpLookup' (\ci -> case ci of {VMIImpls i -> Just i; _ -> Nothing})
-
--- flipped variant
-varmpImplsLookup2 :: VarMp -> ImplsVarId -> Maybe Impls
-varmpImplsLookup2 m v = varmpImplsLookup v m
 
 varmpScopeLookup :: TyVarId -> VarMp -> Maybe PredScope
 varmpScopeLookup = varmpLookup' (\ci -> case ci of {VMIScope s -> Just s; _ -> Nothing})
@@ -353,6 +364,41 @@ varmpAssNmLookup :: TyVarId -> VarMp -> Maybe VarUIDHsName
 varmpAssNmLookup = varmpLookup' (\ci -> case ci of {VMIAssNm p -> Just p; _ -> Nothing})
 %%]
 
+Cycle check variants
+
+%%[9 export(varmpImplsLookupImplsCyc,varmpImplsLookupCyc,varmpScopeLookupScopeCyc,varmpAssNmLookupAssNmCyc)
+varmpImplsLookupImplsCyc :: Impls -> VarMp -> Maybe Impls
+varmpImplsLookupImplsCyc x m = lookupLiftCyc1 implsMbVar (varmpImplsLookup2 m) Nothing Just x
+
+varmpImplsLookupCyc :: TyVarId -> VarMp -> Maybe Impls
+varmpImplsLookupCyc x m = lookupLiftCyc2 implsMbVar (varmpImplsLookup2 m) Nothing Just x
+
+varmpScopeLookupScopeCyc :: PredScope -> VarMp -> Maybe PredScope
+varmpScopeLookupScopeCyc x m = lookupLiftCyc1 pscpMbVar (varmpScopeLookup2 m) Nothing Just x
+
+varmpAssNmLookupAssNmCyc :: VarUIDHsName -> VarMp -> Maybe VarUIDHsName
+varmpAssNmLookupAssNmCyc x m = lookupLiftCyc1 vunmMbVar (varmpAssNmLookup2 m) Nothing Just x
+%%]
+
+Flipped variants
+
+%%[9 export(varmpPredLookup2,varmpScopeLookup2,varmpAssNmLookup2,varmpImplsLookupCyc2)
+varmpScopeLookup2 :: VarMp -> TyVarId -> Maybe PredScope
+varmpScopeLookup2 m v = varmpScopeLookup v m
+
+varmpImplsLookup2 :: VarMp -> ImplsVarId -> Maybe Impls
+varmpImplsLookup2 m v = varmpImplsLookup v m
+
+varmpImplsLookupCyc2 :: VarMp -> ImplsVarId -> Maybe Impls
+varmpImplsLookupCyc2 m v = varmpImplsLookupCyc v m
+
+varmpPredLookup2 :: VarMp -> TyVarId -> Maybe Pred
+varmpPredLookup2 m v = varmpPredLookup v m
+
+varmpAssNmLookup2 :: VarMp -> TyVarId -> Maybe VarUIDHsName
+varmpAssNmLookup2 m v = varmpAssNmLookup v m
+
+%%]
 
 %%[10 export(varmpLabelLookup,varmpOffsetLookup,varmpExtsLookup)
 varmpLabelLookup :: LabelVarId -> VarMp -> Maybe Label
@@ -361,9 +407,9 @@ varmpLabelLookup = varmpLookup' (\ci -> case ci of {VMILabel l -> Just l; _ -> N
 varmpOffsetLookup :: UID -> VarMp -> Maybe LabelOffset
 varmpOffsetLookup = varmpLookup' (\ci -> case ci of {VMIOffset l -> Just l; _ -> Nothing})
 
+%%]
 varmpExtsLookup :: UID -> VarMp -> Maybe RowExts
 varmpExtsLookup = varmpLookup' (\ci -> case ci of {VMIExts l -> Just l; _ -> Nothing})
-%%]
 
 %%[13 export(varmpPredSeqLookup)
 varmpPredSeqLookup :: TyVarId -> VarMp -> Maybe PredSeq
@@ -374,11 +420,14 @@ varmpPredSeqLookup = varmpLookup' (\ci -> case ci of {VMIPredSeq a -> Just a; _ 
 %%% Closure
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-Faulty: computes cycles incorrectly
+Faulty: computes cycles incorrectly, don't use 3d component of result.
 
-%%[2
-%%]
+%%[4 export(varmpClosure)
+%%[[4
 varmpClosure :: (TyVarId -> Bool) -> (x -> Set.Set TyVarId) -> VarMp' TyVarId x -> (Set.Set TyVarId,VarMp' TyVarId x,VarMp' TyVarId x)
+%%][9
+varmpClosure :: (TyVarId -> Bool) -> (VarMpInfo x -> Set.Set TyVarId) -> VarMp' TyVarId (VarMpInfo x) -> (Set.Set TyVarId,VarMp' TyVarId (VarMpInfo x),VarMp' TyVarId (VarMpInfo x))
+%%]]
 varmpClosure startWith tvof m
   = cl Set.empty m' emptyVarMp emptyVarMp
   where m' = varmpFilter (\k _ -> startWith k) m
@@ -394,6 +443,7 @@ varmpClosure startWith tvof m
                           | (_,x) <- varmpToAssocL mnew1
                           , let tvs = tvof x
                           ]
+%%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Error

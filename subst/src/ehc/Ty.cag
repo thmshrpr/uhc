@@ -76,7 +76,7 @@
 %%[9 hs export(tyArrowArity,tyQuant)
 %%]
 
-%%[9 hs export(Impls(..),ImplsVarId,mkImplsVar)
+%%[9 hs export(Impls(..),ImplsVarId)
 %%]
 
 %%[9 hs export(TyCtxt(..))
@@ -88,8 +88,9 @@
 %%[9_1 hs export(TyPlusId)
 %%]
 
-%%[10 hs export(Label(..),LabelAGItf(..),RowExts(..))
+%%[10 hs export(Label(..),LabelAGItf(..))
 %%]
+-- ,RowExts(..)
 
 %%[10 hs export(tyExtsOffset)
 %%]
@@ -105,6 +106,11 @@
 
 %%[1 ag import({Ty/AbsSyn})
 DERIVING *     : Show, Eq, Ord
+%%]
+
+Debug:
+
+%%[9 hs import(EH.Util.Pretty,EH.Util.Utils)
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -229,6 +235,12 @@ data PredScope
 
 initPredScope :: PredScope
 initPredScope = PredScope_Lev []
+%%]
+
+%%[9 hs export(pscpMbVar)
+pscpMbVar :: PredScope -> Maybe TyVarId
+pscpMbVar (PredScope_Var v) = Just v
+pscpMbVar _                 = Nothing
 %%]
 
 %%[9 hs
@@ -528,9 +540,12 @@ mkTyFreshProd = mkTyFreshProdFrom uidStart
 %%% Construction of implicitly parameterized (or predicated) type
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%[9 hs
+%%[9 hs export(mkImplsTail,mkImplsVar)
+mkImplsTail :: ImplsVarId -> Impls
+mkImplsTail v = Impls_Tail v []
+
 mkImplsVar :: ImplsVarId -> Ty
-mkImplsVar v = Ty_Impls (Impls_Tail v [])
+mkImplsVar v = Ty_Impls (mkImplsTail v)
 %%]
 
 %%[9 hs
@@ -802,19 +817,14 @@ mkTySum al = hsnSum `mkConApp` [tyRowEmpty `mkTyRow` al]
 %%% Substitution awareness
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%[7 hs
-withLkupLift :: (t -> Maybe TyVarId) -> (TyVarId -> Maybe t) -> (t -> x) -> (t -> x) -> t -> x
-withLkupLift get lookup yes no t
-  = if isJust mt then yes (fromJust mt) else no t
-  where mt = maybe Nothing lookup $ get t
-
+%%[6 hs
 tyVarLift :: (TyVarId -> Maybe Ty) -> (Ty -> x) -> (Ty -> x) -> Ty -> x
 tyVarLift = withLkupLift tyMbVar
 %%]
 
 %%[9 hs
-implsTailVarLift :: (TyVarId -> Maybe Impls) -> (Impls -> x) -> (Impls -> x) -> Impls -> x
-implsTailVarLift = withLkupLift implsMbVar
+implsTailVarLiftCyc :: (TyVarId -> Maybe Impls) -> (TyVarIdS -> Impls -> x) -> (Impls -> x) -> TyVarIdS -> Impls -> x
+implsTailVarLiftCyc = withLkupLiftCyc1 implsMbVar
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1004,13 +1014,13 @@ Substitution aware
 %%[9 hs export(implsPredsTailWithLkup,tyImplsWithLkup,implsPrIdsWithLkup)
 implsPredsTailWithLkup' :: (TyVarId -> Maybe Impls) -> PredScope -> Impls -> ([(PredOcc,[ImplsProveOcc])],Impls)
 implsPredsTailWithLkup' lookup sc i
-  = extr i
-  where extr i
+  = extr Set.empty i
+  where extr vsVisited i
           = case i of
               Impls_Cons _ p pv ipos t
                 -> ((mkPredOcc p pv sc,ipos) : p',mi)
-                where (p',mi) = extr t
-              _ -> implsTailVarLift lookup extr ((,) []) i
+                where (p',mi) = extr vsVisited t
+              _ -> implsTailVarLiftCyc lookup extr ((,) []) vsVisited i
 
 implsPredsTailWithLkup :: (TyVarId -> Maybe Impls) -> PredScope -> Impls -> ([PredOcc],Impls)
 implsPredsTailWithLkup lookup sc i
@@ -1043,10 +1053,6 @@ implsPredsMbTail i =  case implsPredsTail' initPredScope i of
 tyImplsPreds :: PredScope -> Ty -> [PredOcc]
 tyImplsPreds sc = fst . implsPredsTail sc . tyImpls
 
-implsMbVar :: Impls -> Maybe TyVarId
-implsMbVar (Impls_Tail v _)  = Just v
-implsMbVar _                 = Nothing
-
 implsIsTail :: Impls -> Bool
 implsIsTail = isJust . implsMbVar
 
@@ -1061,10 +1067,13 @@ implsPredsTail' sc (Impls_Cons _ p pv ipos t)  = ((mkPredOcc p pv sc,ipos) : p',
                                                where (p',mi) = implsPredsTail' sc t
 implsPredsTail' _  t                           = ([],t)
 
-%%[9 hs export(implsTailVar)
+%%[9 hs export(implsMbVar,implsTailVar)
+implsMbVar :: Impls -> Maybe TyVarId
+implsMbVar (Impls_Tail v _)  = Just v
+implsMbVar _                 = Nothing
+
 implsTailVar :: Impls -> ImplsVarId
-implsTailVar (Impls_Tail v _) = v
-implsTailVar _                = panic "implsTailVar"
+implsTailVar = panicJust "implsTailVar" . implsMbVar
 %%]
 
 %%[9 hs export(implsIsEmpty)

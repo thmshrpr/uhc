@@ -28,7 +28,11 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%[2.Substitutable
-infixr 6 |=>, |==>
+infixr 6 |=>
+%%]
+
+%%[4
+infixr 6 |==>
 %%]
 
 %%[2.Substitutable
@@ -56,13 +60,13 @@ ftvSet :: (Ord k,Substitutable x k subst) => x -> Set.Set k
 ftvSet = Set.fromList . ftv
 %%]
 
-%%[4
-%%]
-ftvClosureSet :: (Substitutable x TyVarId VarMp) => VarMp -> x -> (Set.Set TyVarId,VarMp)
+%%[9 export(ftvClosureSet)
+ftvClosureSet :: (Substitutable x TyVarId VarMp) => VarMp -> x -> Set.Set TyVarId
 ftvClosureSet varmp x
-  = (fvs `Set.union` fv,mcyc)
+  = fvs `Set.union` fv
   where fv = ftvSet x
         (fvs,_,mcyc) = varmpClosure (`Set.member` fv) ftvSet varmp
+%%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Substitutable instances
@@ -135,8 +139,7 @@ instance Substitutable Pred TyVarId VarMp where
   ftv    p  =  ftv (Ty_Pred p)
 
 instance Substitutable PredScope TyVarId VarMp where
-  s |=>  sc@(PredScope_Var v) = maybe sc id $ varmpScopeLookup v s
-  s |=>  sc                   = sc
+  s |=>  sc                   = maybe sc id $ varmpScopeLookupScopeCyc sc s
   ftv    (PredScope_Var v)    = [v]
   ftv    _                    = []
 
@@ -152,11 +155,8 @@ instance Substitutable Impls TyVarId VarMp where
   s |=>  i  =  (\(Ty_Impls i) -> i) (s |=> (Ty_Impls i))
   ftv    i  =  ftv (Ty_Impls i)
 %%]
-instance Substitutable PredOccId UID VarMp where
-  s |=>  i@(PredOccId_Var v) = maybe i id $ cnstrPoiLookup v s
-  s |=>  i                   = i
-  ftv    (PredOccId_Var v)   = [v]
-  ftv    _                   = []
+  s |=>  sc@(PredScope_Var v) = maybe sc id $ varmpScopeLookup v s
+  s |=>  sc                   = sc
 
 
 %%[9
@@ -170,7 +170,7 @@ instance Substitutable (VarMpInfo Ty) TyVarId VarMp where
                  VMIPredSeq  x  -> VMIPredSeq (s |=> x)
 %%]]
 %%[[10
-                 VMIExts     x  -> VMIExts (s |=> x)
+                 -- VMIExts     x  -> VMIExts (s |=> x)
                  vmi            -> vmi
 %%]]
   ftv   vmi =  case vmi of
@@ -182,7 +182,7 @@ instance Substitutable (VarMpInfo Ty) TyVarId VarMp where
                  VMIPredSeq  x  -> ftv x
 %%]]
 %%[[10
-                 VMIExts     x  -> ftv x
+                 -- VMIExts     x  -> ftv x
                  vmi            -> []
 %%]]
 %%]
@@ -190,12 +190,12 @@ instance Substitutable (VarMpInfo Ty) TyVarId VarMp where
 This is still/regretfully duplicated in Ty/Subst.cag, Ty/Ftv.cag
 
 %%[10
+%%]
 instance Substitutable RowExts TyVarId VarMp where
   s |=>  e@(RowExts_Var  v) = maybe e id $ varmpExtsLookup v s
   s |=>    (RowExts_Exts x) = RowExts_Exts $ assocLMapElt (s |=>) x
   ftv      (RowExts_Var  v) = [v]
   ftv    _                  = []
-%%]
 
 And this too...
 
