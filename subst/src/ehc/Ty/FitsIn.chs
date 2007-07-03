@@ -74,7 +74,7 @@ foAppLRCoe' opts (fCS,fLRCoe) c cs ce
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%% Internal interface
+%%% FitsIn Input
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%[4.FIIn export(FIIn(..))
@@ -116,6 +116,21 @@ instance PP FIIn where
 fiUpdOpts :: (FIOpts -> FIOpts) -> FIIn -> FIIn
 fiUpdOpts upd fi = fi {fiFIOpts = upd (fiFIOpts fi)}
 %%]
+
+%%[4
+fiLookupVar' :: (v -> VarMp -> Maybe x) -> v -> VarMp -> VarMp -> Maybe x
+fiLookupVar' lkup v m1 m2
+  = case lkup v m1 of
+      Nothing -> lkup v m2
+      j       -> j
+
+fiLookupTyVarCyc :: FIIn -> TyVarId -> Maybe Ty
+fiLookupTyVarCyc  fi v    =  fiLookupVar' varmpTyLookupCyc v (fiVarMpLoc fi) (fiVarMp fi)
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% FitsIn Environment
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%[4.FIEnv
 data FIEnv
@@ -319,17 +334,11 @@ fitsInFI fi ty1 ty2
                 | v `elem` ftv t    =  err [rngLift range Err_UnifyOccurs (fiAppVarMp fi ty1) (fiAppVarMp fi ty2) (fioMode (fiFIOpts fi)) v t (fioMode (fiFIOpts fi))]
                 | otherwise         =  bind fi v t
 
-%%[4.fitsIn.lookupTyVar
-            lookupVar' lkup v m1 m2 =  case lkup v m1 of
-                                         Nothing -> lkup v m2
-                                         j       -> j
-            lookupTyVarCyc  fi v    =  lookupVar' varmpTyLookupCyc v (fiVarMpLoc fi) (fiVarMp fi)
-%%]
 %%[9.fitsIn.lookupImplsVar
-            lookupImplsVarCyc fi v  =  lookupVar' varmpImplsLookupCyc v (fiVarMpLoc fi) (fiVarMp fi)
+            lookupImplsVarCyc fi v  =  fiLookupVar' varmpImplsLookupCyc v (fiVarMpLoc fi) (fiVarMp fi)
 %%]
 %%[10.fitsIn.lookupLabelVarCyc
-            lookupLabelCyc    fi v  =  lookupVar' varmpLabelLookupLabelCyc v (fiVarMpLoc fi) (fiVarMp fi)
+            lookupLabelCyc    fi v  =  fiLookupVar' varmpLabelLookupLabelCyc v (fiVarMpLoc fi) (fiVarMp fi)
 %%]
             tyVarIsBound tv fi      =  isJust $ lookupTyVar fi tv
 
@@ -456,8 +465,8 @@ fitsInFI fi ty1 ty2
 %%[7.fitsIn.fRow.Base
             fRow fi tr1 tr2 isRec isSum
                 = foR
-                where  (r1,exts1) = tyRowExtsWithLkup (lookupTyVarCyc fi) tr1
-                       (r2,exts2) = tyRowExtsWithLkup (lookupTyVarCyc fi) tr2
+                where  (r1,exts1) = tyRowExtsWithLkup (fiLookupTyVarCyc fi) tr1
+                       (r2,exts2) = tyRowExtsWithLkup (fiLookupTyVarCyc fi) tr2
                        (extsIn1,extsIn12,extsIn2) = split (tyRowCanonOrder exts1) (tyRowCanonOrder exts2)
                        split ees1@(e1:es1) ees2@(e2:es2)
                          = case e1 `rowExtCmp` e2 of
@@ -556,7 +565,7 @@ fitsInFI fi ty1 ty2
                                  r = CExpr_Var rn
                                  -- tr1s = foVarMp fo |=> tr1
                                  fi3 = fofi fo fi2
-                                 tr1s = uncurry mkTyRow $ tyRowExtsWithLkup (lookupTyVarCyc fi3) tr1
+                                 tr1s = uncurry mkTyRow $ tyRowExtsWithLkup (fiLookupTyVarCyc fi3) tr1
                                  (u',u2,u3,u4) = mkNewLevUID3 (foUniq fo)
                                  mkLSel n u = mkCExprSelCase (emptyRCEEnv globOpts) (Just $ hsnSuffix rn "!") r CTagRec n n (mkCExprHole globOpts u) Nothing
                                  mkLPred' r l u
@@ -714,7 +723,7 @@ fitsInFI fi ty1 ty2
                              (_,(t:_)) -> err [rngLift range Err_TyBetaRedLimit (fiAppVarMp fi t2) (fiAppVarMp fi t) limit]
                              _         -> head tries
               where limit = ehcOptTyBetaRedCutOffAt globOpts
-                    reduc = tyBetaRed (feTyGam $ fiEnv fi)
+                    reduc = tyBetaRed fi
                     rt1   = reduc t1
                     rt2   = reduc t2
                     tries = take (limit+1) $ try (t1 : rt1) (t2 : rt2)
@@ -729,10 +738,10 @@ fitsInFI fi ty1 ty2
                 | v1 == v2 && f1 == f2                        = res fi t1
             fVar f fi t1@(Ty_Var v1 f1)     t2
                 | isJust mbTy1                                = fVar f fi (fromJust mbTy1) t2
-                where mbTy1   = lookupTyVarCyc fi v1
+                where mbTy1   = fiLookupTyVarCyc fi v1
             fVar f fi t1                    t2@(Ty_Var v2 f2)
                 | isJust mbTy2                                = fVar f fi t1 (fromJust mbTy2)
-                where mbTy2   = lookupTyVarCyc fi v2
+                where mbTy2   = fiLookupTyVarCyc fi v2
             fVar f fi t1                    t2                = f fi t1 t2
 %%]
 
@@ -1172,10 +1181,10 @@ mkFitsInWrap env
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%[11
-tyBetaRed1 :: TyGam -> Ty -> Maybe Ty
-tyBetaRed1 tyGam tp
+tyBetaRed1 :: FIIn -> Ty -> Maybe Ty
+tyBetaRed1 fi tp
   = eval fun args
-  where (fun,args) = tyAppFunArgs tp
+  where (fun,args) = tyAppFunArgsWithLkup (fiLookupTyVarCyc fi) tp
         eval lam@(Ty_Lam fa b) args
           | lamLen <= argLen
               = Just (mkApp (subst |=> lamBody : drop lamLen args))
@@ -1193,9 +1202,10 @@ tyBetaRed1 tyGam tp
                   Nothing  -> Nothing
         eval _ _
               = Nothing
+        tyGam = feTyGam $ fiEnv fi
 
-tyBetaRed :: TyGam -> Ty -> [Ty]
-tyBetaRed tyGam = unfoldr (fmap (\t -> (t,t)) . tyBetaRed1 tyGam)
+tyBetaRed :: FIIn -> Ty -> [Ty]
+tyBetaRed fi = unfoldr (fmap (\t -> (t,t)) . tyBetaRed1 fi)
 %%]
 
 %%[11 export(tyBetaRedFull)
@@ -1204,7 +1214,7 @@ tyBetaRedFull fi ty
   = red ty
   where env = fiEnv fi
         lim     = ehcOptTyBetaRedCutOffAt $ feEHCOpts env
-        redl ty = take lim $ tyBetaRed (feTyGam env) ty
+        redl ty = take lim $ tyBetaRed fi ty
         -- red  ty = reda $ choose ty $ redl ty
         red  ty = choose ty $ redl ty
         reda ty

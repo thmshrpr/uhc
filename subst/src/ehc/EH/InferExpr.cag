@@ -200,6 +200,18 @@ SEM Expr
 SEM Expr
   | AppImpl     loc         .   knFunTy             =   [@argPr.ty] `mkArrow` @lhs.knTy
                 func        .   knTy                =   @knFunTy
+                loc         .   (knImpls,ty_)       =   tyArrowImplsResWithLkup (varmpTyLookupCyc2 @func.tyVarMp) @func.ty
+                            .   (knArgImpl,knResImpls)
+                                                    =   case @knImpls of
+                                                            (a:r)  -> (a,r)
+                                                            []     -> (Ty_Any,[])
+                            .   foPr                =   fitPredToEvid @lUniq @func.tyVarMp @knArgImpl @lhs.clGam
+                arg         .   knTy                =   foTy @foPr
+                            .   tyVarMp             =   foVarMp @foPr |=> @func.tyVarMp
+                loc         .   ty                  =   @knResImpls `mkArrow` @ty_
+%%]
+  | AppImpl     loc         .   knFunTy             =   [@argPr.ty] `mkArrow` @lhs.knTy
+                func        .   knTy                =   @knFunTy
                 loc         .   (knImpls,ty_)       =   tyArrowImplsRes @func.ty
                             .   (knArgImpl,knResImpls)
                                                     =   case @knImpls of
@@ -209,7 +221,6 @@ SEM Expr
                 arg         .   knTy                =   @func.tyVarMp |=> foTy @foPr
                             .   tyVarMp             =   foVarMp @foPr |=> @func.tyVarMp
                 loc         .   ty                  =   @arg.tyVarMp |=> (@knResImpls `mkArrow` @ty_)
-%%]
 
 -- generated from ruler rules into EHRulerRules, was 1.Lam
 %%[5.Lam
@@ -300,6 +311,19 @@ SEM Expr
 %%[12.LamImpl
 SEM Expr
   | LamImpl     loc         .   funTy               =   let  r = mkNewTyVar @lUniq
+                                                        in   [@argPr.ty] `mkArrow` r
+                            .   fo_fitF_            =   fitsIn (implFIOpts {fioBindRFirst=True}) @fe @lUniq2 @lhs.tyVarMp @funTy @lhs.knTy
+                            .   knImplsVarMp        =   foVarMp @fo_fitF_ |=> @lhs.tyVarMp
+                            .   (knImpls,ty_)       =   tyArrowImplsResWithLkup (varmpTyLookupCyc2 @knImplsVarMp) @funTy
+                            .   (knArgImpl,knResImpls)
+                                                    =   hdAndTl @knImpls
+                            .   foPr                =   fitPredToEvid @lUniq4 @knImplsVarMp @knArgImpl @lhs.clGam
+                arg         .   knTy                =   foTy @foPr
+                            .   tyVarMp             =   foVarMp @foPr |=> @knImplsVarMp
+                body        .   knTy                =   @knResImpls `mkArrow` @ty_
+                loc         .   ty                  =   [@knArgImpl] `mkArrow` @body.ty
+%%]
+  | LamImpl     loc         .   funTy               =   let  r = mkNewTyVar @lUniq
                                                         in   [@lhs.tyVarMp |=> @argPr.ty] `mkArrow` r
                             .   fo_fitF_            =   let  fo = fitsIn (implFIOpts {fioBindRFirst=True}) @fe @lUniq2 @lhs.tyVarMp @funTy (@lhs.tyVarMp |=> @lhs.knTy)
                                                         in   fo {foTy = foVarMp fo |=> @funTy}
@@ -312,7 +336,6 @@ SEM Expr
                             .   tyVarMp             =   foVarMp @foPr |=> @knImplsVarMp
                 body        .   knTy                =   @knResImpls `mkArrow` @ty_
                 loc         .   ty                  =   [@body.tyVarMp |=> @knArgImpl] `mkArrow` @body.ty
-%%]
 
 -- generated from ruler rules into EHRulerRules, was 2.AppTop
 %%[5.AppTop

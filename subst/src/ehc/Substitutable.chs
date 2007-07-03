@@ -127,7 +127,7 @@ instance Substitutable (VarMp' TyVarId Ty) TyVarId VarMp where
 
 %%[9.SubstitutableVarMp -4.SubstitutableVarMp
 instance Substitutable (VarMp' TyVarId (VarMpInfo Ty)) TyVarId VarMp where
-  s1@(VarMp sl1) |=>   s2@(VarMp sl2)  =   VarMp (sl1 `Map.union` Map.map (s1 |=>) sl2)
+  s1@(VarMp sl1) |=>   s2@(VarMp sl2)  =   VarMp (sl1 `Map.union` {- Map.map (s1 |=>) -} sl2)
   ftv                  (VarMp sl)      =   ftv $ Map.elems sl
 %%]
 

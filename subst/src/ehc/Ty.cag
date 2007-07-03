@@ -750,20 +750,21 @@ tyArrowImplsArgResWithLkup lookup t
         (a,r)   = tyArrowArgResWithLkup   lookup t'
 
 tyArrowImplsResWithLkup :: (TyVarId -> Maybe Ty) -> Ty -> (TyL,Ty)
-tyArrowImplsResWithLkup lookup = tyVarLift lookup tyArrowImplsRes tyArrowImplsRes
+tyArrowImplsResWithLkup lookup t
+  = extr t
+  where extr t = case t of
+                   (Ty_App (Ty_App (Ty_Con nm) a) r)
+                     | hsnIsArrow nm && isImpls a
+                       -> let (as,r') = extr r in (a:as,r')
+                     where  isImpls (Ty_Pred  _)  = True
+                            isImpls (Ty_Impls _)  = True
+                            isImpls _             = False
+                   _   -> tyVarLift lookup extr ((,) []) t
 %%]
 
 %%[9 hs
-tyArrowImplsRes  :: Ty -> (TyL,Ty)
-tyArrowImplsRes t
-  =  case t of
-       (Ty_App (Ty_App (Ty_Con nm) a) r)
-         | hsnIsArrow nm && isImpls a
-           -> let (as,r') = tyArrowImplsRes r in (a:as,r')
-         where  isImpls (Ty_Pred  _)  = True
-                isImpls (Ty_Impls _)  = True
-                isImpls _             = False
-       _   -> ([],t)
+tyArrowImplsRes :: Ty -> (TyL,Ty)
+tyArrowImplsRes = tyArrowImplsResWithLkup (const Nothing)
 
 tyArrowImplsArgRes  :: Ty -> (TyL,Ty,Ty)
 tyArrowImplsArgRes = tyArrowImplsArgResWithLkup (const Nothing)
@@ -781,13 +782,6 @@ tyLamArgsRes
                 Ty_Lam a r  -> (a:as',r')
                             where (as',r') = extr r
                 _           -> ([],t)
-%%]
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%% Mapping through Ty_App structure
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-%%[11 hs
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
