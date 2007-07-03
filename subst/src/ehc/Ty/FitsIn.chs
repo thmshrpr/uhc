@@ -385,6 +385,7 @@ fitsInFI fi ty1 ty2
             fiPlusVarMp c fi = fi {fiVarMpLoc = c |+> fiVarMpLoc fi}
             fifo       fi fo = fo {foVarMp    = fiVarMpLoc fi, foUniq = fiUniq fi}
             fofi       fo fi = fi {fiVarMpLoc = foVarMp    fo, fiUniq = foUniq fo}
+            fiBind    v t fi = fiPlusVarMp (v `varmpTyUnit` t) fi
 %%]
 
 %%[4.fitsIn.FOUtils
@@ -737,28 +738,30 @@ fitsInFI fi ty1 ty2
             fVar f fi t1@(Ty_Var v1 f1)     t2@(Ty_Var v2 f2)
                 | v1 == v2 && f1 == f2                        = res fi t1
             fVar f fi t1@(Ty_Var v1 f1)     t2
-                | isJust mbTy1                                = fVar f fi (fromJust mbTy1) t2
+                | isJust mbTy1                                = fVar f ({- fiBind v1 t1' -} fi) t1' t2
                 where mbTy1   = fiLookupTyVarCyc fi v1
+                      t1'     = fromJust mbTy1
             fVar f fi t1                    t2@(Ty_Var v2 f2)
-                | isJust mbTy2                                = fVar f fi t1 (fromJust mbTy2)
+                | isJust mbTy2                                = fVar f ({- fiBind v2 t2' -} fi) t1 t2'
                 where mbTy2   = fiLookupTyVarCyc fi v2
+                      t2'     = fromJust mbTy2
             fVar f fi t1                    t2                = f fi t1 t2
 %%]
 
 %%[9
             fVarPred2 f fi tpr1                         	(Ty_Impls (Impls_Tail iv2 _))
-                | isJust mbTl                                 = f tpr1 (Ty_Impls (fromJust mbTl))
+                | isJust mbTl                                 = f fi tpr1 (Ty_Impls (fromJust mbTl))
                 where mbTl = lookupImplsVarCyc fi iv2
             fVarPred2 f fi (Ty_Impls (Impls_Tail iv1 _)) 	tpr2
-                | isJust mbTl                                 = f (Ty_Impls (fromJust mbTl)) tpr2
+                | isJust mbTl                                 = f fi (Ty_Impls (fromJust mbTl)) tpr2
                 where mbTl = lookupImplsVarCyc fi iv1
             fVarPred2 f fi tpr1                          	tpr2
-                = f tpr1 tpr2
+                = f fi tpr1 tpr2
             fVarPred1 f fi (Ty_Impls (Impls_Tail iv1 _))
-                | isJust mbTl                                 = f (Ty_Impls (fromJust mbTl))
+                | isJust mbTl                                 = f fi (Ty_Impls (fromJust mbTl))
                 where mbTl = lookupImplsVarCyc fi iv1
             fVarPred1 f fi tpr1
-                = f tpr1
+                = f fi tpr1
 %%]
 
 %%[4.fitsIn.Base
@@ -840,59 +843,58 @@ fitsInFI fi ty1 ty2
                 = fromJust mbfp
                 where  (u',u1,u2,u3)    = mkNewLevUID3 (fiUniq fi)
                        prfPredScope     = fePredScope (fiEnv fi)
-                       fi2              = fi {fiUniq = u'}
-                       mbfp             = fVarPred2 fP fi tpr1 tpr2
+                       mbfp             = fVarPred2 fP (fi {fiUniq = u'}) tpr1 tpr2
                        mberr            = Just (errClash fi t1 t2)
-                       fP tpr1@(Ty_Pred _)              tpr2@(Ty_Pred _)
+                       fP fi tpr1@(Ty_Pred _)              tpr2@(Ty_Pred _)
                             =  if foHasErrs pfo
                                then Nothing
                                else Just  ( foUpdTy ([foTy pfo] `mkArrow` foTy fo)
                                           $ foUpdLRCoe (mkIdLRCoe n)
                                           $ fo)
-                            where  pfo   = fVar f (fi2 {fiFIOpts = predFIOpts}) tpr2 tpr1
+                            where  pfo   = fVar f (fi {fiFIOpts = predFIOpts}) tpr2 tpr1
                                    n     = uidHNm u2
-                                   fo    = fVar ff (fofi pfo fi2) tr1 tr2
-                       fP tpr1@(Ty_Pred pr1)            (Ty_Impls (Impls_Tail iv2 ipo2))
+                                   fo    = fVar ff (fofi pfo fi) tr1 tr2
+                       fP fi tpr1@(Ty_Pred pr1)            (Ty_Impls (Impls_Tail iv2 ipo2))
                             =  Just (foUpdImplExplCoe iv2 (Impls_Cons iv2 pr1 (mkPrId basePrfCtxtId u2) ipo2 im2) tpr1 (mkIdLRCoe n) fo)
                             where  im2   = Impls_Tail u1 ipo2
                                    n     = uidHNm u2
-                                   fo    = fVar f fi2 tr1 ([Ty_Impls im2] `mkArrow` tr2)
-                       fP (Ty_Impls (Impls_Tail iv1 ipo1)) tpr2@(Ty_Pred pr2)
+                                   fo    = fVar f fi tr1 ([Ty_Impls im2] `mkArrow` tr2)
+                       fP fi (Ty_Impls (Impls_Tail iv1 ipo1)) tpr2@(Ty_Pred pr2)
                             =  Just (foUpdImplExplCoe iv1 (Impls_Cons iv1 pr2 (mkPrId basePrfCtxtId u2) ipo1 im1) tpr2 (mkIdLRCoe n) fo)
                             where  im1   = Impls_Tail u1 ipo1
                                    n     = uidHNm u2
-                                   fo    = fVar f fi2 ([Ty_Impls im1] `mkArrow` tr1) tr2
-                       fP (Ty_Impls (Impls_Tail iv1 _)) tpr2@(Ty_Impls im2@(Impls_Nil))
-                            =  Just (foUpdImplExpl iv1 im2 tpr2 (fVar f fi2 tr1 tr2))
-                       fP (Ty_Impls (Impls_Nil))   tpr2@(Ty_Impls im2@(Impls_Tail iv2 _))
-                            =  Just (foUpdImplExpl iv2 Impls_Nil (Ty_Impls Impls_Nil) (fVar f fi2 tr1 tr2))
-                       fP tpr1@(Ty_Impls (Impls_Tail iv1 _)) (Ty_Impls im2@(Impls_Tail iv2 _)) | iv1 == iv2
+                                   fo    = fVar f fi ([Ty_Impls im1] `mkArrow` tr1) tr2
+                       fP fi (Ty_Impls (Impls_Tail iv1 _)) tpr2@(Ty_Impls im2@(Impls_Nil))
+                            =  Just (foUpdImplExpl iv1 im2 tpr2 (fVar f fi tr1 tr2))
+                       fP fi (Ty_Impls (Impls_Nil))   tpr2@(Ty_Impls im2@(Impls_Tail iv2 _))
+                            =  Just (foUpdImplExpl iv2 Impls_Nil (Ty_Impls Impls_Nil) (fVar f fi tr1 tr2))
+                       fP fi tpr1@(Ty_Impls (Impls_Tail iv1 _)) (Ty_Impls im2@(Impls_Tail iv2 _)) | iv1 == iv2
                             =  Just (res fi tpr1)
-                       fP (Ty_Impls (Impls_Tail iv1 ipo1)) (Ty_Impls im2@(Impls_Tail iv2 ipo2))
-                            =  Just (foUpdImplExplCoe iv1 im2' (Ty_Impls im2') (mkLRCoe (CoeImplApp iv2) (CoeImplLam iv2)) (fVar f fi2 tr1 tr2))
+                       fP fi (Ty_Impls (Impls_Tail iv1 ipo1)) (Ty_Impls im2@(Impls_Tail iv2 ipo2))
+                            =  Just (foUpdImplExplCoe iv1 im2' (Ty_Impls im2') (mkLRCoe (CoeImplApp iv2) (CoeImplLam iv2)) (fVar f fi tr1 tr2))
                             where im2' = Impls_Tail iv2 (ipo1 ++ ipo2)
-                       fP (Ty_Impls Impls_Nil)          (Ty_Impls Impls_Nil)
-                            =  Just (fVar f fi2 tr1 tr2)
-                       fP (Ty_Impls Impls_Nil)          (Ty_Impls _)
+                       fP fi (Ty_Impls Impls_Nil)          (Ty_Impls Impls_Nil)
+                            =  Just (fVar f fi tr1 tr2)
+                       fP fi (Ty_Impls Impls_Nil)          (Ty_Impls _)
                             =  mberr
-                       fP (Ty_Impls Impls_Nil)          (Ty_Pred _)
+                       fP fi (Ty_Impls Impls_Nil)          (Ty_Pred _)
                             =  mberr
-                       fP (Ty_Impls _)                  (Ty_Impls Impls_Nil)
+                       fP fi (Ty_Impls _)                  (Ty_Impls Impls_Nil)
                             =  mberr
-                       fP (Ty_Pred _)                   (Ty_Impls Impls_Nil)
+                       fP fi (Ty_Pred _)                   (Ty_Impls Impls_Nil)
                             =  mberr
-                       fP _                             _
+                       fP fi _                             _
                             =  Nothing
 %%]
-                       fP tpr1@(Ty_Pred _)              tpr2@(Ty_Pred _)
+                       fP fi tpr1@(Ty_Pred _)              tpr2@(Ty_Pred _)
                             =  if foHasErrs pfo
                                then Nothing
                                else Just  ( foUpdTy ([foVarMp fo |=> foTy pfo] `mkArrow` foTy fo)
                                           $ foUpdLRCoe (mkIdLRCoe n)
                                           $ fo)
-                            where  pfo   = fVar f (fi2 {fiFIOpts = predFIOpts}) tpr2 tpr1
+                            where  pfo   = fVar f (fi {fiFIOpts = predFIOpts}) tpr2 tpr1
                                    n     = uidHNm u2
-                                   fo    = fVar ff (fi2 {fiUniq = foUniq pfo}) (foVarMp pfo |=> tr1) (foVarMp pfo |=> tr2)
+                                   fo    = fVar ff (fi {fiUniq = foUniq pfo}) (foVarMp pfo |=> tr1) (foVarMp pfo |=> tr2)
 
 %%[9
             f fi  t1
@@ -900,29 +902,28 @@ fitsInFI fi ty1 ty2
                     | hsnIsArrow c2 && not (fioPredAsTy (fiFIOpts fi)) && isJust mbfp
                 = fromJust mbfp
                 where  (u',u1)          = mkNewLevUID (fiUniq fi)
-                       fi2              = fi {fiUniq = u'}
-                       mbfp             = fVarPred1 fP fi tpr2
+                       mbfp             = fVarPred1 fP (fi {fiUniq = u'}) tpr2
                        mkPrTy pr2 fo    = [Ty_Pred ({- foVarMp fo |=> -} pr2)] `mkArrow` foTy fo
-                       fSub pr2v pr2 tr2
+                       fSub fi pr2v pr2 tr2
                             =  let  pr2n  = poiHNm pr2v
                                     (fi3,cnstrMp)
-                                          = fiAddPr pr2n pr2v tpr2 fi2
+                                          = fiAddPr pr2n pr2v tpr2 fi
                                     fo    = fVar f fi3 t1 tr2
                                     rCoe  = mkLamLetCoe pr2n (poiId pr2v)
                                in   (foUpdCnstrMp cnstrMp fo,rCoe)
-                       fP (Ty_Impls (Impls_Nil))
+                       fP fi (Ty_Impls (Impls_Nil))
                             =  Just fo
-                            where fo = fVar f fi2 t1 tr2
-                       fP (Ty_Impls (Impls_Tail iv2 _))
+                            where fo = fVar f fi t1 tr2
+                       fP fi (Ty_Impls (Impls_Tail iv2 _))
                             =  Just (foUpdVarMp (iv2 `varmpImplsUnit` Impls_Nil) fo)
-                            where fo = fVar f fi2 t1 tr2
-                       fP (Ty_Impls (Impls_Cons _ pr2 pv2 _ im2))
+                            where fo = fVar f fi t1 tr2
+                       fP fi (Ty_Impls (Impls_Cons _ pr2 pv2 _ im2))
                             =  Just (foUpdLRCoe (lrcoeRSingleton rCoe) $ foUpdTy (mkPrTy pr2 fo) $ fo)
-                            where (fo,rCoe) = fSub pv2 pr2 ([Ty_Impls im2] `mkArrow` tr2)
-                       fP (Ty_Pred pr2)  | fioAllowRPredElim (fiFIOpts fi)
+                            where (fo,rCoe) = fSub fi pv2 pr2 ([Ty_Impls im2] `mkArrow` tr2)
+                       fP fi (Ty_Pred pr2)  | fioAllowRPredElim (fiFIOpts fi)
                             =  Just (foUpdLRCoe (lrcoeRSingleton rCoe) $ foUpdTy (mkPrTy pr2 fo) $ fo)
-                            where (fo,rCoe) = fSub (mkPrId basePrfCtxtId u1) pr2 tr2
-                       fP _ =  Nothing
+                            where (fo,rCoe) = fSub fi (mkPrId basePrfCtxtId u1) pr2 tr2
+                       fP fi _ =  Nothing
 %%]
 
 %%[9
@@ -932,33 +933,32 @@ fitsInFI fi ty1 ty2
                 = fromJust mbfp
                 where  (u',u1,u2,u3)    = mkNewLevUID3 (fiUniq fi)
                        prfPredScope     = fePredScope (fiEnv fi)
-                       fi2              = fi {fiUniq = u'}
-                       mbfp             = fVarPred1 fP fi tpr1
-                       fSub pv1 psc1 pr1 tr1
-                            =  let  fo    = fVar f fi2 tr1 t2
+                       mbfp             = fVarPred1 fP (fi {fiUniq = u'}) tpr1
+                       fSub fi pv1 psc1 pr1 tr1
+                            =  let  fo    = fVar f fi tr1 t2
                                     fs    = foVarMp fo
                                     prfPrL= [mkPredOcc ({- fs |=> -} pr1) pv1 psc1]
                                     coe   = mkAppCoe [mkCExprPrHole globOpts pv1]
                                in   (fo,coe,gathPredLToProveCnstrMp prfPrL)
-                       fP (Ty_Impls (Impls_Nil))
-                            =  Just (fVar f fi2 tr1 t2)
-                       fP (Ty_Impls (Impls_Tail iv1 _))
-                            =  Just (foUpdVarMp (iv1 `varmpImplsUnit` Impls_Nil) (fVar f fi2 tr1 t2))
-                       fP (Ty_Impls (Impls_Cons _ pr1 pv1 _ im1))
+                       fP fi (Ty_Impls (Impls_Nil))
+                            =  Just (fVar f fi tr1 t2)
+                       fP fi (Ty_Impls (Impls_Tail iv1 _))
+                            =  Just (foUpdVarMp (iv1 `varmpImplsUnit` Impls_Nil) (fVar f fi tr1 t2))
+                       fP fi (Ty_Impls (Impls_Cons _ pr1 pv1 _ im1))
                             =  Just (foUpdPrL [] cnstrMp $ foUpdLRCoe (lrcoeLSingleton lCoe) $ fo)
-                            where (fo,lCoe,cnstrMp) = fSub pv1 prfPredScope pr1 ([Ty_Impls im1] `mkArrow` tr1)
-                       fP (Ty_Pred pr1)
+                            where (fo,lCoe,cnstrMp) = fSub fi pv1 prfPredScope pr1 ([Ty_Impls im1] `mkArrow` tr1)
+                       fP fi (Ty_Pred pr1)
                             =  Just (foUpdPrL [] cnstrMp $ foUpdLRCoe (lrcoeLSingleton lCoe) $ fo)
-                            where (fo,lCoe,cnstrMp) = fSub (mkPrId basePrfCtxtId u1) prfPredScope pr1 tr1
-                       fP _ =  Nothing
+                            where (fo,lCoe,cnstrMp) = fSub fi (mkPrId basePrfCtxtId u1) prfPredScope pr1 tr1
+                       fP fi _ =  Nothing
 %%]
 
-                       fP im2@(Ty_Impls (Impls_Nil))
+                       fP fi im2@(Ty_Impls (Impls_Nil))
                             =  Just (foUpdTy ([im2] `mkArrow` foTy fo) $ fo)
-                            where fo = fVar f fi2 t1 tr2
-                       fP (Ty_Impls (Impls_Tail iv2 _))
+                            where fo = fVar f fi t1 tr2
+                       fP fi (Ty_Impls (Impls_Tail iv2 _))
                             =  Just (foUpdVarMp (iv2 `varmpImplsUnit` Impls_Nil) $ foUpdTy ([Ty_Impls (Impls_Nil)] `mkArrow` foTy fo) $ fo)
-                            where fo = fVar f fi2 t1 tr2
+                            where fo = fVar f fi t1 tr2
 
 %%[7
             f fi  t1@(Ty_App (Ty_Con n1) tr1)

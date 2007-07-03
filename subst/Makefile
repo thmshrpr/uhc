@@ -141,10 +141,10 @@ A_EH_TEST			:= $(word 1,$(wildcard test/*.eh))
 A_EH_TEST_EXP		:= $(addsuffix .exp$(VERSION_FIRST),$(A_EH_TEST))
 
 tst:
-	@echo $(EHC_ALL_DPDS_NOPREPROC)
+	@echo $(EHC_UUAGC_OPTS_WHEN_UHC_AST_SEM_$(EHC_VARIANT))
 
 tstv:
-	$(MAKE) EHC_VARIANT=8 tst
+	$(MAKE) EHC_VARIANT=100 tst
 
 initial-test-expect: $(A_EH_TEST_EXP)
 
