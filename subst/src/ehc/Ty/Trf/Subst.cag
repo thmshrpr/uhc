@@ -44,18 +44,6 @@ tyAppVarMp2 varmp ty
   = tyAppVarMp' varmp Map.empty ty
 %%]
 
-%%[10
-WRAPPER LabelAGItf
-%%]
-
-%%[10 hs export(labelAppVarMp)
-labelAppVarMp varmp label
-  = repl_Syn_LabelAGItf t
-  where t = wrap_LabelAGItf
-              (sem_LabelAGItf (LabelAGItf_AGItf label))
-              (Inh_LabelAGItf {varmp_Inh_LabelAGItf = varmp})
-%%]
-
 %%[4
 PRAGMA novisit
 %%]
@@ -102,23 +90,6 @@ tvRepl3 tv tvuse mk repl replv replho cycmpho
       TVBound -> (repl,emptyVarMp)
       TVSubst -> (repl,mk tv replv)
 %%]
-tvRepl :: TyVarId -> VarMp -> TVUseMp -> Ty -> (Ty,VarMp)
-tvRepl tv vmp ump repl
-  = case varmpTyLookup tv vmp of
-       Just t -> case Map.lookup tv ump of
-                   Nothing      -> tyAppVarMp' vmp (Map.insert tv TVSubst ump) t
-                   Just TVBound -> (repl,emptyVarMp)
-                   Just TVSubst -> (t,varmpTyUnit tv t)
-       _      -> (repl,emptyVarMp)
-
-tvRepl2 :: TyVarId -> VarMp -> TVUseMp -> Ty -> Ty -> VarMp -> (Ty,VarMp)
-tvRepl2 tv vmp ump repl replho cycmpho
-  = case varmpTyLookup tv vmp of
-       Just t -> case Map.lookup tv ump of
-                   Nothing      -> (replho,cycmpho)
-                   Just TVBound -> (repl,emptyVarMp)
-                   Just TVSubst -> (t,varmpTyUnit tv t)
-       _      -> (repl,emptyVarMp)
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Replacement
@@ -163,9 +134,12 @@ SEM PredSeq
 
 %%[3
 ATTR
-  AllTy
+  AllTyAndFlds
 %%[[4
   TyAGItf
+%%]]
+%%[[10
+  LabelAGItf
 %%]]
     [ tvUseMp: TVUseMp | | ]
 %%]
@@ -220,7 +194,7 @@ SEM PredSeq
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%[4
-ATTR TyAGItf AllTy  [ | | cycVarMp USE {`varmpPlus`} {emptyVarMp}: VarMp ]
+ATTR TyAGItf AllTyAndFlds  [ | | cycVarMp USE {`varmpPlus`} {emptyVarMp}: VarMp ]
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -365,3 +339,20 @@ SEM PredSeq
                                             :=  repl @repl $ varmpPredSeqLookup @av @lhs.varmp
 %%]
 
+tvRepl :: TyVarId -> VarMp -> TVUseMp -> Ty -> (Ty,VarMp)
+tvRepl tv vmp ump repl
+  = case varmpTyLookup tv vmp of
+       Just t -> case Map.lookup tv ump of
+                   Nothing      -> tyAppVarMp' vmp (Map.insert tv TVSubst ump) t
+                   Just TVBound -> (repl,emptyVarMp)
+                   Just TVSubst -> (t,varmpTyUnit tv t)
+       _      -> (repl,emptyVarMp)
+
+tvRepl2 :: TyVarId -> VarMp -> TVUseMp -> Ty -> Ty -> VarMp -> (Ty,VarMp)
+tvRepl2 tv vmp ump repl replho cycmpho
+  = case varmpTyLookup tv vmp of
+       Just t -> case Map.lookup tv ump of
+                   Nothing      -> (replho,cycmpho)
+                   Just TVBound -> (repl,emptyVarMp)
+                   Just TVSubst -> (t,varmpTyUnit tv t)
+       _      -> (repl,emptyVarMp)

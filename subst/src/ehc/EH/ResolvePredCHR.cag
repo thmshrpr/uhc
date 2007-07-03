@@ -7,32 +7,43 @@ ATTR NTPrf [ | | gathCnstrMp USE {`cnstrMpUnion`} {Map.empty}: CHRPredOccCnstrMp
 
 SEM Expr
   | IConst CConst Var Con
-                lhs         .   gathCnstrMp         =   foGathCnstrMp @fo_
-  | App         lhs         .   gathCnstrMp         =   cnstrMpUnions [gathPredLToProveCnstrMp $ @prOccL, @func.gathCnstrMp, @arg.gathCnstrMp]
-  | TypeAs      lhs         .   gathCnstrMp         =   cnstrMpUnions [foGathCnstrMp @fo_, foGathCnstrMp @fo_fitDown, @expr.gathCnstrMp]
-  | Let         loc         .   gathCnstrMp         =   cnstrMpUnions [@toProveElsewhereCnstrMp,@body.gathCnstrMp] -- for now
-  | Lam         lhs         .   gathCnstrMp         =   cnstrMpUnions [gathPredLToAssumeCnstrMp @knPrL,@arg.gathCnstrMp,@body.gathCnstrMp]
+                loc         .   hereCnstrMp         =   foGathCnstrMp @fo_
+                lhs         .   gathCnstrMp         =   @hereCnstrMp
+  | App         loc         .   hereCnstrMp         =   gathPredLToProveCnstrMp @prOccL
+                lhs         .   gathCnstrMp         =   cnstrMpUnions [@hereCnstrMp, @func.gathCnstrMp, @arg.gathCnstrMp]
+  | TypeAs      loc         .   hereCnstrMp         =   foGathCnstrMp @fo_
+                lhs         .   gathCnstrMp         =   cnstrMpUnions [@hereCnstrMp, foGathCnstrMp @fo_fitDown, @expr.gathCnstrMp]
+  | Let         loc         .   gathCnstrMp         =   cnstrMpUnions [@toProveElsewhereCnstrMp,@body.gathCnstrMp]
+  | Lam         loc         .   hereCnstrMp         =   gathPredLToAssumeCnstrMp @knPrL
+                lhs         .   gathCnstrMp         =   cnstrMpUnions [@hereCnstrMp,@arg.gathCnstrMp,@body.gathCnstrMp]
 %%[[12
-  | LamImpl     lhs         .   gathCnstrMp         =   cnstrMpUnions [gathPredLToAssumeCnstrMp @knPrL,@arg.gathCnstrMp,@body.gathCnstrMp]
+  | LamImpl     loc         .   hereCnstrMp         =   gathPredLToAssumeCnstrMp @knPrL
+                lhs         .   gathCnstrMp         =   cnstrMpUnions [@hereCnstrMp,@arg.gathCnstrMp,@body.gathCnstrMp]
 %%]]
-  | AppTop      lhs         .   gathCnstrMp         =   cnstrMpUnions [gathPredLToAssumeCnstrMp @knPrL,@expr.gathCnstrMp]
+  | AppTop      loc         .   hereCnstrMp         =   gathPredLToAssumeCnstrMp @knPrL
+                lhs         .   gathCnstrMp         =   cnstrMpUnions [@hereCnstrMp,@expr.gathCnstrMp]
 %%]
 
 %%[10
 SEM Expr
-  | Sel         lhs         .   gathCnstrMp         =   cnstrMpUnions [gathPredLToProveCnstrMp @prOccL, @expr.gathCnstrMp]
-  | Rec         lhs         .   gathCnstrMp         =   cnstrMpUnions [foGathCnstrMp @fo_, @recExpr.gathCnstrMp]
+  | Sel         loc         .   hereCnstrMp         =   gathPredLToProveCnstrMp @prOccL
+                lhs         .   gathCnstrMp         =   cnstrMpUnions [@hereCnstrMp, @expr.gathCnstrMp]
+  | Rec         loc         .   hereCnstrMp         =   foGathCnstrMp @fo_
+                lhs         .   gathCnstrMp         =   cnstrMpUnions [@hereCnstrMp, @recExpr.gathCnstrMp]
 
 SEM RecExpr
-  | Ext Upd     lhs         .   gathCnstrMp         =   cnstrMpUnions [gathPredLToProveCnstrMp @prOccL, @recExpr.gathCnstrMp, @expr.gathCnstrMp]
+  | Ext Upd     loc         .   hereCnstrMp         =   gathPredLToProveCnstrMp @prOccL
+                lhs         .   gathCnstrMp         =   cnstrMpUnions [@hereCnstrMp, @recExpr.gathCnstrMp, @expr.gathCnstrMp]
 
 SEM RecPatExpr
-  | Ext         lhs         .   gathCnstrMp         =   cnstrMpUnions [gathPredLToProveCnstrMp @prOccL, @recPatExpr.gathCnstrMp, @patExpr.gathCnstrMp]
+  | Ext         loc         .   hereCnstrMp         =   gathPredLToProveCnstrMp @prOccL
+                lhs         .   gathCnstrMp         =   cnstrMpUnions [@hereCnstrMp, @recPatExpr.gathCnstrMp, @patExpr.gathCnstrMp]
 %%]
 
 %%[97
 SEM PatExpr
-  | Expr        lhs         .   gathCnstrMp         =   cnstrMpUnions [foGathCnstrMp @fo_, @expr.gathCnstrMp]
+  | Expr        loc         .   hereCnstrMp         =   foGathCnstrMp @fo_
+                lhs         .   gathCnstrMp         =   cnstrMpUnions [@hereCnstrMp, @expr.gathCnstrMp]
 %%]
 
 %%[9

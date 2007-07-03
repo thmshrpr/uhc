@@ -486,7 +486,7 @@ data FIOpts =  FIOpts   {  fioLeaveRInst     ::  Bool                ,  fioBindR
                         ,  fioMode           ::  FIMode              ,  fioUniq                 ::  UID
 %%]
 %%[7.FIOpts
-                        ,  fioNoRLabElimFor  ::  [HsName]
+                        ,  fioNoRLabElimFor  ::  [HsName]            ,  fioNoLLabElimFor        ::  [HsName]
 %%]
 %%[9.FIOpts
                         ,  fioPredAsTy       ::  Bool                ,  fioAllowRPredElim       ::  Bool
@@ -506,7 +506,7 @@ strongFIOpts =  FIOpts  {  fioLeaveRInst     =   False               ,  fioBindR
                         ,  fioMode           =   FitSubLR            ,  fioUniq                 =   uidStart
 %%]
 %%[7.strongFIOpts
-                        ,  fioNoRLabElimFor  =   []
+                        ,  fioNoRLabElimFor  =   []                  ,  fioNoLLabElimFor        =   []
 %%]
 %%[9.strongFIOpts
                         ,  fioPredAsTy       =   False               ,  fioAllowRPredElim       =   True
@@ -530,6 +530,10 @@ instance PP FIOpts where
             >#< "leaveRInst=" >|< pp (fioLeaveRInst o)
             >#< "bindLFirst=" >|< pp (fioBindLFirst o)
             >#< "bindRFirst=" >|< pp (fioBindRFirst o)
+%%]
+%%[7
+            >#< "fioNoLLabElimFor=" >|< pp (show $ fioNoLLabElimFor o)
+            >#< "fioNoRLabElimFor=" >|< pp (show $ fioNoRLabElimFor o)
 %%]
 %%[9
             >#< "allowRPredElim=" >|< pp (fioAllowRPredElim o)

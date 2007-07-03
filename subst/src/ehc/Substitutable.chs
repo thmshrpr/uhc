@@ -83,7 +83,7 @@ instance Substitutable Ty TyVarId VarMp where
 
 %%[10
 instance Substitutable Label TyVarId VarMp where
-  (|=>)             = labelAppVarMp
+  s |=> lb          = maybe lb id $ varmpLabelLookupLabelCyc lb s
   ftv (Label_Var v) = [v]
   ftv _             = []
 
@@ -93,6 +93,10 @@ instance Substitutable LabelOffset TyVarId VarMp where
   ftv (LabelOffset_Var v) = [v]
   ftv _                   = []
 %%]
+instance Substitutable Label TyVarId VarMp where
+  (|=>)             = labelAppVarMp
+  ftv (Label_Var v) = [v]
+  ftv _             = []
 
 %%[2.SubstitutableList
 instance (Ord k,Substitutable vv k subst) => Substitutable [vv] k subst where

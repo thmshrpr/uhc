@@ -92,9 +92,6 @@
 %%]
 -- ,RowExts(..)
 
-%%[10 hs export(tyExtsOffset)
-%%]
-
 %%[11 hs export(tyLamArgsRes)
 %%]
 
@@ -922,19 +919,20 @@ tyRowOffsetOrder :: (a -> Int) -> AssocL HsName a -> AssocL HsName a
 tyRowOffsetOrder off = sortOn (off . snd)
 %%]
 
-%%[8 hs
-tyExtsOffset :: HsName -> AssocL HsName a -> Int
+%%[8 hs export(tyExtsOffset)
+tyExtsOffset :: HsName -> AssocL HsName a -> (Int,Presence)
 tyExtsOffset lbl exts
   = find 0 lbl exts
   where find o l (e:es) = case (l,undefined) `rowExtCmp` e of
                             GT -> find (o+1) l es
-                            _  -> o
-        find o _ []     = o
+                            EQ -> (o,Present)
+                            LT -> (o,Absent)
+        find o _ []     = (o,Absent)
 
 tyRecOffset :: HsName -> Ty -> Int
 tyRecOffset lbl t
-  =  let (_,exts) = tyRecExts t
-      in tyExtsOffset lbl . tyRowCanonOrder $ exts
+  = fst $ tyExtsOffset lbl $ tyRowCanonOrder exts
+  where (_,exts) = tyRecExts t
 %%]
 
 Substitution aware
@@ -1089,6 +1087,12 @@ tyIsPredicated t            = isPr a
                             where a = tyArrowArgs t
                                   isPr (Ty_Pred p:_) = True
                                   isPr _             = False
+%%]
+
+%%[10 hs export(labelMbVar)
+labelMbVar :: Label -> Maybe TyVarId
+labelMbVar (Label_Var v)  = Just v
+labelMbVar _              = Nothing
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

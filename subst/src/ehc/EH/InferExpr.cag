@@ -547,31 +547,18 @@ SEM RecExpr
   | Empty       loc         .   fo_                 =   fitsIn (@lhs.fiOpts) @fe @lUniq @lhs.tyVarMp tyRecEmpty @lhs.knTy
                             .   ty                  =   foTy @fo_
                 lhs         .   tyVarMp             =   foVarMp @fo_ |=> @lhs.tyVarMp
-  | Ext Upd     loc         .   (knRowTy,knRecTy)   =   let  [r,e] = mkNewTyVarL 2 @lUniq
+  | Ext Upd     loc         .   (knRowTy,knRecTy,knTailTy,knExprTy)
+                                                    =   let  [r,e] = mkNewTyVarL 2 @lUniq
                                                              tl = hsnRec `mkConApp` [r]
-                                                        in   (r, tl `mkTyRecExt` [(@nm,e)])
-                            .   foKnRec             =   fitsIn strongFIOpts @fe @lUniq2 @lhs.tyVarMp @knRecTy @lhs.knTy
+                                                        in   (r, tl `mkTyRecExt` [(@nm,e)], tl, e)
+                            .   foKnRec             =   fitsIn @knFIOpts @fe @lUniq2 @lhs.tyVarMp @knRecTy @lhs.knTy
+                loc         .   recTyVarMp          =   foVarMp @foKnRec |=> @lhs.tyVarMp
                 (loc.knRecHasLab,loc.recKnTlTy,expr.knTy)
-                                                    =   maybe (False,foTy @foKnRec,Ty_Any) (\(r,e) -> (True,r,e)) $ tyRecExtrWithLkup (varmpTyLookupCyc2 $ foVarMp @foKnRec) @nm $ foTy @foKnRec
-                recExpr     .   tyVarMp             =   foVarMp @foKnRec |=> @lhs.tyVarMp
+                                                    =   maybe (False,@knTailTy,@knExprTy) (\(r,e) -> (True,r,e)) $ tyRecExtrWithLkup (varmpTyLookupCyc2 @recTyVarMp) @nm $ foTy @foKnRec
+                recExpr     .   tyVarMp             =   @recTyVarMp
                 loc         .   ty                  =   foTy @foKnRec
   | Ext         recExpr     .   knTy                =   @recKnTlTy
-                            .   fiOpts              =   @lhs.fiOpts {fioNoRLabElimFor = @nm : fioNoRLabElimFor @lhs.fiOpts}
-                loc         .   recTy               =   @recExpr.ty
-  | Upd         recExpr     .   knTy                =   if @knRecHasLab then @recKnTlTy `mkTyRecExt` [(@nm,mkNewTyVar @lUniq3)] else @recKnTlTy
-                loc         .   recTy               =   maybe Ty_Any fst $ tyRecExtrWithLkup (varmpTyLookupCyc2 @expr.tyVarMp) @nm $ @recExpr.ty
-
-SEM Expr
-  | Sel         (loc.knRowTy,loc.knExprTy)          =   let r = mkNewTyVar @lUniq
-                                                        in  (r, (hsnRec `mkConApp` [r]) `mkTyRecExt` [(@lbl,@lhs.knTy)])
-                expr		.	knTy				=	@knExprTy
-                loc         .   (_,ty)              =   maybe (Ty_Any,Ty_Any) id (tyRecExtrWithLkup (varmpTyLookupCyc2 @expr.tyVarMp) @lbl @expr.ty)
-  | Rec         loc         .   knRecTy             =   let  r = mkNewTyVar @lUniq
-                                                        in   hsnRec `mkConApp` [r]
-                            .   fo_                 =   fitsIn @fiOpts @fe @lUniq2 @lhs.tyVarMp @knRecTy @lhs.knTy
-                recExpr     .   knTy                =   @knRecTy
-                            .   tyVarMp             =   foVarMp @fo_ |=> @lhs.tyVarMp
-                loc         .   ty                  =   foTy @fo_
+  | Upd         recExpr     .   knTy                =   @recKnTlTy `mkTyRecExt` [(@nm,mkNewTyVar @lUniq3)]
 %%]
 SEM RecExpr
   | Empty       loc         .   fo_                 =   fitsIn (@lhs.fiOpts) @fe @lUniq @lhs.tyVarMp tyRecEmpty (@lhs.tyVarMp |=> @lhs.knTy)
@@ -590,6 +577,20 @@ SEM RecExpr
   | Upd         recExpr     .   knTy                =   if @knRecHasLab then @recKnTlTy `mkTyRecExt` [(@nm,mkNewTyVar @lUniq3)] else @recKnTlTy
                 loc         .   recTy               =   (@expr.tyVarMp |=>) . maybe Ty_Any fst . tyRecExtr @nm $ @recExpr.ty
 
+
+%%[7
+SEM Expr
+  | Sel         (loc.knRowTy,loc.knExprTy)          =   let r = mkNewTyVar @lUniq
+                                                        in  (r, (hsnRec `mkConApp` [r]) `mkTyRecExt` [(@lbl,@lhs.knTy)])
+                expr		.	knTy				=	@knExprTy
+                loc         .   (_,ty)              =   maybe (Ty_Any,Ty_Any) id (tyRecExtrWithLkup (varmpTyLookupCyc2 @expr.tyVarMp) @lbl @expr.ty)
+  | Rec         loc         .   knRecTy             =   let  r = mkNewTyVar @lUniq
+                                                        in   hsnRec `mkConApp` [r]
+                            .   fo_                 =   fitsIn @fiOpts @fe @lUniq2 @lhs.tyVarMp @knRecTy @lhs.knTy
+                recExpr     .   knTy                =   @knRecTy
+                            .   tyVarMp             =   foVarMp @fo_ |=> @lhs.tyVarMp
+                loc         .   ty                  =   foTy @fo_
+%%]
 SEM Expr
   | Sel         expr        .   knTy                =   (hsnRec `mkConApp` [mkNewTyVar @lUniq]) `mkTyRecExt` [(@lbl,@lhs.knTy)]
                 loc         .   (recTy,ty)          =   maybe (Ty_Any,Ty_Any) id (tyRecExtr @lbl @expr.ty)
@@ -599,6 +600,7 @@ SEM Expr
                 recExpr     .   knTy                =   foVarMp @fo_ |=> @knRecTy
                             .   tyVarMp             =   foVarMp @fo_ |=> @lhs.tyVarMp
                 loc         .   ty                  =   @recExpr.tyVarMp |=> foTy @fo_
+
 
 %%[9
 SEM Expr

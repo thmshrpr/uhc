@@ -323,13 +323,13 @@ fitsInFI fi ty1 ty2
             lookupVar' lkup v m1 m2 =  case lkup v m1 of
                                          Nothing -> lkup v m2
                                          j       -> j
-            lookupTyVar  fi v       =  lookupVar' varmpTyLookup v (fiVarMpLoc fi) (fiVarMp fi)
-            lookupTy     t  fi      =  case t of
-                                         Ty_Var v _ -> maybe t id $ lookupTyVar fi v
-                                         _          -> t
+            lookupTyVarCyc  fi v    =  lookupVar' varmpTyLookupCyc v (fiVarMpLoc fi) (fiVarMp fi)
 %%]
 %%[9.fitsIn.lookupImplsVar
-            lookupImplsVar fi v     =  lookupVar' varmpImplsLookup v (fiVarMpLoc fi) (fiVarMp fi)
+            lookupImplsVarCyc fi v  =  lookupVar' varmpImplsLookupCyc v (fiVarMpLoc fi) (fiVarMp fi)
+%%]
+%%[10.fitsIn.lookupLabelVarCyc
+            lookupLabelCyc    fi v  =  lookupVar' varmpLabelLookupLabelCyc v (fiVarMpLoc fi) (fiVarMp fi)
 %%]
             tyVarIsBound tv fi      =  isJust $ lookupTyVar fi tv
 
@@ -456,8 +456,8 @@ fitsInFI fi ty1 ty2
 %%[7.fitsIn.fRow.Base
             fRow fi tr1 tr2 isRec isSum
                 = foR
-                where  (r1,exts1) = tyRowExtsWithLkup (lookupTyVar fi) tr1
-                       (r2,exts2) = tyRowExtsWithLkup (lookupTyVar fi) tr2
+                where  (r1,exts1) = tyRowExtsWithLkup (lookupTyVarCyc fi) tr1
+                       (r2,exts2) = tyRowExtsWithLkup (lookupTyVarCyc fi) tr2
                        (extsIn1,extsIn12,extsIn2) = split (tyRowCanonOrder exts1) (tyRowCanonOrder exts2)
                        split ees1@(e1:es1) ees2@(e2:es2)
                          = case e1 `rowExtCmp` e2 of
@@ -474,24 +474,31 @@ fitsInFI fi ty1 ty2
                        fi2        = fi {fiUniq = u'}
                        
                        fR fi r1 r2@(Ty_Var v2 f2) e1@(_:_) e12 e2
-                         | f2 == TyVarCateg_Plain
+                         | tvCatIsPlain f2
                          = bind (fR fi2 r1 rv [] e12 e2) v2 rv e1
                          where  (fi2,rv) = mkTv fi
                        fR fi r1@(Ty_Var v1 f1) r2 e1 e12 e2@(_:_)
-                         | f1 == TyVarCateg_Plain
+                         | tvCatIsPlain f1
                          = bind (fR fi2 rv r2 e1 e12 []) v1 rv e2
-                         where  (fi2,rv) = mkTv fi
+                         where (fi2,rv) = mkTv fi
                        fR fi r1@(Ty_Con n1) _ _ _ e2@(_:_)
                          | n1 == hsnRowEmpty && isRec
                          = err [rngLift range Err_MissingRowLabels (assocLKeys e2) (fiAppVarMp fi tr1)]
-                       fR fi _ r2@(Ty_Con n2) e1@(_:_) e12 e2
+{-
+                       fR fi r1 r2@(Ty_Con n2) e1@(_:_) e12 e2
+                         | n2 == hsnRowEmpty && isRec && not (null labs)
+                         = err [rngLift range Err_MissingRowLabels labs (fiAppVarMp fi tr2)]
+                         where labs = fioNoLLabElimFor (fiFIOpts fi) `List.intersect` assocLKeys e1
+-}
+                       fR fi r1 r2@(Ty_Con n2) e1@(_:_) e12 e2
                          | n2 == hsnRowEmpty && isRec
-                         =  if null (fioNoRLabElimFor (fiFIOpts fi) `List.intersect` assocLKeys e1)
-                            then fR fi r2 r2 [] e12 e2
+                         =  if null labs
+                            then fR fi r1 r2 [] e12 e2
                             else err [rngLift range Err_TooManyRowLabels (assocLKeys e1) (fiAppVarMp fi tr2)]
-                       fR fi r1@(Ty_Con n1) _ e1 e12 e2@(_:_)
+                         where labs = fioNoRLabElimFor (fiFIOpts fi) `List.intersect` assocLKeys e1
+                       fR fi r1@(Ty_Con n1) r2 e1 e12 e2@(_:_)
                          | n1 == hsnRowEmpty && isSum
-                         = fR fi r1 r1 e1 e12 []
+                         = fR fi r1 r2 e1 e12 []
                        fR fi r1 r2@(Ty_Con n2) e1@(_:_) e12 e2
                          | n2 == hsnRowEmpty && isSum
                          = err [rngLift range Err_MissingRowLabels (assocLKeys e1) (fiAppVarMp fi tr2)]
@@ -509,11 +516,6 @@ fitsInFI fi ty1 ty2
 %%]]
                                        $ foUpdTy (foTy fo `mkTyRow` eL) fo
 %%]
-                       bind fo v r e = manyFO [fo,foUpdTy (foTy fo `mkTyRow` e') $ foUpdVarMp (v `varmpTyUnit` mkTyRow r' e') $ fo]
-                         where  e' = foVarMp fo |=> e
-                                r' = foVarMp fo |=> r
-                               eL = zip eKeys (map ((fVarMp |=>) . foTy) foL)
-                                       $ foUpdVarMp fVarMp fo
 
 %%[7.fitsIn.fRow.fRFinal
                        fR fi r1 r2 [] [] []
@@ -521,12 +523,20 @@ fitsInFI fi ty1 ty2
 %%]
 
 %%[10.fitsIn.fRow.fRFinal -7.fitsIn.fRow.fRFinal
+                       fR fi r1@(Ty_Var _ f1) r2@(Ty_Con n2) [] [] []
+                         | tvCatIsFixed f1 && n2 == hsnRowEmpty && isRec
+                         = res fi r2
+                       fR fi r1@(Ty_Var v1 f1) r2@(Ty_Con n2) [] [] []
+                         | tvCatIsPlain f1 && n2 == hsnRowEmpty && isRec
+                         = occurBind fi v1 r2
+                       fR fi r1 r2 [] [] []
+                         = (f fi r1 r2) {foLRCoe = emptyLRCoe}
+%%]
                        fR fi r1@(Ty_Var _ cat) r2@(Ty_Con n2) [] [] []
                          | tvCatIsFixed cat && n2 == hsnRowEmpty && isRec
                          = res fi r2
                        fR fi r1 r2 [] [] []
                          = (f fi r1 r2) {foLRCoe = emptyLRCoe}
-%%]
 
 %%[7.fitsIn.fRow.Final1
                        fR fi _ _ _ _ _
@@ -538,6 +548,83 @@ fitsInFI fi ty1 ty2
 %%]
 
 %%[10.fitsIn.fRow.foR -7.fitsIn.fRow.foR
+                       fo         = fR fi2 r1 r2 extsIn1 extsIn12 extsIn2
+                       foR        = (if isRec then foUpdRecCoe tr1 r1 r2 extsIn1 extsIn12 extsIn2 else id) fo 
+                       foUpdRecCoe tr1 r1 r2 e1 e12 e2 fo
+                         =  let  rn = uidHNm u1
+                                 predScope = fePredScope (fiEnv fi)
+                                 r = CExpr_Var rn
+                                 -- tr1s = foVarMp fo |=> tr1
+                                 fi3 = fofi fo fi2
+                                 tr1s = uncurry mkTyRow $ tyRowExtsWithLkup (lookupTyVarCyc fi3) tr1
+                                 (u',u2,u3,u4) = mkNewLevUID3 (foUniq fo)
+                                 mkLSel n u = mkCExprSelCase (emptyRCEEnv globOpts) (Just $ hsnSuffix rn "!") r CTagRec n n (mkCExprHole globOpts u) Nothing
+                                 mkLPred' r l u
+                                   =  let  r' = maybe Ty_Any fst $ tyRowExtr l r
+                                      in   (mkPredOcc (Pred_Lacks r' (Label_Lab l)) (mkPrId basePrfCtxtId u) predScope,r')
+                                 mkLPred r l u = fst (mkLPred' r l u)
+                                 rowCoeL = [ rc | rc@(_,c) <- sortByOn rowLabCmp fst (foRowCoeL fo) {-, not (coeIsId c) -} ]
+                                 (fuUpdL,prUpdL,tr1s',_)
+                                   =  foldr  (\(l,c) (fuL,prL,r,u)
+                                                ->  ( (l,(CExpr_TupUpd (cundefined globOpts) CTagRec l (mkCExprHole globOpts u) (c `coeEvalOn` mkLSel l u),Nothing)) : fuL
+                                                    , mkLPred r l u : prL,r,uidNext u
+                                                    )
+                                             )
+                                             ([],[],tr1s,u2) rowCoeL
+                                 (fuDelL,prDelL,_,_)
+                                   =  foldl  (\(fuL,prL,r,u) l
+                                                  ->  let  (pr,r') = mkLPred' r l u
+                                                      in   ( (l,(CExpr_TupDel (CExpr_Var hsnWild) CTagRec l (mkCExprHole globOpts u),Nothing)) : fuL
+                                                           , pr:prL,r',uidNext u
+                                                           )
+                                             )
+                                             ([],[],tr1s',u3) (sortBy rowLabCmp (assocLKeys e1))
+                                 fuL = fuUpdL ++ reverse fuDelL
+                                 (fBldL,prBldL,_,_)
+                                   =  foldr  (\l (fL,prL,r,u)
+                                                ->  ( (maybe id coeEvalOn (lookup l rowCoeL) $ mkLSel l u) : fL
+                                                    , mkLPred r l u : prL,r,uidNext u
+                                                    )
+                                             )
+                                             ([],[],tr1s,u3) (sortBy rowLabCmp ((assocLKeys . map fst $ e12) ++ assocLKeys e2))
+                            in   case r2 of
+                                   Ty_Con n2
+                                     | n2 == hsnRowEmpty && null fuL && null e2
+                                     ->  fo  {  foLRCoe = emptyLRCoe }
+{- -- when ext rec deletes are implemented
+                                     | n2 == hsnRowEmpty && null fuUpdL && not (null fuDelL) && null e2
+                                     ->  let coe = Coe (\e -> mkCExprLet CBindPlain [CBind_Bind rn e] (fuMkCExpr globOpts u4 fuDelL r))
+                                         in  fo  {  foLRCoe = lrcoeLSingleton coe
+                                                 ,  foPredOccL = prDelL ++ foPredOccL fo
+                                                 ,  foGathCnstrMp = gathPredLToProveCnstrMp prDelL `cnstrMpUnion` foGathCnstrMp fo
+                                                 ,  foUniq = u'
+                                                 }
+-}
+                                     | n2 == hsnRowEmpty && not (null fBldL)
+                                     ->  let coe = Coe (\e -> mkCExprLet CBindPlain [CBind_Bind rn e] (CExpr_Tup CTagRec `mkCExprApp` fBldL))
+                                         in  fo  {  foLRCoe = lrcoeLSingleton coe
+                                                 ,  foPredOccL = prBldL ++ foPredOccL fo
+                                                 ,  foGathCnstrMp = gathPredLToProveCnstrMp prBldL `cnstrMpUnion` foGathCnstrMp fo
+                                                 ,  foUniq = u'
+                                                 }
+                                   Ty_Var _ cat
+                                     | tvCatIsFixed cat && not (null fuL)
+                                     ->  fo  {  foLRCoe = lrcoeLSingleton coe
+                                             ,  foPredOccL = prUpdL ++ prDelL ++ foPredOccL fo
+                                             ,  foGathCnstrMp = gathPredLToProveCnstrMp (prUpdL ++ prDelL) `cnstrMpUnion` foGathCnstrMp fo
+                                             ,  foUniq = u'
+                                             }
+                                     where coe = Coe (\e -> mkCExprLet CBindPlain [CBind_Bind rn e] (fuMkCExpr globOpts u4 fuL r))
+                                   _ |  not (null fuUpdL)
+                                     ->  fo  {  foLRCoe = lrcoeLSingleton coe
+                                             ,  foPredOccL = prUpdL ++ foPredOccL fo
+                                             ,  foGathCnstrMp = gathPredLToProveCnstrMp prUpdL `cnstrMpUnion` foGathCnstrMp fo
+                                             ,  foUniq = u'
+                                             }
+                                     |  otherwise
+                                     ->  fo  {  foLRCoe = emptyLRCoe }
+                                     where coe = Coe (\e -> mkCExprLet CBindPlain [CBind_Bind rn e] (fuMkCExpr globOpts u4 fuUpdL r))
+%%]
                        fo         = fR fi2 r1 r2 extsIn1 extsIn12 extsIn2
                        foR        = (if isRec then foUpdRecCoe (foVarMp fo |=> r1) (foVarMp fo |=> r2) extsIn1 extsIn12 extsIn2 else id) fo 
                        foUpdRecCoe r1 r2 e1 e12 e2 fo
@@ -603,7 +690,6 @@ fitsInFI fi ty1 ty2
                                      |  otherwise
                                      ->  fo  {  foLRCoe = emptyLRCoe }
                                      where coe = Coe (\e -> mkCExprLet CBindPlain [CBind_Bind rn e] (fuMkCExpr globOpts u4 fuUpdL r))
-%%]
 
 %%[10.fitsIn.fRow.Coe
                        foUpdRecFldsCoe eKeys foL tr1 foR
@@ -643,25 +729,25 @@ fitsInFI fi ty1 ty2
                 | v1 == v2 && f1 == f2                        = res fi t1
             fVar f fi t1@(Ty_Var v1 f1)     t2
                 | isJust mbTy1                                = fVar f fi (fromJust mbTy1) t2
-                where mbTy1   = lookupTyVar fi v1
+                where mbTy1   = lookupTyVarCyc fi v1
             fVar f fi t1                    t2@(Ty_Var v2 f2)
                 | isJust mbTy2                                = fVar f fi t1 (fromJust mbTy2)
-                where mbTy2   = lookupTyVar fi v2
+                where mbTy2   = lookupTyVarCyc fi v2
             fVar f fi t1                    t2                = f fi t1 t2
 %%]
 
 %%[9
             fVarPred2 f fi tpr1                         	(Ty_Impls (Impls_Tail iv2 _))
                 | isJust mbTl                                 = f tpr1 (Ty_Impls (fromJust mbTl))
-                where mbTl = lookupImplsVar fi iv2
+                where mbTl = lookupImplsVarCyc fi iv2
             fVarPred2 f fi (Ty_Impls (Impls_Tail iv1 _)) 	tpr2
                 | isJust mbTl                                 = f (Ty_Impls (fromJust mbTl)) tpr2
-                where mbTl = lookupImplsVar fi iv1
+                where mbTl = lookupImplsVarCyc fi iv1
             fVarPred2 f fi tpr1                          	tpr2
                 = f tpr1 tpr2
             fVarPred1 f fi (Ty_Impls (Impls_Tail iv1 _))
                 | isJust mbTl                                 = f (Ty_Impls (fromJust mbTl))
-                where mbTl = lookupImplsVar fi iv1
+                where mbTl = lookupImplsVarCyc fi iv1
             fVarPred1 f fi tpr1
                 = f tpr1
 %%]
@@ -701,10 +787,12 @@ fitsInFI fi ty1 ty2
                             where fo = fVar ff fi prt1 prt2
 %%]
 %%[10
-                       fP (Pred_Lacks lt1 (Label_Lab l1))       (Pred_Lacks lt2 (Label_Lab l2))
-                            | l1 == l2
-                            = Just (fo,Pred_Lacks (foTy fo) (Label_Lab l1))
+                       fP (Pred_Lacks lt1 l1)       (Pred_Lacks lt2 l2)
+                            | l1' == l2'
+                            = Just (fo,Pred_Lacks (foTy fo) l1')
                             where fo = fVar ff fi lt1 lt2
+                                  l1' = maybe l1 id $ lookupLabelCyc fi l1
+                                  l2' = maybe l2 id $ lookupLabelCyc fi l2
 %%]
 %%[9
                        fP _                         _
@@ -990,6 +1078,12 @@ fitPredIntoPred fi pr1 pr2
         f pr1               	(Pred_Var pv2)                      = Nothing
         f (Pred_Var pv1)    	pr2                                 = Just (pr2,pv1 `varmpPredUnit` pr2)
 %%[[10
+        f (Pred_Lacks (Ty_Var rv1 TyVarCateg_Plain) l1) pr2 | isJust mbTy
+          = f (Pred_Lacks (fromJust mbTy) l1) pr2
+          where mbTy = varmpTyLookup rv1 (fiVarMp fi)
+        f (Pred_Lacks t1 (Label_Var lv1)) pr2 | isJust mbLb
+          = f (Pred_Lacks t1 (fromJust mbLb)) pr2
+          where mbLb = varmpLabelLookup lv1 (fiVarMp fi)
         f (Pred_Lacks (Ty_Var rv1 TyVarCateg_Plain)    (Label_Var lv1))
           (Pred_Lacks ty2                           l2@(Label_Lab lb2))
           = Just (Pred_Lacks ty2 l2, (rv1 `varmpTyUnit` ty2) |=> (lv1 `varmpLabelUnit` l2))

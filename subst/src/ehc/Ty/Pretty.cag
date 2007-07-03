@@ -549,9 +549,10 @@ SEM TyPlus
 SEM Label
   | Lab             lhs     .   pp      =   cfgPPTyPPHsn @lhs.cfg @nm
   | Var             lhs     .   pp      =   maybe (cfgPPTyPPVarDflt @lhs.cfg @lhs.cfg "l" @lv) id (tnLookupPP @lv @lhs.tnMap)
-%%]
+
 SEM Pred
   | Lacks           lhs     .   pp      =   @ty.pp >|< "\\" >|< @lab.pp
+%%]
   | RowSplit        (_,lhs.pp)          =   ppExts @lhs.cfg @ty.appFunNm @ty.appFunPP @exts.appArgPPL
 
 %%[13

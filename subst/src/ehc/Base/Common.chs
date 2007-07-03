@@ -1188,7 +1188,7 @@ withLkupLift get lookup yes no t
   = withLkupLiftCyc1 get lookup (\_ t -> yes t) no Set.empty t
 %%]
 
-%%[2 hs export(lookupLiftCyc1,lookupLiftCyc2)
+%%[2 hs
 lookupLiftCyc1 :: (x -> Maybe UID) -> (UID -> Maybe x) -> x' -> (x->x') -> x -> x'
 lookupLiftCyc1 get lookup dflt found x
   = lk Set.empty dflt found x
@@ -1199,5 +1199,20 @@ lookupLiftCyc2 get lookup dflt found x
   = maybe dflt (\x -> lookupLiftCyc1 get lookup (found x) found x) $ lookup x
 %%]
 
+%%[2 export(lookupLiftCycMb1,lookupLiftCycMb2)
+lookupLiftCycMb1 :: (x -> Maybe UID) -> (UID -> Maybe x) -> x -> Maybe x
+lookupLiftCycMb1 get lookup x = lookupLiftCyc1 get lookup Nothing Just x
+
+lookupLiftCycMb2 :: (x -> Maybe UID) -> (UID -> Maybe x) -> UID -> Maybe x
+lookupLiftCycMb2 get lookup x = lookupLiftCyc2 get lookup Nothing Just x
+%%]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Presence of something (just a boolean with meaning)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%[8 export(Presence(..))
+data Presence = Present | Absent deriving (Eq,Ord,Show)
+%%]
 
 

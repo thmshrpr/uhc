@@ -290,11 +290,11 @@ instance CHRCheckable FIIn Guard VarMp where
           chk (IsVisibleInScope scDst sc1) | pscpIsVisibleIn (chrAppSubst subst' scDst) (chrAppSubst subst' sc1)
             = return emptyVarMp
 %%[[10
-          chk (NonEmptyRowLacksLabel (Ty_Var tv TyVarCateg_Plain) (LabelOffset_Var vDst) ty lab) | not (null exts) -- tyIsEmptyRow row
+          chk (NonEmptyRowLacksLabel (Ty_Var tv TyVarCateg_Plain) (LabelOffset_Var vDst) ty lab) | not (null exts) && presence == Absent -- tyIsEmptyRow row
             = return $ (vDst `varmpOffsetUnit` LabelOffset_Off offset)
                        |=> (tv `varmpTyUnit` row)
             where (row,exts) = tyRowExtsWithLkup (varmpTyLookupCyc2 subst') ty
-                  offset = tyExtsOffset lab' $ tyRowCanonOrder exts
+                  (offset,presence) = tyExtsOffset lab' $ tyRowCanonOrder exts
                   (Label_Lab lab') = chrAppSubst subst' lab
 %%]]
           chk _

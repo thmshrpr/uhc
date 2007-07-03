@@ -899,6 +899,9 @@ SEM Expr
 ATTR DataFieldExpr [ fldFIOpts: FIOpts | | ]
 
 SEM RecExpr
+  | Ext         loc         .  knFIOpts             =   strongFIOpts
+                recExpr     .  fiOpts               =   @lhs.fiOpts {fioNoRLabElimFor = @nm : fioNoRLabElimFor @lhs.fiOpts}
+  | Upd         loc         .  knFIOpts             =   strongFIOpts -- {fioNoRLabElimFor = [@nm]}
   | Ext Upd     expr        .  fiOpts               =   strongFIOpts
 
 SEM Expr
