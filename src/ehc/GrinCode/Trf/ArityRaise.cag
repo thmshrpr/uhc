@@ -1,0 +1,46 @@
+Arity Raising
+What: Avoid boxing when it's known they're unboxed later anyway.
+
+Why: TODO: Write short summary here
+When: TODO: Figure this out
+
+Assumptions:
+- HPT table is available
+- TODO: Perhaps more?
+
+
+%%[(8 codegen grin) hs module {%{EH}GrinCode.Trf.ArityRaise} export(arityRaise)
+%%]
+
+
+%%[(8 codegen grin) ag import({GrinCode/AbsSyn})
+%%]
+%%[(8 codegen grin) hs import({%{EH}Base.Common(HsName, CTagsMp)})
+%%]
+%%[(8 codegen grin) hs import({%{EH}GrinCode})
+%%]
+%%[(8 codegen grin) hs import({%{EH}GrinCode.Common(HptMap, getTags, getNr, getEnvVar)})
+%%]
+%%[(8 codegen grin)
+WRAPPER GrAGItf
+%%]
+
+%%[(8 codegen grin) hs
+arityRaise :: (GrModule,HptMap) -> GrModule
+arityRaise (input,hptMap)
+  = let inh = Inh_GrAGItf {hptMap_Inh_GrAGItf=hptMap}
+        syn = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf input)) inh
+    in  grTrf_Syn_GrAGItf syn
+%%]
+
+%%[(8 codegen grin)
+-- synthesize a modified copy
+ATTR GrAGItf   [ | | grTrf: GrModule ]
+ATTR AllNT     [ | | grTrf: SELF     ]
+
+-- bring the HPT map down to the Expression level
+ATTR GrAGItf
+     GrModule
+     AllBind
+     AllGrExpr [ hptMap: HptMap | | ]
+%%]
