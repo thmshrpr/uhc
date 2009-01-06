@@ -55,6 +55,7 @@ GrinCode/ToSilly.cag
 GrinCode/Trf/ForceEval.cag
 GrinCode/Trf/AliasElim.cag
 GrinCode/Trf/AliasRename.cag
+GrinCode/Trf/ArityRaise.cag
 GrinCode/Trf/BuildAppBindings.cag
 GrinCode/Trf/CheckGrinInvariant.cag
 GrinCode/Trf/CleanupPass.cag

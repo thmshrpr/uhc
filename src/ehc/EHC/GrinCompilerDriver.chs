@@ -65,6 +65,8 @@
 %%]
 %%[(8 codegen grin) import({%{EH}GrinCode.Trf.SplitFetch(splitFetch)})
 %%]
+%%[(8 codegen grin) import({%{EH}GrinCode.Trf.ArityRaise(arityRaise)})
+%%]
 %%[(8 codegen grin) import({%{EH}GrinCode.ToSilly(grin2silly)})
 %%]
 %%[(8 codegen grin) import({%{EH}Silly(SilModule)})
@@ -137,7 +139,8 @@ doCompileGrin input opts
          ; transformCode         singleCase         "singleCase"       ; 
          ; transformCode         grFlattenSeq       "Flatten"          ; caWriteGrin "-143-singleCase"
          ; transformCodeIterated dropUnusedExpr     "DropUnusedExpr"   ; caWriteGrin "-144-unusedExprDropped"
-		 ; transformCode         mergeCase          "MergeCase"        ; caWriteGrin "-145-caseMerged"         
+	 ; transformCode         mergeCase          "MergeCase"        ; caWriteGrin "-145-caseMerged"         
+	 ; transformCodeUseHpt   arityRaise         "ArityRaise"       ; caWriteGrin "-148-arityRaised"
          ; transformCodeChgHpt   lowerGrin          "LowerGrin"        ; caWriteGrin "-151-lowered"
          ; transformCodeIterated copyPropagation    "CopyPropagation"  ; caWriteGrin "-161-after-cp"
          ; transformCodeIterated dropUnusedExpr     "DropUnusedExpr"   ; caWriteGrin "-169-unusedExprDropped"
