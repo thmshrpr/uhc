@@ -3,7 +3,7 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%[8
-ATTR AllExpr [ kn_Phi : PhiInfo  | | ]
+ATTR AllExpr [ knPhi : PhiInfo  | | ]
 
-ATTR AllExpr [ | | inf_Phi : PhiAnn ]
+ATTR AllExpr [ | | infPhi : PhiAnn ]
 %%]
