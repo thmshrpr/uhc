@@ -73,6 +73,9 @@
 %%[(8 codegen) import({%{EH}Core})
 %%]
 
+%%[(8 codegen) import({%{EH}AnnInfo})
+%%]
+
 %%[(9 hmtyinfer) import({%{EH}Ty.FitsInCommon})
 %%]
 
@@ -448,7 +451,13 @@ fixityGamLookup nm fg = maybe defaultFixityGamInfo id $ gamLookup nm fg
 data ValGamInfo
   = ValGamInfo
 %%[[(1 hmtyinfer || hmtyast)
-      { vgiTy :: Ty }		-- strictness has negative mem usage effect. Why??
+      { vgiTy :: Ty 		-- strictness has negative mem usage effect. Why??
+%%]]
+%%[[(8 htyinfer  || hmtyast)
+      , vgiPhi :: PhiAnn         -- This contains the information about the strictness
+%%]]
+%%[[1
+      }
 %%]]
       deriving Show
 
