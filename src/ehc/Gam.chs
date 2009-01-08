@@ -454,7 +454,7 @@ data ValGamInfo
       { vgiTy :: Ty 		-- strictness has negative mem usage effect. Why??
 %%]]
 %%[[(8 htyinfer  || hmtyast)
-      , vgiPhi :: PhiAnn         -- This contains the information about the strictness
+      , vgiPhi :: PhiInfo       -- This contains the information about the strictness
 %%]]
 %%[[1
       }

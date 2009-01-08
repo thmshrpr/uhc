@@ -64,6 +64,9 @@
 %%[(8 codegen) hs import({%{EH}Core},{%{EH}Core.Utils},{%{EH}Core.Pretty},{%{EH}Core.SubstCaseAltFail})
 %%]
 
+%%[(8 codegen) hs import({%{EH}AnnInfo})
+%%]
+
 %%[(9 codegen) hs import({%{EH}Core.Subst},{%{EH}Core.Coercion})
 %%]
 
@@ -151,6 +154,9 @@ WRAPPER AGItf
 %%]
 
 %%[(8 codegen).ToCore ag import({EH/ToCore})
+%%]
+
+%%[(8 codegen) ag import({EH/StrictExpr})
 %%]
 
 %%[(9 hmtyinfer) ag import({EH/ResolvePred},{EH/InferClass},{EH/InferClassCHR},{EH/ResolvePredCHR})
