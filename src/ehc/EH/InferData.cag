@@ -111,8 +111,8 @@ SEM DataConstr
 
                 lhs         .   patValGam           =   gamUnions
                                                           [ assocLToGam
-                                                              [ (@conNm, ValGamInfo @dataConTy)
-                                                              , (hsnUn @conNm, ValGamInfo @dataQuUnConTy)
+                                                              [ (@conNm, newValGamInfo @dataConTy) -- ValGamInfo @dataConTy)
+                                                              , (hsnUn @conNm, newValGamInfo @dataQuUnConTy) -- ValGamInfo @dataQuUnConTy)
                                                               ]
                                                           , @lhs.patValGam
                                                           ]
@@ -282,7 +282,8 @@ SEM DataField
 ATTR AllDataField AllDataConstr [ | | fldSelGam USE {`gamUnion`} {emptyGam}: ValGam ]
 
 SEM DataField
-  | Field       loc         .   fldSelGam           =   assocLToGam [ (l,ValGamInfo $ [@lhs.dataTy] `mkArrow` t) | (Just l,t) <- @fldTyL ]
+  | Field       loc         .   fldSelGam           =   assocLToGam [ (l, newValGamInfo $ [@lhs.dataTy] `mkArrow` t) | (Just l,t) <- @fldTyL ]
+--  | Field       loc         .   fldSelGam           =   assocLToGam [ (l,ValGamInfo $ [@lhs.dataTy] `mkArrow` t) | (Just l,t) <- @fldTyL ]
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -296,7 +297,8 @@ SEM DataField
   | Field       loc         .   fldUpdGam           =   let mk t = [t,fr @lhs.dataTy] `mkArrow` @lhs.dataTy
                                                                  where fv = tyFtvMp t
                                                                        fr dt = dt
-                                                        in  assocLToGam [ (hsnFldUpd l,ValGamInfo $ mk t) | (Just l,t) <- @fldTyL ]
+                                                        in  assocLToGam [ (hsnFldUpd l,newValGamInfo $ mk t) | (Just l,t) <- @fldTyL ]
+--                                                        in  assocLToGam [ (hsnFldUpd l,ValGamInfo $ mk t) | (Just l,t) <- @fldTyL ]
 %%]
                                                                        fr dt = tyFreshVar (`Map.member` fv) @lUniq dt
 

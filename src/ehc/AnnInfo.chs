@@ -16,6 +16,7 @@ data PhiInfo = Strict
              | PhiVar HsName
              | Meet PhiInfo PhiInfo
              | Join PhiInfo PhiInfo
+             | PhiEmpty
              deriving Show
 {-|
 -}

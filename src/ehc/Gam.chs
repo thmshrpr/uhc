@@ -453,13 +453,27 @@ data ValGamInfo
 %%[[(1 hmtyinfer || hmtyast)
       { vgiTy :: Ty 		-- strictness has negative mem usage effect. Why??
 %%]]
-%%[[(8 htyinfer  || hmtyast)
+%%[[8
       , vgiPhi :: PhiInfo       -- This contains the information about the strictness
 %%]]
-%%[[1
+%%[[(1 hmtyinfer || hmtyast)
       }
 %%]]
       deriving Show
+%%]
+
+%%[1 export(newValGamInfo)
+newValGamInfo :: Ty -> ValGamInfo
+newValGamInfo t = ValGamInfo { 
+%%[[(1 hmtyinfer || hmtyast)
+                            vgiTy  = t
+%%]]
+%%[[8 
+                          , vgiPhi = PhiEmpty
+%%]]
+%%[[1
+                          }
+%%]]
 
 type ValGam = Gam HsName ValGamInfo
 %%]
@@ -488,7 +502,14 @@ valGamLookup nm g
          |  hsnIsUn nm && hsnIsProd (hsnUnUn nm)
                  -> let pr = mkPr (hsnUnUn nm) in mkRes ([pr] `mkArrow` pr)
          where  mkPr nm  = mkTyFreshProd (hsnProdArity nm)
-                mkRes t  = Just (ValGamInfo (tyQuantifyClosed t))
+                mkRes t  = Just (ValGamInfo { vgiTy  = (tyQuantifyClosed t)
+%%[[8
+                                            , vgiPhi = PhiVar (hsnUnUn nm) 
+%%]]
+%%[[4
+                                            }
+                                )
+%%]]
 %%][4
          |  hsnIsProd nm
                  -> Just ValGamInfo

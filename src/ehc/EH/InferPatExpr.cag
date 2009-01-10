@@ -168,7 +168,7 @@ SEM PatExpr
                             .   varTy               =   @ty
                             .   addToGam            =   if @lhs.inclVarBind && @nm /= hsnWild
                                                         then  \g ->  gamAdd @nm
-                                                                       (ValGamInfo @varTy) g
+                                                                       (newValGamInfo @varTy) g -- (ValGamInfo @varTy) g
                                                         else  id
   | Var         lhs         .   valGam              =   @addToGam @lhs.valGam
   | VarAs       lhs         .   valGam              =   @addToGam @patExpr.valGam
