@@ -21,6 +21,7 @@ data PhiInfo = Strict
 {-|
 -}
 data PhiAnn = PhiAnnArrow PhiAnn PhiInfo PhiInfo
+            | PhiAnn      PhiInfo
             | NoPhiAnn 
             deriving Show
 
