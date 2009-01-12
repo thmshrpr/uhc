@@ -3,10 +3,10 @@
 -------------------------------------------------------------------------
 
 {-
-text2text converts a nested combination of typed text fragments to 1 typed output. A text fragment is delimited by '@@[type' and '@@]',
+text2text converts a nested combination of typed text fragments to 1 typed output. A text fragment is delimited by '@@[<type>' and '@@]',
 Text is processed in the following steps:
 - parse/analyse the chunk structure to find out the types of chunks
-- parse individual chunks according to their type
+- parse individual chunks according to their <type>
 - this gives a representation in a common Text format
 - which is then output into the requested representation.
 
@@ -31,7 +31,6 @@ import System.Console.GetOpt
 import IO
 
 import EH.Util.FPath
--- import EH.Util.Pretty
 
 import Common
 import Text
@@ -39,10 +38,11 @@ import Text.Trf.UniformContent
 import Text.Parser
 import Plugin
 
--- for plugin
+-- for plugin: generation of output
 import qualified Text.To.DocLaTeX       as O_DocLaTeX
 import qualified Text.To.TWiki          as O_TWiki
 
+-- for plugin: parsing input
 import qualified Text.Parser.DocLaTeX   as P_DocLaTeX
 
 -------------------------------------------------------------------------
@@ -55,7 +55,7 @@ main
        ; let oo@(o,n,errs)  = getOpt Permute cmdLineOpts args
              opts           = foldr ($) defaultOpts o
        ; if optHelp opts
-         then putStrLn (usageInfo "Usage text2text [options] [file|-]\n\noptions:" cmdLineOpts)
+         then putStrLn (usageInfo "Usage: text2text [options] [file|-]\n\noptions:" cmdLineOpts)
          else if null errs
               then  let (f,frest) = if null n then (emptyFPath,[]) else if head n == "-" then (emptyFPath,tail n) else (mkFPath (head n),tail n)
                     in  doCompile f opts
@@ -106,8 +106,10 @@ cmdLineOpts
   =  [ Option "" [s] (NoArg (\o -> o {optGenFor = t})) ("generate " ++ s) | (s,t) <- Map.toList texttypeMp
      ]
      ++
-     [  Option ""   ["help"]            (NoArg oHelp)
+     [  Option ""   ["help"]            			(NoArg oHelp)
           "output this help"
+     ,  Option ""   ["gen-header-numbering"]        (OptArg oGenHdrNr "yes|no")
+          "generate header numbering, default=no"
 {-
      ,  Option "h"  ["hs"]              (NoArg oHS)
           "generate code for haskell, default=no"
@@ -167,6 +169,7 @@ cmdLineOpts
      ]
   where  oDocLaTeX       o =  o {optGenFor = TextType_DocLaTeX}
          oHelp           o =  o {optHelp = True}
+         oGenHdrNr   ms  o =  yesno (\f o -> o {optGenHeaderNumbering = f}) ms o
 {-
          oHS             o =  o {optHS = True}
          oPreamble   ms  o =  yesno (\f o -> o {optPreamble = f}) ms o
@@ -203,6 +206,7 @@ cmdLineOpts
          oDef         s  o =  case break (\c -> c == ':' || c == '=') s of
                                 (k,(_:v)) -> o {optDefs = Map.insert k v (optDefs o)}
                                 _         -> o
+-}
          yesno' y n updO  ms  o
                            =  case ms of
                                 Just "yes"  -> updO y o
@@ -210,6 +214,7 @@ cmdLineOpts
                                 _           -> o
          yesno             =  yesno' True False
 
+{-
          parseDeps "" = []
          parseDeps (',' : rest) = parseDeps rest
          parseDeps s

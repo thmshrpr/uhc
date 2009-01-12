@@ -139,8 +139,8 @@ doCompileGrin input opts
          ; transformCode         singleCase         "singleCase"       ; 
          ; transformCode         grFlattenSeq       "Flatten"          ; caWriteGrin "-143-singleCase"
          ; transformCodeIterated dropUnusedExpr     "DropUnusedExpr"   ; caWriteGrin "-144-unusedExprDropped"
-	 ; transformCode         mergeCase          "MergeCase"        ; caWriteGrin "-145-caseMerged"         
-	 ; transformCodeUseHpt   arityRaise         "ArityRaise"       ; caWriteGrin "-148-arityRaised"
+		 ; transformCode         mergeCase          "MergeCase"        ; caWriteGrin "-145-caseMerged"         
+         ; transformCodeUseHpt   arityRaise         "ArityRaise"       ; caWriteGrin "-148-arityRaised"
          ; transformCodeChgHpt   lowerGrin          "LowerGrin"        ; caWriteGrin "-151-lowered"
          ; transformCodeIterated copyPropagation    "CopyPropagation"  ; caWriteGrin "-161-after-cp"
          ; transformCodeIterated dropUnusedExpr     "DropUnusedExpr"   ; caWriteGrin "-169-unusedExprDropped"
@@ -181,7 +181,8 @@ putErrs (CompileError e) = putStrLn e >> return ()
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%% Low level compiler actions: input
+%%% Low level compiler action	 %%[(8 codegen grin) import({%{EH}GrinCode.Trf.ArityRaise(arityRaise)})
+69 	  	 %%]s: input
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%[(8 codegen grin)

@@ -11,9 +11,11 @@ module Text
   , GroupType(..)
   , TextStyle(..)
   , RefType(..)
+  , LabelType(..)
   , ItemizeStyle(..)
   , HeaderLevel(..)
   , DocumentOption(..), DocumentOptions, MbDocumentOptions
+  , GraphicsInlineOption(..), GraphicsInlineOptions, MbGraphicsInlineOptions
   , TableRow(..), TableRows, TableFormat, TableColFormat(..), TableFields, TableField(..)
   )
 where

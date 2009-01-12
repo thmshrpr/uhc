@@ -58,8 +58,10 @@ include $(SRC_PREFIX)agprimer/files.mk
 -include $(SRC_PREFIX)infer2pass/files.mk
 -include figs/files.mk
 -include text/files1.mk
+-include text/files-variants.mk
 -include $(wildcard text/files1-*.mk)
 -include text/files2.mk
+-include text/files-targets.mk
 -include $(wildcard text/files2-*.mk)
 -include www/files.mk
 include ehclib/files.mk
@@ -86,6 +88,7 @@ explanation:
 	echo  "" ; \
 	echo  "make doc/<d>.pdf         : make (public) documentation <d> (where <d> in {$(TEXT_PUB_VARIANTS)})," ; \
 	echo  "                           or (non-public): <d> in {$(TEXT_PRIV_VARIANTS)}" ; \
+	echo  "                           or (doc): <d> in {$(TEXT_DOCLTX_VARIANTS)}" ; \
 	echo  "                           only if text src available, otherwise already generated" ; \
 	echo  "" ; \
 	echo  "make ehcs                : make all compiler ($(EHC_EXEC_NAME)) versions" ; \
@@ -147,7 +150,7 @@ A_EH_TEST			:= $(word 1,$(wildcard test/*.eh))
 A_EH_TEST_EXP		:= $(addsuffix .exp$(VERSION_FIRST),$(A_EH_TEST))
 
 tst:
-	@echo $(WWW_DOC_FILES)
+	@echo $(EHCLIB_SYNC_ALL_PKG_DRV_HS)
 
 tstv:
 	$(MAKE) EHC_VARIANT=100 tst
@@ -167,7 +170,8 @@ www: $(WWW_DOC_FILES)
 
 # www/DoneSyncStamp: www-ex
 www/DoneSyncStamp: www
-	(date "+%G%m%d") > www/DoneSyncStamp ; \
+	(date "+%G%m%d %H:%M") > www/DoneSyncStamp ; \
+	chmod 664 www/* ; \
 	rsync --progress -azv -e ssh www/* `whoami`@shell.cs.uu.nl:/users/www/groups/ST/Projects/ehc
 
 www-sync: www/DoneSyncStamp
