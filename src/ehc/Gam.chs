@@ -1,4 +1,4 @@
-%%[0
+xb%%[0
 %include lhs2TeX.fmt
 %include afp.fmt
 %%]
@@ -208,6 +208,11 @@ gamNoDups g = lgamNoDups g
 %%[1.gamMap
 gamMap :: ((k,v) -> (k',v')) -> Gam k v -> Gam k' v'
 gamMap f (Gam ll) = Gam (map (map f) ll)
+%%]
+
+%%[8.gamZipWith  export(gamZipWith)
+gamZipWith :: ((k,v) -> (k',v') -> (k'',v'')) -> Gam k v -> Gam k' v' -> Gam k'' v''
+gamZipWith f (Gam ll) (Gam rl) = Gam (zipWith (zipWith f) ll rl)
 %%]
 
 %%[9.gamMap -1.gamMap
