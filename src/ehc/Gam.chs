@@ -138,6 +138,16 @@ gamAddGam       g1 (Gam (l2:ll2))   = Gam ((gamToAssocL g1 ++ l2):ll2)
 gamAdd          k v g               = gamAddGam (k `gamSingleton` v) g
 %%]
 
+%%[8 export(gamDel,isGamEmpty)
+gamDel :: Gam k v -> Gam k v
+gamDel r@(Gam [])   = r
+gamDel (Gam (l:ll)) = Gam ll 
+
+isGamEmpty :: Gam k v -> Bool
+isGamEmpty (Gam [[]])    = True
+isGamEmpty (Gam (l:ll))  = null l
+%%]
+
 %%[9.Base.funs -1.Base.funs
 emptyGam                            = emptyLGam
 gamSingleton                        = lgamSingleton
