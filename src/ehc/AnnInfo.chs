@@ -1,7 +1,7 @@
 %%[1 module {%{EH}AnnInfo} 
 %%]
 
-%%[8 export(PhiInfo(..),PhiAnn(..),meet,join)
+      %%[8 export(PhiInfo(..),PhiAnn(..),meet,join,getPhi,isStrictPhi)
 %%]
 
 %%[8 import({%{EH}Base.Common})
@@ -20,6 +20,13 @@ data PhiInfo = Strict
              deriving Show
 {-|
 -}
+
+data PhiTau = PhiTArrow PhiTau PhiInfo PhiInfo
+            | PhiTAnn   PhiInfo
+
+data PhiSig = PhiSigTau    PhiTau
+            | PhiSigForAll HsName PhiSig
+
 data PhiAnn = PhiAnnArrow PhiAnn PhiInfo PhiInfo
             | PhiAnn      PhiInfo
             | NoPhiAnn 
@@ -43,4 +50,13 @@ Strict `join` r       = r
 r      `join` Lazy    = Lazy
 r      `join` Strict  = r
 r1     `join` r2      = Join r1 r2
+
+getPhi :: PhiAnn -> PhiInfo
+getPhi NoPhiAnn              = PhiEmpty  -- This could be source of errors
+getPhi (PhiAnnArrow _ phi _) = phi
+getPhi (PhiAnn      phi)     = phi
+
+isStrictPhi :: PhiInfo -> Bool
+isStrictPhi Strict = True
+isStrictPhi _      = False
 %%]

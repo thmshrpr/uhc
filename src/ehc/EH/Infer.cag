@@ -177,7 +177,7 @@ ATTR
 %%[[5
   AllDataConstr AllCase
 %%]]
-    [ | valGam: ValGam  | ]
+    [  valGam: ValGam | | ]
 ATTR AllPatExpr [ | valGam: ValGam | ]
 %%]
 

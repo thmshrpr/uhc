@@ -489,9 +489,17 @@ newValGamInfo t = ValGamInfo {
 %%[[1
                           }
 %%]]
-
 type ValGam = Gam HsName ValGamInfo
 %%]
+
+%%[8 export(updateValPhiGamInfo)
+updateValPhiGamInfo :: PhiInfo -> HsName -> ValGam -> ValGam
+updateValPhiGamInfo phi ns = gamMap f
+    where f (ns',info)
+              | ns == ns'  = (ns, info { vgiPhi = phi  })
+              | otherwise  = (ns, info { vgiPhi = Lazy })
+%%] 
+
 
 %%[1.valGamLookup export(valGamLookup)
 valGamLookup :: HsName -> ValGam -> Maybe ValGamInfo

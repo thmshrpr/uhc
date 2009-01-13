@@ -19,8 +19,10 @@ ATTR AllExpr [ | | infPhi : PhiAnn ]
 
 %%[8
 SEM Expr
-  | IConst      lhs         .   infPhi              =   PhiAnn @lhs.knPhi
-  | CConst      lhs         .   infPhi              =   PhiAnn @lhs.knPhi
-  | SConst      lhs         .   infPhi              =   PhiAnn @lhs.knPhi
+  | IConst      lhs         .   infPhi              =   NoPhiAnn
+  | CConst      lhs         .   infPhi              =   NoPhiAnn
+  | SConst      lhs         .   infPhi              =   NoPhiAnn
+  | Var         lhs         .   valGam              =   updateValPhiGamInfo @lhs.knPhi @nm @lhs.valGam
+                            .   infPhi              =   NoPhiAnn
 %%]
 
