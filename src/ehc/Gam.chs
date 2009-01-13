@@ -1,4 +1,4 @@
-xb%%[0
+%%[0
 %include lhs2TeX.fmt
 %include afp.fmt
 %%]
@@ -73,9 +73,6 @@ xb%%[0
 %%[(8 codegen) import({%{EH}Core})
 %%]
 
-%%[(8 codegen) import({%{EH}AnnInfo})
-%%]
-
 %%[(9 hmtyinfer) import({%{EH}Ty.FitsInCommon})
 %%]
 
@@ -136,16 +133,6 @@ gamPushGam      g1 (Gam ll2)        = Gam (gamToAssocL g1 : ll2)
 gamPop          (Gam (l:ll))        = (Gam [l],Gam ll)
 gamAddGam       g1 (Gam (l2:ll2))   = Gam ((gamToAssocL g1 ++ l2):ll2)
 gamAdd          k v g               = gamAddGam (k `gamSingleton` v) g
-%%]
-
-%%[8 export(gamDel,isGamEmpty)
-gamDel :: Gam k v -> Gam k v
-gamDel r@(Gam [])   = r
-gamDel (Gam (l:ll)) = Gam ll 
-
-isGamEmpty :: Gam k v -> Bool
-isGamEmpty (Gam [[]])    = True
-isGamEmpty (Gam (l:ll))  = null l
 %%]
 
 %%[9.Base.funs -1.Base.funs
@@ -218,11 +205,6 @@ gamNoDups g = lgamNoDups g
 %%[1.gamMap
 gamMap :: ((k,v) -> (k',v')) -> Gam k v -> Gam k' v'
 gamMap f (Gam ll) = Gam (map (map f) ll)
-%%]
-
-%%[8.gamZipWith  export(gamZipWith)
-gamZipWith :: ((k,v) -> (k',v') -> (k'',v'')) -> Gam k v -> Gam k' v' -> Gam k'' v''
-gamZipWith f (Gam ll) (Gam rl) = Gam (zipWith (zipWith f) ll rl)
 %%]
 
 %%[9.gamMap -1.gamMap
@@ -466,40 +448,12 @@ fixityGamLookup nm fg = maybe defaultFixityGamInfo id $ gamLookup nm fg
 data ValGamInfo
   = ValGamInfo
 %%[[(1 hmtyinfer || hmtyast)
-      { vgiTy :: Ty 		-- strictness has negative mem usage effect. Why??
-%%]]
-%%[[8
-      , vgiPhi :: PhiInfo       -- This contains the information about the strictness
-%%]]
-%%[[(1 hmtyinfer || hmtyast)
-      }
+      { vgiTy :: Ty }		-- strictness has negative mem usage effect. Why??
 %%]]
       deriving Show
-%%]
 
-%%[1 export(newValGamInfo)
-newValGamInfo :: Ty -> ValGamInfo
-newValGamInfo t = ValGamInfo { 
-%%[[(1 hmtyinfer || hmtyast)
-                            vgiTy  = t
-%%]]
-%%[[8 
-                          , vgiPhi = PhiEmpty
-%%]]
-%%[[1
-                          }
-%%]]
 type ValGam = Gam HsName ValGamInfo
 %%]
-
-%%[8 export(updateValPhiGamInfo)
-updateValPhiGamInfo :: PhiInfo -> HsName -> ValGam -> ValGam
-updateValPhiGamInfo phi ns = gamMap f
-    where f (ns',info)
-              | ns == ns'  = (ns, info { vgiPhi = phi  })
-              | otherwise  = (ns, info { vgiPhi = Lazy })
-%%] 
-
 
 %%[1.valGamLookup export(valGamLookup)
 valGamLookup :: HsName -> ValGam -> Maybe ValGamInfo
@@ -525,14 +479,7 @@ valGamLookup nm g
          |  hsnIsUn nm && hsnIsProd (hsnUnUn nm)
                  -> let pr = mkPr (hsnUnUn nm) in mkRes ([pr] `mkArrow` pr)
          where  mkPr nm  = mkTyFreshProd (hsnProdArity nm)
-                mkRes t  = Just (ValGamInfo { vgiTy  = (tyQuantifyClosed t)
-%%[[8
-                                            , vgiPhi = PhiVar (hsnUnUn nm) 
-%%]]
-%%[[4
-                                            }
-                                )
-%%]]
+                mkRes t  = Just (ValGamInfo (tyQuantifyClosed t))
 %%][4
          |  hsnIsProd nm
                  -> Just ValGamInfo

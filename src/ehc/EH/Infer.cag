@@ -177,7 +177,7 @@ ATTR
 %%[[5
   AllDataConstr AllCase
 %%]]
-    [  valGam: ValGam | | ]
+    [ valGam: ValGam | | ]
 ATTR AllPatExpr [ | valGam: ValGam | ]
 %%]
 
@@ -187,7 +187,7 @@ SEM AGItf
 %%]
 
 %%[(20 hmtyinfer) -1.initValGam
-ATTR AGItf [ | valGam: ValGam  | ]
+ATTR AGItf [ valGam: ValGam | | ]
 
 SEM AGItf
   | AGItf       loc         .   valGam              =   @lhs.valGam
@@ -718,7 +718,7 @@ SEM Decls
 %%[(5 hmtyinfer).gamSigTyGath
 SEM Decl
   | TySig       loc         .   gamSigTy            =   @tyExpr.ty
-                            .   gathTySigGam        =   @nm `gamSingleton` newValGamInfo @gamSigTy -- ValGamInfo @gamSigTy
+                            .   gathTySigGam        =   @nm `gamSingleton` ValGamInfo @gamSigTy
 %%]
 SEM Expr
   | Let         decls       .   gathTySigGam        =   emptyGam
@@ -784,7 +784,7 @@ SEM Decl
 %%][11
                             .   ty_sig_expanded     =   tyCanonic (emptyFI {fiEnv = @fe}) @ty_sig_
 %%]]
-                lhs         .   gathTySigGam        =   @nm `gamSingleton` newValGamInfo @ty_sig_ --  ValGamInfo @ty_sig_
+                lhs         .   gathTySigGam        =   @nm `gamSingleton` ValGamInfo @ty_sig_
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
