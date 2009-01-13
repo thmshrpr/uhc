@@ -7,7 +7,7 @@
 %%% Gamma (aka Assumptions, Environment)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%[1 module {%{EH}Gam} import(Data.List,EH.Util.Utils,{%{EH}Base.Builtin},{%{EH}Base.Common},{%{EH}NameAspect}) export(Gam,emptyGam,gamMap,gamLookup,gamLookupDup, gamPushNew, gamPop, gamTop, gamAddGam, gamAdd, gamPushGam, gamToAssocL, gamToAssocDupL, assocLToGam, assocDupLToGam,gamKeys)
+%%[1 module {%{EH}Gam} import(Data.List,EH.Util.Utils,{%{EH}Base.Builtin},{%{EH}Base.Common},{%{EH}NameAspect},{%{EH}AnnInfo}) export(Gam,emptyGam,gamMap,gamLookup,gamLookupDup, gamPushNew, gamPop, gamTop, gamAddGam, gamAdd, gamPushGam, gamToAssocL, gamToAssocDupL, assocLToGam, assocDupLToGam,gamKeys)
 %%]
 
 %%[(1 hmtyinfer || hmtyast).Ty import({%{EH}Ty})
@@ -1378,4 +1378,35 @@ polGamLookupErr n g
       Just i   -> (i,[])
 %%]
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Strict gam
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+
+%%[8 export(ValGamInfoStrict(..),ValGamStrict,updateValGamInfoStrict,gamZipWith,gamDel,isGamEmpty)
+data ValGamInfoStrict = ValGamInfoStrict { vgiPhi :: PhiInfo       -- This contains the information about the strictness
+                                         }
+                        deriving Show
+
+type ValGamStrict = Gam HsName ValGamInfoStrict
+
+
+updateValGamInfoStrict :: PhiInfo -> HsName -> ValGamStrict -> ValGamStrict
+updateValGamInfoStrict phi ns = gamMap f
+    where f (ns',info)
+              | ns == ns'  = (ns, info { vgiPhi = phi  })
+              | otherwise  = (ns, info { vgiPhi = Lazy })
+
+
+gamZipWith :: ((k,v) -> (k',v') -> (k'',v'')) -> Gam k v -> Gam k' v' -> Gam k'' v''
+gamZipWith f (Gam ll) (Gam rl) = Gam (zipWith (zipWith f) ll rl)
+
+gamDel :: Gam k v -> Gam k v
+gamDel r@(Gam [])   = r
+gamDel (Gam (l:ll)) = Gam ll 
+
+isGamEmpty :: Gam k v -> Bool
+isGamEmpty (Gam [[]])    = True
+isGamEmpty (Gam (l:ll))  = null l
+
+%%]
