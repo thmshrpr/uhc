@@ -19,10 +19,15 @@ ATTR AllExpr [ | | infPhi : PhiAnn ]
 
 %%[8
 SEM Expr
-  | IConst      lhs         .   infPhi              =   NoPhiAnn
-  | CConst      lhs         .   infPhi              =   NoPhiAnn
-  | SConst      lhs         .   infPhi              =   NoPhiAnn
-  | Var         lhs         .   valGam              =   updateValPhiGamInfo @lhs.knPhi @nm @lhs.valGam
+  | IConst      lhs         .   valGam              =   updateValPhiGamInfo undefined Nothing @lhs.valGam
+                lhs         .   infPhi              =   NoPhiAnn
+  | CConst      lhs         .   valGam              =   updateValPhiGamInfo undefined Nothing @lhs.valGam
+                lhs         .   infPhi              =   NoPhiAnn
+  | SConst      lhs         .   valGam              =   updateValPhiGamInfo undefined Nothing @lhs.valGam
+                lhs         .   infPhi              =   NoPhiAnn
+  | Undefined   lhs         .   valGam              =   updateValPhiGamInfo undefined Nothing @lhs.valGam
+                lhs         .   infPhi              =   NoPhiAnn 
+  | Var         lhs         .   valGam              =   updateValPhiGamInfo @lhs.knPhi (Just @nm) @lhs.valGam
                             .   infPhi              =   NoPhiAnn
 %%]
 

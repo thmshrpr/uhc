@@ -1391,11 +1391,13 @@ data ValGamInfoStrict = ValGamInfoStrict { vgiPhi :: PhiInfo       -- This conta
 type ValGamStrict = Gam HsName ValGamInfoStrict
 
 
-updateValGamInfoStrict :: PhiInfo -> HsName -> ValGamStrict -> ValGamStrict
-updateValGamInfoStrict phi ns = gamMap f
+updateValGamInfoStrict :: PhiInfo -> Maybe HsName -> ValGamStrict -> ValGamStrict
+updateValGamInfoStrict phi (Just ns) = gamMap f
     where f (ns',info)
-              | ns == ns'  = (ns, info { vgiPhi = phi  })
-              | otherwise  = (ns, info { vgiPhi = Lazy })
+              | ns == ns'  = (ns,  info { vgiPhi = phi  })
+              | otherwise  = (ns', info { vgiPhi = Lazy })
+updateValGamInfoStrict phi Nothing = gamMap f
+    where f (ns,info) = (ns, info { vgiPhi = Lazy })
 
 
 gamZipWith :: ((k,v) -> (k',v') -> (k'',v'')) -> Gam k v -> Gam k' v' -> Gam k'' v''
