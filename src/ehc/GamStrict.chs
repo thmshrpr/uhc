@@ -1,10 +1,10 @@
 %%[1 module {%{EH}GamStrict}
 %%]
 
-%%[8 import({%{EH}Gam},{%{EH}AnnInfo},{%{EH}Base.Common})
+%%[2 import({%{EH}Gam},{%{EH}AnnInfo},{%{EH}Base.Common})
 %%]
 
-%%[8 export(gamSplit,gamContaintment)
+%%[2 export(gamSplit,gamContaintment)
 gamSplit :: ValGamStrict -> ValGamStrict -> ValGamStrict
 gamSplit = gamZipWith f
     where f (x,info) (x',info') 

@@ -1,13 +1,13 @@
 %%[1 module {%{EH}AnnInfo} 
 %%]
 
-      %%[8 export(PhiInfo(..),PhiAnn(..),meet,join,getPhi,isStrictPhi)
+%%[2 export(PhiInfo(..),PhiAnn(..),meet,join,getPhi,isStrictPhi)
 %%]
 
-%%[8 import({%{EH}Base.Common})
+%%[2 import({%{EH}Base.Common})
 %%]
 
-%%[8
+%%[2
 {-| PhiInfo is the information about the annotations 
 -}
 
