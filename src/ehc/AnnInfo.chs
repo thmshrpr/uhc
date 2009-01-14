@@ -1,7 +1,7 @@
 %%[1 module {%{EH}AnnInfo} 
 %%]
 
-%%[2 export(PhiInfo(..),PhiAnn(..),meet,join,getPhi,isStrictPhi)
+%%[2 export(PhiInfo(..),PhiAnn(..),meet,join,getPhi,isStrictPhi,mkPhiVar)
 %%]
 
 %%[2 import({%{EH}Base.Common})
@@ -10,10 +10,11 @@
 %%[2
 {-| PhiInfo is the information about the annotations 
 -}
+type PhiVarId = UID
 
 data PhiInfo = Strict
              | Lazy
-             | PhiVar HsName
+             | PhiVar PhiVarId
              | Meet PhiInfo PhiInfo
              | Join PhiInfo PhiInfo
              | PhiEmpty
@@ -52,11 +53,14 @@ r      `join` Strict  = r
 r1     `join` r2      = Join r1 r2
 
 getPhi :: PhiAnn -> PhiInfo
-getPhi NoPhiAnn              = PhiEmpty  -- This could be source of errors
+getPhi NoPhiAnn              = PhiEmpty  -- This could be a source of errors
 getPhi (PhiAnnArrow _ phi _) = phi
 getPhi (PhiAnn      phi)     = phi
 
 isStrictPhi :: PhiInfo -> Bool
 isStrictPhi Strict = True
 isStrictPhi _      = False
+
+mkPhiVar :: PhiVarId -> PhiInfo
+mkPhiVar pvi = PhiVar pvi
 %%]

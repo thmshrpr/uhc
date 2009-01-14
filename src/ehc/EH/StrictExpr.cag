@@ -10,7 +10,12 @@
 %%[2
 ATTR AllExpr [ knPhi : PhiInfo  | | ]
 
+ATTR AllExpr [ | strGam : ValGamStrict | ]
+
 ATTR AllExpr [ | | infPhi : PhiAnn ]
+
+ATTR AllPatExpr [ | strGam : ValGamStrict | ]
+
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -18,16 +23,32 @@ ATTR AllExpr [ | | infPhi : PhiAnn ]
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%[2
+
+SEM AGItf 
+  | AGItf       (expr.gUniq,loc.uniq1)              =   mkNewLevUID @lhs.gUniq
+                expr        .   knPhi               =   mkPhiVar @loc.uniq1 
+                expr        .   strGam              =   emptyGam
 SEM Expr
-  | IConst      lhs         .   valGam              =   updateValPhiGamInfo undefined Nothing @lhs.valGam
+  | IConst      lhs         .   strGam              =   updateValPhiGamInfo undefined Nothing @lhs.strGam
                 lhs         .   infPhi              =   NoPhiAnn
-  | CConst      lhs         .   valGam              =   updateValPhiGamInfo undefined Nothing @lhs.valGam
+  | CConst      lhs         .   strGam              =   updateValPhiGamInfo undefined Nothing @lhs.strGam
                 lhs         .   infPhi              =   NoPhiAnn
-  | SConst      lhs         .   valGam              =   updateValPhiGamInfo undefined Nothing @lhs.valGam
+  | SConst      lhs         .   strGam              =   updateValPhiGamInfo undefined Nothing @lhs.strGam
                 lhs         .   infPhi              =   NoPhiAnn
-  | Undefined   lhs         .   valGam              =   updateValPhiGamInfo undefined Nothing @lhs.valGam
+  | Undefined   lhs         .   strGam              =   updateValPhiGamInfo undefined Nothing @lhs.strGam
                 lhs         .   infPhi              =   NoPhiAnn 
-  | Var         lhs         .   valGam              =   updateValPhiGamInfo @lhs.knPhi (Just @nm) @lhs.valGam
+  | Var         lhs         .   strGam              =   updateValPhiGamInfo @lhs.knPhi (Just @nm) @lhs.strGam
                             .   infPhi              =   NoPhiAnn
+  | App         loc         .   phi0                =   getPhi @func.infPhi
+                loc         .   gam1                =   @func.strGam
+
+                arg         .   knPhi               =   @lhs.knPhi `join` @loc.phi0
+                loc         .   gam2                =   @arg.strGam
+
+                lhs         .   strGam              =   gamSplit @loc.gam1  @loc.gam2
+  | Fun         arg         .   strGam              =   emptyGam
+                body        .   knPhi               =   Strict
+                body        .   strGam              =   gamAddGam @arg.strGam @lhs.strGam
+
 %%]
 
