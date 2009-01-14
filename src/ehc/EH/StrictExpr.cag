@@ -7,7 +7,7 @@
 %%% Strict Analizer
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%[8
+%%[2
 ATTR AllExpr [ knPhi : PhiInfo  | | ]
 
 ATTR AllExpr [ | | infPhi : PhiAnn ]
@@ -17,7 +17,7 @@ ATTR AllExpr [ | | infPhi : PhiAnn ]
 %%% Strict Analizer
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%[8
+%%[2
 SEM Expr
   | IConst      lhs         .   valGam              =   updateValPhiGamInfo undefined Nothing @lhs.valGam
                 lhs         .   infPhi              =   NoPhiAnn

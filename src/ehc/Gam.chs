@@ -1383,7 +1383,7 @@ polGamLookupErr n g
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
-%%[8 export(ValGamInfoStrict(..),ValGamStrict,updateValGamInfoStrict,gamZipWith,gamDel,isGamEmpty)
+%%[2 export(ValGamInfoStrict(..),ValGamStrict,updateValGamInfoStrict,gamZipWith,gamDel,isGamEmpty)
 data ValGamInfoStrict = ValGamInfoStrict { vgiPhi :: PhiInfo       -- This contains the information about the strictness
                                          }
                         deriving Show
