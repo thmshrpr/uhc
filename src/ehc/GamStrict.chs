@@ -12,7 +12,7 @@ gamSplit = gamZipWith f
               | otherwise         = error "This cannot happen here"
 
 
-gamContaintment :: PhiInfo -> ValGamStrict -> ValGamStrict
+gamContaintment :: Ann -> ValGamStrict -> ValGamStrict
 gamContaintment phi gam     = gamMap f gam
     where f (x,info)        =  (x, info { vgiPhi = phi `join` (vgiPhi info)})
 %%]

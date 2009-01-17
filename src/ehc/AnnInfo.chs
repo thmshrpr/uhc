@@ -1,66 +1,65 @@
 %%[1 module {%{EH}AnnInfo} 
 %%]
 
-%%[2 export(PhiInfo(..),PhiAnn(..),meet,join,getPhi,isStrictPhi,mkPhiVar)
+%%[2 export(Ann(..),AnnTy(..),meet,join,getAnn,isStrictAnn,mkPhiVar)
 %%]
 
-%%[2 import({%{EH}Base.Common})
+%%[2 import({%{EH}Base.Common}, {%{EH}Base.Builtin}, {%{EH}Ty})
 %%]
 
 %%[2
 {-| PhiInfo is the information about the annotations 
 -}
-type PhiVarId = UID
+type PhiId = UID
 
-data PhiInfo = Strict
+data  Ann    = Strict
              | Lazy
-             | PhiVar PhiVarId
-             | Meet PhiInfo PhiInfo
-             | Join PhiInfo PhiInfo
-             | PhiEmpty
+             | AnnVar PhiId
+             | Meet Ann Ann
+             | Join Ann Ann
+             | PhiEmpty -- ??
              deriving Show
-{-|
--}
 
-data PhiTau = PhiTArrow PhiTau PhiInfo PhiInfo
-            | PhiTAnn   PhiInfo
+type AnnTyVarId = UID
 
-data PhiSig = PhiSigTau    PhiTau
-            | PhiSigForAll HsName PhiSig
-
-data PhiAnn = PhiAnnArrow PhiAnn PhiInfo PhiInfo
-            | PhiAnn      PhiInfo
-            | NoPhiAnn 
-            deriving Show
+data AnnTy  = AnnArrow AnnTy Ann AnnTy
+            | AnyTy
+            | AnnTyVar AnnTyVarId
+           
 
 
-meet :: PhiInfo -> PhiInfo -> PhiInfo
-Lazy   `meet` Lazy    = Lazy
-Lazy   `meet` Strict  = Strict
+meet :: Ann -> Ann -> Ann
 Lazy   `meet` r       = r
-Strict `meet` _       = Strict
 r      `meet` Lazy    = r
-r      `meet` Strict  = Strict
+Strict `meet` _       = Strict
+_      `meet` Strict  = Strict
 r1     `meet` r2      = Meet r1 r2
 
-join :: PhiInfo -> PhiInfo -> PhiInfo
+join :: Ann -> Ann -> Ann
 Lazy   `join` _       = Lazy
-Strict `join` Lazy    = Lazy
-Strict `join` Strict  = Strict
+_      `join` Lazy    = Lazy
 Strict `join` r       = r
-r      `join` Lazy    = Lazy
 r      `join` Strict  = r
 r1     `join` r2      = Join r1 r2
 
-getPhi :: PhiAnn -> PhiInfo
-getPhi NoPhiAnn              = PhiEmpty  -- This could be a source of errors
-getPhi (PhiAnnArrow _ phi _) = phi
-getPhi (PhiAnn      phi)     = phi
+-- sacar?
+getAnn :: AnnTy -> Ann
+getAnn AnyTy                 = PhiEmpty  -- This could be a source of errors
+getAnn (AnnArrow _ phi _)    = phi
 
-isStrictPhi :: PhiInfo -> Bool
-isStrictPhi Strict = True
-isStrictPhi _      = False
 
-mkPhiVar :: PhiVarId -> PhiInfo
-mkPhiVar pvi = PhiVar pvi
+isStrictAnn :: Ann -> Bool
+isStrictAnn Strict = True
+isStrictAnn _      = False
+
+mkPhiVar :: AnnTyVarId -> Ann
+mkPhiVar pvi = AnnVar pvi
+
+anotateTy :: Ty -> AnnTy
+anotateTy (Ty_App (Ty_App (Ty_Con cn) func) arg) 
+                      | hsnIsArrow cn = AnnArrow AnyTy PhiEmpty AnyTy
+                      | otherwise     = AnyTy
+anotateTy (Ty_Var tv) = AnnTyVar tv
+anotateTy _ = AnyTy 
+
 %%]

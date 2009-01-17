@@ -1384,14 +1384,14 @@ polGamLookupErr n g
 
 
 %%[2 export(ValGamInfoStrict(..),ValGamStrict,updateValGamInfoStrict,gamZipWith,gamDel,isGamEmpty)
-data ValGamInfoStrict = ValGamInfoStrict { vgiPhi :: PhiInfo       -- This contains the information about the strictness
+data ValGamInfoStrict = ValGamInfoStrict { vgiPhi :: Ann       -- This contains the information about the strictness
                                          }
                         deriving Show
 
 type ValGamStrict = Gam HsName ValGamInfoStrict
 
 
-updateValGamInfoStrict :: PhiInfo -> Maybe HsName -> ValGamStrict -> ValGamStrict
+updateValGamInfoStrict :: Ann -> Maybe HsName -> ValGamStrict -> ValGamStrict
 updateValGamInfoStrict phi (Just ns) = gamMap f
     where f (ns',info)
               | ns == ns'  = (ns,  info { vgiPhi = phi  })
@@ -1403,9 +1403,13 @@ updateValGamInfoStrict phi Nothing = gamMap f
 gamZipWith :: ((k,v) -> (k',v') -> (k'',v'')) -> Gam k v -> Gam k' v' -> Gam k'' v''
 gamZipWith f (Gam ll) (Gam rl) = Gam (zipWith (zipWith f) ll rl)
 
-gamDel :: Gam k v -> Gam k v
-gamDel r@(Gam [])   = r
-gamDel (Gam (l:ll)) = Gam ll 
+gamDel :: k -> Gam k v -> Gam k v
+--gamDel r@(Gam [])   = r
+--gamDel (Gam (l:ll)) = Gam ll 
+gamDel k (Gam ll)   = foldr  (\l r -> case (lookup k l) of
+                                       Nothing -> l:r
+                                       _       -> r)
+                             [] ll
 
 isGamEmpty :: Gam k v -> Bool
 isGamEmpty (Gam [[]])    = True

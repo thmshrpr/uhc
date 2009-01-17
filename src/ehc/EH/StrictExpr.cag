@@ -8,13 +8,17 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%[2
-ATTR AllExpr [ knPhi : PhiInfo  | | ]
+ATTR AllExpr [ knPhi : Ann  | | ]
 
-ATTR AllExpr [ | strGam : ValGamStrict | ]
+ATTR AllExpr [ | | strGam : ValGamStrict ]
 
-ATTR AllExpr [ | | infPhi : PhiAnn ]
+ATTR AllExpr [ | | infAnnTy : AnnTy ]
 
-ATTR AllPatExpr [ | strGam : ValGamStrict | ]
+ATTR AllPatExpr [ knPhi : Ann  | | strGam : ValGamStrict  bndVars : { [ HsName ] } ]
+
+ATTR Decls [ knPhi : Ann  | | strGam : ValGamStrict bndVars : { [ HsName ] } ]
+
+ATTR Decl [ knPhi : Ann  | | strGam : ValGamStrict bndVars : { [ HsName ] } ]
 
 %%]
 
@@ -29,26 +33,33 @@ SEM AGItf
                 expr        .   knPhi               =   mkPhiVar @loc.uniq1 
                 expr        .   strGam              =   emptyGam
 SEM Expr
-  | IConst      lhs         .   strGam              =   updateValPhiGamInfo undefined Nothing @lhs.strGam
-                lhs         .   infPhi              =   NoPhiAnn
-  | CConst      lhs         .   strGam              =   updateValPhiGamInfo undefined Nothing @lhs.strGam
-                lhs         .   infPhi              =   NoPhiAnn
-  | SConst      lhs         .   strGam              =   updateValPhiGamInfo undefined Nothing @lhs.strGam
-                lhs         .   infPhi              =   NoPhiAnn
-  | Undefined   lhs         .   strGam              =   updateValPhiGamInfo undefined Nothing @lhs.strGam
-                lhs         .   infPhi              =   NoPhiAnn 
-  | Var         lhs         .   strGam              =   updateValPhiGamInfo @lhs.knPhi (Just @nm) @lhs.strGam
-                            .   infPhi              =   NoPhiAnn
-  | App         loc         .   phi0                =   getPhi @func.infPhi
-                loc         .   gam1                =   @func.strGam
+  | IConst      lhs         .   strGam              =   emptyGam
+                lhs         .   infAnnTy            =   AnyAnnTy
+  | CConst      lhs         .   strGam              =   emptyGam
+                lhs         .   infAnnTy            =   AnyAnnTy
+  | SConst      lhs         .   strGam              =   emptyGam
+                lhs         .   infAnnTy            =   AnyAnnTy
+  | Undefined   lhs         .   strGam              =   emptyGam
+                lhs         .   infAnnTy            =   AnyAnnTy
+  | Var         lhs         .   strGam              =   gamAdd @lhs.knPhi emptyGam
+                lhs         .   infAnnTy            =   anotateTy (lhs.finTyVarMp |=> @ty)
+  | Let         body        .   knPhi               =   Strict
+                loc         .   gam2                =   @body.strGam
 
-                arg         .   knPhi               =   @lhs.knPhi `join` @loc.phi0
-                loc         .   gam2                =   @arg.strGam
+                loc         .   x                   =   head @decls.bndVars
+                loc         .   phi0                =   case gamLookup @loc.x @loc.gam2 of
+                                                            Just phi -> phi
+                                                            Nothing  -> Lazy
+                decls       .   knPhi               =   @lhs.knPhi `join` loc.phi0
 
-                lhs         .   strGam              =   gamSplit @loc.gam1  @loc.gam2
-  | Fun         arg         .   strGam              =   emptyGam
-                body        .   knPhi               =   Strict
-                body        .   strGam              =   gamAddGam @arg.strGam @lhs.strGam
+                lhs         .   infAnnTy            =   @body.infAnnTy
+                lhs         .   strGam              =   gamSplit decls.strGam (gamContaintment lhs.knPhi (gamDel loc.x @loc.gam21))
+
+SEM Decl
+  | Val         lhs    
+
+patExpr         : PatExpr
+expr            : Expr
 
 %%]
 
