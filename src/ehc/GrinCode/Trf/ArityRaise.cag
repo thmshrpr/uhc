@@ -43,4 +43,34 @@ ATTR GrAGItf
      GrModule
      AllBind
      AllGrExpr [ hptMap: HptMap | | ]
+
+ATTR GrExpr [ | | rScruts USE {++} {[]} : {[HsName]} ]
+
+SEM GrBind
+         -- H1: function definition
+  | Bind loc . rCondDef  = length @argNmL > 0
+         -- H2: check for "sufficiently small" function
+         loc . rCondSize = exprSize @expr < sizeTreshold
+         -- H5 & H6: Create "call patterns" using hptMap and rScruts
+         loc . rConstrArgs = [] -- absFetch @hptMap 
+         
+         lhs . grTrf = @loc.grTrf
+--  | Rec lhs . grTrf = 
+
+SEM GrExpr
+         -- H6: Collect all scrutinized arguments of the function
+  | Case lhs . rScruts = case @val of
+                           (GrVal_Var nm) -> [nm]
+                           _ -> []
+
+%%]
+%%[8.arityRaise hs
+
+-- absFetch :: HptMap -> HsName -> AbstractValue
+
+sizeTreshold = 1
+
+exprSize :: GrExpr -> Integer
+exprSize e = 0
+
 %%]
