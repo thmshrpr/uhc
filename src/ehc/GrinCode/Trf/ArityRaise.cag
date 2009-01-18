@@ -44,12 +44,13 @@ ATTR GrAGItf
      AllGrExpr [ hptMap: HptMap | | ]
 
 ATTR GrExpr [ | | rScruts USE {++} {[]} : {[HsName]} ]
+ATTR GrExpr [ | | rSize USE {`siz`} {0} : {Int} ]
 
 SEM GrBind
          -- H1: function definition
   | Bind loc . rCondDef  = length @argNmL > 0
          -- H2: check for "sufficiently small" function
-         loc . rCondSize = exprSize @expr < sizeTreshold
+         loc . rCondSize = @expr.rSize <= specSizeTreshold
          -- H5 & H6: Create "call patterns" using hptMap and rScruts
          loc . rPats = []
          
@@ -65,12 +66,15 @@ SEM GrExpr
 %%]
 %%[8.arityRaise hs
 
--- absFetch :: HptMap -> HsName -> AbstractValue
+-- Treshold to determine which functions we want to specialize
+-- hence big functions (according to the treshold) will not be
+-- specialized to avoid excessive code increase
+--
+-- Unit: number of nested GRIN expressions
+specSizeTreshold = 100
 
-sizeTreshold = 1
-
-exprSize :: GrExpr -> Integer
-exprSize e = 0
+siz :: Num a => a -> a -> a
+siz a b = a + b + 1
 
 pats :: [(Maybe HsName,AbstractValue)] -> HptMap -> [HsName] -> [(Maybe HsName,AbstractValue)]
 pats ps hpt [] = ps
