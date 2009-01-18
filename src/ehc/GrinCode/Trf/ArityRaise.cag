@@ -12,14 +12,13 @@ Assumptions:
 %%[(8 codegen grin) hs module {%{EH}GrinCode.Trf.ArityRaise} export(arityRaise)
 %%]
 
-
 %%[(8 codegen grin) ag import({GrinCode/AbsSyn})
 %%]
 %%[(8 codegen grin) hs import({%{EH}Base.Common(HsName, CTagsMp)})
 %%]
 %%[(8 codegen grin) hs import({%{EH}GrinCode})
 %%]
-%%[(8 codegen grin) hs import({%{EH}GrinCode.Common(HptMap, getTags, getNr, getEnvVar)})
+%%[(8 codegen grin) hs import({%{EH}GrinCode.Common(HptMap, AbstractValue, getTags, getNr, getEnvVar, absFetch)})
 %%]
 %%[(8 codegen grin)
 WRAPPER GrAGItf
@@ -52,7 +51,7 @@ SEM GrBind
          -- H2: check for "sufficiently small" function
          loc . rCondSize = exprSize @expr < sizeTreshold
          -- H5 & H6: Create "call patterns" using hptMap and rScruts
-         loc . rConstrArgs = [] -- absFetch @hptMap 
+         loc . rPats = []
          
          lhs . grTrf = @loc.grTrf
 --  | Rec lhs . grTrf = 
@@ -72,5 +71,12 @@ sizeTreshold = 1
 
 exprSize :: GrExpr -> Integer
 exprSize e = 0
+
+pats :: [(Maybe HsName,AbstractValue)] -> HptMap -> [HsName] -> [(Maybe HsName,AbstractValue)]
+pats ps hpt [] = ps
+pats ps hpt (x:xs) = pats (getPat x (absFetch hpt x) : ps) hpt xs
+
+getPat :: HsName -> AbstractValue -> (Maybe HsName,AbstractValue)
+getPat nm abs = (Nothing,abs)
 
 %%]
