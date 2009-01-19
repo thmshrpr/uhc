@@ -82,14 +82,24 @@ SEM Expr
 %%[[94
                             .   backCBindL  =   [(CBindFFE,@decls.ffeCBindL)]
 %%]
-                            .   howToBind   =   if @isStrict then CBindStrict else CBindRec
+                            .   annStrict   =  foldr (\x b -> b && strVar (gamLookup x @body.strGam)) True @decls.bndVars 
+                                                 where strVar (Just x) = x == Strict
+                                                       strVar _        = False
+                            .   howToBind   =   if (@isStrict || @loc.annStrict) then CBindStrict else CBindRec
                             .   letCBindL   =   [(@howToBind,@decls.cbindL)]
                             .   cexpr       =   foldr (\(c,b) e -> mkCExprLet c b e) @body.cexpr @letCBindL
   | App AppImpred
 %%[[12
     AppImpl
 %%]]
-                loc         .   cexprapp    =   mkCExprApp1 @func.cexpr @arg.cexpr
+                (loc.gUniq,loc.uniq1)       =   mkNewLevUID @lhs.gUniq
+                loc         .   x           =   uidHNm @loc.uniq1
+                loc         .   cletbind    =   mkCBind1 @loc.x @arg.cexpr
+                loc         .   cletbody    =   mkCExprApp1 @func.cexpr (CExpr_Var @loc.x) 
+                loc         .   cexprapp    =   case @func.infAnnTy of
+                                                          (AnnArrow _ Strict _) -> mkCExprLet CBindStrict [@loc.cletbind] @loc.cletbody 
+                                                          x                     -> trace ("---" ++ show x ++ "---") 
+                                                                                         mkCExprApp1 @func.cexpr @arg.cexpr
                             .   cexpr       =   if @func.isNewtype then @arg.cexpr else @cexprapp
   | Lam         loc         .   cexpr       =   mkCExprLam1 @arg.topNm
                                                     (rceMatch @rceEnv [@arg.topNm] [RAlt_Alt [@arg.rpat] @body.cexpr @body.caseFailS])

@@ -7,14 +7,14 @@
 %%% Strict Analizer
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%[2
+%%[8
 ATTR AllExpr [ knPhi : Ann  | | ]
 
 ATTR AllExpr [ | | strGam : ValGamStrict ]
 
 ATTR AllExpr [ | | infAnnTy : AnnTy ]
 
-ATTR AllPatExpr [ knPhi : Ann  | | strGam : ValGamStrict  bndVars : { [ HsName ] } ]
+ATTR AllPatExpr [ | | bndVars : { [ HsName ] } ]
 
 ATTR Decls [ knPhi : Ann  | | strGam : ValGamStrict bndVars : { [ HsName ] } ]
 
@@ -26,7 +26,7 @@ ATTR Decl [ knPhi : Ann  | | strGam : ValGamStrict bndVars : { [ HsName ] } ]
 %%% Strict Analizer
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%[2
+%%[8
 
 SEM AGItf 
   | AGItf       (expr.gUniq,loc.uniq1)              =   mkNewLevUID @lhs.gUniq
@@ -34,15 +34,15 @@ SEM AGItf
                 expr        .   strGam              =   emptyGam
 SEM Expr
   | IConst      lhs         .   strGam              =   emptyGam
-                lhs         .   infAnnTy            =   AnyAnnTy
+                lhs         .   infAnnTy            =   AnyTy
   | CConst      lhs         .   strGam              =   emptyGam
-                lhs         .   infAnnTy            =   AnyAnnTy
+                lhs         .   infAnnTy            =   AnyTy
   | SConst      lhs         .   strGam              =   emptyGam
-                lhs         .   infAnnTy            =   AnyAnnTy
+                lhs         .   infAnnTy            =   AnyTy
   | Undefined   lhs         .   strGam              =   emptyGam
-                lhs         .   infAnnTy            =   AnyAnnTy
-  | Var         lhs         .   strGam              =   gamAdd @lhs.knPhi emptyGam
-                lhs         .   infAnnTy            =   anotateTy (lhs.finTyVarMp |=> @ty)
+                lhs         .   infAnnTy            =   AnyTy
+  | Var         lhs         .   strGam              =   gamAdd @nm @lhs.knPhi emptyGam
+                lhs         .   infAnnTy            =   anotateTy (@lhs.finTyVarMp |=> @ty)
   | Let         body        .   knPhi               =   Strict
                 loc         .   gam2                =   @body.strGam
 
@@ -50,16 +50,47 @@ SEM Expr
                 loc         .   phi0                =   case gamLookup @loc.x @loc.gam2 of
                                                             Just phi -> phi
                                                             Nothing  -> Lazy
-                decls       .   knPhi               =   @lhs.knPhi `join` loc.phi0
+                decls       .   knPhi               =   @lhs.knPhi `join` @loc.phi0
 
                 lhs         .   infAnnTy            =   @body.infAnnTy
-                lhs         .   strGam              =   gamSplit decls.strGam (gamContaintment lhs.knPhi (gamDel loc.x @loc.gam21))
+                lhs         .   strGam              =   gamSplit @decls.strGam (gamContaintment @lhs.knPhi (gamDel @loc.x @loc.gam2))
+  | App         (loc.phi0, loc.tau)                 =   case @func.infAnnTy of
+                                                          (AnnArrow _ phi t) -> (phi,t)
+                                                          _ -> error "Strictness Analysis Error!! 1"
+
+                arg         .   knPhi               =   @lhs.knPhi `join` @loc.phi0
+
+                lhs         .   strGam              =   gamSplit @func.strGam @arg.strGam
+                lhs         .   infAnnTy            =   @loc.tau
+  | Lam         body        .   knPhi               =   Strict
+                loc         .   x                   =   head @arg.bndVars
+                loc         .   phi0                =   case gamLookup @loc.x @body.strGam of
+                                                            Just phi -> phi
+                                                            Nothing  -> Lazy
+
+                lhs         .   infAnnTy            =   case anotateTy (@lhs.finTyVarMp |=> @ty) of
+                                                           (AnnArrow t1 _ _) -> AnnArrow t1 @loc.phi0 @body.infAnnTy
+                                                           _ -> error "Strictness Analysis Error!! 2"
+                lhs         .   strGam              =   gamContaintment @lhs.knPhi (gamDel @loc.x @body.strGam)
+                                                         
+ 
+
+
+SEM Decls
+  | Nil         lhs     .  strGam    =   emptyGam
+                lhs     .  bndVars   =   []
+  | Cons        lhs     .  strGam    =   gamAddGam @hd.strGam @tl.strGam
+                lhs     .  bndVars   =   @hd.bndVars ++ @tl.bndVars
+
 
 SEM Decl
-  | Val         lhs    
+  | Val         lhs     .  strGam    =  @expr.strGam
+                lhs     .  bndVars   =  @patExpr.bndVars  
 
-patExpr         : PatExpr
-expr            : Expr
+
+SEM PatExpr
+  | Var         lhs     .  bndVars   =  [ @nm ]
+  | AppTop      lhs     .  bndVars   =  @patExpr.bndVars
 
 %%]
 

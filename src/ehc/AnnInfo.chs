@@ -1,13 +1,13 @@
 %%[1 module {%{EH}AnnInfo} 
 %%]
 
-%%[2 export(Ann(..),AnnTy(..),meet,join,getAnn,isStrictAnn,mkPhiVar)
+%%[8 export(Ann(..),AnnTy(..),meet,join,getAnn,isStrictAnn,mkPhiVar,anotateTy)
 %%]
 
-%%[2 import({%{EH}Base.Common}, {%{EH}Base.Builtin}, {%{EH}Ty})
+%%[8 import({%{EH}Base.Common}, {%{EH}Base.Builtin}, {%{EH}Ty})
 %%]
 
-%%[2
+%%[8
 {-| PhiInfo is the information about the annotations 
 -}
 type PhiId = UID
@@ -18,14 +18,14 @@ data  Ann    = Strict
              | Meet Ann Ann
              | Join Ann Ann
              | PhiEmpty -- ??
-             deriving Show
+             deriving (Show,Eq)
 
 type AnnTyVarId = UID
 
 data AnnTy  = AnnArrow AnnTy Ann AnnTy
             | AnyTy
             | AnnTyVar AnnTyVarId
-           
+            deriving Show 
 
 
 meet :: Ann -> Ann -> Ann
@@ -59,7 +59,7 @@ anotateTy :: Ty -> AnnTy
 anotateTy (Ty_App (Ty_App (Ty_Con cn) func) arg) 
                       | hsnIsArrow cn = AnnArrow AnyTy PhiEmpty AnyTy
                       | otherwise     = AnyTy
-anotateTy (Ty_Var tv) = AnnTyVar tv
+anotateTy (Ty_Var tv categ) = AnnTyVar tv
 anotateTy _ = AnyTy 
 
 %%]

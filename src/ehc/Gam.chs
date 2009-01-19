@@ -1383,36 +1383,69 @@ polGamLookupErr n g
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
-%%[2 export(ValGamInfoStrict(..),ValGamStrict,updateValGamInfoStrict,gamZipWith,gamDel,isGamEmpty)
+%%[8 export(ValGamStrict,updateValGamStrict,gamZipWith,gamDel,isGamEmpty, gamSplit, gamContaintment)
+
+{-
 data ValGamInfoStrict = ValGamInfoStrict { vgiPhi :: Ann       -- This contains the information about the strictness
                                          }
                         deriving Show
+-}
 
-type ValGamStrict = Gam HsName ValGamInfoStrict
+type ValGamStrict = Gam HsName Ann
 
 
-updateValGamInfoStrict :: Ann -> Maybe HsName -> ValGamStrict -> ValGamStrict
-updateValGamInfoStrict phi (Just ns) = gamMap f
+updateValGamStrict :: Ann -> Maybe HsName -> ValGamStrict -> ValGamStrict
+updateValGamStrict phi (Just ns) = gamMap f
+    where f (ns',_)
+              | ns == ns'  = (ns,  phi)
+              | otherwise  = (ns', Lazy)
+updateValGamStrict phi Nothing = gamMap f
+    where f (ns,_) = (ns, Lazy)
+{-
+updateValGamStrict phi (Just ns) = gamMap f
     where f (ns',info)
               | ns == ns'  = (ns,  info { vgiPhi = phi  })
               | otherwise  = (ns', info { vgiPhi = Lazy })
 updateValGamInfoStrict phi Nothing = gamMap f
     where f (ns,info) = (ns, info { vgiPhi = Lazy })
-
+-}
 
 gamZipWith :: ((k,v) -> (k',v') -> (k'',v'')) -> Gam k v -> Gam k' v' -> Gam k'' v''
 gamZipWith f (Gam ll) (Gam rl) = Gam (zipWith (zipWith f) ll rl)
 
-gamDel :: k -> Gam k v -> Gam k v
+gamDel :: Ord k => k -> Gam k v -> Gam k v
 --gamDel r@(Gam [])   = r
 --gamDel (Gam (l:ll)) = Gam ll 
-gamDel k (Gam ll)   = foldr  (\l r -> case (lookup k l) of
+gamDel k (Gam ll)   = Gam $ foldr  (\l r -> case (lookup k l) of
                                        Nothing -> l:r
                                        _       -> r)
-                             [] ll
+                                   [] ll
 
 isGamEmpty :: Gam k v -> Bool
 isGamEmpty (Gam [[]])    = True
 isGamEmpty (Gam (l:ll))  = null l
+
+--TODO: esta mal considerar que tienen los mismos elementos y en el mismo orden
+gamSplit :: ValGamStrict -> ValGamStrict -> ValGamStrict
+gamSplit (Gam ll) (Gam rl) = Gam $ (appl l1 ll) ++ (appl l2 rl)
+   where l1 gl = foldr (\(lk,lp) l -> maybe ((lk,lp):l) ((\rp -> (lk,lp `meet` rp):l)) (gamLookup lk (Gam rl)) )
+                       [] gl
+         l2 gl = foldr (\(rk,rp) l -> case  gamLookup rk (Gam ll) of
+                                      Nothing -> (rk,rp):l
+                                      _       -> l)
+                       [] gl
+         appl f l = foldr (\e r -> case f e of
+                                      [] -> r
+                                      x  -> x:r)
+                          [] l
+{-
+    where f (x,info) (x',info') 
+              | x == x'           = (x, info { vgiPhi = (vgiPhi info) `meet` (vgiPhi info') })
+              | otherwise         = error "This cannot happen here"
+-}
+
+gamContaintment :: Ann -> ValGamStrict -> ValGamStrict
+gamContaintment phi gam     = gamMap f gam
+    where f (x,info)        =  (x, phi `join` info)
 
 %%]
