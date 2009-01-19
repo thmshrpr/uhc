@@ -10,15 +10,19 @@
 %%[8
 ATTR AllExpr [ knPhi : Ann  | | ]
 
-ATTR AllExpr [ | | strGam : ValGamStrict ]
+ATTR AllExpr [ annTyGam : AnnTyGam | | strGam : AnnGam ]
 
 ATTR AllExpr [ | | infAnnTy : AnnTy ]
 
-ATTR AllPatExpr [ | | bndVars : { [ HsName ] } ]
+ATTR AllPatExpr [ | | bndVars USE {++} {[]} : { [ HsName ] } ]
 
-ATTR Decls [ knPhi : Ann  | | strGam : ValGamStrict bndVars : { [ HsName ] } ]
+ATTR Decls [ knPhi : Ann  | annTyGam : AnnTyGam |  strGam : AnnGam  bndVars : { [ HsName ] } ]
 
-ATTR Decl [ knPhi : Ann  | | strGam : ValGamStrict bndVars : { [ HsName ] } ]
+ATTR Decl [ knPhi : Ann  | annTyGam : AnnTyGam | strGam : AnnGam bndVars USE {++} {[]} : { [ HsName ] }  ]
+
+ATTR CaseAlts [ knPhi : Ann  annTyGam : AnnTyGam | |  infAnnTy : AnnTy strGam : AnnGam  end : { Bool } ]
+
+ATTR CaseAlt  [ knPhi : Ann  annTyGam : AnnTyGam | |  infAnnTy : AnnTy strGam : AnnGam  ]
 
 %%]
 
@@ -31,7 +35,8 @@ ATTR Decl [ knPhi : Ann  | | strGam : ValGamStrict bndVars : { [ HsName ] } ]
 SEM AGItf 
   | AGItf       (expr.gUniq,loc.uniq1)              =   mkNewLevUID @lhs.gUniq
                 expr        .   knPhi               =   mkPhiVar @loc.uniq1 
-                expr        .   strGam              =   emptyGam
+                expr        .   annTyGam            =   emptyGam
+
 SEM Expr
   | IConst      lhs         .   strGam              =   emptyGam
                 lhs         .   infAnnTy            =   AnyTy
@@ -42,7 +47,9 @@ SEM Expr
   | Undefined   lhs         .   strGam              =   emptyGam
                 lhs         .   infAnnTy            =   AnyTy
   | Var         lhs         .   strGam              =   gamAdd @nm @lhs.knPhi emptyGam
-                lhs         .   infAnnTy            =   anotateTy (@lhs.finTyVarMp |=> @ty)
+                lhs         .   infAnnTy            =   case gamLookup @nm @lhs.annTyGam of
+                                                         Just tau -> tau 
+                                                         _        -> anotateTy (@lhs.finTyVarMp |=> @ty)
   | Let         body        .   knPhi               =   Strict
                 loc         .   gam2                =   @body.strGam
 
@@ -52,15 +59,18 @@ SEM Expr
                                                             Nothing  -> Lazy
                 decls       .   knPhi               =   @lhs.knPhi `join` @loc.phi0
 
+                body        .   annTyGam            =   gamAddGam @decls.annTyGam @lhs.annTyGam
+
                 lhs         .   infAnnTy            =   @body.infAnnTy
-                lhs         .   strGam              =   gamSplit @decls.strGam (gamContaintment @lhs.knPhi (gamDel @loc.x @loc.gam2))
+                lhs         .   strGam              =   gamSplitConj @decls.strGam (gamContaintment @lhs.knPhi (gamDel @loc.x @loc.gam2))
+
   | App         (loc.phi0, loc.tau)                 =   case @func.infAnnTy of
                                                           (AnnArrow _ phi t) -> (phi,t)
                                                           _ -> error "Strictness Analysis Error!! 1"
 
                 arg         .   knPhi               =   @lhs.knPhi `join` @loc.phi0
 
-                lhs         .   strGam              =   gamSplit @func.strGam @arg.strGam
+                lhs         .   strGam              =   gamSplitConj @func.strGam @arg.strGam
                 lhs         .   infAnnTy            =   @loc.tau
   | Lam         body        .   knPhi               =   Strict
                 loc         .   x                   =   head @arg.bndVars
@@ -73,19 +83,38 @@ SEM Expr
                                                            _ -> error "Strictness Analysis Error!! 2"
                 lhs         .   strGam              =   gamContaintment @lhs.knPhi (gamDel @loc.x @body.strGam)
                                                          
- 
+  | Case        expr        .   knPhi               =   Strict
+                lhs         .   strGam              =   gamSplitConj @expr.strGam @alts.strGam
+                lhs         .   infAnnTy            =   @alts.infAnnTy                 
 
 
 SEM Decls
   | Nil         lhs     .  strGam    =   emptyGam
+                lhs     .  annTyGam  =   @lhs.annTyGam
                 lhs     .  bndVars   =   []
-  | Cons        lhs     .  strGam    =   gamAddGam @hd.strGam @tl.strGam
+  | Cons        lhs     .  strGam    =   gamAddGam @hd.strGam   @tl.strGam
+                lhs     .  annTyGam  =   gamAddGam @hd.annTyGam @tl.annTyGam
                 lhs     .  bndVars   =   @hd.bndVars ++ @tl.bndVars
 
 
 SEM Decl
   | Val         lhs     .  strGam    =  @expr.strGam
+                lhs     .  annTyGam  =  gamAdd (head @patExpr.bndVars) @expr.infAnnTy @lhs.annTyGam
                 lhs     .  bndVars   =  @patExpr.bndVars  
+
+
+SEM CaseAlts
+  | Nil         lhs     .  end       =   True
+                lhs     .  strGam    =   emptyGam
+  | Cons        lhs     .  end       =   False
+                lhs     .  strGam    =   if @tl.end 
+                                            then @hd.strGam 
+                                            else gamSplitDisj @hd.strGam  @tl.strGam
+                lhs     .  infAnnTy  =   @hd.infAnnTy -- todo: unify the types
+
+SEM CaseAlt
+  | Pat         lhs     .  strGam    =   foldr  (\x g -> gamDel x g) @expr.strGam @patExpr.bndVars
+                lhs     .  infAnnTy  =   @expr.infAnnTy
 
 
 SEM PatExpr
