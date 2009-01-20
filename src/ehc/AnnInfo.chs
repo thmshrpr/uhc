@@ -1,7 +1,7 @@
 %%[1 module {%{EH}AnnInfo} 
 %%]
 
-%%[8 export(Ann(..),AnnTy(..),meet,join,getAnn,isStrictAnn,mkPhiVar,anotateTy)
+%%[8 export(Ann(..),AnnTy(..),meet,join,getAnn,isStrictAnn,mkPhiVar,anotateTy,substAnnTy,substAnnArrow)
 %%]
 
 %%[8 import({%{EH}Base.Common}, {%{EH}Base.Builtin}, {%{EH}Ty})
@@ -25,7 +25,7 @@ type AnnTyVarId = UID
 data AnnTy  = AnnArrow AnnTy Ann AnnTy
             | AnyTy
             | AnnTyVar AnnTyVarId
-            deriving Show 
+            deriving (Show,Eq) 
 
 
 meet :: Ann -> Ann -> Ann
@@ -57,9 +57,32 @@ mkPhiVar pvi = AnnVar pvi
 
 anotateTy :: Ty -> AnnTy
 anotateTy (Ty_App (Ty_App (Ty_Con cn) func) arg) 
-                      | hsnIsArrow cn = AnnArrow AnyTy PhiEmpty AnyTy
+                      | hsnIsArrow cn = AnnArrow (anotateTy func) PhiEmpty (anotateTy arg)
                       | otherwise     = AnyTy
 anotateTy (Ty_Var tv categ) = AnnTyVar tv
-anotateTy _ = AnyTy 
+anotateTy _ = AnyTy
+{-
+substAnnTy :: AnnTyVarId -> AnnTy -> AnnTy -> AnnTy
+substAnnTy _  _  AnyTy                = AnyTy
+substAnnTy tv nt (AnnArrow t1 phi t2) = AnnArrow (substAnnTy tv nt t1) phi (substAnnTy tv nt t2)
+substAnnTy tv nt (AnnTyVar v)     
+                          | tv == v   = nt
+                          | otherwise = (AnnTyVar v)
+-}
+substAnnArrow :: AnnTy -> AnnTy -> AnnTy
+substAnnArrow nt t@(AnnArrow t1 phi t2) = AnnArrow nt phi (substAnnTy t1 nt t2)
+
+
+substAnnTy :: AnnTy -> AnnTy -> AnnTy -> AnnTy
+substAnnTy ot nt st | ot == st  = nt
+                    | otherwise = case st of
+                                     AnnArrow l p r -> AnnArrow (substAnnTy ot nt l) p (substAnnTy ot nt r)
+                                     _              -> st
+
+{-
+                                          (AnnTyVar v) -> substAnnTy v nt t
+                                          _            -> (AnnArrow nt phi t2)    
+substAnnArrow _  _                      = error "Strictness Analisis Error!!"
+-}
 
 %%]

@@ -33,8 +33,7 @@ ATTR CaseAlt  [ knPhi : Ann  annTyGam : AnnTyGam | |  infAnnTy : AnnTy strGam : 
 %%[8
 
 SEM AGItf 
-  | AGItf       (expr.gUniq,loc.uniq1)              =   mkNewLevUID @lhs.gUniq
-                expr        .   knPhi               =   mkPhiVar @loc.uniq1 
+  | AGItf       expr        .   knPhi               =   PhiEmpty 
                 expr        .   annTyGam            =   emptyGam
 
 SEM Expr
@@ -45,7 +44,17 @@ SEM Expr
   | SConst      lhs         .   strGam              =   emptyGam
                 lhs         .   infAnnTy            =   AnyTy
   | Undefined   lhs         .   strGam              =   emptyGam
+                lhs         .   infAnnTy            =   anotateTy (@lhs.finTyVarMp |=> @ty)
+
+
+  | Con         lhs         .   strGam              =   emptyGam
                 lhs         .   infAnnTy            =   AnyTy
+
+  | AppTop      lhs         .   strGam              =   @expr.strGam
+                lhs         .   infAnnTy            =   @expr.infAnnTy 
+  | Parens      lhs         .   strGam              =   @expr.strGam
+                lhs         .   infAnnTy            =   @expr.infAnnTy 
+
   | Var         lhs         .   strGam              =   gamAdd @nm @lhs.knPhi emptyGam
                 lhs         .   infAnnTy            =   case gamLookup @nm @lhs.annTyGam of
                                                          Just tau -> tau 
@@ -64,9 +73,9 @@ SEM Expr
                 lhs         .   infAnnTy            =   @body.infAnnTy
                 lhs         .   strGam              =   gamSplitConj @decls.strGam (gamContaintment @lhs.knPhi (gamDel @loc.x @loc.gam2))
 
-  | App         (loc.phi0, loc.tau)                 =   case @func.infAnnTy of
+  | App         (loc.phi0, loc.tau)                 =   case substAnnArrow @arg.infAnnTy @func.infAnnTy of
                                                           (AnnArrow _ phi t) -> (phi,t)
-                                                          _ -> error "Strictness Analysis Error!! 1"
+                                                          _ -> error "Strictness Analysis Error: 1"
 
                 arg         .   knPhi               =   @lhs.knPhi `join` @loc.phi0
 
@@ -80,12 +89,12 @@ SEM Expr
 
                 lhs         .   infAnnTy            =   case anotateTy (@lhs.finTyVarMp |=> @ty) of
                                                            (AnnArrow t1 _ _) -> AnnArrow t1 @loc.phi0 @body.infAnnTy
-                                                           _ -> error "Strictness Analysis Error!! 2"
+                                                           _ -> error "Strictness Analysis Error: 2"
                 lhs         .   strGam              =   gamContaintment @lhs.knPhi (gamDel @loc.x @body.strGam)
                                                          
   | Case        expr        .   knPhi               =   Strict
                 lhs         .   strGam              =   gamSplitConj @expr.strGam @alts.strGam
-                lhs         .   infAnnTy            =   @alts.infAnnTy                 
+                lhs         .   infAnnTy            =   @alts.infAnnTy 
 
 
 SEM Decls
@@ -106,11 +115,12 @@ SEM Decl
 SEM CaseAlts
   | Nil         lhs     .  end       =   True
                 lhs     .  strGam    =   emptyGam
+                lhs     .  infAnnTy  =   AnyTy
   | Cons        lhs     .  end       =   False
                 lhs     .  strGam    =   if @tl.end 
                                             then @hd.strGam 
                                             else gamSplitDisj @hd.strGam  @tl.strGam
-                lhs     .  infAnnTy  =   @hd.infAnnTy -- todo: unify the types
+                lhs     .  infAnnTy  =   @hd.infAnnTy -- todo: unify the types?
 
 SEM CaseAlt
   | Pat         lhs     .  strGam    =   foldr  (\x g -> gamDel x g) @expr.strGam @patExpr.bndVars
@@ -120,6 +130,7 @@ SEM CaseAlt
 SEM PatExpr
   | Var         lhs     .  bndVars   =  [ @nm ]
   | AppTop      lhs     .  bndVars   =  @patExpr.bndVars
+  | Parens      lhs     .  bndVars   =  @patExpr.bndVars
 
 %%]
 
