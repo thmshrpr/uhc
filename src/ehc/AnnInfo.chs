@@ -1,7 +1,7 @@
 %%[1 module {%{EH}AnnInfo} 
 %%]
 
-%%[8 export(Ann(..),AnnTy(..),meet,join,getAnn,isStrictAnn,mkPhiVar,anotateTy,substAnnTy,substAnnArrow)
+%%[8 export(Ann(..),AnnTy(..),meet,join,getAnn,isStrictAnn,mkPhiVar,anotateTy,substAnnTy,substAnnArrow,getConstraints)
 %%]
 
 %%[8 import({%{EH}Base.Common}, {%{EH}Base.Builtin}, {%{EH}Ty})
@@ -10,7 +10,7 @@
 %%[8
 {-| PhiInfo is the information about the annotations 
 -}
-type PhiId = UID
+type PhiId = HsName -- UID
 
 data  Ann    = Strict
              | Lazy
@@ -52,15 +52,18 @@ isStrictAnn :: Ann -> Bool
 isStrictAnn Strict = True
 isStrictAnn _      = False
 
-mkPhiVar :: AnnTyVarId -> Ann
+mkPhiVar :: PhiId -> Ann
 mkPhiVar pvi = AnnVar pvi
 
-anotateTy :: Ty -> AnnTy
-anotateTy (Ty_App (Ty_App (Ty_Con cn) func) arg) 
-                      | hsnIsArrow cn = AnnArrow (anotateTy func) PhiEmpty (anotateTy arg)
-                      | otherwise     = AnyTy
-anotateTy (Ty_Var tv categ) = AnnTyVar tv
-anotateTy _ = AnyTy
+anotateTy :: Ty -> UID -> (AnnTy,UID)
+anotateTy (Ty_App (Ty_App (Ty_Con cn) func) arg) uid 
+                      | hsnIsArrow cn = let (next,uniq) = mkNewUID uid
+                                            (annTy1,next1) = anotateTy func next
+                                            (annTy2,next2) = anotateTy arg  next1
+                                        in  (AnnArrow annTy1 (AnnVar $ uidHNm uniq) annTy2, next2)
+                      | otherwise     = (AnyTy, uid)
+anotateTy (Ty_Var tv categ) uid       = (AnnTyVar tv, uid)
+anotateTy _                 uid       = (AnyTy, uid)
 {-
 substAnnTy :: AnnTyVarId -> AnnTy -> AnnTy -> AnnTy
 substAnnTy _  _  AnyTy                = AnyTy
@@ -78,6 +81,12 @@ substAnnTy ot nt st | ot == st  = nt
                     | otherwise = case st of
                                      AnnArrow l p r -> AnnArrow (substAnnTy ot nt l) p (substAnnTy ot nt r)
                                      _              -> st
+
+getConstraints :: AnnTy -> AnnTy -> [(PhiId,Ann)]
+getConstraints (AnnArrow ot1 (AnnVar phivar) ot2) (AnnArrow nt1 phi nt2) = (phivar,phi): 
+                                                                           (  getConstraints ot1 nt1
+                                                                           ++ getConstraints ot2 nt2 )
+getConstraints _                                  _                      = []
 
 {-
                                           (AnnTyVar v) -> substAnnTy v nt t

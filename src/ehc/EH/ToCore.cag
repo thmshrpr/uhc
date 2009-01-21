@@ -96,7 +96,7 @@ SEM Expr
                 loc         .   x           =   uidHNm  @lUniq -- @loc.uniq1
                 loc         .   cletbind    =   mkCBind1 @loc.x @arg.cexpr
                 loc         .   cletbody    =   mkCExprApp1 @func.cexpr (CExpr_Var @loc.x) 
-                loc         .   cexprapp    =   case @func.infAnnTy of
+                loc         .   cexprapp    =   case (@lhs.finAnnVarMp |=> @func.infAnnTy) of
                                                           (AnnArrow _ Strict _) -> mkCExprLet CBindStrict [@loc.cletbind] @loc.cletbody 
                                                           x                     -> mkCExprApp1 @func.cexpr @arg.cexpr
                             .   cexpr       =   if @func.isNewtype then @arg.cexpr else @cexprapp

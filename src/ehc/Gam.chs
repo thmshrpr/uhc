@@ -70,7 +70,7 @@
 %%[7 import(Data.Maybe,qualified Data.Set as Set,qualified Data.Map as Map) export(gamNoDups)
 %%]
 
-%%[(8 codegen) import({%{EH}Core})
+%%[(8 codegen) import({%{EH}Core}, Debug.Trace)
 %%]
 
 %%[(9 hmtyinfer) import({%{EH}Ty.FitsInCommon})
@@ -1383,7 +1383,7 @@ polGamLookupErr n g
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
-%%[8 export(AnnGam,AnnTyGam, updateAnnGam,gamZipWith,gamDel,isGamEmpty, gamSplitConj, gamSplitDisj, gamContaintment)
+%%[8 export(AnnGam,AnnTyGam, updateAnnGam,gamZipWith,gamDel,isGamEmpty, gamSplitConj, gamSplitDisj, gamContaintment, compSubs)
 
 
 type AnnGam = Gam HsName Ann
@@ -1437,5 +1437,18 @@ gamSplitDisj (Gam ll) grl = Gam $ foldr (\e r -> case cl e of
 gamContaintment :: Ann -> AnnGam -> AnnGam
 gamContaintment phi gam     = gamMap f gam
     where f (x,info)        =  (x, phi `join` info)
+
+instance Substitutable AnnTy HsName AnnGam where
+  s |=>  (AnnArrow t1 phi t2)   = AnnArrow (s |=> t1) (s |=> phi) (s |=> t1)
+  s |=>  a = a
+
+instance Substitutable Ann HsName AnnGam where
+  s |=>  AnnVar phi = maybe (AnnVar phi) id (gamLookup phi s)
+  s |=>  Meet a1 a2 = (s |=> a1) `meet` (s |=> a2)  
+  s |=>  Join a1 a2 = (s |=> a1) `join` (s |=> a2)  
+  s |=>  a          = a
+
+
+compSubs s1 s2 = gamSplitConj s1 (s1 |=> s2)
 
 %%]
