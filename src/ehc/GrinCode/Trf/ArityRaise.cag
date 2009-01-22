@@ -18,6 +18,8 @@ Assumptions:
 %%]
 %%[(8 codegen grin) hs import({%{EH}GrinCode})
 %%]
+%%[(8 codegen grin) hs import(Debug.Trace)
+%%]
 %%[(8 codegen grin) hs import({%{EH}GrinCode.Common(HptMap, AbstractValue, getTags, getNr, getEnvVar, absFetch)})
 %%]
 %%[(8 codegen grin)
@@ -63,7 +65,28 @@ SEM GrExpr
                            (GrVal_Var nm) -> [nm]
                            _ -> []
 
+
 %%]
+
+
+Find recursive top-level bindings by descending into the Rec-block,
+and giving the list of grouped function to every defined function in the group.
+These recursive functions the candidates for optimization.
+
+%%[(8 codegen grin)
+
+ATTR GrBind GrBindL [ | | recBindsUp USE {++} {[]} : {[HsName]} ]
+ATTR GrBind GrBindL GrExpr [ recBindsDown : {[HsName]} | | ]
+
+SEM GrBind
+  | Rec bindL . recBindsDown = {traceShow (@bindL.recBindsUp) (@bindL.recBindsUp)}
+        lhs . recBindsUp = @bindL.recBindsUp
+  | Bind expr . recBindsDown = @lhs.recBindsDown
+         lhs . recBindsUp = {[ @nm ]}
+
+%%]
+
+
 %%[8.arityRaise hs
 
 -- Treshold to determine which functions we want to specialize
