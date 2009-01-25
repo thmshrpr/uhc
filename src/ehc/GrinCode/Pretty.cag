@@ -197,6 +197,7 @@ SEM GrExpr
                                                 indent 2 (ppCurlysSemisV [@body.pp]) >-<
                                                 "catch" >|< ppParens (@lhs.ppGrNm @arg) >-<
                                                 indent 2 (ppCurlysSemisV [@handler.pp])
+  | Comment     lhs         .   pp          =   ("-- Comment: " ++ @txt) >-< @expr.pp
 
 SEM GrAlt
 %%[[8

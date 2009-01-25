@@ -12,14 +12,13 @@ Assumptions:
 %%[(8 codegen grin) hs module {%{EH}GrinCode.Trf.ArityRaise} export(arityRaise)
 %%]
 
-
 %%[(8 codegen grin) ag import({GrinCode/AbsSyn})
 %%]
 %%[(8 codegen grin) hs import({%{EH}Base.Common(HsName, CTagsMp)})
 %%]
 %%[(8 codegen grin) hs import({%{EH}GrinCode})
 %%]
-%%[(8 codegen grin) hs import({%{EH}GrinCode.Common(HptMap, getTags, getNr, getEnvVar)})
+%%[(8 codegen grin) hs import({%{EH}GrinCode.Common(HptMap, AbstractValue, getTags, getNr, getEnvVar, absFetch)})
 %%]
 %%[(8 codegen grin)
 WRAPPER GrAGItf
@@ -44,18 +43,54 @@ ATTR GrAGItf
      AllBind
      AllGrExpr [ hptMap: HptMap | | ]
 
+ATTR GrExpr [ | | rScruts USE {++} {[]} : {[HsName]} ]
+ATTR GrExpr [ | | rSize USE {`siz`} {0} : {Int} ]
+
+ATTR GrBind [  | | ]
+ATTR GrBind, GrExpr [ rRecRoot : {Maybe HsName} | | ]
+
 SEM GrBind
-  | Bind lhs . grTrf = if (raiseable @self @lhs.hptMap)
-                         then @self
-                         else @self
---  | Rec lhs . grTrf = 
+         -- H1: function definition
+  | Bind loc . rCondDef  = length @argNmL > 0
+         -- H2: check for "sufficiently small" function
+         loc . rCondSize = @expr.rSize <= specSizeTreshold
+         -- H5 & H6: Create "call patterns" using hptMap and rScruts
+         loc . rPats = []
+
+         loc . rName = Just @nm
+         
+         lhs . grTrf = @loc.grTrf
+
+  | Rec  loc . rName = Nothing
+
+SEM GrBindL
+  | Cons recRoot = @hd.rName
+
+SEM GrExpr
+         -- H6: Collect all scrutinized arguments of the function
+  | Case lhs . rScruts = case @val of
+                           (GrVal_Var nm) -> [nm]
+                           _ -> []
 
 %%]
 %%[8.arityRaise hs
 
--- absFetch :: HptMap -> HsName -> AbstractValue
+-- Treshold to determine which functions we want to specialize
+-- hence big functions (according to the treshold) will not be
+-- specialized to avoid excessive code increase
+--
+-- Unit: number of nested GRIN expressions
+specSizeTreshold = 100
 
-raiseable :: GrBind -> HptMap -> Boolean
-raiseable (Bind nm annot args expr) hpt = False
+siz :: Num a => a -> a -> a
+siz a b = a + b + 1
+
+pats :: [([HsName],[AbstractValue])] -> HptMap -> [HsName] -> [([HsName],[AbstractValue])]
+pats ps hpt [] = ps
+pats ps hpt (x:xs) = pats (mkPat (absFetch hpt x) ++ ps) hpt xs
+
+mkPat :: AbstractValue -> [AbstractValue]
+mkPat nm (AbsNodes tagMap) = [ (nm,) | (Con grtgAnn int nm) <- Map.keys tagMap]
+mkPat nm abs = (Nothing,abs)
 
 %%]

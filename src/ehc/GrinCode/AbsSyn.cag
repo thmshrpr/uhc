@@ -63,6 +63,8 @@ DATA GrExpr
   | Catch       body            : GrExpr
                 arg             : {HsName}
                 handler         : GrExpr
+  | Comment	txt             : {String}
+                expr            : GrExpr
 
 DATA GrAlt
   | Alt         ann             : {GrAltAnn}

@@ -56,7 +56,7 @@ SEM GrBind
          -- H5 & H6: Create "call patterns" using hptMap and rScruts
          loc . rPats = []
          
-         lhs . grTrf = @loc.grTrf
+--         lhs . grTrf = @loc.grTrf
 --  | Rec lhs . grTrf = 
 
 SEM GrExpr
@@ -75,14 +75,22 @@ These recursive functions the candidates for optimization.
 
 %%[(8 codegen grin)
 
-ATTR GrBind GrBindL [ | | recBindsUp USE {++} {[]} : {[HsName]} ]
-ATTR GrBind GrBindL GrExpr [ recBindsDown : {[HsName]} | | ]
+ATTR GrBindL [ | | recBindsUp USE {++} {[]} : {[HsName]} ]
+ATTR GrModule AllBind AllGrExpr [ recBindsDown : {[HsName]} | | ]
+
+SEM GrModule
+  | Mod bindL . recBindsDown = []
 
 SEM GrBind
-  | Rec bindL . recBindsDown = {traceShow (@bindL.recBindsUp) (@bindL.recBindsUp)}
-        lhs . recBindsUp = @bindL.recBindsUp
-  | Bind expr . recBindsDown = @lhs.recBindsDown
-         lhs . recBindsUp = {[ @nm ]}
+  | Rec bindL . recBindsDown = @bindL.recBindsUp -- push down all (mutual) recursive bindings
+
+SEM GrBind
+  | Rec lhs . recBindsUp = []
+  | Bind lhs . recBindsUp = [@nm]
+
+SEM GrExpr
+  | Call loc . isRecursive = elem @nm @lhs.recBindsDown
+         lhs . grTrf       = GrExpr_Comment (show @lhs.recBindsDown) @loc.grTrf
 
 %%]
 
