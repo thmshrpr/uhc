@@ -107,11 +107,4 @@ specSizeTreshold = 100
 siz :: Num a => a -> a -> a
 siz a b = a + b + 1
 
-pats :: [(Maybe HsName,AbstractValue)] -> HptMap -> [HsName] -> [(Maybe HsName,AbstractValue)]
-pats ps hpt [] = ps
-pats ps hpt (x:xs) = pats (getPat x (absFetch hpt x) : ps) hpt xs
-
-getPat :: HsName -> AbstractValue -> (Maybe HsName,AbstractValue)
-getPat nm abs = (Nothing,abs)
-
 %%]
