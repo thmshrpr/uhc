@@ -94,6 +94,15 @@ SEM GrExpr
 
 %%]
 
+Create call patterns at all call-sites that are marked as recursive
+and send them up to the Rec-element which can then add specializations
+
+%%[(8 codegen grin)
+
+
+
+%%]
+
 
 %%[8.arityRaise hs
 
