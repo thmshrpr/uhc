@@ -75,7 +75,7 @@ These recursive functions the candidates for optimization.
 
 %%[(8 codegen grin)
 
-ATTR GrBindL [ | | recBindsUp USE {++} {[]} : {[HsName]} ]
+ATTR AllBind [ | | recBindsUp USE {++} {[]} : {[HsName]} ]
 ATTR GrModule AllBind AllGrExpr [ recBindsDown : {[HsName]} | | ]
 
 SEM GrModule
@@ -90,7 +90,7 @@ SEM GrBind
 
 SEM GrExpr
   | Call loc . isRecursive = elem @nm @lhs.recBindsDown
-         lhs . grTrf       = GrExpr_Comment (show @lhs.recBindsDown) @loc.grTrf
+         lhs . grTrf       = if @loc.isRecursive then GrExpr_Comment "Recursive call!" @loc.grTrf else GrExpr_Comment "Non-recursive call" @loc.grTrf
 
 %%]
 
