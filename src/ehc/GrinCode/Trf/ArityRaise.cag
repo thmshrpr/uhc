@@ -46,7 +46,7 @@ ATTR GrAGItf
      AllGrExpr [ hptMap: HptMap | | ]
 
 ATTR GrExpr [ | | rScruts USE {++} {[]} : {[HsName]} ]
-ATTR GrExpr [ | | rSize USE {`siz`} {0} : {Int} ]
+ATTR AllGrExpr [ | | rSize USE {`siz`} {0} : {Int} ]
 
 SEM GrBind
          -- H1: function definition
@@ -82,7 +82,7 @@ SEM GrBind
 
 SEM GrBind
   | Rec lhs . recBindsUp = []
-  | Bind lhs . recBindsUp = [@nm]
+  | Bind lhs . recBindsUp = if @loc.rCondSize then [@nm] else [] -- only include bindings that are "sufficiently small"
 
 SEM GrExpr
   | Call loc . isRecursive = elem @nm @lhs.recBindsDown
@@ -97,7 +97,7 @@ and send them up to the Rec-element which can then add specializations
 
 %%[(8 codegen grin)
 
-ATTR AllGrExpr [ | | recCalls USE {++} {[]} : {[(HsName,GrValL)]} ]
+ATTR AllBind AllGrExpr [ | | recCalls USE {++} {[]} : {[(HsName,GrValL)]} ]
 
 SEM GrExpr
   | Call lhs . recCalls = if @loc.isRecursive
@@ -119,7 +119,8 @@ SEM GrBind
 -- specialized to avoid excessive code increase
 --
 -- Unit: number of nested GRIN expressions
-specSizeTreshold = 100
+specSizeTreshold = 1000000 -- big number to avoid headaches during testing
+                           -- (recursive calls to large functions are treated as non-recursive)
 
 siz :: Num a => a -> a -> a
 siz a b = a + b + 1
