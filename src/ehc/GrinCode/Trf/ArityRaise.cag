@@ -55,16 +55,12 @@ SEM GrBind
          loc . rCondSize = @expr.rSize <= specSizeTreshold
          -- H5 & H6: Create "call patterns" using hptMap and rScruts
          loc . rPats = []
-         
---         lhs . grTrf = @loc.grTrf
---  | Rec lhs . grTrf = 
 
 SEM GrExpr
          -- H6: Collect all scrutinized arguments of the function
   | Case lhs . rScruts = case @val of
                            (GrVal_Var nm) -> [nm]
                            _ -> []
-
 
 %%]
 
@@ -90,7 +86,9 @@ SEM GrBind
 
 SEM GrExpr
   | Call loc . isRecursive = elem @nm @lhs.recBindsDown
-         lhs . grTrf       = if @loc.isRecursive then GrExpr_Comment "Recursive call!" @loc.grTrf else GrExpr_Comment "Non-recursive call" @loc.grTrf
+         lhs . grTrf       = if @loc.isRecursive
+                               then GrExpr_Comment "Recursive call!" @loc.grTrf
+                               else GrExpr_Comment "Non-recursive call" @loc.grTrf
 
 %%]
 
@@ -99,12 +97,21 @@ and send them up to the Rec-element which can then add specializations
 
 %%[(8 codegen grin)
 
+ATTR AllGrExpr [ | | recCalls USE {++} {[]} : {[(HsName,GrValL)]} ]
 
+SEM GrExpr
+  | Call lhs . recCalls = if @loc.isRecursive
+                          then [ (@nm,@argL) ]
+                          else []
+
+SEM GrBind
+  | Bind lhs . grTrf    = GrBind_Bind @nm @annot @argNmL (GrExpr_Comment (show @expr.recCalls) @expr.grTrf)
 
 %%]
 
 
 %%[8.arityRaise hs
+
 
 -- Treshold to determine which functions we want to specialize
 -- hence big functions (according to the treshold) will not be
