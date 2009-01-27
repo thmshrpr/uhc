@@ -105,7 +105,8 @@ SEM GrExpr
                           else []
 
 SEM GrBind
-  | Bind lhs . grTrf    = GrBind_Bind @nm @annot @argNmL (GrExpr_Comment (show @expr.recCalls) @expr.grTrf)
+  | Bind lhs . grTrf    = GrBind_Bind @nm @annot @argNmL
+                            $ GrExpr_Comment ("Recursive calls in this binding " ++ show @expr.recCalls) @expr.grTrf
 
 %%]
 
