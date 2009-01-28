@@ -45,7 +45,7 @@ ATTR GrAGItf
      AllBind
      AllGrExpr [ hptMap: HptMap | | ]
 
-ATTR AllGrExpr [ | | rSize USE {`siz`} {0} : {Int} ]
+ATTR AllGrExpr [ | | rSize USE {+} {1} : {Int} ]
 ATTR GrExpr [ | | rScruts USE {++} {[]} : {[HsName]} ] -- note: rScruts only on "top-level" expressions
                                                        --       i.e. not in case alternatives
 
@@ -54,8 +54,6 @@ SEM GrBind
   | Bind loc . rCondDef  = length @argNmL > 0
          -- H2: check for "sufficiently small" function
          loc . rCondSize = @expr.rSize <= specSizeTreshold
-         -- H5 & H6: Create "call patterns" using hptMap and rScruts
-         loc . rPats = []
 
 SEM GrExpr
          -- H6: Collect all scrutinized arguments of the function
@@ -107,7 +105,7 @@ SEM GrExpr
 
 SEM GrBind
   | Bind lhs . grTrf    = GrBind_Bind @nm @annot @argNmL
-                            $ GrExpr_Comment ("Recursive calls in this binding " ++ show @expr.recCalls) @expr.grTrf
+                            $ GrExpr_Comment ("Size " ++ show @expr.rSize) @expr.grTrf
 
 
 %%]
@@ -115,15 +113,11 @@ SEM GrBind
 
 %%[8.arityRaise hs
 
-
 -- Treshold to determine which functions we want to specialize
 -- hence big functions (according to the treshold) will not be
 -- specialized to avoid excessive code increase
 --
 -- Unit: number of nested GRIN expressions
 specSizeTreshold = 1000000 -- big number to avoid headaches during testing
-
-siz :: Num a => a -> a -> a
-siz a b = a + b + 1
 
 %%]
