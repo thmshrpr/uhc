@@ -45,8 +45,9 @@ ATTR GrAGItf
      AllBind
      AllGrExpr [ hptMap: HptMap | | ]
 
-ATTR GrExpr [ | | rScruts USE {++} {[]} : {[HsName]} ]
 ATTR AllGrExpr [ | | rSize USE {`siz`} {0} : {Int} ]
+ATTR GrExpr [ | | rScruts USE {++} {[]} : {[HsName]} ] -- note: rScruts only on "top-level" expressions
+                                                       --       i.e. not in case alternatives
 
 SEM GrBind
          -- H1: function definition
@@ -82,13 +83,13 @@ SEM GrBind
 
 SEM GrBind
   | Rec lhs . recBindsUp = []
-  | Bind lhs . recBindsUp = if @loc.rCondSize then [@nm] else [] -- only include bindings that are "sufficiently small"
+  | Bind lhs . recBindsUp = if @loc.rCondSize && @loc.rCondDef then [@nm] else [] -- only include specialisable bindings
 
 SEM GrExpr
   | Call loc . isRecursive = elem @nm @lhs.recBindsDown
          lhs . grTrf       = if @loc.isRecursive
-                               then GrExpr_Comment "Recursive call!" @loc.grTrf
-                               else GrExpr_Comment "Non-recursive call" @loc.grTrf
+                               then GrExpr_Comment "Specialisable call!" @loc.grTrf
+                               else GrExpr_Comment "Non-specialisable call" @loc.grTrf
 
 %%]
 
@@ -108,6 +109,7 @@ SEM GrBind
   | Bind lhs . grTrf    = GrBind_Bind @nm @annot @argNmL
                             $ GrExpr_Comment ("Recursive calls in this binding " ++ show @expr.recCalls) @expr.grTrf
 
+
 %%]
 
 
@@ -120,7 +122,6 @@ SEM GrBind
 --
 -- Unit: number of nested GRIN expressions
 specSizeTreshold = 1000000 -- big number to avoid headaches during testing
-                           -- (recursive calls to large functions are treated as non-recursive)
 
 siz :: Num a => a -> a -> a
 siz a b = a + b + 1
