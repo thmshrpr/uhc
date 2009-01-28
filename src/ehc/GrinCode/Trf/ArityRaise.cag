@@ -14,13 +14,20 @@ Assumptions:
 
 %%[(8 codegen grin) ag import({GrinCode/AbsSyn})
 %%]
-%%[(8 codegen grin) hs import({%{EH}Base.Common(HsName, CTagsMp)})
+
+%%[(8 codegen grin) hs import (Data.Map (Map))
+%%]
+%%[(8 codegen grin) hs import (qualified Data.Map as Map)
+%%]
+%%[(8 codegen grin) hs import({%{EH}Base.Common(HsName (..), CTagsMp)})
 %%]
 %%[(8 codegen grin) hs import({%{EH}GrinCode})
 %%]
 %%[(8 codegen grin) hs import(Debug.Trace)
 %%]
 %%[(8 codegen grin) hs import({%{EH}GrinCode.Common(HptMap, AbstractValue, getTags, getNr, getEnvVar, absFetch)})
+%%]
+%%[(8 codegen grin) hs import (Maybe (fromMaybe))
 %%]
 %%[(8 codegen grin)
 WRAPPER GrAGItf
@@ -45,7 +52,11 @@ ATTR GrAGItf
      AllBind
      AllGrExpr [ hptMap: HptMap | | ]
 
-ATTR AllGrExpr [ | | rSize USE {+} {1} : {Int} ]
+ATTR AllGrExpr [ | | varOrigin USE {`Map.union`} {Map.empty} : {Map HsName HsName} ]
+ATTR AllGrExpr [  | | varOriginUp USE {`co`} {Nothing} : {Maybe HsName} ]
+ATTR GrVal [ | | topVar USE {`co`} {Nothing} : {Maybe HsName} ]
+ATTR AllGrExpr GrVal [ | | nVarUse USE {`unionPlus`} {Map.empty} : {Map HsName Int}  ]
+ATTR AllGrExpr [ | | rSize USE {+} {1} : Int ]
 ATTR GrExpr [ | | rScruts USE {++} {[]} : {[HsName]} ] -- note: rScruts only on "top-level" expressions
                                                        --       i.e. not in case alternatives
 
@@ -54,12 +65,27 @@ SEM GrBind
   | Bind loc . rCondDef  = length @argNmL > 0
          -- H2: check for "sufficiently small" function
          loc . rCondSize = @expr.rSize <= specSizeTreshold
+         loc . scruts = selectScruts @expr.varOrigin @expr.nVarUse @expr.rScruts
+
+SEM GrVal
+  | Var lhs . topVar = Just @nm
+        lhs . nVarUse = Map.insert @nm 1 Map.empty
 
 SEM GrExpr
-         -- H6: Collect all scrutinized arguments of the function
-  | Case lhs . rScruts = case @val of
-                           (GrVal_Var nm) -> [nm]
+  | FetchNode lhs . nVarUse = Map.insert @nm 1 Map.empty
+  | FetchUpdate lhs . nVarUse = Map.insert @src 1 (Map.insert @dst 1 Map.empty)
+  | FetchField lhs . nVarUse = Map.insert @nm 1 Map.empty
+
+SEM GrExpr
+  | Case lhs . rScruts = case @val.topVar of
+                           (Just nm) -> [nm]
                            _ -> []
+  | FetchNode lhs . varOriginUp =  Just @nm
+  | Seq lhs . varOrigin = case @expr.varOriginUp of
+                            (Just nm1) -> case @pat of
+                                           (GrPatLam_Var nm2) -> Map.insert nm2 nm1 @body.varOrigin
+                                           _ -> @body.varOrigin
+                            _ -> @body.varOrigin
 
 %%]
 
@@ -105,13 +131,14 @@ SEM GrExpr
 
 SEM GrBind
   | Bind lhs . grTrf    = GrBind_Bind @nm @annot @argNmL
-                            $ GrExpr_Comment ("Size " ++ show @expr.rSize) @expr.grTrf
-
+                            $ GrExpr_Comment ("Scrutinees " ++ show @expr.varOrigin) @expr.grTrf
 
 %%]
 
 
 %%[8.arityRaise hs
+
+data VarUsage = Scrut | Read
 
 -- Treshold to determine which functions we want to specialize
 -- hence big functions (according to the treshold) will not be
@@ -119,5 +146,21 @@ SEM GrBind
 --
 -- Unit: number of nested GRIN expressions
 specSizeTreshold = 1000000 -- big number to avoid headaches during testing
+
+unionPlus :: Map HsName Int -> Map HsName Int -> Map HsName Int
+unionPlus = Map.unionWith (+)
+
+selectScruts :: Map HsName HsName -> Map HsName Int -> [HsName] -> [HsName]
+selectScruts origMap useMap xs = map findOriginal (filter usedOnce xs)
+  where
+    findOriginal x = fromMaybe x (Map.lookup x origMap)
+    usedOnce x = nUses x == 1
+    nUses x = fromMaybe 0 (Map.lookup x useMap)
+
+
+const2 c a b = c
+co = const2 Nothing
+
+nod a (HNmNr i _) = getEnvVar a i
 
 %%]

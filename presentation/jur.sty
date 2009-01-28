@@ -1,0 +1,300 @@
+% My own style file!!
+
+\usepackage{calc}
+
+\newlength{\jurrie}  %% For positioning later on.
+
+\newif\ifcomment
+  \commentfalse
+
+\newif\ifuitgebreid
+  \uitgebreidfalse
+ 
+\newif\ifabstract
+  \abstractfalse
+
+\newif\iffull
+  \fulltrue
+
+% New commands
+\newcommand{\nc}{\newcommand}   %% I'm lazy
+
+\nc{\restorepaper}{
+\addtolength{\textheight}{-3cm}
+\addtolength{\topmargin}{2cm}
+\addtolength{\oddsidemargin}{1cm}
+\addtolength{\evensidemargin}{1cm}
+\addtolength{\textwidth}{-2cm}
+}
+
+\nc{\favouritepagesize}{
+\addtolength{\textheight}{3cm}
+\addtolength{\topmargin}{-2cm}
+\setlength{\oddsidemargin}{0.96cm}
+\setlength{\evensidemargin}{0.96cm}
+\setlength{\textwidth}{14cm}
+}
+
+\nc{\liacs}{Leiden Institute of Advanced Computer Science,
+        P.O. Box 9512, 2300 RA Leiden, The Netherlands}
+\nc{\uucenter}{Center for Software Technology}
+\nc{\uuinstituteshort}{\uucenter}
+\nc{\uuinstitute}{Department of Information and Computing Sciences, Universiteit Utrecht}
+\nc{\uuaddress}{P.O.Box 80.089, 3508 TB Utrecht, The Netherlands}
+\nc{\jurmail}{jur@cs.uu.nl}
+\nc{\jurweb}{http://www.cs.uu.nl/people/jur/}
+         
+\renewcommand{\theenumi}{\roman{enumi}}
+\renewcommand{\theenumii}{\alph{enumii}}
+\renewcommand{\theenumiii}{\arabic{enumiii}}
+\nc{\proofstart}{{\bf Proof:\ \ }}  %% Imposing a standard.
+\nc{\dexample}{\hfill $\diamond$}
+\nc{\deproof}{\hfill {\bf $\Box$}}  %% Imposing a standard
+\nc{\fullpage}{
+  \setlength{\textheight}{10in}
+  \setlength{\topmargin}{-0.5in}
+  \setlength{\oddsidemargin}{-0.7in}
+  \setlength{\evensidemargin}{-0.7in}
+  \setlength{\textwidth}{7in}
+  \setlength{\footskip}{0in}
+  \setlength{\headsep}{0in}
+}
+
+%% Makes two pages half the width of the page
+%% First arg is left page, second arg is right. Do
+%% not think that the command will make the right distribution
+%% over the pages for you though.
+\nc{\intwocolumns}[2]{
+\begin{minipage}{\textwidth / 2}
+#1
+\end{minipage}
+\begin{minipage}{\textwidth / 2}
+#2
+\end{minipage}
+}
+
+\newlength{\jump}
+\setlength{\jump}{2em}
+
+\nc{\ignore}[1]{}  %% Remove the parameter actually.
+\nc{\id}[1]{#1}
+\nc{\single}[1]{\begin{itemize} \item #1 \end{itemize}}
+\nc{\todo}[1]{\textcolor{blue}{$\bullet$ \textit{#1} $\bullet$}}
+\nc{\enum}{\begin{enumerate}}   %% Short
+\nc{\denum}{\end{enumerate}}  %% Short
+\nc{\skipline}{\mbox{} \\}  %% Skips a line, always
+\nc{\prfskip}{\\}
+\nc{\thmskip}{\skipline}
+\nc{\nextpage}{\vspace{20cm}}  %% Tries to reach the next page
+\nc{\skipspace}[1]{\settowidth{\jurrie}{#1} \hspace*{\jurrie}}  %% Skipping space for alignment
+\nc{\underaccolade}[1]{\underbrace{\mbox{\skipspace{#1}}}}
+
+\nc{\using}[1]{\mbox{$\stackrel{#1}{\rightarrow}$}}  %% Chains of actions
+%\nc{\implies}{\mbox{$\Rightarrow$\ }}  %% Implication in proofs
+\nc{\impliesby}[1]{\mbox{$\stackrel{#1}{\Rightarrow}$}}
+  %% In chains of thought, a implies b by theorem c.d
+%\nc{\rimplies}{\mbox{$\Leftarrow$\ }}  %% reverse implication (use with proofs)
+\nc{\rimplies}{\impliesby}
+\nc{\derives}{\rightarrow}
+
+\nc{\mylabel}[1]{\label{#1}\mbox{\em Label: #1}}% when writing this is useful.
+
+\newlength{\beneathwd}
+%\nc{\beneathrel2}[2]{\settowidth{\beneathwd}{#1}%
+%                    \makebox[\beneathwd]{#1
+%                    \raisebox{-1.4ex}{\makebox[\beneathwd]{#2}}}}
+\nc{\beneathrel}[2]{\settowidth{\beneathwd}{#1}%
+                    \makebox{\raisebox{-1.4ex}
+                       {\makebox{$\stackrel{\mbox{#1}}{\mbox{#2}}$}}}}
+
+\newcounter{indctr}  %% For keeping the indent count.
+\nc{\dod}{\hspace*{\value{indctr} em}}  %% Indent on current value
+\nc{\ind}{\addtocounter{indctr}{2}\dod} %% Indent on one higher 
+\nc{\outd}{\addtocounter{indctr}{-2}\dod}  %% Indent on one lower
+\nc{\out}{\addtocounter{indctr}{-2}}
+
+\newlength{\pwidth}
+\setlength{\pwidth}{\textwidth}
+
+% To indent a block some fixed amount.
+\newenvironment{indblck}
+      {\addtolength{\pwidth}{-\jump}\hspace*{\jump} 
+                        \begin{minipage}[t]{\pwidth}}
+                       {\end{minipage}}
+ 
+% To indent a block based on the length of some text (which will be put in front of it).
+\newenvironment{indblck2}[1]
+      {#1\settowidth{\jurrie}{#1\ \ }  %% The two extra spaces are important.
+         \addtolength{\pwidth}{-\jurrie}
+           \begin{minipage}[t]{\pwidth}}
+                       {\end{minipage}}
+
+%\newenvironment{ltr}
+%  {\begin{indblck2}{{\bf \implies}}}
+%  {\end{indblck2}}
+%\newenvironment{rtl}
+%  {\begin{indblck2}{{\bf \rimplies}}}
+%  {\end{indblck2}}
+%\newenvironment{claim}[1]
+%  {\begin{indblck2}{{\bf Claim #1:}}}
+%  {\end{indblck2}}
+%\newenvironment{comment}
+%  {\rm \begin{indblck2}{{\bf (*}}}
+%  {{\bf *)}\end{indblck2}}
+
+% For all your indexing of definitions.
+\nc{\indexed}[1]{{\em #1}\index{#1}}
+\nc{\indexedtwo}[2]{{\em #1 #2}\index{#2!#1}}
+\nc{\indexedthree}[3]{{\em #1 #2 #3}\index{#3!#2!#1}}
+\nc{\subindexed}[2]{{\em #1}\index{#2!#1}}
+\nc{\subsubindexed}[3]{{\em #1}\index{#3!#2!#1}}
+
+\nc{\spaced}[1]{\ \mbox{#1}\ }
+\nc{\andt}{\spaced{and}}   %% Textual and in math
+\nc{\ort}{\spaced{or}}  %% Textual or in math
+\nc{\class}[2]{\mbox{$[#1]_{#2}$}}  
+  %% Equivalence class notation. First the element, second the relation.
+\nc{\subclass}[2]{\mbox{$\langle #1\rangle_{#2}$}}  
+\nc{\home}{\~{}}
+\nc{\nrel}{\mbox{$\not\!\!\rel$}}  %% Putting a not through an italic
+\nc{\hi}[1]{\mbox{\em #1}}   %% High lighting
+\nc{\fun}[3]{\mbox{$#1:#2\rightarrow#3$}} %% Functions with domain and range
+\nc{\rest}[2]{\mbox{$#1|_{#2}$}}  %% Restrict function #1 to domain #2
+\nc{\mathind}{\hspace*{\jump}}
+\nc{\n}{\mbox{\bf N}}
+\nc{\z}{\mbox{\bf Z}}
+\nc{\q}{\mbox{\bf Q}}
+\nc{\reals}{\mbox{\bf R}}
+\nc{\fix}{\mbox{Fix}}
+\nc{\zn}[1]{\z_{#1}}
+\nc{\compo}{\cdot}
+\nc{\seq}[2]{#1_{1},\ldots,#1_{\scriptstyle #2}}
+\nc{\zseq}[2]{#1_{0},\ldots,#1_{\scriptstyle #2}}
+\nc{\powseq}[3]{#1_{1}^{#3_{1}}, \ldots #1_{\scriptstyle #2}^{#3_{\sriptstyle #2}}}
+\nc{\zeroseq}[1]{0,\ldots,#1}
+\nc{\Order}{{\cal O}}
+\nc{\order}{{\cal o}}
+\nc{\ptr}{\!\!\uparrow}
+\nc{\domain}{\mbox{\underline{dom}}}
+\nc{\ran}{\mbox{\underline{ran}}}
+\nc{\iso}{\cong}
+\nc{\isowith}[1]{\stackrel{#1}{\iso}}
+\nc{\embed}{\hookrightarrow}
+\nc{\embedwith}[1]{\stackrel{#1}{\embed}}
+\nc{\inj}{\psi}
+\nc{\sing}{\mbox{SING}}
+\nc{\idfun}[1]{\mbox{{\em id}$_{\scriptstyle #1}$}}
+\nc{\subst}{\leftarrow}
+\nc{\reallynoindent}{\hspace*{-\leftmargin}}
+\nc{\separator}{\reallynoindent\hrulefill \\} % line till end of line
+\nc{\non}{non-}
+\nc{\itel}{\mbox{\it l}}
+\nc{\symdif}{\ominus}
+\nc{\setmin}{-}
+\nc{\nchoosek}[2]{\left( \begin{array}{c} #1 \\ #2 \end{array} \right)}
+\nc{\Pow}{{\cal P}}
+
+\nc{\points}[1]{\hfill {\bf [#1]}}% For examinations.
+
+% For double label refs. ie. theorem 5.2.ii
+\nc{\tref}[2]{\ref{#1}.\ref{#2}}
+
+% Block notations
+\nc{\ack}{\noindent{\Large \bf Acknowledgements}}
+\nc{\opm}[1]{\noindent{\bf $\bullet$ #1 $\bullet$}}
+
+\nc{\define}[1]{\noindent{\bf Please define: #1. Thank you.\\}}
+\nc{\answer}{\noindent{\bf Answer:\ }}
+
+\nc{\setspacing}[1]{\renewcommand{\baselinestretch}{#1}\small\normalsize\small}
+\nc{\doublespacing}{\setspacing{2}}
+\nc{\singlespacing}{\setspacing{1}}
+
+\nc{\C}{{\tt C}}
+\nc{\Haskell}{{\tt Haskell}}
+\nc{\Haskellne}{{\tt Haskell~98}}
+\nc{\Scheme}{{\tt Scheme}}
+\nc{\CPP}{{\tt C++}}
+\nc{\Java}{{\tt Java}}
+\nc{\JavaScript}{{\tt JavaScript}}
+\nc{\VBScript}{{\tt VBScript}}
+\nc{\Perl}{{\tt Perl}}
+\nc{\Python}{{\tt Python}}
+\nc{\PHP}{{\tt PHP}}
+\nc{\Pascal}{{\tt Pascal}}
+\nc{\Prolog}{{\tt Prolog}}
+\nc{\ML}{{\tt ML}}
+\nc{\Helium}{{\tt Helium}}
+\nc{\GHC}{{\tt GHC}}
+\nc{\SQL}{{\tt SQL}}
+\nc{\Hugs}{{\tt Hugs}}
+\nc{\HTML}{{\tt HTML}}
+\nc{\While}{{\tt While}}
+\nc{\OCaml}{{\tt OCaml}}
+\nc{\Top}{\textsc{Top}}
+\nc{\Neon}{\textsc{Neon}}
+\newcommand{\smlnj}{SML-NJ}
+\newcommand{\ocaml}{OCaml}
+\newcommand{\HMX}{HM(X)}
+\newcommand{\SML}{Standard ML}
+\newcommand{\GHCI}{GHCI}
+\newcommand{\LISP}{LISP}
+\newcommand{\Chameleon}{Chameleon}
+\newcommand{\DrScheme}{DrScheme}
+
+\nc{\cons}{\!:\!}
+\nc{\append}{+\!\!\!+}
+
+%\nc{\code}[1]{\texttt{#1}}
+
+% This is a heavy one. Used in patterns.
+\def\defrel#1{\expandafter\def\csname #1\endcsname{R_{\mbox{\scriptsize #1}}}}
+
+
+% Keywords:
+\newcommand{\keyword}{\textbf}
+
+\newcommand{\kraise}{\keyword{raise}}
+\newcommand{\khandle}{\keyword{handle}}
+\newcommand{\kin}{\keyword{in}}
+\newcommand{\kas}{\keyword{as}}
+\newcommand{\klet}{\keyword{let}}
+\newcommand{\kwhere}{\keyword{where}}
+\newcommand{\kfn}{\keyword{fn}}
+\newcommand{\kfun}{\keyword{fun}}
+\newcommand{\kif}{\keyword{if}}
+\newcommand{\kthen}{\keyword{then}}
+\newcommand{\kelse}{\keyword{else}}
+\newcommand{\kproc}{\keyword{proc}}
+\newcommand{\kend}{\keyword{end}}
+\newcommand{\kcall}{\keyword{call}}
+\newcommand{\knew}{\keyword{new}}
+\newcommand{\kreceive}{\keyword{receive}}
+\newcommand{\ksend}{\keyword{send}}
+\newcommand{\kspawn}{\keyword{spawn}}
+\newcommand{\kon}{\keyword{on}}
+\newcommand{\kchannel}{\keyword{channel}}
+\newcommand{\kdo}{\keyword{do}}
+\newcommand{\kwhile}{\keyword{while}}
+\newcommand{\krec}{\keyword{rec}}
+\newcommand{\kfor}{\keyword{for}}
+
+\newcommand{\ident}[1]{\mbox{\texttt{#1}}}
+
+\newcommand{\M}{{\cal M}}
+\newcommand{\W}{{\cal W}}
+\newcommand{\G}{{\cal G}}
+\newcommand{\algw}{\W}
+\newcommand{\algm}{\M}
+\newcommand{\algg}{\G}
+
+\newcommand{\inttp}{\mathit{Int}}
+\newcommand{\booltp}{\mathit{Bool}}
+\newcommand{\unittp}{\mathit{Unit}}
+
+\newcommand{\fn}{\texttt}
+
+%\DefineVerbatimEnvironment{progbox}{Verbatim}{frame=single,%
+%  rulecolor=\color{red},numbers=none}
+%\DefineVerbatimEnvironment{progboxc}{Verbatim}{commandchars=\\\{\},frame=single,%
+%:  rulecolor=\color{red},numbers=none}
