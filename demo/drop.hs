@@ -7,14 +7,14 @@ foreign import ccall "primSubInt" (-) :: Int -> Int -> Int
 
 undefined = False
 
-drop :: Int -> [Int] -> [Int]
-drop n [] = []
-drop n (x:xs) | n == 0 = xs
-              | True   = drop (n-1) (x:xs)
+staart :: Int -> [Int] -> [Int]
+staart n [] = []
+staart n (x:xs) | n == 0 = xs
+              | True   = staart (n-1) (x:xs)
 
-length :: [Int] -> Int
-length [] = 0
-length (x:xs) = 1 + length xs
+som :: [Int] -> Int
+som [] = 0
+som (x:xs) = 1 + length xs
 
-main = length (drop 2 [1,2,3,4,5])
+main = som (staart 2 [1,2,3,4,5])
 

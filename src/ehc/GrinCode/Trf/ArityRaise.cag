@@ -112,28 +112,69 @@ SEM GrBind
 SEM GrExpr
   | Call loc . isRecursive = elem @nm @lhs.recBindsDown
          lhs . grTrf       = if @loc.isRecursive
-                               then GrExpr_Comment "Specialisable call!" @loc.grTrf
+                               then GrExpr_Comment "Specialisable call!" (GrExpr_Comment (show @lhs.doorzicht)@loc.grTrf)
                                else GrExpr_Comment "Non-specialisable call" @loc.grTrf
 
 %%]
 
-Create call patterns at all call-sites that are marked as recursive
-and send them up to the Rec-element which can then add specializations
-
 %%[(8 codegen grin)
 
-ATTR AllBind AllGrExpr [ | | recCalls USE {++} {[]} : {[(HsName,GrValL)]} ]
-
-SEM GrExpr
-  | Call lhs . recCalls = if @loc.isRecursive
-                          then [ (@nm,@argL) ]
-                          else []
+ATTR GrExpr [ | | doorzichtUp : {[[GrVal]]} ]
+ATTR GrExpr [ doorzicht : {[[GrVal]]} | | ]
 
 SEM GrBind
-  | Bind lhs . grTrf    = GrBind_Bind @nm @annot @argNmL
-                            $ GrExpr_Comment ("Scrutinees " ++ show @expr.varOrigin) @expr.grTrf
+  | Bind expr . doorzicht = @expr.doorzichtUp
+
+-- Basisgeval, meerdere verzamelingen.
+SEM GrExpr
+  | Seq lhs . doorzichtUp = case @expr.interestingVal of
+                              Nothing -> @body.doorzichtUp
+                              Just x  -> addDoorzicht x (patLamToVal @pat) @body.doorzichtUp
+
+ATTR GrExpr [ | | interestingVal : {Maybe GrVal} ]
+
+SEM GrExpr
+  | Unit lhs . interestingVal = Just @val
+  | FetchNode lhs . interestingVal = Just (GrVal_Var @nm)
+  | * -Unit -FetchNode lhs . interestingVal = Nothing
 
 %%]
+
+%%[8.arityRaise hs
+
+-- Voegt twee verzamelingen nog niet samen als ze opeens overlappen.
+-- Niet zeker of dit überhaupt voorkomt
+addDoorzicht :: GrVal -> GrVal -> [[GrVal]] -> [[GrVal]]
+addDoorzicht key value doorzicht = map addMe doorzicht
+  where addMe groep | key `elem` groep = value : groep
+                    | otherwise        = groep
+
+patLamToVal :: GrPatLam -> GrVal
+patLamToVal GrPatLam_Empty = GrVal_Empty
+patLamToVal (GrPatLam_Var nm) = GrVal_Var nm
+patLamToVal (GrPatLam_VarNode fldL) = GrVal_VarNode (map varToVal fldL)
+-- tag?
+patLamToVal (GrPatLam_BasicNode annot nm) = GrVal_BasicNode undefined nm
+patLamToVal (GrPatLam_EnumNode nm) = GrVal_EnumNode nm
+patLamToVal (GrPatLam_PtrNode nm) = GrVal_PtrNode nm
+patLamToVal (GrPatLam_OpaqueNode nm) = GrVal_OpaqueNode nm
+-- tag?
+-- Ik neem aan dat de <x>Annot overeenkomen met <x>Node
+patLamToVal (GrPatLam_BasicAnnot annot nm) = GrVal_BasicNode undefined nm
+-- unused tagL x2?
+patLamToVal (GrPatLam_EnumAnnot tagL nm) = GrVal_EnumNode nm
+patLamToVal (GrPatLam_PtrAnnot tagL nm) = GrVal_PtrNode nm
+patLamToVal (GrPatLam_OpaqueAnnot nm) = GrVal_OpaqueNode nm
+
+varToVal :: GrVar -> GrVal
+varToVal (GrVar_Var nm) = GrVal_Var nm
+-- ? x2
+varToVal (GrVar_KnownTag tag) = undefined
+varToVal (GrVar_Ignore) = undefined
+
+%%]
+
+
 
 
 %%[8.arityRaise hs
