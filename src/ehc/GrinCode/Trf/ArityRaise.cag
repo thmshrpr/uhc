@@ -119,23 +119,25 @@ SEM GrExpr
 
 %%[(8 codegen grin)
 
-ATTR AllGrExpr [ | | doorzichtUp : {[[GrVal]]} ]
+ATTR GrExpr GrAlt [ | | doorzichtUp : {[[GrVal]]} ]
 ATTR AllGrExpr [ doorzicht : {[[GrVal]]} | | ]
+ATTR GrAltL [ | | doorzichtUp : {[[[GrVal]]]} ]
 
 SEM GrBind
   | Bind expr . doorzicht = @expr.doorzichtUp
 
--- Basisgeval, meerdere verzamelingen.
 SEM GrExpr
   | Seq lhs . doorzichtUp = case @expr.interestingVal of
                               Nothing -> @body.doorzichtUp
                               Just x  -> addDoorzicht (patLamToVal @pat) x @body.doorzichtUp
-  | Case lhs . doorzichtUp = @altL.doorzichtUp
+  | Case lhs . doorzichtUp = unionAll (concat @altL.doorzichtUp)
   | Unit lhs . doorzichtUp = [[@val.grTrf]]
+  | UpdateUnit lhs . doorzichtUp = [[GrVal_Var @nm , @val.grTrf]]
+  | Call lhs . doorzichtUp = map (:[]) (@argL.grTrf)
 
 SEM GrAltL
-  | Nil lhs . doorzichtUp = [[]]
-  | Cons lhs . doorzichtUp = mergeDoorzicht @hd.doorzichtUp @tl.doorzichtUp
+  | Nil lhs . doorzichtUp = []
+  | Cons lhs . doorzichtUp = @hd.doorzichtUp : @tl.doorzichtUp
 
 ATTR GrExpr [ | | interestingVal : {Maybe GrVal} ]
 
@@ -143,7 +145,8 @@ SEM GrExpr
   | Unit lhs . interestingVal = Just @val.grTrf
   | FetchNode lhs . interestingVal = Just (GrVal_Var @nm)
   | Store lhs . interestingVal = Just @val.grTrf
-  | * -Unit -FetchNode -Store lhs . interestingVal = Nothing
+  | Case lhs . interestingVal = if (any isUnit @altL.grTrf ) then Just @val.grTrf else Nothing
+  | * -Unit -FetchNode -Store -Case lhs . interestingVal = Nothing
 
 %%]
 
@@ -156,8 +159,8 @@ addDoorzicht key value doorzicht = map addMe doorzicht
   where addMe groep | key `elem` groep = value : groep
                     | otherwise        = groep
 
-mergeDoorzicht :: [[GrVal]] -> [[GrVal]] -> [[GrVal]]
-mergeDoorzicht x y = unionAll (x ++ y)
+isUnit :: GrAlt -> Bool
+isUnit (GrAlt_Alt ann _ _) = ann == GrAltAnnIdent
 
 unionAll :: [[GrVal]] -> [[GrVal]]
 unionAll = foldr mergeIn []
@@ -172,13 +175,13 @@ patLamToVal GrPatLam_Empty = GrVal_Empty
 patLamToVal (GrPatLam_Var nm) = GrVal_Var nm
 patLamToVal (GrPatLam_VarNode fldL) = GrVal_VarNode (map varToVal fldL)
 -- tag? Example program crashes on this one.
-patLamToVal (GrPatLam_BasicNode annot nm) = GrVal_BasicNode (error "GrPatLam_BasicNode") nm
+patLamToVal (GrPatLam_BasicNode annot nm) = GrVal_BasicNode GrTag_Any nm
 patLamToVal (GrPatLam_EnumNode nm) = GrVal_EnumNode nm
 patLamToVal (GrPatLam_PtrNode nm) = GrVal_PtrNode nm
 patLamToVal (GrPatLam_OpaqueNode nm) = GrVal_OpaqueNode nm
 -- tag?
 -- Ik neem aan dat de <x>Annot overeenkomen met <x>Node
-patLamToVal (GrPatLam_BasicAnnot annot nm) = GrVal_BasicNode (error "GrPatLam_BasicAnnot") nm
+patLamToVal (GrPatLam_BasicAnnot annot nm) = GrVal_BasicNode GrTag_Any nm
 -- unused tagL x2?
 patLamToVal (GrPatLam_EnumAnnot tagL nm) = GrVal_EnumNode nm
 patLamToVal (GrPatLam_PtrAnnot tagL nm) = GrVal_PtrNode nm

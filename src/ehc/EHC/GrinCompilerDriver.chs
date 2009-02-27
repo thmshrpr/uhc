@@ -112,7 +112,7 @@ doCompileGrin input opts
          ; transformCode         (dropUnreachableBindings False)
                                              "DropUnreachableBindings" ; caWriteGrin "-111-reachable"
 %%[[9
-		 ; transformCode         mergeInstance      "MergeInstance"    ; caWriteGrin "-112-instanceMerged"
+	 ; transformCode         mergeInstance      "MergeInstance"    ; caWriteGrin "-112-instanceMerged"
 %%]]
          ; transformCode         cleanupPass        "CleanupPass"      ; caWriteGrin "-113-cleaned"
          ; transformCode         buildAppBindings   "BuildAppBindings" ; caWriteGrin "-114-appsbound"
@@ -132,15 +132,15 @@ doCompileGrin input opts
          ; transformCode         emptyAlts          "EmptyAlts"        ; caWriteGrin "-133-emptyAlts"
          ; transformCode         (dropUnreachableBindings True)
                                              "DropUnreachableBindings" ; caWriteGrin "-134-reachable"
-         ; transformCodeUseHpt   arityRaise         "ArityRaise"       ; caWriteGrin "-135-arityRaised"
          ; transformCodeChgHpt   lateInline         "LateInline"
-         ; transformCode         grFlattenSeq       "Flatten"          ; caWriteGrin "-136-lateinlined"
+         ; transformCode         grFlattenSeq       "Flatten"          ; caWriteGrin "-135-lateinlined"
          ; transformCode         emptyAlts          "EmptyAlts"        ; caWriteGrin "-137-emptyAlts"
          ; transformCodeUseHpt   impossibleCase     "ImpossibleCase"   ; caWriteGrin "-141-possibleCase"
          ; transformCode         singleCase         "singleCase"       ;
          ; transformCode         grFlattenSeq       "Flatten"          ; caWriteGrin "-143-singleCase"
+         ; transformCodeUseHpt   arityRaise         "ArityRaise"       ; caWriteGrin "-arityRaised"
          ; transformCodeIterated dropUnusedExpr     "DropUnusedExpr"   ; caWriteGrin "-144-unusedExprDropped"
-		 ; transformCode         mergeCase          "MergeCase"        ; caWriteGrin "-145-caseMerged"
+	 ; transformCode         mergeCase          "MergeCase"        ; caWriteGrin "-145-caseMerged"
          ; transformCodeChgHpt   lowerGrin          "LowerGrin"        ; caWriteGrin "-151-lowered"
          ; transformCodeIterated copyPropagation    "CopyPropagation"  ; caWriteGrin "-161-after-cp"
          ; transformCodeIterated dropUnusedExpr     "DropUnusedExpr"   ; caWriteGrin "-169-unusedExprDropped"

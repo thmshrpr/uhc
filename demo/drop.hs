@@ -10,7 +10,7 @@ undefined = False
 staart :: Int -> [Int] -> [Int]
 staart n [] = []
 staart n (x:xs) | n == 0 = xs
-              | True   = staart (n-1) (x:xs)
+                | True   = staart (n-1) (x:xs)
 
 som :: [Int] -> Int
 som [] = 0
