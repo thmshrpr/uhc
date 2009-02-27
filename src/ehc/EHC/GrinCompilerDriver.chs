@@ -105,13 +105,13 @@ doCompileGrin
 doCompileGrin :: Either String (FPath,GrModule)  -> EHCOpts -> IO ()
 doCompileGrin input opts
   = drive (initialState opts input) putErrs $
-        do 
+        do
          { options <- gets gcsOpts
 
          ; when (either (const True) (const False) input) caParseGrin  ; caWriteGrin "-110-parsed"
-         ; transformCode         (dropUnreachableBindings False) 
+         ; transformCode         (dropUnreachableBindings False)
                                              "DropUnreachableBindings" ; caWriteGrin "-111-reachable"
-%%[[9                                             
+%%[[9
 		 ; transformCode         mergeInstance      "MergeInstance"    ; caWriteGrin "-112-instanceMerged"
 %%]]
          ; transformCode         cleanupPass        "CleanupPass"      ; caWriteGrin "-113-cleaned"
@@ -126,21 +126,21 @@ doCompileGrin input opts
          ; transformCode         numberIdents       "NumberIdents"     ; caWriteGrin "-120-numbered"
          ; caHeapPointsTo                                              ; caWriteHptMap "-130-hpt"
          ; transformCodeChgHpt   (inlineEA (ehcOptPriv options))
-                                                    "InlineEA" 
+                                                    "InlineEA"
          ; transformCode         grFlattenSeq       "Flatten"          ; caWriteGrin "-131-evalinlined"
          --; transformCodeUseHpt   dropDeadBindings   "DropDeadBindings" ; caWriteGrin "-132-undead"
          ; transformCode         emptyAlts          "EmptyAlts"        ; caWriteGrin "-133-emptyAlts"
-         ; transformCode         (dropUnreachableBindings True) 
+         ; transformCode         (dropUnreachableBindings True)
                                              "DropUnreachableBindings" ; caWriteGrin "-134-reachable"
+         ; transformCodeUseHpt   arityRaise         "ArityRaise"       ; caWriteGrin "-135-arityRaised"
          ; transformCodeChgHpt   lateInline         "LateInline"
-         ; transformCode         grFlattenSeq       "Flatten"          ; caWriteGrin "-135-lateinlined"
-         ; transformCode         emptyAlts          "EmptyAlts"        ; caWriteGrin "-136-emptyAlts"
+         ; transformCode         grFlattenSeq       "Flatten"          ; caWriteGrin "-136-lateinlined"
+         ; transformCode         emptyAlts          "EmptyAlts"        ; caWriteGrin "-137-emptyAlts"
          ; transformCodeUseHpt   impossibleCase     "ImpossibleCase"   ; caWriteGrin "-141-possibleCase"
-         ; transformCode         singleCase         "singleCase"       ; 
+         ; transformCode         singleCase         "singleCase"       ;
          ; transformCode         grFlattenSeq       "Flatten"          ; caWriteGrin "-143-singleCase"
          ; transformCodeIterated dropUnusedExpr     "DropUnusedExpr"   ; caWriteGrin "-144-unusedExprDropped"
-		 ; transformCode         mergeCase          "MergeCase"        ; caWriteGrin "-145-caseMerged"         
-         ; transformCodeUseHpt   arityRaise         "ArityRaise"       ; caWriteGrin "-148-arityRaised"
+		 ; transformCode         mergeCase          "MergeCase"        ; caWriteGrin "-145-caseMerged"
          ; transformCodeChgHpt   lowerGrin          "LowerGrin"        ; caWriteGrin "-151-lowered"
          ; transformCodeIterated copyPropagation    "CopyPropagation"  ; caWriteGrin "-161-after-cp"
          ; transformCodeIterated dropUnusedExpr     "DropUnusedExpr"   ; caWriteGrin "-169-unusedExprDropped"
@@ -154,7 +154,7 @@ doCompileGrin input opts
                 ; transformSilly embedVars          "EmbedVars"        ; caWriteSilly "-203" "sil" pretty ehcOptDumpGrinStages
                 ; transformSilly shortcut           "Shortcut"         ; caWriteSilly "-204" "sil" pretty ehcOptDumpGrinStages
                 ; transformSilly groupAllocs        "GroupAllocs"      ; caWriteSilly "-205" "sil" pretty ehcOptDumpGrinStages
-                ; when (ehcOptEmitLLVM options) 
+                ; when (ehcOptEmitLLVM options)
                   (do { caSilly2LLVM
                       ; caWriteLLVM
                       }
@@ -164,7 +164,7 @@ doCompileGrin input opts
                 }
            )
          }
-      
+
 initialState opts (Left fn)          = (initState opts) {gcsPath=mkTopLevelFPath "grin" fn}
 initialState opts (Right (fp,grmod)) = (initState opts) {gcsPath=fp, gcsGrin=grmod}
 
@@ -195,7 +195,7 @@ parseGrin path
       }
 
 caParseGrin :: CompileAction ()
-caParseGrin 
+caParseGrin
   = do{ putMsg VerboseALot "Parsing" Nothing
       ; path <- gets gcsPath
       ; code <- liftIO $ parseGrin path
@@ -256,7 +256,7 @@ caWriteLLVM  :: CompileAction()
 caWriteLLVM  =
   do { llvm <- gets gcsLLVM
      ; caWriteFile "" "ll" (const prettyLLVMModule) llvm
-     } 
+     }
 
 caWriteGrin :: String -> CompileAction ()
 caWriteGrin extra
@@ -267,7 +267,7 @@ caWriteGrin extra
                }
            )
        }
-     
+
 caWriteSilly :: String -> String -> (EHCOpts -> SilModule -> PP_Doc) -> (EHCOpts->Bool) -> CompileAction ()
 caWriteSilly extra suffix ppFun cond =
   do { opts <- gets gcsOpts
@@ -333,7 +333,7 @@ traceHptMap
        }
 
 transformCode :: (GrModule->GrModule) -> String -> CompileAction ()
-transformCode process message 
+transformCode process message
   = task VerboseALot message body (const Nothing)
      where body = do { grin <- gets gcsGrin
                     ; modify (gcsUpdateGrin (process grin))
@@ -348,33 +348,33 @@ checkCode process message
        }
 
 transformCodeInline :: String -> CompileAction ()
-transformCodeInline message 
+transformCodeInline message
   = do { putMsg VerboseALot message Nothing
        ; grin <- gets gcsGrin
 %%[[8
        ; let code = grInline False grin
 %%][20
-       ; let (code,_) = grInline False Set.empty Map.empty grin 
+       ; let (code,_) = grInline False Set.empty Map.empty grin
 %%]]
        ; modify (gcsUpdateGrin code)
        }
 
 transformCodeUseHpt :: ((GrModule,HptMap)->GrModule) -> String -> CompileAction ()
-transformCodeUseHpt process message 
+transformCodeUseHpt process message
   = do { putMsg VerboseALot message Nothing
        ; ch <- gcsGetCodeHpt
        ; modify (gcsUpdateGrin (process ch))
        }
 
 transformCodeChgHpt :: ((GrModule,HptMap) -> (GrModule,HptMap)) -> String -> CompileAction ()
-transformCodeChgHpt process message 
+transformCodeChgHpt process message
   = do { putMsg VerboseALot message Nothing
        ; tup <- gcsGetCodeHpt
        ; gcsPutCodeHpt (process tup)
        }
 
 transformCodeIterated :: (GrModule->(GrModule,Bool)) -> String -> CompileAction ()
-transformCodeIterated process message 
+transformCodeIterated process message
   = task VerboseALot message (caFixCount 1) (\i -> Just $ show i ++ " iteration(s)")
      where
      caFixCount n = do
@@ -385,7 +385,7 @@ transformCodeIterated process message
 
 
 transformSilly :: (EHCOpts->SilModule->SilModule) -> String -> CompileAction ()
-transformSilly process message 
+transformSilly process message
   = do { putMsg VerboseALot message Nothing
        ; silly <- gets gcsSilly
        ; options <- gets gcsOpts

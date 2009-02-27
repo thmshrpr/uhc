@@ -17,13 +17,13 @@ Assumptions:
 
 %%[(8 codegen grin) hs import (Data.Map (Map))
 %%]
+%%[(8 codegen grin) hs import (Data.List)
+%%]
 %%[(8 codegen grin) hs import (qualified Data.Map as Map)
 %%]
 %%[(8 codegen grin) hs import({%{EH}Base.Common(HsName (..), CTagsMp)})
 %%]
 %%[(8 codegen grin) hs import({%{EH}GrinCode})
-%%]
-%%[(8 codegen grin) hs import(Debug.Trace)
 %%]
 %%[(8 codegen grin) hs import({%{EH}GrinCode.Common(HptMap, AbstractValue, getTags, getNr, getEnvVar, absFetch)})
 %%]
@@ -119,8 +119,8 @@ SEM GrExpr
 
 %%[(8 codegen grin)
 
-ATTR GrExpr [ | | doorzichtUp : {[[GrVal]]} ]
-ATTR GrExpr [ doorzicht : {[[GrVal]]} | | ]
+ATTR AllGrExpr [ | | doorzichtUp : {[[GrVal]]} ]
+ATTR AllGrExpr [ doorzicht : {[[GrVal]]} | | ]
 
 SEM GrBind
   | Bind expr . doorzicht = @expr.doorzichtUp
@@ -129,14 +129,21 @@ SEM GrBind
 SEM GrExpr
   | Seq lhs . doorzichtUp = case @expr.interestingVal of
                               Nothing -> @body.doorzichtUp
-                              Just x  -> addDoorzicht x (patLamToVal @pat) @body.doorzichtUp
+                              Just x  -> addDoorzicht (patLamToVal @pat) x @body.doorzichtUp
+  | Case lhs . doorzichtUp = @altL.doorzichtUp
+  | Unit lhs . doorzichtUp = [[@val.grTrf]]
+
+SEM GrAltL
+  | Nil lhs . doorzichtUp = [[]]
+  | Cons lhs . doorzichtUp = mergeDoorzicht @hd.doorzichtUp @tl.doorzichtUp
 
 ATTR GrExpr [ | | interestingVal : {Maybe GrVal} ]
 
 SEM GrExpr
-  | Unit lhs . interestingVal = Just @val
+  | Unit lhs . interestingVal = Just @val.grTrf
   | FetchNode lhs . interestingVal = Just (GrVal_Var @nm)
-  | * -Unit -FetchNode lhs . interestingVal = Nothing
+  | Store lhs . interestingVal = Just @val.grTrf
+  | * -Unit -FetchNode -Store lhs . interestingVal = Nothing
 
 %%]
 
@@ -149,18 +156,29 @@ addDoorzicht key value doorzicht = map addMe doorzicht
   where addMe groep | key `elem` groep = value : groep
                     | otherwise        = groep
 
+mergeDoorzicht :: [[GrVal]] -> [[GrVal]] -> [[GrVal]]
+mergeDoorzicht x y = unionAll (x ++ y)
+
+unionAll :: [[GrVal]] -> [[GrVal]]
+unionAll = foldr mergeIn []
+
+mergeIn :: [GrVal] -> [[GrVal]] -> [[GrVal]]
+mergeIn x []     = [x]
+mergeIn x (y:ys) | null (x `intersect` y) = y : mergeIn x ys
+                 | otherwise              = mergeIn (x `union` y) ys
+
 patLamToVal :: GrPatLam -> GrVal
 patLamToVal GrPatLam_Empty = GrVal_Empty
 patLamToVal (GrPatLam_Var nm) = GrVal_Var nm
 patLamToVal (GrPatLam_VarNode fldL) = GrVal_VarNode (map varToVal fldL)
--- tag?
-patLamToVal (GrPatLam_BasicNode annot nm) = GrVal_BasicNode undefined nm
+-- tag? Example program crashes on this one.
+patLamToVal (GrPatLam_BasicNode annot nm) = GrVal_BasicNode (error "GrPatLam_BasicNode") nm
 patLamToVal (GrPatLam_EnumNode nm) = GrVal_EnumNode nm
 patLamToVal (GrPatLam_PtrNode nm) = GrVal_PtrNode nm
 patLamToVal (GrPatLam_OpaqueNode nm) = GrVal_OpaqueNode nm
 -- tag?
 -- Ik neem aan dat de <x>Annot overeenkomen met <x>Node
-patLamToVal (GrPatLam_BasicAnnot annot nm) = GrVal_BasicNode undefined nm
+patLamToVal (GrPatLam_BasicAnnot annot nm) = GrVal_BasicNode (error "GrPatLam_BasicAnnot") nm
 -- unused tagL x2?
 patLamToVal (GrPatLam_EnumAnnot tagL nm) = GrVal_EnumNode nm
 patLamToVal (GrPatLam_PtrAnnot tagL nm) = GrVal_PtrNode nm
@@ -169,8 +187,8 @@ patLamToVal (GrPatLam_OpaqueAnnot nm) = GrVal_OpaqueNode nm
 varToVal :: GrVar -> GrVal
 varToVal (GrVar_Var nm) = GrVal_Var nm
 -- ? x2
-varToVal (GrVar_KnownTag tag) = undefined
-varToVal (GrVar_Ignore) = undefined
+varToVal (GrVar_KnownTag tag) = error "GrVar_KnownTag"
+varToVal (GrVar_Ignore) = error "Grvar_Ignore"
 
 %%]
 

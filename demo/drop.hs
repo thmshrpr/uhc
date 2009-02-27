@@ -14,7 +14,7 @@ staart n (x:xs) | n == 0 = xs
 
 som :: [Int] -> Int
 som [] = 0
-som (x:xs) = 1 + length xs
+som (x:xs) = 1 + som xs
 
 main = som (staart 2 [1,2,3,4,5])
 
