@@ -19,6 +19,8 @@ Assumptions:
 %%]
 %%[(8 codegen grin) hs import (Data.List)
 %%]
+%%[(8 codegen grin) hs import (Debug.Trace)
+%%]
 %%[(8 codegen grin) hs import (qualified Data.Map as Map)
 %%]
 %%[(8 codegen grin) hs import({%{EH}Base.Common(HsName (..), CTagsMp)})
@@ -126,13 +128,16 @@ ATTR GrAltL [ | | doorzichtUp : {[[[GrVal]]]} ]
 SEM GrBind
   | Bind expr . doorzicht = @expr.doorzichtUp
 
+-- Needs variable usage for other GrExpr cases added.
 SEM GrExpr
   | Seq lhs . doorzichtUp = case @expr.interestingVal of
                               Nothing -> @body.doorzichtUp
                               Just x  -> addDoorzicht (patLamToVal @pat) x @body.doorzichtUp
-  | Case lhs . doorzichtUp = unionAll (concat @altL.doorzichtUp)
   | Unit lhs . doorzichtUp = [[@val.grTrf]]
   | UpdateUnit lhs . doorzichtUp = [[GrVal_Var @nm , @val.grTrf]]
+  | Case lhs . doorzichtUp = unionAll (concat @altL.doorzichtUp)
+  | FetchNode lhs . doorzichtUp = [[GrVal_Var @nm]]
+  | Store lhs . doorzichtUp = [[@val.grTrf]]
   | Call lhs . doorzichtUp = map (:[]) (@argL.grTrf)
 
 SEM GrAltL
@@ -171,21 +176,25 @@ mergeIn x (y:ys) | null (x `intersect` y) = y : mergeIn x ys
                  | otherwise              = mergeIn (x `union` y) ys
 
 patLamToVal :: GrPatLam -> GrVal
-patLamToVal GrPatLam_Empty = GrVal_Empty
-patLamToVal (GrPatLam_Var nm) = GrVal_Var nm
-patLamToVal (GrPatLam_VarNode fldL) = GrVal_VarNode (map varToVal fldL)
+patLamToVal l = trace (show l) (patLamToVal' l)
+
+patLamToVal' GrPatLam_Empty = GrVal_Empty
+patLamToVal' (GrPatLam_Var nm) = GrVal_Var nm
+patLamToVal' (GrPatLam_VarNode fldL) = mkVal fldL
+  where mkVal (GrVar_KnownTag tag:fields) = GrVal_Node tag (map varToVal fields)
+        mkVal fields                      = GrVal_VarNode (map varToVal fields)
 -- tag? Example program crashes on this one.
-patLamToVal (GrPatLam_BasicNode annot nm) = GrVal_BasicNode GrTag_Any nm
-patLamToVal (GrPatLam_EnumNode nm) = GrVal_EnumNode nm
-patLamToVal (GrPatLam_PtrNode nm) = GrVal_PtrNode nm
-patLamToVal (GrPatLam_OpaqueNode nm) = GrVal_OpaqueNode nm
+patLamToVal' (GrPatLam_BasicNode annot nm) = GrVal_BasicNode GrTag_Any nm
+patLamToVal' (GrPatLam_EnumNode nm) = GrVal_EnumNode nm
+patLamToVal' (GrPatLam_PtrNode nm) = GrVal_PtrNode nm
+patLamToVal' (GrPatLam_OpaqueNode nm) = GrVal_OpaqueNode nm
 -- tag?
 -- Ik neem aan dat de <x>Annot overeenkomen met <x>Node
-patLamToVal (GrPatLam_BasicAnnot annot nm) = GrVal_BasicNode GrTag_Any nm
+patLamToVal' (GrPatLam_BasicAnnot annot nm) = GrVal_BasicNode GrTag_Any nm
 -- unused tagL x2?
-patLamToVal (GrPatLam_EnumAnnot tagL nm) = GrVal_EnumNode nm
-patLamToVal (GrPatLam_PtrAnnot tagL nm) = GrVal_PtrNode nm
-patLamToVal (GrPatLam_OpaqueAnnot nm) = GrVal_OpaqueNode nm
+patLamToVal' (GrPatLam_EnumAnnot tagL nm) = GrVal_EnumNode nm
+patLamToVal' (GrPatLam_PtrAnnot tagL nm) = GrVal_PtrNode nm
+patLamToVal' (GrPatLam_OpaqueAnnot nm) = GrVal_OpaqueNode nm
 
 varToVal :: GrVar -> GrVal
 varToVal (GrVar_Var nm) = GrVal_Var nm
