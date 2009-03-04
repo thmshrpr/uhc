@@ -131,6 +131,19 @@ SEM GrExpr
   | Case lhs . interestingVal = if (any isUnit @altL.grTrf ) then Just @val.grTrf else Nothing
   | * -Unit -FetchNode -Store -Case lhs . interestingVal = Nothing
 
+
+%%]
+
+%%[(8 codegen grin)
+
+SEM GrExpr
+  | Seq loc . doScrut = case @expr.interestingVal of
+                          (Just a) -> case @pat of
+                                        (GrPatLam_VarNode fs) -> True
+                                        _ -> False
+                          _ -> False
+        lhs . grTrf = if @loc.doScrut then GrExpr_Comment "Scrutiniser" @loc.grTrf else @loc.grTrf
+
 %%]
 
 %%[8.arityRaise hs
