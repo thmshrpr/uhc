@@ -1,12 +1,31 @@
-\section{Arity raising}
+\section{Introduction}
 
 \begin{frame}
-\frametitle{Outline}
+\frametitle{Introduction}
 
 \begin{itemize}
-  \item Foo
-  \item Bar
+  \item Avoid unnecessary boxing and unboxing
+  \item Based on "Call pattern-specialisation for Haskell programs" by SPJ
+  \item Implemented as GRIN optimization
+  \item Used EHC 8
 \end{itemize}
 
 \end{frame}
+
+\begin{frame}
+\frametitle{Position}
+
+\begin{itemize}
+  \item After caseMerge (145)
+  \item At this position we have:
+  \begin{itemize}
+    \item Inlined, optimized eval's
+    \item Inlined other code $\Rightarrow$ less fragmentation
+    \item HPT analysis results
+  \end{itemize}
+\end{itemize}
+
+\end{frame}
+
+
 
