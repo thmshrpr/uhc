@@ -19,6 +19,8 @@ Assumptions:
 %%]
 %%[(8 codegen grin) hs import (Data.List)
 %%]
+%%[(8 codegen grin) hs import (Data.Maybe)
+%%]
 %%[(8 codegen grin) hs import (Debug.Trace)
 %%]
 %%[(8 codegen grin) hs import (qualified Data.Map as Map)
@@ -55,15 +57,18 @@ ATTR GrAGItf
      AllGrExpr [ hptMap: HptMap | | ]
 
 ATTR AllGrExpr [ | | rSize USE {+} {1} : Int ]
-ATTR GrExpr [ | | rScruts USE {++} {[]} : {[HsName]} ] -- note: rScruts only on "top-level" expressions
-                                                       --       i.e. not in case alternatives
+
+
+SEM GrBind
+  | Bind lhs . grTrf = GrBind_Bind @nm @annot @argNmL $
+                         GrExpr_Comment ("Doorzicht: " ++ show @expr.doorzichtUp) $
+                           GrExpr_Comment ("Scrutinized: " ++ show @expr.scruts) @expr.grTrf
 
 SEM GrBind
          -- H1: function definition
   | Bind loc . rCondDef  = length @argNmL > 0
          -- H2: check for "sufficiently small" function
          loc . rCondSize = @expr.rSize <= specSizeTreshold
-         loc . scruts = []
 
 %%]
 
@@ -103,8 +108,6 @@ ATTR GrAltL [ | | doorzichtUp : {[[[GrVal]]]} ]
 
 SEM GrBind
   | Bind expr . doorzicht = @expr.doorzichtUp
-         lhs . grTrf = GrBind_Bind @nm @annot @argNmL $
-                                  GrExpr_Comment ("Doorzicht: " ++ show @expr.doorzichtUp) @expr.grTrf
 
 -- Needs variable usage for other GrExpr cases added.
 SEM GrExpr
@@ -136,13 +139,19 @@ SEM GrExpr
 
 %%[(8 codegen grin)
 
+ATTR GrExpr [ | | scruts USE {++} {[]} : {[GrVal]} ]
+
 SEM GrExpr
-  | Seq loc . doScrut = case @expr.interestingVal of
-                          (Just a) -> case @pat of
-                                        (GrPatLam_VarNode fs) -> True
-                                        _ -> False
-                          _ -> False
-        lhs . grTrf = if @loc.doScrut then GrExpr_Comment "Scrutiniser" @loc.grTrf else @loc.grTrf
+  | Seq loc . scrut = case @expr.interestingVal of
+                          (Just s) -> case @pat of
+                                        (GrPatLam_VarNode _) -> Just s
+                                        _ -> Nothing
+                          _ -> Nothing
+        lhs . scruts = case @loc.scrut of
+                         (Just s) -> s : (@body.scruts)
+                         _ -> @body.scruts
+        lhs . grTrf = if isJust @loc.scrut then GrExpr_Comment ("Scrutinee: " ++ show @loc.scrut) @loc.grTrf
+                                           else @loc.grTrf
 
 %%]
 
