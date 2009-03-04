@@ -90,7 +90,7 @@ SEM GrBind
 SEM GrExpr
   | Call loc . isRecursive = elem @nm @lhs.recBindsDown
          lhs . grTrf       = if @loc.isRecursive
-                               then GrExpr_Comment "Specialisable call!" (GrExpr_Comment (show @lhs.doorzicht)@loc.grTrf)
+                               then GrExpr_Comment "Specialisable call!" @loc.grTrf
                                else GrExpr_Comment "Non-specialisable call" @loc.grTrf
 
 %%]
@@ -103,6 +103,8 @@ ATTR GrAltL [ | | doorzichtUp : {[[[GrVal]]]} ]
 
 SEM GrBind
   | Bind expr . doorzicht = @expr.doorzichtUp
+         lhs . grTrf = GrBind_Bind @nm @annot @argNmL $
+                                  GrExpr_Comment ("Doorzicht: " ++ show @expr.doorzichtUp) @expr.grTrf
 
 -- Needs variable usage for other GrExpr cases added.
 SEM GrExpr
