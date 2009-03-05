@@ -95,7 +95,8 @@ SEM GrBind
 SEM GrExpr
   | Call loc . isRecursive = elem @nm @lhs.recBindsDown
          lhs . grTrf       = if @loc.isRecursive
-                               then GrExpr_Comment "Specialisable call!" @loc.grTrf
+                               then GrExpr_Comment "Specialisable call!" $
+                                      callComment @loc.grTrf @argL.grTrf @lhs.doorzicht
                                else GrExpr_Comment "Non-specialisable call" @loc.grTrf
 
 %%]
@@ -106,8 +107,11 @@ ATTR GrExpr GrAlt [ | | doorzichtUp : {[[GrVal]]} ]
 ATTR AllGrExpr [ doorzicht : {[[GrVal]]} | | ]
 ATTR GrAltL [ | | doorzichtUp : {[[[GrVal]]]} ]
 
+-- doorzicht is an ordered list of related variables/nodes.
+-- The first element corresponds to the first parameter,
+-- The second element corresponds to the second paremeter, etc.
 SEM GrBind
-  | Bind expr . doorzicht = @expr.doorzichtUp
+  | Bind expr . doorzicht = map (findRelated @expr.doorzichtUp . GrVal_Var) @argNmL
 
 -- Needs variable usage for other GrExpr cases added.
 SEM GrExpr
@@ -157,8 +161,6 @@ SEM GrExpr
 
 %%[8.arityRaise hs
 
--- Voegt twee verzamelingen nog niet samen als ze opeens overlappen.
--- Niet zeker of dit überhaupt voorkomt
 addDoorzicht :: GrVal -> GrVal -> [[GrVal]] -> [[GrVal]]
 addDoorzicht key value doorzicht = map addMe doorzicht
   where addMe groep | key `elem` groep = value : groep
@@ -175,32 +177,37 @@ mergeIn x []     = [x]
 mergeIn x (y:ys) | null (x `intersect` y) = y : mergeIn x ys
                  | otherwise              = mergeIn (x `union` y) ys
 
+-- Convert a pattern that's allowed in a lambda to a value that would match that pattern.
 patLamToVal :: GrPatLam -> GrVal
-patLamToVal l = trace (show l) (patLamToVal' l)
-
-patLamToVal' GrPatLam_Empty = GrVal_Empty
-patLamToVal' (GrPatLam_Var nm) = GrVal_Var nm
-patLamToVal' (GrPatLam_VarNode fldL) = mkVal fldL
+patLamToVal GrPatLam_Empty = GrVal_Empty
+patLamToVal (GrPatLam_Var nm) = GrVal_Var nm
+patLamToVal (GrPatLam_VarNode fldL) = mkVal fldL
   where mkVal (GrVar_KnownTag tag:fields) = GrVal_Node tag (map varToVal fields)
         mkVal fields                      = GrVal_VarNode (map varToVal fields)
--- tag? Example program crashes on this one.
-patLamToVal' (GrPatLam_BasicNode annot nm) = GrVal_BasicNode GrTag_Any nm
-patLamToVal' (GrPatLam_EnumNode nm) = GrVal_EnumNode nm
-patLamToVal' (GrPatLam_PtrNode nm) = GrVal_PtrNode nm
-patLamToVal' (GrPatLam_OpaqueNode nm) = GrVal_OpaqueNode nm
--- tag?
--- Ik neem aan dat de <x>Annot overeenkomen met <x>Node
-patLamToVal' (GrPatLam_BasicAnnot annot nm) = GrVal_BasicNode GrTag_Any nm
+patLamToVal (GrPatLam_BasicNode annot nm) = GrVal_BasicNode GrTag_Any nm
+patLamToVal (GrPatLam_EnumNode nm) = GrVal_EnumNode nm
+patLamToVal (GrPatLam_PtrNode nm) = GrVal_PtrNode nm
+patLamToVal (GrPatLam_OpaqueNode nm) = GrVal_OpaqueNode nm
+patLamToVal (GrPatLam_BasicAnnot annot nm) = GrVal_BasicNode GrTag_Any nm
 -- unused tagL x2?
-patLamToVal' (GrPatLam_EnumAnnot tagL nm) = GrVal_EnumNode nm
-patLamToVal' (GrPatLam_PtrAnnot tagL nm) = GrVal_PtrNode nm
-patLamToVal' (GrPatLam_OpaqueAnnot nm) = GrVal_OpaqueNode nm
+patLamToVal (GrPatLam_EnumAnnot tagL nm) = GrVal_EnumNode nm
+patLamToVal (GrPatLam_PtrAnnot tagL nm) = GrVal_PtrNode nm
+patLamToVal (GrPatLam_OpaqueAnnot nm) = GrVal_OpaqueNode nm
 
 varToVal :: GrVar -> GrVal
 varToVal (GrVar_Var nm) = GrVal_Var nm
--- ? x2
-varToVal (GrVar_KnownTag tag) = error "GrVar_KnownTag"
+varToVal (GrVar_KnownTag tag) = GrVal_Tag tag
 varToVal (GrVar_Ignore) = error "Grvar_Ignore"
+
+findRelated :: [[GrVal]] -> GrVal -> [GrVal]
+findRelated doorzicht val = case filter (val `elem`) doorzicht of
+                              []     -> []
+                              (x:xs) -> x
+
+callComment :: GrExpr -> [GrVal] -> [[GrVal]] -> GrExpr
+callComment res args doorzicht = foldr (uncurry addArgComment) res (zip args doorzicht)
+  where addArgComment arg dz rest = GrExpr_Comment (argComment arg dz) rest
+        argComment arg dz = show arg ++ " ~= " ++ show dz
 
 %%]
 
