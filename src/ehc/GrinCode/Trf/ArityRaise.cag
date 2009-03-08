@@ -25,7 +25,7 @@ Assumptions:
 %%]
 %%[(8 codegen grin) hs import (qualified Data.Map as Map)
 %%]
-%%[(8 codegen grin) hs import({%{EH}Base.Common(HsName (..), CTagsMp)})
+%%[(8 codegen grin) hs import({%{EH}Base.Common(HsName (..), CTagsMp, hsnSuffix)})
 %%]
 %%[(8 codegen grin) hs import({%{EH}GrinCode})
 %%]
@@ -60,9 +60,13 @@ ATTR AllGrExpr [ | | rSize USE {+} {1} : Int ]
 
 
 SEM GrBind
-  | Bind lhs . grTrf = GrBind_Bind @nm @annot @argNmL $
-                         GrExpr_Comment ("Doorzicht: " ++ show @expr.doorzichtUp) $
-                           GrExpr_Comment ("Scrutinized: " ++ show @expr.scruts) @expr.grTrf
+  | Bind lhs . grTrf = let orig = GrBind_Bind @nm @annot @argNmL $
+                                    GrExpr_Comment ("Doorzicht: " ++ show @expr.doorzichtUp) $
+                                      GrExpr_Comment ("Scrutinized: " ++ show @expr.scruts) @expr.grTrf
+                           clone = GrBind_Bind (cloneName @nm) @annot @argNmL $
+                                     GrExpr_Comment ("This is a clone of " ++ show @nm) $
+                                       @expr.grTrf
+                           in GrBind_Rec [orig, clone]
 
 SEM GrBind
          -- H1: function definition
@@ -208,6 +212,9 @@ callComment :: GrExpr -> [GrVal] -> [[GrVal]] -> GrExpr
 callComment res args doorzicht = foldr (uncurry addArgComment) res (zip args doorzicht)
   where addArgComment arg dz rest = GrExpr_Comment (argComment arg dz) rest
         argComment arg dz = show arg ++ " ~= " ++ show dz
+
+cloneName :: HsName -> HsName
+cloneName name = hsnSuffix name "_clone"
 
 %%]
 
