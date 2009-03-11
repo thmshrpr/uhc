@@ -103,7 +103,8 @@ SEM GrExpr
          lhs . specCalls = if @loc.isSpecializable then [@argL.grTrf] else []
          lhs . grTrf       = if @loc.isSpecializable
                                then GrExpr_Comment "Specialisable call!" $
-                                      callComment @loc.grTrf @argL.grTrf @lhs.doorzicht
+                                      callComment @argL.grTrf @lhs.doorzicht $
+                                        GrExpr_Call (cloneName @nm) (@argL.grTrf)
                                else GrExpr_Comment "Non-specialisable call" @loc.grTrf
 
 %%]
@@ -195,8 +196,8 @@ findRelated doorzicht val = case filter (val `elem`) doorzicht of
                               []     -> []
                               (x:xs) -> x
 
-callComment :: GrExpr -> [GrVal] -> [[GrVal]] -> GrExpr
-callComment res args doorzicht = foldr (uncurry addArgComment) res (zip args doorzicht)
+callComment :: [GrVal] -> [[GrVal]] -> GrExpr -> GrExpr
+callComment args doorzicht res = foldr (uncurry addArgComment) res (zip args doorzicht)
   where addArgComment arg dz rest = GrExpr_Comment (argComment arg dz) rest
         argComment arg dz = show arg ++ " ~= " ++ show dz
 
