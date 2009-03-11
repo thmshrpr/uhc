@@ -61,8 +61,9 @@ ATTR AllGrExpr [ | | rSize USE {+} {1} : Int ]
 
 SEM GrBind
   | Bind lhs . grTrf = let orig = GrBind_Bind @nm @annot @argNmL $
-                                    GrExpr_Comment ("Doorzicht: " ++ show @expr.doorzichtUp) $
-                                      GrExpr_Comment ("Scrutinized: " ++ show @expr.scruts) @expr.grTrf
+                                    GrExpr_Comment ("Doorzicht: " ++ show @loc.doorzicht) $
+                                      GrExpr_Comment ("Specializable calls: " ++ show @expr.specCalls) $
+                                        GrExpr_Comment ("Pats: " ++ show @loc.pats) @expr.grTrf
                            clone = GrBind_Bind (cloneName @nm) @annot @argNmL $
                                      GrExpr_Comment ("This is a clone of " ++ show @nm) $
                                        @expr.grTrf
@@ -85,6 +86,7 @@ These recursive functions the candidates for optimization.
 
 ATTR AllBind [ | | recBindsUp USE {++} {[]} : {[HsName]} ]
 ATTR GrModule AllBind AllGrExpr [ recBindsDown : {[HsName]} | | ]
+ATTR AllGrExpr [  | | specCalls USE {++} {[]} : {[[GrVal]]} ]
 
 SEM GrModule
   | Mod bindL . recBindsDown = []
@@ -97,8 +99,9 @@ SEM GrBind
   | Bind lhs . recBindsUp = if @loc.rCondSize && @loc.rCondDef then [@nm] else [] -- only include specialisable bindings
 
 SEM GrExpr
-  | Call loc . isRecursive = elem @nm @lhs.recBindsDown
-         lhs . grTrf       = if @loc.isRecursive
+  | Call loc . isSpecializable = elem @nm @lhs.recBindsDown
+         lhs . specCalls = if @loc.isSpecializable then [@argL.grTrf] else []
+         lhs . grTrf       = if @loc.isSpecializable
                                then GrExpr_Comment "Specialisable call!" $
                                       callComment @loc.grTrf @argL.grTrf @lhs.doorzicht
                                else GrExpr_Comment "Non-specialisable call" @loc.grTrf
@@ -108,14 +111,16 @@ SEM GrExpr
 %%[(8 codegen grin)
 
 ATTR GrExpr GrAlt [ | | doorzichtUp : {[[GrVal]]} ]
-ATTR AllGrExpr [ doorzicht : {[[GrVal]]} | | ]
+ATTR AllGrExpr [ doorzicht : {[[GrVal]]} | | ]	-- jean: we probably don't need to send the doorzicht up anymore, since all information is available at the binding-level
 ATTR GrAltL [ | | doorzichtUp : {[[[GrVal]]]} ]
 
 -- doorzicht is an ordered list of related variables/nodes.
 -- The first element corresponds to the first parameter,
 -- The second element corresponds to the second paremeter, etc.
 SEM GrBind
-  | Bind expr . doorzicht = map (findRelated @expr.doorzichtUp . GrVal_Var) @argNmL
+  | Bind loc . doorzicht = map (findRelated @expr.doorzichtUp . GrVal_Var) @argNmL
+         loc . pats = map (mkPat @loc.doorzicht) @expr.specCalls
+         expr . doorzicht = @loc.doorzicht
 
 -- Needs variable usage for other GrExpr cases added.
 SEM GrExpr
@@ -142,24 +147,6 @@ SEM GrExpr
   | Case lhs . interestingVal = if (any isUnit @altL.grTrf ) then Just @val.grTrf else Nothing
   | * -Unit -FetchNode -Store -Case lhs . interestingVal = Nothing
 
-
-%%]
-
-%%[(8 codegen grin)
-
-ATTR GrExpr [ | | scruts USE {++} {[]} : {[GrVal]} ]
-
-SEM GrExpr
-  | Seq loc . scrut = case @expr.interestingVal of
-                          (Just s) -> case @pat of
-                                        (GrPatLam_VarNode _) -> Just s
-                                        _ -> Nothing
-                          _ -> Nothing
-        lhs . scruts = case @loc.scrut of
-                         (Just s) -> s : (@body.scruts)
-                         _ -> @body.scruts
-        lhs . grTrf = if isJust @loc.scrut then GrExpr_Comment ("Scrutinee: " ++ show @loc.scrut) @loc.grTrf
-                                           else @loc.grTrf
 
 %%]
 
@@ -218,9 +205,6 @@ cloneName name = hsnSuffix name "_clone"
 
 %%]
 
-
-
-
 %%[8.arityRaise hs
 
 -- Treshold to determine which functions we want to specialize
@@ -230,12 +214,16 @@ cloneName name = hsnSuffix name "_clone"
 -- Unit: number of nested GRIN expressions
 specSizeTreshold = 1000000 -- big number to avoid headaches during testing
 
-unionPlus :: Map HsName Int -> Map HsName Int -> Map HsName Int
-unionPlus = Map.unionWith (+)
-
-const2 c a b = c
-co = const2 Nothing
-
-nod a (HNmNr i _) = getEnvVar a i
+mkPat :: [[GrVal]] -> [GrVal] -> [GrVal]
+mkPat dzicht call = zipWith combine call dzicht
+  where
+    combine callArg dzs | elem callArg dzs = let ns = nodes dzs
+                                             in  case length ns of
+                                                   1 -> ns !! 0
+                                                   _ -> callArg
+                        | otherwise = callArg
+    nodes = filter isNode
+    isNode (GrVal_Node _ _) = True
+    isNode _ = False
 
 %%]
