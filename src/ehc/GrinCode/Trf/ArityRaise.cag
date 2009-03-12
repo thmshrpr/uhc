@@ -109,15 +109,33 @@ SEM GrExpr
 
 %%]
 
-%%[(8 codegen grin)
+%%[8.arityRaise hs
 
-ATTR GrExpr GrAlt [ | | doorzichtUp : {[[GrVal]]} ]
-ATTR AllGrExpr [ doorzicht : {[[GrVal]]} | | ]	-- jean: we probably don't need to send the doorzicht up anymore, since all information is available at the binding-level
-ATTR GrAltL [ | | doorzichtUp : {[[[GrVal]]]} ]
+-- | Adds comments that indicate which arguments have which associated values.
+callComment :: [GrVal] -> [[GrVal]] -> GrExpr -> GrExpr
+callComment args doorzicht res = foldr (uncurry addArgComment) res (zip args doorzicht)
+  where addArgComment arg dz rest = GrExpr_Comment (argComment arg dz) rest
+        argComment arg dz = show arg ++ " ~= " ++ show dz
+
+-- | Returns the name of the clone of the input name.
+cloneName :: HsName -> HsName
+cloneName name = hsnSuffix name "_clone"
+
+%%]
+
+
+%%[(8 codegen grin)
 
 -- doorzicht is an ordered list of related variables/nodes.
 -- The first element corresponds to the first parameter,
 -- The second element corresponds to the second paremeter, etc.
+ATTR AllGrExpr [ doorzicht : {[[GrVal]]} | | ]	-- jean: we probably don't need to send the doorzicht up anymore, since all information is available at the binding-level
+
+-- | doorzichtUp collects the information needed to construct the doorzicht attribute.
+--   It is a list of associated ("equivalent") values.
+ATTR GrExpr GrAlt [ | | doorzichtUp : {[[GrVal]]} ]
+ATTR GrAltL [ | | doorzichtUp : {[[[GrVal]]]} ]
+
 SEM GrBind
   | Bind loc . doorzicht = map (findRelated @expr.doorzichtUp . GrVal_Var) @argNmL
          loc . pats = map (mkPat @loc.doorzicht) @expr.specCalls
@@ -139,35 +157,36 @@ SEM GrAltL
   | Nil lhs . doorzichtUp = []
   | Cons lhs . doorzichtUp = @hd.doorzichtUp : @tl.doorzichtUp
 
+
+
+-- | Just x if x is effectively the same thing as what it'll be bound to.
+--   Nothing when this isn't the case.
 ATTR GrExpr [ | | interestingVal : {Maybe GrVal} ]
 
 SEM GrExpr
   | Unit lhs . interestingVal = Just @val.grTrf
   | FetchNode lhs . interestingVal = Just (GrVal_Var @nm)
   | Store lhs . interestingVal = Just @val.grTrf
-  | Case lhs . interestingVal = if (any isUnit @altL.grTrf ) then Just @val.grTrf else Nothing
+  | Case lhs . interestingVal = if (any isIdent @altL.grTrf ) then Just @val.grTrf else Nothing
   | * -Unit -FetchNode -Store -Case lhs . interestingVal = Nothing
-
 
 %%]
 
 %%[8.arityRaise hs
 
+-- | 'findRelated doorzicht val' looks up all values in the doorzicht map that are related to 'val'.
+findRelated :: [[GrVal]] -> GrVal -> [GrVal]
+findRelated doorzicht val = case filter (val `elem`) doorzicht of
+                              []     -> []
+                              (x:xs) -> x
+
+
+-- | 'addDoorzicht key value doorzicht' adds 'value' to the list of values associated with 'key'.
 addDoorzicht :: GrVal -> GrVal -> [[GrVal]] -> [[GrVal]]
 addDoorzicht key value doorzicht = map addMe doorzicht
   where addMe groep | key `elem` groep = value : groep
                     | otherwise        = groep
 
-isUnit :: GrAlt -> Bool
-isUnit (GrAlt_Alt ann _ _) = ann == GrAltAnnIdent
-
-unionAll :: [[GrVal]] -> [[GrVal]]
-unionAll = foldr mergeIn []
-
-mergeIn :: [GrVal] -> [[GrVal]] -> [[GrVal]]
-mergeIn x []     = [x]
-mergeIn x (y:ys) | null (x `intersect` y) = y : mergeIn x ys
-                 | otherwise              = mergeIn (x `union` y) ys
 
 -- Convert a pattern that's allowed in a lambda to a value that would match that pattern.
 patLamToVal :: GrPatLam -> GrVal
@@ -191,20 +210,24 @@ varToVal (GrVar_Var nm) = GrVal_Var nm
 varToVal (GrVar_KnownTag tag) = GrVal_Tag tag
 varToVal (GrVar_Ignore) = error "Grvar_Ignore"
 
-findRelated :: [[GrVal]] -> GrVal -> [GrVal]
-findRelated doorzicht val = case filter (val `elem`) doorzicht of
-                              []     -> []
-                              (x:xs) -> x
 
-callComment :: [GrVal] -> [[GrVal]] -> GrExpr -> GrExpr
-callComment args doorzicht res = foldr (uncurry addArgComment) res (zip args doorzicht)
-  where addArgComment arg dz rest = GrExpr_Comment (argComment arg dz) rest
-        argComment arg dz = show arg ++ " ~= " ++ show dz
+-- | unionAll sanitizes the given doorzicht map such that afterwards every element only occurs in one sublist.
+unionAll :: [[GrVal]] -> [[GrVal]]
+unionAll = foldr mergeIn []
 
-cloneName :: HsName -> HsName
-cloneName name = hsnSuffix name "_clone"
+-- | 'mergeIn values doorzicht' adds a list of values to the doorzicht map.
+mergeIn :: [GrVal] -> [[GrVal]] -> [[GrVal]]
+mergeIn x []     = [x]
+mergeIn x (y:ys) | null (x `intersect` y) = y : mergeIn x ys
+                 | otherwise              = mergeIn (x `union` y) ys
+
+
+-- | Test if the annotation is a GrAltAnnIdent
+isIdent :: GrAlt -> Bool
+isIdent (GrAlt_Alt ann _ _) = ann == GrAltAnnIdent
 
 %%]
+
 
 %%[8.arityRaise hs
 
