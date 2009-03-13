@@ -25,7 +25,7 @@ Assumptions:
 %%]
 %%[(8 codegen grin) hs import (qualified Data.Map as Map)
 %%]
-%%[(8 codegen grin) hs import({%{EH}Base.Common(HsName (..), CTagsMp, hsnSuffix)})
+%%[(8 codegen grin) hs import({%{EH}Base.Common(HsName (..), OrigName(..), CTagsMp, hsnSuffix)})
 %%]
 %%[(8 codegen grin) hs import({%{EH}GrinCode})
 %%]
@@ -64,10 +64,19 @@ SEM GrBind
                                     GrExpr_Comment ("Doorzicht: " ++ show @loc.doorzicht) $
                                       GrExpr_Comment ("Specializable calls: " ++ show @expr.specCalls) $
                                         GrExpr_Comment ("Pats: " ++ show @loc.pats) @expr.grTrf
-                           clone = GrBind_Bind (cloneName @nm) @annot @argNmL $
-                                     GrExpr_Comment ("This is a clone of " ++ show @nm) $
-                                       @expr.grTrf
-                           in GrBind_Rec [orig, clone]
+                           clones = map (uncurry (mkClone @nm @annot @argNmL @expr.grTrf)) (zip @loc.pats [@lhs.newVar ..])
+                       in GrBind_Rec (orig : clones)
+         expr . newVar = @lhs.newVar + length (@loc.pats)
+
+{
+
+mkClone :: HsName -> GrBindAnn -> [HsName] -> GrExpr -> [GrVal] -> Int -> GrBind
+mkClone name ann args expr pat num = GrBind_Bind (nameNum num) ann args $
+                                       GrExpr_Comment ("clone of: " ++ show name) $
+                                         GrExpr_Comment ("belonging to pattern: " ++ show pat) $
+                                           expr
+
+}
 
 SEM GrBind
          -- H1: function definition
@@ -98,14 +107,36 @@ SEM GrBind
   | Rec lhs . recBindsUp = []
   | Bind lhs . recBindsUp = if @loc.rCondSize && @loc.rCondDef then [@nm] else [] -- only include specialisable bindings
 
+
+-- maxVar is the highest variable number occurring in the nonterminal
+-- newVar is a threaded attribute for the first available variable number.
+ATTR AllNT [ | newVar : Int | maxVar USE {`max`} {0} : Int ]
+
+SEM GrBind
+  | Bind lhs . maxVar = max (getNr @nm) (@expr.maxVar)
+
+SEM GrPatLam
+  | Var lhs . maxVar = getNr @nm
+
+SEM GrModule
+  | Mod bindL . newVar = @bindL.maxVar + 1
+
 SEM GrExpr
   | Call loc . isSpecializable = elem @nm @lhs.recBindsDown
          lhs . specCalls = if @loc.isSpecializable then [@argL.grTrf] else []
-         lhs . grTrf       = if @loc.isSpecializable
+         lhs . grTrf       = if @loc.isSpecializable && actualPattern @loc.pattern
                                then GrExpr_Comment "Specialisable call!" $
                                       callComment @argL.grTrf @lhs.doorzicht $
-                                        GrExpr_Call (cloneName @nm) (@argL.grTrf)
+                                        GrExpr_Comment (show @loc.pattern) $
+                                          GrExpr_Call (cloneName @lhs.usedPats @loc.pattern) (@argL.grTrf)
                                else GrExpr_Comment "Non-specialisable call" @loc.grTrf
+         loc . pattern = mkPat @lhs.doorzicht @argL.grTrf
+
+
+ATTR AllGrExpr [ usedPats : {[([GrVal],Int)]} | | ]
+
+SEM GrBind
+  | Bind expr . usedPats = (zip @loc.pats [@lhs.newVar ..])
 
 %%]
 
@@ -118,8 +149,10 @@ callComment args doorzicht res = foldr (uncurry addArgComment) res (zip args doo
         argComment arg dz = show arg ++ " ~= " ++ show dz
 
 -- | Returns the name of the clone of the input name.
-cloneName :: HsName -> HsName
-cloneName name = hsnSuffix name "_clone"
+cloneName :: [([GrVal],Int)] -> [GrVal] -> HsName
+cloneName pats pat = case lookup pat pats of
+  Just n -> nameNum n
+  _      -> error $ "cloneName: " ++ show pat
 
 %%]
 
@@ -138,14 +171,14 @@ ATTR GrAltL [ | | doorzichtUp : {[[[GrVal]]]} ]
 
 SEM GrBind
   | Bind loc . doorzicht = map (findRelated @expr.doorzichtUp . GrVal_Var) @argNmL
-         loc . pats = map (mkPat @loc.doorzicht) @expr.specCalls
+         loc . pats = filter actualPattern $ map (mkPat @loc.doorzicht) @expr.specCalls
          expr . doorzicht = @loc.doorzicht
 
 -- Needs variable usage for other GrExpr cases added.
 SEM GrExpr
   | Seq lhs . doorzichtUp = case @expr.interestingVal of
                               Nothing -> @body.doorzichtUp
-                              Just x  -> addDoorzicht (patLamToVal @pat) x @body.doorzichtUp
+                              Just x  -> addDoorzicht (patLamToVal @pat.grTrf) x @body.doorzichtUp
   | Unit lhs . doorzichtUp = [[@val.grTrf]]
   | UpdateUnit lhs . doorzichtUp = [[GrVal_Var @nm , @val.grTrf]]
   | Case lhs . doorzichtUp = unionAll (concat @altL.doorzichtUp)
@@ -228,6 +261,9 @@ isIdent (GrAlt_Alt ann _ _) = ann == GrAltAnnIdent
 
 %%]
 
+%%[(8 codegen grin)
+
+%%]
 
 %%[8.arityRaise hs
 
@@ -242,12 +278,21 @@ mkPat :: [[GrVal]] -> [GrVal] -> [GrVal]
 mkPat dzicht call = zipWith combine call dzicht
   where
     combine callArg dzs | elem callArg dzs = let ns = nodes dzs
-                                             in  case length ns of
-                                                   1 -> ns !! 0
-                                                   _ -> callArg
+                                             in  case ns of
+                                                   [n] -> n
+                                                   _   -> callArg
                         | otherwise = callArg
     nodes = filter isNode
-    isNode (GrVal_Node _ _) = True
-    isNode _ = False
+
+isNode :: GrVal -> Bool
+isNode (GrVal_Node _ _) = True
+isNode _ = False
+
+-- Test if this is an actual specializable pattern. i.e.: contains nodes.
+actualPattern :: [GrVal] -> Bool
+actualPattern = any isNode
+
+nameNum :: Int -> HsName
+nameNum n = HNmNr n OrigNone
 
 %%]
