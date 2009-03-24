@@ -45,6 +45,10 @@ arityRaise (input,hptMap)
     in  grTrf_Syn_GrAGItf syn
 %%]
 
+===============================================================================
+== Basic functions
+===============================================================================
+
 %%[(8 codegen grin)
 -- synthesize a modified copy
 ATTR GrAGItf   [ | | grTrf: GrModule ]
@@ -56,57 +60,59 @@ ATTR GrAGItf
      AllBind
      AllGrExpr [ hptMap: HptMap | | ]
 
-ATTR AllGrExpr [ | | rSize USE {+} {1} : Int ]
-
-
 SEM GrBind
-  | Bind lhs . grTrf = let orig = GrBind_Bind @nm @annot @argNmL $
-                                    GrExpr_Comment ("Doorzicht: " ++ show @loc.doorzicht) $
-                                      GrExpr_Comment ("Specializable calls: " ++ show @expr.specCalls) $
-                                        GrExpr_Comment ("Pats: " ++ show @loc.pats) @expr.grTrf
-                           clones = map (uncurry (mkClone @nm @annot @argNmL @expr.grTrf)) (zip @loc.pats [@lhs.newVar ..])
-                       in GrBind_Rec (orig : clones)
-         expr . newVar = @lhs.newVar + length (@loc.pats)
+  | Bind lhs . grTrf = GrBind_Rec $
+                          (GrBind_Bind @nm @annot @argNmL $
+                            exprComments (@loc.doorzichtComment ++ @loc.specComment ++ @loc.patsComment)
+                            @expr.grTrf) : @loc.clones
 
-{
-
-mkClone :: HsName -> GrBindAnn -> [HsName] -> GrExpr -> [GrVal] -> Int -> GrBind
-mkClone name ann args expr pat num = GrBind_Bind (nameNum num) ann args $
-                                       GrExpr_Comment ("clone of: " ++ show name) $
-                                         GrExpr_Comment ("belonging to pattern: " ++ show pat) $
-                                           expr
-
-}
-
-SEM GrBind
-         -- H1: function definition
-  | Bind loc . rCondDef  = length @argNmL > 0
-         -- H2: check for "sufficiently small" function
-         loc . rCondSize = @expr.rSize <= specSizeTreshold
+SEM GrExpr
+  | Call lhs . grTrf = exprComments (@loc.specComment) @loc.liftedCall
 
 %%]
 
-
-Find recursive top-level bindings by descending into the Rec-block,
-and giving the list of grouped function to every defined function in the group.
-These recursive functions the candidates for optimization.
+===============================================================================
+== Find specializable functions
+===============================================================================
 
 %%[(8 codegen grin)
 
 ATTR AllBind [ | | recBindsUp USE {++} {[]} : {[HsName]} ]
 ATTR GrModule AllBind AllGrExpr [ recBindsDown : {[HsName]} | | ]
 ATTR AllGrExpr [  | | specCalls USE {++} {[]} : {[[GrVal]]} ]
+ATTR AllGrExpr [ | | rSize USE {+} {1} : Int ]
 
 SEM GrModule
   | Mod bindL . recBindsDown = []
 
 SEM GrBind
-  | Rec bindL . recBindsDown = @bindL.recBindsUp -- push down all (mutual) recursive bindings
-
-SEM GrBind
   | Rec lhs . recBindsUp = []
-  | Bind lhs . recBindsUp = if @loc.rCondSize && @loc.rCondDef then [@nm] else [] -- only include specialisable bindings
+        bindL . recBindsDown = @bindL.recBindsUp -- push down all (mutual) recursive bindings
+  | Bind loc . funArgsOk  = length @argNmL > 0 -- H1: function definition
+         loc . funSizeOk = @expr.rSize <= specSizeTreshold -- H2: check for "sufficiently small" function
+         lhs . recBindsUp = if @loc.funSizeOk && @loc.funArgsOk then [@nm] else [] -- only include specialisable bindings
+ 
+SEM GrExpr
+  | Call loc . isSpecializable = elem @nm @lhs.recBindsDown
+         lhs . specCalls = if @loc.isSpecializable then [@argL.grTrf] else []
 
+-- Comments
+SEM GrExpr
+  | Call
+         loc . specComment = if @loc.isSpecializable && actualPattern @loc.pattern
+                               then ["Specialisable call!",show @loc.pattern] ++ dzichtCallComment @argL.grTrf @lhs.doorzicht 
+                               else ["Non-specialisable call"]
+                                      
+SEM GrBind
+  | Bind loc . specComment = ["Specializable calls: " ++ show @expr.specCalls]  
+                               
+%%]
+
+===============================================================================
+== Variable re-numbering
+===============================================================================
+
+%%[(8 codegen grin)
 
 -- maxVar is the highest variable number occurring in the nonterminal
 -- newVar is a threaded attribute for the first available variable number.
@@ -114,24 +120,13 @@ ATTR AllNT [ | newVar : Int | maxVar USE {`max`} {0} : Int ]
 
 SEM GrBind
   | Bind lhs . maxVar = max (getNr @nm) (@expr.maxVar)
+         expr . newVar = @lhs.newVar + length (@loc.pats)
 
 SEM GrPatLam
   | Var lhs . maxVar = getNr @nm
 
 SEM GrModule
   | Mod bindL . newVar = @bindL.maxVar + 1
-
-SEM GrExpr
-  | Call loc . isSpecializable = elem @nm @lhs.recBindsDown
-         lhs . specCalls = if @loc.isSpecializable then [@argL.grTrf] else []
-         lhs . grTrf       = if @loc.isSpecializable && actualPattern @loc.pattern
-                               then GrExpr_Comment "Specialisable call!" $
-                                      callComment @argL.grTrf @lhs.doorzicht $
-                                        GrExpr_Comment (show @loc.pattern) $
-                                          GrExpr_Call (cloneName @lhs.usedPats @loc.pattern) (@argL.grTrf)
-                               else GrExpr_Comment "Non-specialisable call" @loc.grTrf
-         loc . pattern = mkPat @lhs.doorzicht @argL.grTrf
-
 
 ATTR AllGrExpr [ usedPats : {[([GrVal],Int)]} | | ]
 
@@ -143,26 +138,23 @@ SEM GrBind
 %%[8.arityRaise hs
 
 -- | Adds comments that indicate which arguments have which associated values.
-callComment :: [GrVal] -> [[GrVal]] -> GrExpr -> GrExpr
-callComment args doorzicht res = foldr (uncurry addArgComment) res (zip args doorzicht)
-  where addArgComment arg dz rest = GrExpr_Comment (argComment arg dz) rest
-        argComment arg dz = show arg ++ " ~= " ++ show dz
-
--- | Returns the name of the clone of the input name.
-cloneName :: [([GrVal],Int)] -> [GrVal] -> HsName
-cloneName pats pat = case lookup pat pats of
-  Just n -> nameNum n
-  _      -> error $ "cloneName: " ++ show pat
+dzichtCallComment :: [GrVal] -> [[GrVal]] -> [String]
+dzichtCallComment args doorzicht = map (uncurry mkComment) (zip args doorzicht)
+  where
+    mkComment arg dz = show arg ++ " ~= " ++ show dz
 
 %%]
 
+===============================================================================
+== "Doorzicht" analysis
+===============================================================================
 
 %%[(8 codegen grin)
 
 -- doorzicht is an ordered list of related variables/nodes.
 -- The first element corresponds to the first parameter,
 -- The second element corresponds to the second paremeter, etc.
-ATTR AllGrExpr [ doorzicht : {[[GrVal]]} | | ]	-- jean: we probably don't need to send the doorzicht up anymore, since all information is available at the binding-level
+ATTR AllGrExpr [ doorzicht : {[[GrVal]]} | | ]	-- jean: we probably don't need to send the doorzicht down anymore, since all information is available at the binding-level
 
 -- | doorzichtUp collects the information needed to construct the doorzicht attribute.
 --   It is a list of associated ("equivalent") values.
@@ -171,8 +163,8 @@ ATTR GrAltL [ | | doorzichtUp : {[[[GrVal]]]} ]
 
 SEM GrBind
   | Bind loc . doorzicht = map (findRelated @expr.doorzichtUp . GrVal_Var) @argNmL
-         loc . pats = filter actualPattern $ map (mkPat @loc.doorzicht) @expr.specCalls
          expr . doorzicht = @loc.doorzicht
+         loc . doorzichtComment = ["Doorzicht: " ++ show @loc.doorzicht]
 
 -- Needs variable usage for other GrExpr cases added.
 SEM GrExpr
@@ -189,7 +181,6 @@ SEM GrExpr
 SEM GrAltL
   | Nil lhs . doorzichtUp = []
   | Cons lhs . doorzichtUp = @hd.doorzichtUp : @tl.doorzichtUp
-
 
 
 -- | Just x if x is effectively the same thing as what it'll be bound to.
@@ -261,19 +252,20 @@ isIdent (GrAlt_Alt ann _ _) = ann == GrAltAnnIdent
 
 %%]
 
+===============================================================================
+== Pattern generation
+===============================================================================
+
 %%[(8 codegen grin)
 
-%%]
+SEM GrBind
+  | Bind loc . pats = filter actualPattern $ map (mkPat @loc.doorzicht) @expr.specCalls
+         loc . patsComment = ["Pats: " ++ show @loc.pats]
 
-%%[8.arityRaise hs
+SEM GrExpr
+  | Call loc . pattern = mkPat @lhs.doorzicht @argL.grTrf
 
--- Treshold to determine which functions we want to specialize
--- hence big functions (according to the treshold) will not be
--- specialized to avoid excessive code increase
---
--- Unit: number of nested GRIN expressions
-specSizeTreshold = 1000000 -- big number to avoid headaches during testing
-
+{
 mkPat :: [[GrVal]] -> [GrVal] -> [GrVal]
 mkPat dzicht call = zipWith combine call dzicht
   where
@@ -284,13 +276,63 @@ mkPat dzicht call = zipWith combine call dzicht
                         | otherwise = callArg
     nodes = filter isNode
 
-isNode :: GrVal -> Bool
-isNode (GrVal_Node _ _) = True
-isNode _ = False
-
 -- Test if this is an actual specializable pattern. i.e.: contains nodes.
 actualPattern :: [GrVal] -> Bool
 actualPattern = any isNode
+}
+
+%%]
+
+===============================================================================
+== Function cloning
+===============================================================================
+
+%%[(8 codegen grin)
+
+SEM GrBind
+  | Bind loc . clones = map (uncurry (mkClone @nm @annot @argNmL @expr.grTrf)) (zip @loc.pats [@lhs.newVar ..])
+
+SEM GrExpr
+  | Call loc . liftedCall = if @loc.isSpecializable && actualPattern @loc.pattern
+                            then GrExpr_Call (cloneName @lhs.usedPats @loc.pattern) (@argL.grTrf)
+                            else @loc.grTrf
+
+{
+mkClone :: HsName -> GrBindAnn -> [HsName] -> GrExpr -> [GrVal] -> Int -> GrBind
+mkClone name ann args expr pat num = GrBind_Bind (nameNum num) ann args $
+                                       GrExpr_Comment ("clone of: " ++ show name) $
+                                         GrExpr_Comment ("belonging to pattern: " ++ show pat) $
+                                           expr
+
+-- | Returns the name of the clone of the input name.
+cloneName :: [([GrVal],Int)] -> [GrVal] -> HsName
+cloneName pats pat = case lookup pat pats of
+  Just n -> nameNum n
+  _      -> error $ "cloneName: " ++ show pat
+
+}
+
+%%]
+
+===============================================================================
+== Utility functions
+===============================================================================
+
+%%[8.arityRaise hs
+
+-- Treshold to determine which functions we want to specialize
+-- hence big functions (according to the treshold) will not be
+-- specialized to avoid excessive code increase
+--
+-- Unit: number of nested GRIN expressions
+specSizeTreshold = 1000000 -- big number to avoid headaches during testing
+
+exprComments :: [String] -> GrExpr -> GrExpr
+exprComments cs r = foldr GrExpr_Comment r cs
+
+isNode :: GrVal -> Bool
+isNode (GrVal_Node _ _) = True
+isNode _ = False
 
 nameNum :: Int -> HsName
 nameNum n = HNmNr n OrigNone
