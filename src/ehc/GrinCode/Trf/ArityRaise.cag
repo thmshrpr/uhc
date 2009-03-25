@@ -284,20 +284,14 @@ actualPattern = any isNode
 
 %%[(8 codegen grin)
 
-
-{
-type PatVarMap = [([GrVal],Int)]
-}
-
-ATTR AllGrExpr [ usedPats : {PatVarMap} | | ]
+ATTR AllGrExpr [ usedPats : {[([GrVal],Int)]} | | ]
 
 
 SEM GrBind
-  | Bind loc . usedPats = (zip @loc.pats [@lhs.newVar ..])
-         expr . usedPats = @loc.usedPats
+  | Bind expr . usedPats = (zip @loc.pats [@lhs.newVar ..])
 
 SEM GrBind
-  | Bind loc . clones = map (uncurry (mkClone @loc.usedPats @nm @annot @argNmL @expr.grTrf)) (zip @loc.pats [@lhs.newVar ..])
+  | Bind loc . clones = map (uncurry (mkClone @nm @annot @argNmL @expr.grTrf)) (zip @loc.pats [@lhs.newVar ..])
 
 SEM GrExpr
   | Call loc . liftedCall = if @loc.isSpecializable && actualPattern @loc.pattern
@@ -305,15 +299,22 @@ SEM GrExpr
                             else @loc.grTrf
 
 {
-mkClone :: PatVarMap -> HsName -> GrBindAnn -> [HsName] -> GrExpr -> [GrVal] -> Int -> GrBind
-mkClone usedPats name ann args expr pat num = GrBind_Bind (nameNum num) ann args $
-                                       exprComments ["clone of: " ++ show name, "belonging to pattern: " ++ show pat] (localTrf expr usedPats)
+mkClone :: HsName -> GrBindAnn -> [HsName] -> GrExpr -> [GrVal] -> Int -> GrBind
+mkClone name ann args expr pat num = GrBind_Bind (nameNum num) ann args $ comments $ localTrf expr substs
+  where
+    comments = exprComments ["clone of: " ++ show name, "belonging to pattern: " ++ show pat, "substituting: " ++ show substs]
+    substs = mkSubsts args pat
 
 -- | Returns the name of the clone of the input name.
 cloneName :: [([GrVal],Int)] -> [GrVal] -> HsName
 cloneName pats pat = case lookup pat pats of
   Just n -> nameNum n
   _      -> error $ "cloneName: " ++ show pat
+
+mkSubsts :: [HsName] -> [GrVal] -> Map HsName GrVal
+mkSubsts oldArgs pat = foldr (uncurry Map.insert) Map.empty argpat
+  where
+    argpat = filter (isNode . snd) (zip oldArgs pat)
 }
 
 %%]
@@ -325,15 +326,22 @@ cloneName pats pat = case lookup pat pats of
 %%[(8 codegen grin)
 
 ATTR AllExpr [ | | arTrf: SELF ]
+ATTR AllExpr [ substs : {Map HsName GrVal} | | ]
+
+SEM GrExpr
+  | FetchNode lhs . arTrf = case Map.lookup @nm @lhs.substs of
+                                (Just s) -> GrExpr_Comment "Substituted" (GrExpr_Unit s)
+                                _ -> @loc.arTrf
 
 
 {
 -- We're doing some nasty things here since not all inherited attributes are provided
 -- this will give some warnings
-localTrf :: GrExpr -> PatVarMap -> GrExpr
-localTrf expr usedVars = let inh = Inh_GrExpr {usedPats_Inh_GrExpr=usedVars}
-                             syn = wrap_GrExpr (sem_GrExpr expr) inh
-                         in  arTrf_Syn_GrExpr syn
+localTrf :: GrExpr -> Map HsName GrVal -> GrExpr
+localTrf expr substs = let inh = Inh_GrExpr {substs_Inh_GrExpr=substs}
+                           syn = wrap_GrExpr (sem_GrExpr expr) inh
+                       in  arTrf_Syn_GrExpr syn
+
 }
 
 %%]
