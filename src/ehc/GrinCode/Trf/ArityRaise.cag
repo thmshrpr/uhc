@@ -34,7 +34,7 @@ Assumptions:
 %%[(8 codegen grin) hs import (Maybe (fromMaybe))
 %%]
 %%[(8 codegen grin)
-WRAPPER GrAGItf
+WRAPPER GrAGItf GrExpr
 %%]
 
 %%[(8 codegen grin) hs
@@ -127,11 +127,6 @@ SEM GrPatLam
 
 SEM GrModule
   | Mod bindL . newVar = @bindL.maxVar + 1
-
-ATTR AllGrExpr [ usedPats : {[([GrVal],Int)]} | | ]
-
-SEM GrBind
-  | Bind expr . usedPats = (zip @loc.pats [@lhs.newVar ..])
 
 %%]
 
@@ -289,8 +284,20 @@ actualPattern = any isNode
 
 %%[(8 codegen grin)
 
+
+{
+type PatVarMap = [([GrVal],Int)]
+}
+
+ATTR AllGrExpr [ usedPats : {PatVarMap} | | ]
+
+
 SEM GrBind
-  | Bind loc . clones = map (uncurry (mkClone @nm @annot @argNmL @expr.grTrf)) (zip @loc.pats [@lhs.newVar ..])
+  | Bind loc . usedPats = (zip @loc.pats [@lhs.newVar ..])
+         expr . usedPats = @loc.usedPats
+
+SEM GrBind
+  | Bind loc . clones = map (uncurry (mkClone @loc.usedPats @nm @annot @argNmL @expr.grTrf)) (zip @loc.pats [@lhs.newVar ..])
 
 SEM GrExpr
   | Call loc . liftedCall = if @loc.isSpecializable && actualPattern @loc.pattern
@@ -298,18 +305,35 @@ SEM GrExpr
                             else @loc.grTrf
 
 {
-mkClone :: HsName -> GrBindAnn -> [HsName] -> GrExpr -> [GrVal] -> Int -> GrBind
-mkClone name ann args expr pat num = GrBind_Bind (nameNum num) ann args $
-                                       GrExpr_Comment ("clone of: " ++ show name) $
-                                         GrExpr_Comment ("belonging to pattern: " ++ show pat) $
-                                           expr
+mkClone :: PatVarMap -> HsName -> GrBindAnn -> [HsName] -> GrExpr -> [GrVal] -> Int -> GrBind
+mkClone usedPats name ann args expr pat num = GrBind_Bind (nameNum num) ann args $
+                                       exprComments ["clone of: " ++ show name, "belonging to pattern: " ++ show pat] (localTrf expr usedPats)
 
 -- | Returns the name of the clone of the input name.
 cloneName :: [([GrVal],Int)] -> [GrVal] -> HsName
 cloneName pats pat = case lookup pat pats of
   Just n -> nameNum n
   _      -> error $ "cloneName: " ++ show pat
+}
 
+%%]
+
+===============================================================================
+== Local function transformation
+===============================================================================
+
+%%[(8 codegen grin)
+
+ATTR AllExpr [ | | arTrf: SELF ]
+
+
+{
+-- We're doing some nasty things here since not all inherited attributes are provided
+-- this will give some warnings
+localTrf :: GrExpr -> PatVarMap -> GrExpr
+localTrf expr usedVars = let inh = Inh_GrExpr {usedPats_Inh_GrExpr=usedVars}
+                             syn = wrap_GrExpr (sem_GrExpr expr) inh
+                         in  arTrf_Syn_GrExpr syn
 }
 
 %%]
