@@ -15,7 +15,7 @@ Assumptions:
 %%[(8 codegen grin) ag import({GrinCode/AbsSyn})
 %%]
 
-%%[(8 codegen grin) hs import (Data.Map (Map))
+%%[(8 codegen grin) hs import (Data.Map (Map) )
 %%]
 %%[(8 codegen grin) hs import (Data.List)
 %%]
@@ -34,7 +34,7 @@ Assumptions:
 %%[(8 codegen grin) hs import (Maybe (fromMaybe))
 %%]
 %%[(8 codegen grin)
-WRAPPER GrAGItf GrExpr
+WRAPPER GrAGItf GrExpr GrBindL
 %%]
 
 %%[(8 codegen grin) hs
@@ -60,11 +60,16 @@ ATTR GrAGItf
      AllBind
      AllGrExpr [ hptMap: HptMap | | ]
 
+{-
 SEM GrBind
   | Bind lhs . grTrf = GrBind_Rec $
                           (GrBind_Bind @nm @annot @argNmL $
                             exprComments (@loc.doorzichtComment ++ @loc.specComment ++ @loc.patsComment)
                             @expr.grTrf) : @loc.clones
+-}
+
+SEM GrBind
+  | Bind lhs . grTrf = GrBind_Rec $ @loc.grTrf : locGrTrf_Syn_GrBindL @loc.info
 
 SEM GrExpr
   | Call lhs . grTrf = exprComments (@loc.specComment) @loc.liftedCall
@@ -91,7 +96,7 @@ SEM GrBind
   | Bind loc . funArgsOk  = length @argNmL > 0 -- H1: function definition
          loc . funSizeOk = @expr.rSize <= specSizeTreshold -- H2: check for "sufficiently small" function
          lhs . recBindsUp = if @loc.funSizeOk && @loc.funArgsOk then [@nm] else [] -- only include specialisable bindings
- 
+
 SEM GrExpr
   | Call loc . isSpecializable = elem @nm @lhs.recBindsDown
          lhs . specCalls = if @loc.isSpecializable then [@argL.grTrf] else []
@@ -100,12 +105,12 @@ SEM GrExpr
 SEM GrExpr
   | Call
          loc . specComment = if @loc.isSpecializable && actualPattern @loc.pattern
-                               then ["Specialisable call!",show @loc.pattern] ++ dzichtCallComment @argL.grTrf @lhs.doorzicht 
+                               then ["Specialisable call!",show @loc.pattern] ++ dzichtCallComment @argL.grTrf @lhs.doorzicht
                                else ["Non-specialisable call"]
-                                      
+
 SEM GrBind
-  | Bind loc . specComment = ["Specializable calls: " ++ show @expr.specCalls]  
-                               
+  | Bind loc . specComment = ["Specializable calls: " ++ show @expr.specCalls]
+
 %%]
 
 ===============================================================================
@@ -120,7 +125,7 @@ ATTR AllNT [ | newVar : Int | maxVar USE {`max`} {0} : Int ]
 
 SEM GrBind
   | Bind lhs . maxVar = max (getNr @nm) (@expr.maxVar)
-         expr . newVar = @lhs.newVar + length (@loc.pats)
+         expr . newVar = locNewVar_Syn_GrBindL @loc.info
 
 SEM GrPatLam
   | Var lhs . maxVar = getNr @nm
@@ -288,10 +293,10 @@ ATTR AllGrExpr [ usedPats : {[([GrVal],Int)]} | | ]
 
 
 SEM GrBind
-  | Bind expr . usedPats = (zip @loc.pats [@lhs.newVar ..])
+  | Bind expr . usedPats = locUsedPats_Syn_GrBindL @loc.info
 
 SEM GrBind
-  | Bind loc . clones = map (uncurry (mkClone @nm @annot @argNmL @expr.grTrf)) (zip @loc.pats [@lhs.newVar ..])
+  | Bind loc . info = localTrf @loc.grTrf @loc.pats @lhs.newVar
 
 SEM GrExpr
   | Call loc . liftedCall = if @loc.isSpecializable && actualPattern @loc.pattern
@@ -299,11 +304,6 @@ SEM GrExpr
                             else @loc.grTrf
 
 {
-mkClone :: HsName -> GrBindAnn -> [HsName] -> GrExpr -> [GrVal] -> Int -> GrBind
-mkClone name ann args expr pat num = GrBind_Bind (nameNum num) ann args $ comments $ localTrf expr substs
-  where
-    comments = exprComments ["clone of: " ++ show name, "belonging to pattern: " ++ show pat, "substituting: " ++ show substs]
-    substs = mkSubsts args pat
 
 -- | Returns the name of the clone of the input name.
 cloneName :: [([GrVal],Int)] -> [GrVal] -> HsName
@@ -311,6 +311,7 @@ cloneName pats pat = case lookup pat pats of
   Just n -> nameNum n
   _      -> error $ "cloneName: " ++ show pat
 
+-- Substitutions of Fetch to Unit that need to be done.
 mkSubsts :: [HsName] -> [GrVal] -> Map HsName GrVal
 mkSubsts oldArgs pat = foldr (uncurry Map.insert) Map.empty argpat
   where
@@ -325,22 +326,65 @@ mkSubsts oldArgs pat = foldr (uncurry Map.insert) Map.empty argpat
 
 %%[(8 codegen grin)
 
-ATTR AllExpr [ | | arTrf: SELF ]
-ATTR AllExpr [ substs : {Map HsName GrVal} | | ]
+ATTR AllNTNoMod [ | | locGrTrf : SELF ]
 
 SEM GrExpr
-  | FetchNode lhs . arTrf = case Map.lookup @nm @lhs.substs of
-                                (Just s) -> GrExpr_Comment "Substituted" (GrExpr_Unit s)
-                                _ -> @loc.arTrf
+  | FetchNode lhs . locGrTrf = case Map.lookup @nm @lhs.substs of
+                                   (Just s) -> GrExpr_Comment "Substituted" (GrExpr_Unit s)
+                                   _        -> @loc.locGrTrf
 
+SEM GrBind
+  | Bind lhs . locGrTrf = GrBind_Bind (nameNum @lhs.locNewVar) @annot (concat @loc.newArgs) @expr.locGrTrf
+         loc . argVar = foldr (uncurry op) e (zip @argNmL @lhs.locPat) (@lhs.locNewVar + 1)
+                            where op arg pat rest var = case patVars pat of
+                                       [_]  -> let (var',rest') = rest var
+                                               in (var',[arg]:rest')
+                                       more -> let (var',rest') = rest (var + length more)
+                                               in (var',map nameNum [var..var + length more - 1]:rest')
+                                  e var = (var,[])
+         loc . newArgs = snd @loc.argVar
+         expr . locNewVar = fst @loc.argVar
+
+{
+patVars :: GrVal -> [GrVal]
+patVars (GrVal_Node _ fldL) = fldL
+patVars (GrVal_VarNode fldL) = tail fldL
+patVars val = [val]
+}
+
+-- Collect a mapping of new bindings to their number.
+-- GrVal is no instance of Ord, so I can't use Data.Map here.
+ATTR AllBind [ | | locUsedPats USE {++} {[]} : {[( [GrVal], Int)]} ]
+
+SEM GrBind
+  | Bind lhs . locUsedPats = [(@lhs.locPat, @lhs.locNewVar)]
+
+
+ATTR AllNTNoMod [ | locNewVar : Int | ]
+
+-- Substitutions to make.
+ATTR AllExpr [ substs : {Map HsName GrVal} | | ]
+
+SEM GrBind
+  | Bind expr . substs = mkSubsts @argNmL @lhs.locPat
+
+-- Local transformation initially gets a list of identical GrBinds.
+-- locPats and locPat make sure every GrBind gets a different pattern.
+ATTR GrBindL [ locPats : {[[GrVal]]} | | ]
+ATTR GrBind AllExpr [ locPat : {[GrVal]} | | ]
+
+SEM GrBindL
+  | Cons hd . locPat = head @lhs.locPats
+         tl . locPats = tail @lhs.locPats
 
 {
 -- We're doing some nasty things here since not all inherited attributes are provided
 -- this will give some warnings
-localTrf :: GrExpr -> Map HsName GrVal -> GrExpr
-localTrf expr substs = let inh = Inh_GrExpr {substs_Inh_GrExpr=substs}
-                           syn = wrap_GrExpr (sem_GrExpr expr) inh
-                       in  arTrf_Syn_GrExpr syn
+localTrf :: GrBind -> [[GrVal]] -> Int -> Syn_GrBindL
+localTrf bind pats varNum = let inh = Inh_GrBindL { locNewVar_Inh_GrBindL = varNum
+                                                   , locPats_Inh_GrBindL = pats }
+                             in wrap_GrBindL (sem_GrBindL bindl) inh
+  where bindl = replicate (length pats) bind
 
 }
 
