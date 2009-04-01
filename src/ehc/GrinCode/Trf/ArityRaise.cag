@@ -367,7 +367,17 @@ ATTR AllNTNoMod [ | locNewVar : Int | ]
 ATTR AllExpr [ substs : {Map HsName GrVal} | | ]
 
 SEM GrBind
-  | Bind expr . substs = mkSubsts @argNmL @lhs.locPat
+  | Bind expr . substs = mkSubsts @argNmL (zipWith modify @lhs.locPat @loc.newArgs)
+
+{
+-- changes the old parameters in the node to the new ones.
+-- The given [HsName] have once been produced (by patVals and a substitution)
+-- by the given GrVal. This is how we know how to paste it together.
+modify :: GrVal -> [HsName] -> GrVal
+modify (GrVal_Node t _)     fldL  = GrVal_Node t (map GrVal_Var fldL)
+modify (GrVal_VarNode fldL) fldL' = GrVal_VarNode (head fldL : (map GrVal_Var fldL'))
+modify val                  _     = val
+}
 
 -- Local transformation initially gets a list of identical GrBinds.
 -- locPats and locPat make sure every GrBind gets a different pattern.
