@@ -300,8 +300,9 @@ SEM GrBind
 
 SEM GrExpr
   | Call loc . liftedCall = if @loc.isSpecializable && actualPattern @loc.pattern
-                            then GrExpr_Call (cloneName @lhs.usedPats @loc.pattern) (@argL.grTrf)
+                            then GrExpr_Call (cloneName @lhs.usedPats @loc.pattern) @loc.argL
                             else @loc.grTrf
+         loc . argL = concatMap patVals @loc.pattern
 
 {
 
@@ -336,7 +337,7 @@ SEM GrExpr
 SEM GrBind
   | Bind lhs . locGrTrf = GrBind_Bind (nameNum @lhs.locNewVar) @annot (concat @loc.newArgs) @expr.locGrTrf
          loc . argVar = foldr (uncurry op) e (zip @argNmL @lhs.locPat) (@lhs.locNewVar + 1)
-                            where op arg pat rest var = case patVars pat of
+                            where op arg pat rest var = case patVals pat of
                                        [_]  -> let (var',rest') = rest var
                                                in (var',[arg]:rest')
                                        more -> let (var',rest') = rest (var + length more)
@@ -346,10 +347,10 @@ SEM GrBind
          expr . locNewVar = fst @loc.argVar
 
 {
-patVars :: GrVal -> [GrVal]
-patVars (GrVal_Node _ fldL) = fldL
-patVars (GrVal_VarNode fldL) = tail fldL
-patVars val = [val]
+patVals :: GrVal -> [GrVal]
+patVals (GrVal_Node _ fldL) = fldL
+patVals (GrVal_VarNode fldL) = tail fldL
+patVals val = [val]
 }
 
 -- Collect a mapping of new bindings to their number.
