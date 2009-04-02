@@ -1,14 +1,6 @@
 Arity Raising
 What: Avoid boxing when it's known they're unboxed later anyway.
 
-Why: TODO: Write short summary here
-When: TODO: Figure this out
-
-Assumptions:
-- HPT table is available
-- TODO: Perhaps more?
-
-
 %%[(8 codegen grin) hs module {%{EH}GrinCode.Trf.ArityRaise} export(arityRaise)
 %%]
 
@@ -29,20 +21,19 @@ Assumptions:
 %%]
 %%[(8 codegen grin) hs import({%{EH}GrinCode})
 %%]
-%%[(8 codegen grin) hs import({%{EH}GrinCode.Common(HptMap, AbstractValue, getTags, getNr, getEnvVar, absFetch)})
+%%[(8 codegen grin) hs import({%{EH}GrinCode.Common(getNr)})
 %%]
 %%[(8 codegen grin) hs import (Maybe (fromMaybe))
 %%]
 %%[(8 codegen grin)
-WRAPPER GrAGItf GrExpr GrBindL
+WRAPPER GrAGItf GrBindL
 %%]
 
 %%[(8 codegen grin) hs
-arityRaise :: (GrModule,HptMap) -> GrModule
-arityRaise (input,hptMap)
-  = let inh = Inh_GrAGItf {hptMap_Inh_GrAGItf=hptMap}
-        syn = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf input)) inh
-    in  grTrf_Syn_GrAGItf syn
+arityRaise :: GrModule -> GrModule
+arityRaise input = let syn = wrap_GrAGItf (sem_GrAGItf (GrAGItf_AGItf input))
+                                          (Inh_GrAGItf)
+                   in grTrf_Syn_GrAGItf syn
 %%]
 
 ===============================================================================
@@ -53,12 +44,6 @@ arityRaise (input,hptMap)
 -- synthesize a modified copy
 ATTR GrAGItf   [ | | grTrf: GrModule ]
 ATTR AllNT     [ | | grTrf: SELF     ]
-
--- bring the HPT map down to the Expression level
-ATTR GrAGItf
-     GrModule
-     AllBind
-     AllGrExpr [ hptMap: HptMap | | ]
 
 {-
 SEM GrBind

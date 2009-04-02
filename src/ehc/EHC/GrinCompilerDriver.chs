@@ -138,7 +138,7 @@ doCompileGrin input opts
          ; transformCodeUseHpt   impossibleCase     "ImpossibleCase"   ; caWriteGrin "-141-possibleCase"
          ; transformCode         singleCase         "singleCase"       ;
          ; transformCode         grFlattenSeq       "Flatten"          ; caWriteGrin "-142-singleCase"
-         ; transformCodeUseHpt   arityRaise         "ArityRaise"       ; caWriteGrin "-143-arityRaised"
+         ; transformCode         arityRaise         "ArityRaise"       ; caWriteGrin "-143-arityRaised"
          ; transformCodeIterated dropUnusedExpr     "DropUnusedExpr"   ; caWriteGrin "-144-unusedExprDropped"
 	 ; transformCode         mergeCase          "MergeCase"        ; caWriteGrin "-145-caseMerged"
          ; transformCodeChgHpt   lowerGrin          "LowerGrin"        ; caWriteGrin "-151-lowered"
