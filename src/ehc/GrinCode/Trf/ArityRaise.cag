@@ -104,19 +104,43 @@ SEM GrBind
 
 %%[(8 codegen grin)
 
--- maxVar is the highest variable number occurring in the nonterminal
+-- usedVars is a collection of variable numbers occurring in the nonterminal
 -- newVar is a threaded attribute for the first available variable number.
-ATTR AllNT [ | newVar : Int | maxVar USE {`max`} {0} : Int ]
+ATTR AllNT [ | newVar : Int | usedVars USE {++} {[]} : {[HsName]} ]
 
 SEM GrBind
-  | Bind lhs . maxVar = max (getNr @nm) (@expr.maxVar)
+  | Bind lhs . usedVars = @loc.usedVars
          expr . newVar = locNewVar_Syn_GrBindL @loc.info
+         loc . usedVars = @nm : (@argNmL ++ @expr.usedVars)
+
+SEM GrVar
+  | Var lhs . usedVars = [@nm]
 
 SEM GrPatLam
-  | Var lhs . maxVar = getNr @nm
+  | Var lhs . usedVars = [@nm]
+  | BasicNode lhs . usedVars = [@nm]
+  | EnumNode lhs . usedVars = [@nm]
+  | PtrNode lhs . usedVars = [@nm]
+  | OpaqueNode lhs . usedVars = [@nm]
+  | BasicAnnot lhs . usedVars = [@nm]
+  | EnumAnnot lhs . usedVars = [@nm]
+  | PtrAnnot lhs . usedVars = [@nm]
+  | OpaqueAnnot lhs . usedVars = [@nm]
+
+SEM GrPatAlt
+  | Node lhs . usedVars = @fldL
+
+{-
+SEM GrVal
+  | Var lhs . usedVars = [@nm]
+  | BasicNode lhs . usedVars = [@nm]
+  | EnumNode lhs . usedVars = [@nm]
+  | OpaqueNode lhs . usedVars = [@nm]
+  | PtrNode lhs . usedVars = [@nm]
+-}
 
 SEM GrModule
-  | Mod bindL . newVar = @bindL.maxVar + 1
+  | Mod bindL . newVar = maximum (map getNr @bindL.usedVars) + 1
 
 %%]
 
@@ -281,7 +305,7 @@ SEM GrBind
   | Bind expr . usedPats = locUsedPats_Syn_GrBindL @loc.info
 
 SEM GrBind
-  | Bind loc . info = localTrf @loc.grTrf @loc.pats @lhs.newVar
+  | Bind loc . info = localTrf (nub @loc.usedVars) @loc.grTrf @loc.pats @lhs.newVar
 
 SEM GrExpr
   | Call loc . liftedCall = if @loc.isSpecializable && actualPattern @loc.pattern
@@ -315,16 +339,52 @@ mkSubsts oldArgs pat = foldr (uncurry Map.insert) Map.empty argpat
 ATTR AllNTNoMod [ | | locGrTrf : SELF ]
 
 SEM GrExpr
+  | UpdateUnit lhs .locGrTrf = GrExpr_UpdateUnit (varSubst @lhs.locVarSubsts @nm) @val.locGrTrf
   | FetchNode lhs . locGrTrf = case Map.lookup @nm @lhs.substs of
                                    (Just s) -> GrExpr_Comment "Substituted" (GrExpr_Unit s)
-                                   _        -> @loc.locGrTrf
+                                   _        -> GrExpr_FetchNode (varSubst @lhs.locVarSubsts @nm)
+  | FetchUpdate lhs . locGrTrf = GrExpr_FetchUpdate (varSubst @lhs.locVarSubsts @src) (varSubst @lhs.locVarSubsts @dst)
+  | FetchField lhs . locGrTrf = GrExpr_FetchField (varSubst @lhs.locVarSubsts @nm) @offset @mbTag
+  | Call lhs . locGrTrf = GrExpr_Call (varSubst @lhs.locVarSubsts @nm) @argL.locGrTrf
+
+SEM GrVal
+  | Var lhs . locGrTrf = GrVal_Var (varSubst @lhs.locVarSubsts @nm)
+  | BasicNode lhs . locGrTrf = GrVal_BasicNode @tag.locGrTrf (varSubst @lhs.locVarSubsts @nm)
+  | EnumNode lhs . locGrTrf = GrVal_EnumNode (varSubst @lhs.locVarSubsts @nm)
+  | OpaqueNode lhs . locGrTrf = GrVal_OpaqueNode (varSubst @lhs.locVarSubsts @nm)
+  | PtrNode lhs . locaGrTrf = GrVal_PtrNode (varSubst @lhs.locVarSubsts @nm)
+
+SEM GrVar
+  | Var lhs . locGrTrf = GrVar_Var (varSubst @lhs.locVarSubsts @nm)
+
+SEM GrPatAlt
+  | Node lhs . locGrTrf = GrPatAlt_Node @tag.locGrTrf (map (varSubst @lhs.locVarSubsts) @fldL)
+
+SEM GrPatLam
+  | Var lhs . locGrTrf = GrPatLam_Var (varSubst @lhs.locVarSubsts @nm)
+  | BasicNode lhs . locGrTrf = GrPatLam_BasicNode @annot (varSubst @lhs.locVarSubsts @nm)
+  | EnumNode lhs . locGrTrf = GrPatLam_EnumNode (varSubst @lhs.locVarSubsts @nm)
+  | PtrNode lhs . locGrTrf = GrPatLam_PtrNode (varSubst @lhs.locVarSubsts @nm)
+  | OpaqueNode lhs . locGrTrf = GrPatLam_OpaqueNode (varSubst @lhs.locVarSubsts @nm)
+  | BasicAnnot lhs . locGrTrf = GrPatLam_BasicAnnot @annot (varSubst @lhs.locVarSubsts @nm)
+  | EnumAnnot lhs . locGrTrf = GrPatLam_EnumAnnot @tagL.locGrTrf (varSubst @lhs.locVarSubsts @nm)
+  | PtrAnnot lhs . locGrTrf = GrPatLam_PtrAnnot @tagL.locGrTrf (varSubst @lhs.locVarSubsts @nm)
+  | OpaqueAnnot lhs . locGrTrf = GrPatLam_OpaqueAnnot (varSubst @lhs.locVarSubsts @nm)
+
+{
+varSubst :: Map HsName HsName -> HsName -> HsName
+varSubst map name = case Map.lookup name map of
+                      Just nm' -> nm'
+                      Nothing  -> trace nameMsg name -- This happens with global bindings.
+  where nameMsg = "Variable name not in map: " ++ show name ++ " has number " ++ show (getNr name)
+}
 
 SEM GrBind
   | Bind lhs . locGrTrf = GrBind_Bind (nameNum @lhs.locNewVar) @annot (concat @loc.newArgs) @expr.locGrTrf
          loc . argVar = foldr (uncurry op) e (zip @argNmL @lhs.locPat) (@lhs.locNewVar + 1)
                             where op arg pat rest var = case patVals pat of
                                        [_]  -> let (var',rest') = rest var
-                                               in (var',[arg]:rest')
+                                               in (var',[varSubst @lhs.locVarSubsts arg]:rest')
                                        more -> let (var',rest') = rest (var + length more)
                                                in (var',map nameNum [var..var + length more - 1]:rest')
                                   e var = (var,[])
@@ -338,6 +398,8 @@ patVals (GrVal_VarNode fldL) = tail fldL
 patVals val = [val]
 }
 
+ATTR AllExpr AllBind [ locVarSubsts : {Map HsName HsName} | | ]
+
 -- Collect a mapping of new bindings to their number.
 -- GrVal is no instance of Ord, so I can't use Data.Map here.
 ATTR AllBind [ | | locUsedPats USE {++} {[]} : {[( [GrVal], Int)]} ]
@@ -349,7 +411,7 @@ SEM GrBind
 ATTR AllNTNoMod [ | locNewVar : Int | ]
 
 -- Substitutions to make.
-ATTR AllExpr [ substs : {Map HsName GrVal} | | ]
+ATTR AllExpr AllGrVal [ substs : {Map HsName GrVal} | | ]
 
 SEM GrBind
   | Bind expr . substs = mkSubsts @argNmL (zipWith modify @lhs.locPat @loc.newArgs)
@@ -373,13 +435,17 @@ SEM GrBindL
   | Cons hd . locPat = head @lhs.locPats
          tl . locPats = tail @lhs.locPats
 
+
 {
 -- We're doing some nasty things here since not all inherited attributes are provided
 -- this will give some warnings
-localTrf :: GrBind -> [[GrVal]] -> Int -> Syn_GrBindL
-localTrf bind pats varNum = let inh = Inh_GrBindL { locNewVar_Inh_GrBindL = varNum
-                                                   , locPats_Inh_GrBindL = pats }
-                             in wrap_GrBindL (sem_GrBindL bindl) inh
+localTrf :: [HsName] -> GrBind -> [[GrVal]] -> Int -> Syn_GrBindL
+localTrf vars bind pats varNum = let inh = Inh_GrBindL { locNewVar_Inh_GrBindL = varNum + length vars
+                                                       , locPats_Inh_GrBindL = pats
+                                                       , locVarSubsts_Inh_GrBindL = Map.fromList $
+                                                            zip vars (map nameNum [varNum..])
+                                                       }
+                                 in wrap_GrBindL (sem_GrBindL bindl) inh
   where bindl = replicate (length pats) bind
 
 }
