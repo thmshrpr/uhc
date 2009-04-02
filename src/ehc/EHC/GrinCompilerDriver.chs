@@ -135,10 +135,11 @@ doCompileGrin input opts
          ; transformCodeChgHpt   lateInline         "LateInline"
          ; transformCode         grFlattenSeq       "Flatten"          ; caWriteGrin "-135-lateinlined"
          ; transformCode         emptyAlts          "EmptyAlts"        ; caWriteGrin "-137-emptyAlts"
+         ; transformCode         arityRaise         "ArityRaise"       ; caWriteGrin "-138-arityRaised"
+         ; caHeapPointsTo                                              ; caWriteHptMap "-139-hpt"
          ; transformCodeUseHpt   impossibleCase     "ImpossibleCase"   ; caWriteGrin "-141-possibleCase"
          ; transformCode         singleCase         "singleCase"       ;
          ; transformCode         grFlattenSeq       "Flatten"          ; caWriteGrin "-142-singleCase"
-         ; transformCode         arityRaise         "ArityRaise"       ; caWriteGrin "-143-arityRaised"
          ; transformCodeIterated dropUnusedExpr     "DropUnusedExpr"   ; caWriteGrin "-144-unusedExprDropped"
 	 ; transformCode         mergeCase          "MergeCase"        ; caWriteGrin "-145-caseMerged"
          ; transformCodeChgHpt   lowerGrin          "LowerGrin"        ; caWriteGrin "-151-lowered"
