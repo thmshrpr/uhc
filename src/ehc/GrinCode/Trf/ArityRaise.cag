@@ -388,24 +388,33 @@ varSubst mapVarSubst name = case Map.lookup name mapVarSubst of
 
 SEM GrBind
   | Bind lhs . locGrTrf = GrBind_Bind (nameNum @lhs.locNewVar) @annot (concat @loc.newArgs) @expr.locGrTrf
-         loc . argVar = foldr (uncurry op) e (zip @argNmL @lhs.locPat) (@lhs.locNewVar + 1)
-                            where op arg pat rest var = case patVals pat of
-                                       [_]  -> let (var',rest') = rest var
-                                               in (var',[varSubst @lhs.locVarSubsts arg]:rest')
-                                       more -> let (var',rest') = rest (var + length more)
-                                               in (var',map nameNum [var..var + length more - 1]:rest')
-                                  e var = (var,[])
-         loc . newArgs = snd @loc.argVar
-         expr . locNewVar = fst @loc.argVar
+         loc . newArgsSubsts = mkArgs @argNmL @lhs.locPat (@lhs.locNewVar + 1)
+         loc . newArgs = fst @loc.newArgsSubsts
+         expr . locVarSubsts = Map.fromList (zip @expr.usedVars (map nameNum [@lhs.locNewVar + 1 + length (concatMap patVals @lhs.locPat)..]))
+                                 `Map.union`
+                               Map.fromList @loc.argSubsts
+         loc . argSubsts = snd @loc.newArgsSubsts
 
 {
+mkArgs []         []         num = ([],[])
+mkArgs (arg:args) (pat:pats) num = case patVals pat of
+  [] -> mkArgs args pats num
+  [x] -> let (args', substs') = mkArgs args pats (num + 1)
+         in ([nameNum num] : args', (arg,nameNum num):substs')
+  more -> let (args', substs') = mkArgs args pats (num + length more)
+          in  (map nameNum (zipWith const [num..] more) : args', substs')
+
 patVals :: GrVal -> [GrVal]
 patVals (GrVal_Node _ fldL) = fldL
 patVals (GrVal_VarNode fldL) = tail fldL
 patVals val = [val]
 }
 
-ATTR AllExpr AllBind [ locVarSubsts : {Map HsName HsName} | | ]
+SEM GrBind
+  | Bind lhs . locNewVar = @expr.locNewVar + length @loc.usedVars
+  {- expr . locVarSubsts = Map.fromList (zip @loc.usedVars (map nameNum [@expr.locNewVar..])) -}
+
+ATTR AllExpr [ locVarSubsts : {Map HsName HsName} | | ]
 
 -- Collect a mapping of new bindings to their number.
 -- GrVal is no instance of Ord, so I can't use Data.Map here.
@@ -422,6 +431,7 @@ ATTR AllExpr AllGrVal [ substs : {Map HsName GrVal} | | ]
 
 SEM GrBind
   | Bind expr . substs = mkSubsts @argNmL (zipWith modify @lhs.locPat @loc.newArgs)
+
 
 {
 -- changes the old parameters in the node to the new ones.
@@ -447,10 +457,8 @@ SEM GrBindL
 -- We're doing some nasty things here since not all inherited attributes are provided
 -- this will give some warnings
 localTrf :: [HsName] -> GrBind -> [[GrVal]] -> Int -> Syn_GrBindL
-localTrf vars bind pats varNum = let inh = Inh_GrBindL { locNewVar_Inh_GrBindL = varNum + length vars
+localTrf vars bind pats varNum = let inh = Inh_GrBindL { locNewVar_Inh_GrBindL = varNum
                                                        , locPats_Inh_GrBindL = pats
-                                                       , locVarSubsts_Inh_GrBindL = Map.fromList $
-                                                            zip vars (map nameNum [varNum..])
                                                        }
                                  in wrap_GrBindL (sem_GrBindL bindl) inh
   where bindl = replicate (length pats) bind
