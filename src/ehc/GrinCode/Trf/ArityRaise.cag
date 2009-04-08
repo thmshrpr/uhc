@@ -339,43 +339,50 @@ mkSubsts oldArgs pat = foldr (uncurry Map.insert) Map.empty argpat
 ATTR AllNTNoMod [ | | locGrTrf : SELF ]
 
 SEM GrExpr
-  | UpdateUnit lhs .locGrTrf = GrExpr_UpdateUnit (varSubst @lhs.locVarSubsts @nm) @val.locGrTrf
+  | UpdateUnit lhs .locGrTrf = GrExpr_UpdateUnit (@loc.lookupFun @nm) @val.locGrTrf
   | FetchNode lhs . locGrTrf = case Map.lookup @nm @lhs.substs of
                                    (Just s) -> GrExpr_Comment "Substituted" (GrExpr_Unit s)
-                                   _        -> GrExpr_FetchNode (varSubst @lhs.locVarSubsts @nm)
-  | FetchUpdate lhs . locGrTrf = GrExpr_FetchUpdate (varSubst @lhs.locVarSubsts @src) (varSubst @lhs.locVarSubsts @dst)
-  | FetchField lhs . locGrTrf = GrExpr_FetchField (varSubst @lhs.locVarSubsts @nm) @offset @mbTag
-  | Call lhs . locGrTrf = GrExpr_Call (varSubst @lhs.locVarSubsts @nm) @argL.locGrTrf
+                                   _        -> GrExpr_FetchNode (@loc.lookupFun @nm)
+  | FetchUpdate lhs . locGrTrf = GrExpr_FetchUpdate (@loc.lookupFun @src) (@loc.lookupFun @dst)
+  | FetchField lhs . locGrTrf = GrExpr_FetchField (@loc.lookupFun @nm) @offset @mbTag
+  | Call lhs . locGrTrf = GrExpr_Call (@loc.lookupFun @nm) @argL.locGrTrf
+  | * loc . lookupFun = varSubst @lhs.locVarSubsts @lhs.substs
 
 SEM GrVal
-  | Var lhs . locGrTrf = GrVal_Var (varSubst @lhs.locVarSubsts @nm)
-  | BasicNode lhs . locGrTrf = GrVal_BasicNode @tag.locGrTrf (varSubst @lhs.locVarSubsts @nm)
-  | EnumNode lhs . locGrTrf = GrVal_EnumNode (varSubst @lhs.locVarSubsts @nm)
-  | OpaqueNode lhs . locGrTrf = GrVal_OpaqueNode (varSubst @lhs.locVarSubsts @nm)
-  | PtrNode lhs . locaGrTrf = GrVal_PtrNode (varSubst @lhs.locVarSubsts @nm)
+  | Var lhs . locGrTrf = GrVal_Var (@loc.lookupFun @nm)
+  | BasicNode lhs . locGrTrf = GrVal_BasicNode @tag.locGrTrf (@loc.lookupFun @nm)
+  | EnumNode lhs . locGrTrf = GrVal_EnumNode (@loc.lookupFun @nm)
+  | OpaqueNode lhs . locGrTrf = GrVal_OpaqueNode (@loc.lookupFun @nm)
+  | PtrNode lhs . locaGrTrf = GrVal_PtrNode (v@loc.lookupFun @nm)
+  | * loc . lookupFun = varSubst @lhs.locVarSubsts @lhs.substs
 
 SEM GrVar
-  | Var lhs . locGrTrf = GrVar_Var (varSubst @lhs.locVarSubsts @nm)
+  | Var lhs . locGrTrf = GrVar_Var (@loc.lookupFun @nm)
+  | * loc . lookupFun = varSubst @lhs.locVarSubsts @lhs.substs
 
 SEM GrPatAlt
-  | Node lhs . locGrTrf = GrPatAlt_Node @tag.locGrTrf (map (varSubst @lhs.locVarSubsts) @fldL)
+  | Node lhs . locGrTrf = GrPatAlt_Node @tag.locGrTrf (map @loc.lookupFun @fldL)
+  | * loc . lookupFun = varSubst @lhs.locVarSubsts @lhs.substs
 
 SEM GrPatLam
-  | Var lhs . locGrTrf = GrPatLam_Var (varSubst @lhs.locVarSubsts @nm)
-  | BasicNode lhs . locGrTrf = GrPatLam_BasicNode @annot (varSubst @lhs.locVarSubsts @nm)
-  | EnumNode lhs . locGrTrf = GrPatLam_EnumNode (varSubst @lhs.locVarSubsts @nm)
-  | PtrNode lhs . locGrTrf = GrPatLam_PtrNode (varSubst @lhs.locVarSubsts @nm)
-  | OpaqueNode lhs . locGrTrf = GrPatLam_OpaqueNode (varSubst @lhs.locVarSubsts @nm)
-  | BasicAnnot lhs . locGrTrf = GrPatLam_BasicAnnot @annot (varSubst @lhs.locVarSubsts @nm)
-  | EnumAnnot lhs . locGrTrf = GrPatLam_EnumAnnot @tagL.locGrTrf (varSubst @lhs.locVarSubsts @nm)
-  | PtrAnnot lhs . locGrTrf = GrPatLam_PtrAnnot @tagL.locGrTrf (varSubst @lhs.locVarSubsts @nm)
-  | OpaqueAnnot lhs . locGrTrf = GrPatLam_OpaqueAnnot (varSubst @lhs.locVarSubsts @nm)
+  | Var lhs . locGrTrf = GrPatLam_Var (@loc.lookupFun @nm)
+  | BasicNode lhs . locGrTrf = GrPatLam_BasicNode @annot (@loc.lookupFun @nm)
+  | EnumNode lhs . locGrTrf = GrPatLam_EnumNode (@loc.lookupFun @nm)
+  | PtrNode lhs . locGrTrf = GrPatLam_PtrNode (@loc.lookupFun @nm)
+  | OpaqueNode lhs . locGrTrf = GrPatLam_OpaqueNode (@loc.lookupFun @nm)
+  | BasicAnnot lhs . locGrTrf = GrPatLam_BasicAnnot @annot (@loc.lookupFun @nm)
+  | EnumAnnot lhs . locGrTrf = GrPatLam_EnumAnnot @tagL.locGrTrf (@loc.lookupFun @nm)
+  | PtrAnnot lhs . locGrTrf = GrPatLam_PtrAnnot @tagL.locGrTrf (@loc.lookupFun @nm)
+  | OpaqueAnnot lhs . locGrTrf = GrPatLam_OpaqueAnnot (@loc.lookupFun @nm)
+  | * loc . lookupFun = varSubst @lhs.locVarSubsts @lhs.substs
 
 {
-varSubst :: Map HsName HsName -> HsName -> HsName
-varSubst map name = case Map.lookup name map of
-                      Just nm' -> nm'
-                      Nothing  -> trace nameMsg name -- This happens with global bindings.
+varSubst :: Map HsName HsName -> Map HsName GrVal -> HsName -> HsName
+varSubst mapVarSubst mapRaiseSubst name = case Map.lookup name mapRaiseSubst of
+                      Just _ -> trace ("Replacing a substituted variable? Inconceivable! " ++ show name) $ nameNum 0
+                      Nothing  -> case Map.lookup name mapVarSubst of
+		         Just nm -> nm
+			 Nothing -> trace nameMsg name -- This happens with global bindings.
   where nameMsg = "Variable name not in map: " ++ show name ++ " has number " ++ show (getNr name)
 }
 
@@ -384,7 +391,7 @@ SEM GrBind
          loc . argVar = foldr (uncurry op) e (zip @argNmL @lhs.locPat) (@lhs.locNewVar + 1)
                             where op arg pat rest var = case patVals pat of
                                        [_]  -> let (var',rest') = rest var
-                                               in (var',[varSubst @lhs.locVarSubsts arg]:rest')
+                                               in (var',[varSubst @lhs.locVarSubsts Map.empty arg]:rest')
                                        more -> let (var',rest') = rest (var + length more)
                                                in (var',map nameNum [var..var + length more - 1]:rest')
                                   e var = (var,[])
