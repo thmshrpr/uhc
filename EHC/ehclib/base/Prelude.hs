@@ -26,10 +26,10 @@ module Prelude
   , module UHC.Show
   , module UHC.Read
   , module UHC.Run
-  , module UHC.OldIO
-  
-  -- UHC.IOBase
-  , unsafePerformIO
+--  , module UHC.Handle
+--  , module System.IO
+  , module UHC.IOBase
+--  , unsafePerformIO
   )
   where
 
@@ -47,6 +47,32 @@ import UHC.Bounded
 import UHC.Ix
 import UHC.Show
 import UHC.Read
-import UHC.IOBase
-import UHC.OldIO -- hiding ( hPutStrLn )
+-- [###] Only this function are actualy exported by GHC prelude. Handle is not exported in the GHC Predude; is uhc design to export it?
+import UHC.IOBase ( Handle, IOError, ioError, userError, catch, unsafePerformIO )
+--import UHC.Handle -- hiding ( hPutStrLn )
 import UHC.Run
+-- [###] The IO function exported by  GHC prelude are from System.IO
+
+{-
+import System.IO
+  ( -- * Basic Input and output
+    IO,
+    -- ** Simple I\/O operations
+    -- All I/O functions defined here are character oriented.  The
+    -- treatment of the newline character will vary on different systems.
+    -- For example, two characters of input, return and linefeed, may
+    -- read as a single newline character.  These functions cannot be
+    -- used portably for binary I/O.
+    -- *** Output functions
+    putChar,
+    putStr, putStrLn, print,
+    -- *** Input functions
+    getChar,
+    getLine, getContents, interact,
+    -- *** Files
+    FilePath,
+    readFile, writeFile, appendFile, readIO, readLn
+  )
+  
+-}
+

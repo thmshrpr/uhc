@@ -1,5 +1,5 @@
 %%[99
-{-# OPTIONS_GHC -XNoImplicitPrelude -#include "HsBase.h" #-}
+{-# LANGUAGE NoImplicitPrelude #-} -- [###] Added
 {-# OPTIONS_HADDOCK hide #-}
 
 #undef DEBUG_DUMP
@@ -24,8 +24,8 @@
 %%[99
 -- #hide
 module UHC.IO ( 
-{-
-   hWaitForInput, hGetChar, hGetLine, hGetContents, -} hPutChar, hPutStr, {-
+-- [###] uncommented hWaitForInput, hGetChar, hGetLine, hGetContents. Test for them.
+   hWaitForInput, hGetChar, hGetLine, hGetContents, hPutChar, hPutStr, {-
    commitBuffer',       -- hack, see below
    hGetcBuffered,       -- needed by ghc/compiler/utils/StringBuffer.lhs
    hGetBuf, hGetBufNonBlocking, hPutBuf, hPutBufNonBlocking, slurpFile,
@@ -40,6 +40,7 @@ import Foreign
 import Foreign.C
 
 import System.IO.Error
+import System.IO.Unsafe (unsafeInterleaveIO) -- [###] Added unsafe import. In GHC this is defined and imported in/from GHC.IOBase
 import Data.Maybe
 import Control.Monad
 #ifndef mingw32_HOST_OS
@@ -54,9 +55,12 @@ import UHC.ByteArray
 #ifdef mingw32_HOST_OS
 import UHC.Conc
 #endif
+
 %%]
 
-%%[9999
+%%[99
+-- [###] modified from 9999 to 99. There is a comment about GHC users, should we do something about it?
+
 -- ---------------------------------------------------------------------------
 -- Simple input operations
 
@@ -106,12 +110,19 @@ hWaitForInput h msecs = do
                                   return True
                           else return False
 
+-- [###] Added ifdes. Similar to how unsafe_fdReady is defined in Handle. Is this ok? Should I export it from Handle, or should I point directly to HsBase.h HsBase.h? 
+#ifdef __UHC__
+-- no threading, we do not deal with blocking, so always ready
+fdReady :: CInt -> CInt -> CInt -> CInt -> IO CInt
+fdReady _ _ _ _ = return 1 -- [###] BUG? if you omit _ and write fdReady = return 1 I get error "Predicates remain unproven".
+#else
 foreign import ccall safe "fdReady"
   fdReady :: CInt -> CInt -> CInt -> CInt -> IO CInt
+#endif
 %%]
 
-%%[9999
-
+%%[99
+-- [###] modified from 9999 to 99
 -- ---------------------------------------------------------------------------
 -- hGetChar
 
@@ -162,7 +173,7 @@ hGetcBuffered _ ref buf@Buffer{ bufBuf=b, bufRPtr=r0, bufWPtr=w }
       return c
 %%]
 
-%%[9999
+%%[99
 
 -- ---------------------------------------------------------------------------
 -- hGetLine
@@ -203,19 +214,22 @@ hGetLineBuffered handle_ = do
   buf <- readIORef ref
   hGetLineBufferedLoop handle_ ref buf []
 
+-- [###] Strange BUG I think. If you inline loop' you get a "Cannot derive coercion for type application."
 hGetLineBufferedLoop :: Handle__ -> IORef Buffer -> Buffer -> [String]
                      -> IO String
 hGetLineBufferedLoop handle_ ref
         buf@Buffer{ bufRPtr=r0, bufWPtr=w, bufBuf=raw0 } xss =
   let
         -- find the end-of-line character, if there is one
-        loop raw r
-           | r == w = return (False, w)
-           | otherwise =  do
-                (c,r') <- readCharFromBuffer raw r
-                if c == '\n'
-                   then return (True, r) -- NB. not r': don't include the '\n'
-                   else loop raw r'
+        loop raw r 
+           | r == w    = return (False, w)
+           | otherwise = 
+              do
+               (c,r') <- readCharFromBuffer raw r
+               if c == '\n'
+                  then return (True, r) -- NB. not r': don't include the '\n'
+                  else loop' raw r'
+        loop' raw r = loop raw r -- [###] to avoid type error "Cannot derive coercion for type application"
   in do
   (eol, off) <- loop raw0 r0
 
@@ -257,17 +271,16 @@ maybeFillReadBuffer fd is_line is_stream buf
                   then return Nothing 
                   else ioError e)
 
-
+-- [###] remove primitive types. Transformed to  boxed version. Potentially very slow because of this.
 unpack :: RawBuffer -> Int -> Int -> IO [Char]
-unpack _   _      0        = return ""
-unpack buf (I# r) (I# len) = IO $ \s -> unpackRB [] (len -# 1#) s
-   where
+unpack _   _ 0   = return ""
+npack buf r len = IO $ \s -> unpackRB [] (len - 1) s
+  where
     unpackRB acc i s
-     | i <# r  = (# s, acc #)
-     | otherwise = 
-          case readCharArray# buf i s of
-          (# s', ch #) -> unpackRB (C# ch : acc) (i -# 1#) s'
-
+      | i < r  = (s, acc)
+      | otherwise = 
+          case readCharArray buf i s of
+            (s', ch) -> unpackRB (ch : acc) (i - 1) s'
 
 hGetLineUnBuffered :: Handle -> IO String
 hGetLineUnBuffered h = do
@@ -294,7 +307,9 @@ hGetLineUnBuffered h = do
        return (c:s)
 %%]
 
-%%[9999
+%%[99
+-- [###] modified from 9999 to 99
+
 
 -- -----------------------------------------------------------------------------
 -- hGetContents
@@ -405,16 +420,16 @@ lazyReadHaveBuffer h handle_ _ ref buf = do
    s <- unpackAcc (bufBuf buf) (bufRPtr buf) (bufWPtr buf) more
    return (handle_, s)
 
-
+-- [###] Transformed to box type version.
 unpackAcc :: RawBuffer -> Int -> Int -> [Char] -> IO [Char]
 unpackAcc _   _      0        acc  = return acc
-unpackAcc buf (I# r) (I# len) acc0 = IO $ \s -> unpackRB acc0 (len -# 1#) s
+unpackAcc buf r len acc0 = IO $ \s -> unpackRB acc0 (len - 1) s
    where
     unpackRB acc i s
-     | i <# r  = (# s, acc #)
+     | i < r  = (s, acc)
      | otherwise = 
-          case readCharArray# buf i s of
-          (# s', ch #) -> unpackRB (C# ch : acc) (i -# 1#) s'
+          case readCharArray buf i s of
+          (s', ch) -> unpackRB (ch : acc) (i - 1) s'
 %%]
 
 %%[99
@@ -680,7 +695,9 @@ commitBuffer' raw sz count flush release
               return buf_ret
 %%]
 
-%%[9999
+%%[9999 
+-- [###] modified from 9999 to 99
+
 -- ---------------------------------------------------------------------------
 -- Reading/writing sequences of bytes.
 
@@ -794,7 +811,8 @@ writeChunkNonBlocking fd
 #endif
 %%]
 
-%%[9999
+%%[9999 
+-- [###] modified from 9999 to 99
 -- ---------------------------------------------------------------------------
 -- hGetBuf
 
