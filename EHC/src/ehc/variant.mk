@@ -77,7 +77,7 @@ EHC_BASE								:= $(LIB_EHC_BASE)C
 ###########################################################################################
 
 # assumed packages, useful only for prelude variants
-EHC_PACKAGES_ASSUMED					:= base array
+EHC_PACKAGES_ASSUMED					:= base array filepath directory haskell98 
 #EHC_PACKAGES_ASSUMED					:= base containers
 
 ###########################################################################################

@@ -25,11 +25,12 @@
 -- #hide
 module UHC.IO ( 
 -- [###] uncommented hWaitForInput, hGetChar, hGetLine, hGetContents. Test for them.
-   hWaitForInput, hGetChar, hGetLine, hGetContents, hPutChar, hPutStr, {-
+   hWaitForInput, hGetChar, hGetLine, hGetContents, hPutChar, hPutStr, 
+-- [###] commitBuffer', hGetBuffered, hGetBuf, hGetBufNonBlocking, hPutBuf, hPutBufNonBlocking, slurpFile. Test for them.
    commitBuffer',       -- hack, see below
    hGetcBuffered,       -- needed by ghc/compiler/utils/StringBuffer.lhs
    hGetBuf, hGetBufNonBlocking, hPutBuf, hPutBufNonBlocking, slurpFile,
--}
+
    memcpy_ba_baoff,
    memcpy_ptr_baoff,
    memcpy_baoff_ba,
@@ -695,7 +696,7 @@ commitBuffer' raw sz count flush release
               return buf_ret
 %%]
 
-%%[9999 
+%%[99 
 -- [###] modified from 9999 to 99
 
 -- ---------------------------------------------------------------------------
@@ -733,7 +734,7 @@ hPutBuf':: Handle                       -- handle to write to
         -> Bool                         -- allow blocking?
         -> IO Int
 hPutBuf' handle ptr count can_block
-  | count == 0 = return 0
+  | count == 0 = return (0 :: Int)
   | count <  0 = illegalBufferSize handle "hPutBuf" count
   | otherwise = 
     wantWritableHandle "hPutBuf" handle $ 
@@ -811,7 +812,7 @@ writeChunkNonBlocking fd
 #endif
 %%]
 
-%%[9999 
+%%[99 
 -- [###] modified from 9999 to 99
 -- ---------------------------------------------------------------------------
 -- hGetBuf
@@ -978,20 +979,20 @@ readChunkNonBlocking fd is_stream ptr bytes = do
     -- we don't have non-blocking read support on Windows, so just invoke
     -- the ordinary low-level read which will block until data is available,
     -- but won't wait for the whole buffer to fill.
-
+--- [###] modified to compiled: annotated terms with explicit type
 slurpFile :: FilePath -> IO (Ptr (), Int)
 slurpFile fname = do
   handle <- openFile fname ReadMode
-  sz     <- hFileSize handle
-  if sz > fromIntegral (maxBound::Int) then 
-    ioError (userError "slurpFile: file too big")
+  sz     <- hFileSize handle :: IO Integer
+  if (sz :: Integer) > fromIntegral (maxBound::Int) then 
+    ioError (userError "slurpFile: file too big") :: IO (Ptr (), Int)
    else do
-    let sz_i = fromIntegral sz
-    if sz_i == 0 then return (nullPtr, 0) else do
+    let sz_i = fromIntegral sz :: Int 
+    if sz_i == 0  then return (nullPtr, 0 :: Int) else do
     chunk <- mallocBytes sz_i
     r <- hGetBuf handle chunk sz_i
     hClose handle
-    return (chunk, r)
+    return (chunk :: Ptr (), r)
 %%]
 
 %%[99

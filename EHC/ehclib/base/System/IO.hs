@@ -114,14 +114,12 @@ module System.IO (
     -- * Text input and output
 
     -- ** Text input
-{- [###] Commented
     hWaitForInput,             -- :: Handle -> Int -> IO Bool
     hReady,                    -- :: Handle -> IO Bool
     hGetChar,                  -- :: Handle -> IO Char
     hGetLine,                  -- :: Handle -> IO [Char]
     hLookAhead,                -- :: Handle -> IO Char
     hGetContents,              -- :: Handle -> IO [Char]
--}
     -- ** Text output
 
     hPutChar,                  -- :: Handle -> Char -> IO ()
@@ -162,7 +160,8 @@ module System.IO (
     openBinaryTempFile,
   ) where
 
---import Control.Exception.Base
+import Prelude hiding (FilePath) -- [###] temporarly, until we can import System.IO in the Prelude.
+
 
 #ifndef __NHC__
 import Data.Bits
