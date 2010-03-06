@@ -222,6 +222,7 @@ hGetLineBufferedLoop handle_ ref
         buf@Buffer{ bufRPtr=r0, bufWPtr=w, bufBuf=raw0 } xss =
   let
         -- find the end-of-line character, if there is one
+        loop:: RawBuffer -> Int -> IO (Bool, Int)  -- [###] added explicit signature
         loop raw r 
            | r == w    = return (False, w)
            | otherwise = 
@@ -229,8 +230,7 @@ hGetLineBufferedLoop handle_ ref
                (c,r') <- readCharFromBuffer raw r
                if c == '\n'
                   then return (True, r) -- NB. not r': don't include the '\n'
-                  else loop' raw r'
-        loop' raw r = loop raw r -- [###] to avoid type error "Cannot derive coercion for type application"
+                  else loop raw r'
   in do
   (eol, off) <- loop raw0 r0
 

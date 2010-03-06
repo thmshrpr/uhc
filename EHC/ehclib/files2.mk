@@ -8,19 +8,34 @@ EHCLIB_SYNC_ALL_PKG						:= $(EHC_PACKAGES_ASSUMED)
 # for each package a list of modules
 EHCLIB_SYNC_ALL_PKG_base_ASIS			:= $(patsubst %,include/%.h,Typeable dirUtils consUtils)
 EHCLIB_SYNC_ALL_PKG_base_C				:= $(patsubst %,cbits/%.c,)
-EHCLIB_SYNC_ALL_PKG_base				:= $(patsubst %,%.hs,Foreign) \
+EHCLIB_SYNC_ALL_PKG_base				  := $(patsubst %,%.hs,Foreign) \
 											$(patsubst %,Data/%.hs,Bool Eq Ord Function Ratio List String Complex Ix Dynamic) \
 											$(patsubst %,Unsafe/%.hs,Coerce) \
 											$(patsubst %,Foreign/%.hs,C Marshal Marshal/Utils Marshal/Array C/String) \
 											$(patsubst %,System/%.hs,IO/Unsafe Console/GetOpt Posix/Types) \
 											$(patsubst %,Text/%.hs,ParserCombinators/ReadPrec Read Show Show/Functions) \
 											$(patsubst %,Control/%.hs,Monad Category Monad/Instances)
-EHCLIB_SYNC_ALL_PKG_array_ASIS			:= 
-EHCLIB_SYNC_ALL_PKG_array_C				:= 
-EHCLIB_SYNC_ALL_PKG_array				:=
-EHCLIB_SYNC_ALL_PKG_containers_ASIS		:= 
+#EHCLIB_SYNC_ALL_PKG_array_ASIS			:= 
+#EHCLIB_SYNC_ALL_PKG_array_C				  := 
+#EHCLIB_SYNC_ALL_PKG_array				    :=
+EHCLIB_SYNC_ALL_PKG_containers_ASIS	:= 
 EHCLIB_SYNC_ALL_PKG_containers_C		:= 
 EHCLIB_SYNC_ALL_PKG_containers			:= $(patsubst %,Data/%.hs,Set Map)
+EHCLIB_SYNC_ALL_PKG_filepath_ASIS		:= 
+EHCLIB_SYNC_ALL_PKG_filepath_C			:= 
+EHCLIB_SYNC_ALL_PKG_filepath				:=
+EHCLIB_SYNC_ALL_PKG_oldlocale_ASIS	:= 
+EHCLIB_SYNC_ALL_PKG_oldlocale_C			:= 
+EHCLIB_SYNC_ALL_PKG_oldlocale				:=
+EHCLIB_SYNC_ALL_PKG_oldtime_ASIS		:= 
+EHCLIB_SYNC_ALL_PKG_oldtime_C		 	  := 
+EHCLIB_SYNC_ALL_PKG_oldtime				  :=
+EHCLIB_SYNC_ALL_PKG_directory_ASIS	:= 
+EHCLIB_SYNC_ALL_PKG_directory_C			:= 
+EHCLIB_SYNC_ALL_PKG_directory				:=
+EHCLIB_SYNC_ALL_PKG_haskel98_ASIS		:= 
+EHCLIB_SYNC_ALL_PKG_haskell98_C			:= 
+EHCLIB_SYNC_ALL_PKG_haskell98				:=
 
 # to compile as HS
 EHCLIB_SYNC_ALL_PKG_SRC_HS				:= $(foreach pkg,$(EHCLIB_SYNC_ALL_PKG),$(addprefix $(pkg)/,$(EHCLIB_SYNC_ALL_PKG_$(pkg))))

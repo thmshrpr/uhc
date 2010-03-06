@@ -24,7 +24,7 @@ module IO (
     readFile, writeFile, appendFile, readIO, readLn
   ) where
 
-import System.IO
+import System.IO hiding (FilePath) -- [@@@] this should not be necessary
 import System.IO.Error
 
 -- | The 'bracket' function captures a common allocate, compute, deallocate

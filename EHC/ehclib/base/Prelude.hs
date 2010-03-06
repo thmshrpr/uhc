@@ -30,7 +30,7 @@ module Prelude
 --  , module System.IO
   , module UHC.IOBase
 --  , unsafePerformIO
-  , FilePath -- [###] temporarely, until we can import System.IO
+  , FilePath
   )
   where
 
@@ -54,9 +54,6 @@ import UHC.IOBase ( Handle, IOError, ioError, userError, catch, unsafePerformIO 
 import UHC.Run
 
 type FilePath = String -- [###] temporarely, until we can import System.IO
--- [###] There is a ?bug? that cause the cycle dependency: if we import (direct or indirect) in the Prelude a module which is not inside UHC directory we get "Mutually recursive modules". Is Prelude automatically imported for modules outside UHC? Is there a flag to disable this?
---  import UHC.TestX
-
 -- [###] The IO function exported by  GHC prelude are from System.IO
 {-
 import System.IO
@@ -78,6 +75,4 @@ import System.IO
     FilePath,
     readFile, writeFile, appendFile, readIO, readLn
   )
--}  
-
-
+-}

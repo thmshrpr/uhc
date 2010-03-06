@@ -16,6 +16,8 @@
 --
 -----------------------------------------------------------------------------
 
+-- #include "HsDirectory.h"
+
 module System.Directory 
    ( 
     -- $intro
@@ -24,8 +26,8 @@ module System.Directory
       createDirectory		-- :: FilePath -> IO ()
     , createDirectoryIfMissing  -- :: Bool -> FilePath -> IO ()
     , removeDirectory		-- :: FilePath -> IO ()
-    , removeDirectoryRecursive  -- :: FilePath -> IO ()
-    , renameDirectory		-- :: FilePath -> FilePath -> IO ()
+    -- , removeDirectoryRecursive  -- :: FilePath -> IO () --[###] commented until support to removeFile
+    -- , renameDirectory		-- :: FilePath -> FilePath -> IO () -- [###] commented until support to System.Posix.rename
 
     , getDirectoryContents      -- :: FilePath -> IO [FilePath]
     , getCurrentDirectory       -- :: IO FilePath
@@ -38,9 +40,10 @@ module System.Directory
     , getTemporaryDirectory
 
     -- * Actions on files
-    , removeFile		-- :: FilePath -> IO ()
-    , renameFile                -- :: FilePath -> FilePath -> IO ()
-    , copyFile                  -- :: FilePath -> FilePath -> IO ()
+    --, removeFile		-- :: FilePath -> IO () --[###] commented until support to removeFile
+    --, renameFile                -- :: FilePath -> FilePath -> IO () --[###] commented until support to System.Posix.rename
+    --, copyFile                  -- :: FilePath -> FilePath -> IO () --[###] commented until support to removeFile
+
     
     , canonicalizePath
     , makeRelativeToCurrentDirectory
@@ -77,9 +80,7 @@ import Control.Monad (guard)
 import System.Environment      ( getEnv )
 import System.FilePath
 import System.IO
-import System.IO.Error hiding ( catch, try )
 import Control.Monad           ( when, unless )
-import Control.Exception.Base
 
 #ifdef __NHC__
 import Directory
@@ -103,8 +104,14 @@ import System.Time             ( ClockTime(..) )
 
 #ifdef __GLASGOW_HASKELL__
 import GHC.IOBase	( IOException(..), IOErrorType(..), ioException )
-#else
-import UHC.IOBase (IOException(..), IOErrorType(..). ioException )
+import Control.Exception.Base
+import System.IO.Error hiding ( catch, try )
+#elif __UHC__
+import UHC.IOBase  (IOException(..), IOErrorType(..), ioException, SomeException(..) )
+import UHC.OldException
+import System.IO.Error --hiding ( catch, try ) -- [###] use the old catch and try for the moment. Originally it uses catch and throw from Control.Exception.Base 
+--throw    :: Exception e => e -> a
+--throw     = unsafePerformIO . throwIO
 #endif
 
 #ifdef mingw32_HOST_OS
@@ -321,7 +328,7 @@ createDirectoryIfMissing create_parents path0
              | isDoesNotExistError  e && create_parents -> do
                  createDirectoryIfMissing True (dropFileName path)
                  createDirectoryIfMissing True path
-             | otherwise -> throw e
+             | otherwise -> throwIO $ IOException e  -- [###] analyze the effects of changing this code (originally: throw e
   where
     -- we want createDirectoryIfMissing "a/" to behave like   
     -- createDirectoryIfMissing "a".  Also, unless we apply
@@ -381,6 +388,8 @@ removeDirectory path =
 #endif
 
 #endif
+{-
+--[###] commented until support to removeFile
 
 -- | @'removeDirectoryRecursive' dir@  removes an existing directory /dir/
 -- together with its content and all subdirectories. Be careful, 
@@ -388,7 +397,7 @@ removeDirectory path =
 removeDirectoryRecursive :: FilePath -> IO ()
 removeDirectoryRecursive startLoc = do
   cont <- getDirectoryContents startLoc
-  sequence_ [rm (startLoc </> x) | x <- cont, x /= "." && x /= ".."]
+  sequence_ [rm (startLoc `combine` x) | x <- cont, x /= "." && x /= ".."] -- [###] replaced </> with `combine`
   removeDirectory startLoc
   where
     rm :: FilePath -> IO ()
@@ -399,7 +408,7 @@ removeDirectoryRecursive startLoc = do
                               unless isDir $ throw (e :: SomeException)
                               removeDirectoryRecursive f
                 Right _ -> return ()
-
+-}
 
 -- [###] added __UHC__ (changed from #if __GLASGOW_HASKELL__)
 #if defined(__GLASGOW_HASKELL__) || defined(__UHC__)
@@ -437,6 +446,8 @@ The operand refers to an existing directory.
 
 -}
 
+--[###] Commented
+{-
 removeFile :: FilePath -> IO ()
 removeFile path =
 #if mingw32_HOST_OS
@@ -444,6 +455,7 @@ removeFile path =
 #else
   System.Posix.removeLink path
 #endif
+-}
 
 {- |@'renameDirectory' old new@ changes the name of an existing
 directory from /old/ to /new/.  If the /new/ directory
@@ -493,6 +505,8 @@ Either path refers to an existing non-directory object.
 @[ENOTDIR, EISDIR]@
 
 -}
+{-
+--[###] commented until support to System.Posix.rename
 
 renameDirectory :: FilePath -> FilePath -> IO ()
 renameDirectory opath npath =
@@ -508,7 +522,7 @@ renameDirectory opath npath =
 #else
    System.Posix.rename opath npath
 #endif
-
+-}
 {- |@'renameFile' old new@ changes the name of an existing file system
 object from /old/ to /new/.  If the /new/ object already
 exists, it is atomically replaced by the /old/ object.  Neither
@@ -552,7 +566,8 @@ Either path refers to an existing directory.
 @[ENOTDIR, EISDIR, EINVAL, EEXIST, ENOTEMPTY]@
 
 -}
-
+{-
+--[###] commented until support to System.Posix.rename
 renameFile :: FilePath -> FilePath -> IO ()
 renameFile opath npath =
    -- XXX this test isn't performed atomically with the following rename
@@ -567,7 +582,7 @@ renameFile opath npath =
 #else
    System.Posix.rename opath npath
 #endif
-
+-}
 #endif /* __GLASGOW_HASKELL__ || __UHC__*/
 
 {- |@'copyFile' old new@ copies the existing file from /old/ to /new/.
@@ -575,6 +590,8 @@ If the /new/ file already exists, it is atomically replaced by the /old/ file.
 Neither path may refer to an existing directory.  The permissions of /old/ are
 copied to /new/, if possible.
 -}
+
+{-- [###] commented until support for removeFile
 
 copyFile :: FilePath -> FilePath -> IO ()
 #ifdef __NHC__
@@ -607,7 +624,23 @@ copyFile fromFPath toFPath =
           ioExceptionIgnorer :: IOException -> IO ()
           ioExceptionIgnorer _ = return ()
 #endif
+-}
 
+#ifdef __UHC__
+{-- [###] Added bracketOnDefinition, taken from Control.Base.Exception (ghc) --}
+-- | Like bracket, but only performs the final action if there was an
+-- exception raised by the in-between computation.
+bracketOnError
+        :: IO a         -- ^ computation to run first (\"acquire resource\")
+        -> (a -> IO b)  -- ^ computation to run last (\"release resource\")
+        -> (a -> IO c)  -- ^ computation to run in-between
+        -> IO c         -- returns the value from the in-between computation
+bracketOnError before after thing =
+  do
+    a <- before
+    thing a `onException` after a
+  
+#endif
 -- | Given path referring to a file or directory, returns a
 -- canonicalized path, with the intent that two paths referring
 -- to the same file\/directory will map to the same canonicalized
@@ -680,12 +713,12 @@ foreign import stdcall unsafe "SearchPathA"
   path <- getEnv "PATH"
   search (splitSearchPath path)
   where
-    fileName = binary <.> exeExtension
+    fileName = binary `addExtension` exeExtension -- [###] replaced <.> with `addExtension`
 
     search :: [FilePath] -> IO (Maybe FilePath)
     search [] = return Nothing
     search (d:ds) = do
-        let path = d </> fileName
+        let path = d `combine` fileName -- [###] replaced </> with `combine`
         b <- doesFileExist path
         if b then return (Just path)
              else search ds
@@ -693,7 +726,7 @@ foreign import stdcall unsafe "SearchPathA"
 
 
 -- [###] added __UHC__ (changed from #if __GLASGOW_HASKELL__)
-#ifdef defined(__GLASGOW_HASKELL__) || defined(__UHC__)
+#if defined(__GLASGOW_HASKELL__) || defined(__UHC__)
 {- |@'getDirectoryContents' dir@ returns a list of /all/ entries
 in /dir/. 
 
@@ -907,7 +940,7 @@ withFileOrSymlinkStatus loc name f = do
 modificationTime :: Ptr CStat -> IO ClockTime
 modificationTime stat = do
     mtime <- st_mtime stat
-    let realToInteger = round . realToFrac :: Real a => a -> Integer
+    let realToInteger x = round $ (realToFrac x :: Double) -- [###] added explicit type
     return (TOD (realToInteger (mtime :: CTime)) 0)
     
 isDirectory :: Ptr CStat -> IO Bool
@@ -919,7 +952,7 @@ fileNameEndClean :: String -> String
 fileNameEndClean name = if isDrive name then addTrailingPathSeparator name
                                         else dropTrailingPathSeparator name
 
-foreign import ccall unsafe "__hscore_R_OK" r_OK :: CInt
+foreign import ccall unsafe "HsDirectory.h __hscore_R_OK" r_OK :: CInt -- [###] added HsDirectory.h; which it seems that is automatically available for all other foreign imports.
 foreign import ccall unsafe "__hscore_W_OK" w_OK :: CInt
 foreign import ccall unsafe "__hscore_X_OK" x_OK :: CInt
 
@@ -937,7 +970,7 @@ foreign import ccall unsafe "__hscore_long_path_size"
 long_path_size :: Int
 long_path_size = 2048	--  // guess?
 
-#endif /* __GLASGOW_HASKELL__ || __UHC__ */
+#endif /* !__GLASGOW_HASKELL__ && !__UHC__ */
 
 {- | Returns the current user's home directory.
 
@@ -1083,7 +1116,7 @@ getTemporaryDirectory = do
   getEnv "TMPDIR"
 #if !__NHC__
     `Prelude.catch` \e -> if isDoesNotExistError e then return "/tmp"
-                          else throw e
+                          else throw $ IOException e -- [@@@] analyze the impact of changing this code from throw e 
 #else
     `Prelude.catch` (\ex -> return "/tmp")
 #endif

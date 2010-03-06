@@ -1,4 +1,5 @@
 --
+--
 -- Some short examples:
 --
 -- You are given a C file, you want to figure out the corresponding object (.o) file:
@@ -26,6 +27,17 @@
 --     MODULE_NAME = Posix | Windows
 --     IS_WINDOWS  = False | True
 
+-- #define IS_WINDOWS      True
+
+-- [###] redefined here until I figured out how to exclude this module
+#if defined(mingw32_HOST_OS) || defined(__MINGW32__)
+#define IS_WINDOWS True
+#else
+#define IS_WINDOWS False
+#endif
+
+
+
 module System.FilePath.MODULE_NAME
     (
     -- * Separator predicates
@@ -39,7 +51,7 @@ module System.FilePath.MODULE_NAME
 
     -- * Extension methods
     splitExtension,
-    takeExtension, replaceExtension, dropExtension, addExtension, hasExtension, (<.>),
+    takeExtension, replaceExtension, dropExtension, addExtension, hasExtension, -- [###] until the parsing bug is solved(<.>),
     splitExtensions, dropExtensions, takeExtensions,
 
     -- * Drive methods
@@ -51,7 +63,7 @@ module System.FilePath.MODULE_NAME
     takeFileName, replaceFileName, dropFileName,
     takeBaseName, replaceBaseName,
     takeDirectory, replaceDirectory,
-    combine, (</>),
+    combine, -- [###] until the parsing bug is sovled (</>),
     splitPath, joinPath, splitDirectories,
 
     -- * Low level FilePath operators
@@ -78,8 +90,8 @@ import Data.Maybe(isJust, fromJust)
 import System.Environment(getEnv)
 
 
-infixr 7  <.>
-infixr 5  </>
+--[###] infixr 7  <.>
+--[###] infixr 5  </>
 
 
 
@@ -220,12 +232,12 @@ takeExtension = snd . splitExtension
 -- > replaceExtension "file.txt" "" == "file"
 -- > replaceExtension "file.fred.bob" "txt" == "file.fred.txt"
 replaceExtension :: FilePath -> String -> FilePath
-replaceExtension x y = dropExtension x <.> y
+replaceExtension x y = dropExtension x `addExtension` y -- [###] replaced <.>
 
 -- | Alias to 'addExtension', for people who like that sort of thing.
-(<.>) :: FilePath -> String -> FilePath
+{-[###] (<.>) :: FilePath -> String -> FilePath
 (<.>) = addExtension
-
+-}
 -- | Remove last extension, and the \".\" preceding it.
 --
 -- > dropExtension x == fst (splitExtension x)
@@ -422,7 +434,7 @@ splitFileName x = (c ++ reverse b, reverse a)
 --
 -- > Valid x => replaceFileName x (takeFileName x) == x
 replaceFileName :: FilePath -> String -> FilePath
-replaceFileName x y = dropFileName x </> y
+replaceFileName x y = dropFileName x `combine` y -- [###] modified </>
 
 -- | Drop the filename.
 --
@@ -460,7 +472,7 @@ takeBaseName = dropExtension . takeFileName
 -- > replaceBaseName "/dave/fred/bob.gz.tar" "new" == "/dave/fred/new.tar"
 -- > replaceBaseName x (takeBaseName x) == x
 replaceBaseName :: FilePath -> String -> FilePath
-replaceBaseName pth nam = combineAlways a (nam <.> ext)
+replaceBaseName pth nam = combineAlways a (nam `addExtension` ext) -- [###] replace <.>
     where
         (a,b) = splitFileName pth
         ext = takeExtension b
@@ -541,9 +553,9 @@ combineAlways a b | null a = b
 
 
 -- | A nice alias for 'combine'.
-(</>) :: FilePath -> FilePath -> FilePath
+{-[###](</>) :: FilePath -> FilePath -> FilePath
 (</>) = combine
-
+-}
 
 -- | Split a path by the directory separator.
 --
@@ -767,7 +779,7 @@ makeValid path = joinDrive drv $ validElements $ validChars pth
         validElements x = joinPath $ map g $ splitPath x
         g x = h (reverse b) ++ reverse a
             where (a,b) = span isPathSeparator $ reverse x
-        h x = if map toUpper a `elem` badElements then a ++ "_" <.> b else x
+        h x = if map toUpper a `elem` badElements then a ++ "_" `addExtension` b else x --[###] modified from <.>
             where (a,b) = splitExtensions x
 
 

@@ -1775,9 +1775,17 @@ hSetBinaryMode handle bin =
     do throwErrnoIfMinus1_ "hSetBinaryMode"
           (setmode (haFD handle_) bin)
        return handle_{haIsBin=bin}
-  
+
+#ifdef __UHC__
+
+setmode :: CInt -> Bool -> IO CInt
+setmode fd b = return 0
+
+#else  
+
 foreign import ccall unsafe "__hscore_setmode"
   setmode :: CInt -> Bool -> IO CInt
+#endif
 %%]
 
 %%[9999

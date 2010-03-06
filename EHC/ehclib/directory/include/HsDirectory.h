@@ -27,7 +27,7 @@
 #include <sys/stat.h>
 #endif
 
-#include "HsFFI.h"
+//#include "HsFFI.h"
 
 #if defined(__MINGW32__)
 #include <shlobj.h>
@@ -61,7 +61,9 @@ extern int __hscore_getFolderPath(HWND hwndOwner,
  * (PATH_MAX is not defined on systems with unlimited path length,
  * e.g. the Hurd).
  */
-INLINE HsInt __hscore_long_path_size() {
+
+/* [###] modified to return int and not HsInt*/
+INLINE int __hscore_long_path_size() {
 #ifdef PATH_MAX
     return PATH_MAX;
 #else

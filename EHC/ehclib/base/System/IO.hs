@@ -143,17 +143,15 @@ module System.IO (
     readLn,                    -- :: Read a => IO a
 
     -- * Binary input and output
-{-- [###] Commented
     withBinaryFile,
     openBinaryFile,            -- :: FilePath -> IOMode -> IO Handle
-    hSetBinaryMode,            -- :: Handle -> Bool -> IO ()
+   -- [###] commented hSetBinaryMode,            -- :: Handle -> Bool -> IO ()
     hPutBuf,                   -- :: Handle -> Ptr a -> Int -> IO ()
     hGetBuf,                   -- :: Handle -> Ptr a -> Int -> IO Int
 #if !defined(__NHC__) && !defined(__HUGS__)
     hPutBufNonBlocking,        -- :: Handle -> Ptr a -> Int -> IO Int
     hGetBufNonBlocking,        -- :: Handle -> Ptr a -> Int -> IO Int
 #endif
---}
     -- * Temporary files
 
     openTempFile,
