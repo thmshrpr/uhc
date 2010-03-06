@@ -485,7 +485,7 @@ GEN_CABAL_SETUP		= @(echo "import Distribution.Simple" ; echo "main = defaultMai
 # compile cabal setup
 # $1: src
 # $2: exec
-GHC_CABAL			= $(GHC) -package Cabal -o $(2) $(1)  ; $(STRIP_CMD) $(2)
+GHC_CABAL			= $(GHC) -package Cabal-1.6.0.1 -o $(2) $(1)  ; $(STRIP_CMD) $(2)
 
 ###########################################################################################
 # Filter out empty files

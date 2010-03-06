@@ -29191,7 +29191,7 @@ ac_config_files="$ac_config_files test/benchmark/runbenchmark.pl"
 ac_config_files="$ac_config_files src/ehc/Config.chs src/helium/Utils/OSSpecific.hs"
 
 # AC_CONFIG_FILES([bin/llvm-compilerdriver], [chmod +x bin/llvm-compilerdriver])
-ac_config_headers="$ac_config_headers src/ehc/ConfigDefines.chs src/rts/config.ch src/rts/mm/config.ch ehclib/base/include/MachDeps.h ehclib/base/include/HsBaseConfig.h"
+ac_config_headers="$ac_config_headers src/ehc/ConfigDefines.chs src/rts/config.ch src/rts/mm/config.ch ehclib/base/include/MachDeps.h ehclib/base/include/HsBaseConfig.h ehclib/oldtime/include/HsTimeConfig.h ehclib/directory/include/HsDirectoryConfig.h ehclib/unix/include/HsUnixConfig.h"
 
 cat >confcache <<\_ACEOF
 # This file is a shell script that caches the results of configure
