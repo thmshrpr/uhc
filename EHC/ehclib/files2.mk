@@ -8,34 +8,19 @@ EHCLIB_SYNC_ALL_PKG						:= $(EHC_PACKAGES_ASSUMED)
 # for each package a list of modules
 EHCLIB_SYNC_ALL_PKG_base_ASIS			:= $(patsubst %,include/%.h,Typeable dirUtils consUtils)
 EHCLIB_SYNC_ALL_PKG_base_C				:= $(patsubst %,cbits/%.c,)
-EHCLIB_SYNC_ALL_PKG_base				  := $(patsubst %,%.hs,Foreign) \
+EHCLIB_SYNC_ALL_PKG_base				:= $(patsubst %,%.hs,Foreign) \
 											$(patsubst %,Data/%.hs,Bool Eq Ord Function Ratio List String Complex Ix Dynamic) \
 											$(patsubst %,Unsafe/%.hs,Coerce) \
 											$(patsubst %,Foreign/%.hs,C Marshal Marshal/Utils Marshal/Array C/String) \
 											$(patsubst %,System/%.hs,IO/Unsafe Console/GetOpt Posix/Types) \
 											$(patsubst %,Text/%.hs,ParserCombinators/ReadPrec Read Show Show/Functions) \
 											$(patsubst %,Control/%.hs,Monad Category Monad/Instances)
-#EHCLIB_SYNC_ALL_PKG_array_ASIS			:= 
-#EHCLIB_SYNC_ALL_PKG_array_C				  := 
-#EHCLIB_SYNC_ALL_PKG_array				    :=
-EHCLIB_SYNC_ALL_PKG_containers_ASIS	:= 
+EHCLIB_SYNC_ALL_PKG_array_ASIS			:= 
+EHCLIB_SYNC_ALL_PKG_array_C				:= 
+EHCLIB_SYNC_ALL_PKG_array				:=
+EHCLIB_SYNC_ALL_PKG_containers_ASIS		:= 
 EHCLIB_SYNC_ALL_PKG_containers_C		:= 
 EHCLIB_SYNC_ALL_PKG_containers			:= $(patsubst %,Data/%.hs,Set Map)
-EHCLIB_SYNC_ALL_PKG_filepath_ASIS		:= 
-EHCLIB_SYNC_ALL_PKG_filepath_C			:= 
-EHCLIB_SYNC_ALL_PKG_filepath				:=
-EHCLIB_SYNC_ALL_PKG_oldlocale_ASIS	:= 
-EHCLIB_SYNC_ALL_PKG_oldlocale_C			:= 
-EHCLIB_SYNC_ALL_PKG_oldlocale				:=
-EHCLIB_SYNC_ALL_PKG_oldtime_ASIS		:= 
-EHCLIB_SYNC_ALL_PKG_oldtime_C		 	  := 
-EHCLIB_SYNC_ALL_PKG_oldtime				  :=
-EHCLIB_SYNC_ALL_PKG_directory_ASIS	:= 
-EHCLIB_SYNC_ALL_PKG_directory_C			:= 
-EHCLIB_SYNC_ALL_PKG_directory				:=
-EHCLIB_SYNC_ALL_PKG_haskel98_ASIS		:= 
-EHCLIB_SYNC_ALL_PKG_haskell98_C			:= 
-EHCLIB_SYNC_ALL_PKG_haskell98				:=
 
 # to compile as HS
 EHCLIB_SYNC_ALL_PKG_SRC_HS				:= $(foreach pkg,$(EHCLIB_SYNC_ALL_PKG),$(addprefix $(pkg)/,$(EHCLIB_SYNC_ALL_PKG_$(pkg))))
@@ -134,7 +119,7 @@ EHCLIB_DEBUG_OPTS						=
 #EHCLIB_DEBUG_OPTS						= -v3
 #EHCLIB_DEBUG_OPTS						= -v4
 #EHCLIB_DEBUG_OPTS						= -v4 --debug-stopat-hi-error=1 
-#EHCLIB_DEBUG_OPTS						= --dump-core-stages=1 --dump-grin-stages=1 --gen-trace=1 --gen-cmt=1
+#EHCLIB_DEBUG_OPTS						= -O0 --dump-core-stages=1 --dump-grin-stages=1 --gen-trace=1 --gen-cmt=1
 #EHCLIB_DEBUG_OPTS						= --dump-core-stages=1 --dump-grin-stages=1 --gen-trace=1 --gen-cmt=1 -O0
 #EHCLIB_DEBUG_OPTS						= --dump-core-stages=1 --dump-grin-stages=1 --gen-trace=1 --gen-cmt=1 --priv=1
 
@@ -162,7 +147,6 @@ ehclib-variant-dflt: \
 	          --pkg-hide-all \
 	          --target=$(EHC_VARIANT_TARGET) \
 	          --odir=$(EHCLIB_INSTALL_VARIANT_TARGET_PREFIX)$${pkg} \
-	          --pkg-build-libdir=$(EHCLIB_INSTALL_VARIANT_TARGET_PREFIX) \
 	          --pkg-build=$${pkg} \
 	          --import-path=$(call FUN_MK_PKG_INC_DIR,$(EHCLIB_INSTALL_VARIANT_TARGET_PREFIX)$${pkg}/) \
 	          $${pkgs} \
@@ -177,6 +161,7 @@ ehclib-variant-dflt: \
 
 #	     ,$(EHC_INSTALL_VARIANT_ASPECTS_EXEC) --cpp --target=$(EHC_VARIANT_TARGET) $(EHCLIB_HS_MAIN_DRV_HS) \
 #	      set -xv;\
+#	          --pkg-build-libdir=$(EHCLIB_INSTALL_VARIANT_TARGET_PREFIX) \
 
 ###########################################################################################
 # make all ehclibs target

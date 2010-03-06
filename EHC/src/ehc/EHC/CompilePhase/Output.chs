@@ -148,6 +148,7 @@ cpOutputHI suff modNm
                                { HI.hiiExps                 = mmiExps       mmi
                                , HI.hiiHiddenExps           = mmiHiddenExps mmi
                                , HI.hiiHasMain              = ecuHasMain ecu
+                               , HI.hiiTargetVariant        = ehcOptTargetVariant opts
                                , HI.hiiSrcTimeStamp         = Cfg.verTimestamp Cfg.version
                                , HI.hiiSrcSig               = Cfg.verSig Cfg.version
                                , HI.hiiSrcVersionMajor      = Cfg.verMajor Cfg.version
@@ -156,28 +157,17 @@ cpOutputHI suff modNm
                                , HI.hiiSrcVersionSvn        = Cfg.verSvnRevision Cfg.version
                                , HI.hiiCompileFlags         = optsDiscrRecompileRepr opts
                                }
-                 {-
-                 binds  = Seq.toList $ HI.hiFromHIInfo hiinfo
-                 hi     = HISem.wrap_AGItf
-                            (HISem.sem_AGItf
-                              (HI.AGItf_AGItf $ HI.Module_Module modNm binds))
-                            (crsiHIInh crsi)
-                 -}
                  fpH    = mkOutputFPath opts modNm fp suff
-                 fpH2   = fpathToStr $ mkOutputFPath opts modNm fp $ suff {- ++ "-enc" -}
+                 fnH    = fpathToStr fpH
          ;  cpMsg modNm VerboseALot "Emit HI"
-         -- ;  lift $ putPPFPath fpH (HISem.pp_Syn_AGItf hi) 120
-         -- ;  cpMsg modNm VerboseALot "Emit HI enc"
-         ;  hiExists <- lift $ doesFileExist fpH2
+         ;  hiExists <- lift $ doesFileExist fnH
          ;  when (hiExists)
-                 (lift $ removeFile fpH2)
+                 (lift $ removeFile fnH)
          ;  when (ehcOptVerbosity opts >= VerboseALot)
                  (do { lift $ putPPLn (pp hiinfo)
                      })
-         ;  lift $ putSerializeFile fpH2 hiinfo
-                   -- Bin.putBinaryFile fpH2 hiinfo
+         ;  lift $ putSerializeFile fnH hiinfo
          ;  now <- lift $ getClockTime
-         -- ;  cpUpdCU modNm (ecuStoreHITime now)
          ;  cpUpdCU modNm (ecuStoreHIInfoTime now)
          }
 

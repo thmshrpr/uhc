@@ -53,10 +53,12 @@ import UHC.IOBase ( Handle, IOError, ioError, userError, catch, unsafePerformIO 
 -- import UHC.Handle -- hiding ( hPutStrLn )
 import UHC.Run
 
+--import UHC.TestX
+
 type FilePath = String -- [###] temporarely, until we can import System.IO
 -- [###] The IO function exported by  GHC prelude are from System.IO
-{-
-import System.IO
+--import System.IO
+{-import System.IO
   ( -- * Basic Input and output
     IO,
     -- ** Simple I\/O operations

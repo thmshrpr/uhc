@@ -158,8 +158,6 @@ module System.IO (
     openBinaryTempFile,
   ) where
 
-import Prelude hiding (FilePath) -- [###] temporarly, until we can import System.IO in the Prelude.
-
 
 #ifndef __NHC__
 import Data.Bits
