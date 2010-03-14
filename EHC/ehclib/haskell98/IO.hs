@@ -7,7 +7,7 @@ module IO (
     SeekMode(AbsoluteSeek,RelativeSeek,SeekFromEnd),
     stdin, stdout, stderr, 
     openFile, hClose, hFileSize, hIsEOF, isEOF,
-    hSetBuffering, hGetBuffering, hFlush, 
+    {-hSetBuffering,-} hGetBuffering, hFlush, 
     hGetPosn, hSetPosn, hSeek, 
     hWaitForInput, hReady, hGetChar, hGetLine, hLookAhead, hGetContents, 
     hPutChar, hPutStr, hPutStrLn, hPrint,

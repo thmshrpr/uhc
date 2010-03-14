@@ -1,3 +1,4 @@
+{-# LANGUAGE NoImplicitPrelude #-}
 {-# OPTIONS_GHC -XNoImplicitPrelude #-}
 {-# OPTIONS_GHC -fno-warn-unused-binds #-}
 {-# OPTIONS_HADDOCK hide #-}
@@ -49,6 +50,8 @@ import Hugs.Prelude (IOException(..), IOErrorType(..))
 import Hugs.IO (IOMode(..))
 #elif __UHC__
 import UHC.IOBase
+import UHC.Real -- [###] added
+import UHC.Base
 #else
 import System.IO
 #endif
@@ -181,7 +184,7 @@ fdIsTTY :: FD -> IO Bool
 fdIsTTY fd = c_isatty fd >>= return.toBool
 
 #if defined(HTYPE_TCFLAG_T)
-
+{-
 setEcho :: FD -> Bool -> IO ()
 setEcho fd on = do
   tcSetAttr fd $ \ p_tios -> do
@@ -196,7 +199,7 @@ getEcho fd = do
   tcSetAttr fd $ \ p_tios -> do
     lflag <- c_lflag p_tios :: IO CTcflag
     return ((lflag .&. fromIntegral const_echo) /= 0)
-
+-}
 setCooked :: FD -> Bool -> IO ()
 setCooked fd cooked = 
   tcSetAttr fd $ \ p_tios -> do
@@ -257,7 +260,7 @@ foreign import ccall unsafe "HsBase.h __hscore_set_saved_termios"
 #endif
 
 #else
-
+{- [@@@} bug -> linking problem
 -- 'raw' mode for Win32 means turn off 'line input' (=> buffering and
 -- character translation for the console.) The Win32 API for doing
 -- this is GetConsoleMode(), which also requires echoing to be disabled
@@ -272,7 +275,7 @@ setCooked fd cooked = do
   if (x /= 0)
    then ioError (ioe_unk_error "setCooked" "failed to set buffering")
    else return ()
-
+-}
 #ifdef __UHC__
 ioe_unk_error :: String -> String -> IOException
 #else
@@ -280,7 +283,7 @@ ioe_unk_error :: String -> String -> IOException
 #endif
 ioe_unk_error loc msg 
  = IOError Nothing OtherError loc msg Nothing
-
+{- [@@@] bug -> linking problem
 -- Note: echoing goes hand in hand with enabling 'line input' / raw-ness
 -- for Win32 consoles, hence setEcho ends up being the inverse of setCooked.
 setEcho :: FD -> Bool -> IO ()
@@ -305,7 +308,7 @@ foreign import ccall unsafe "consUtils.h set_console_echo__"
 
 foreign import ccall unsafe "consUtils.h get_console_echo__"
    get_console_echo :: CInt -> IO CInt
-
+-}
 #endif
 
 -- ---------------------------------------------------------------------------

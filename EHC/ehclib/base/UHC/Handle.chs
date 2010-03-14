@@ -55,7 +55,7 @@ module UHC.Handle (
 
   stdin, stdout, stderr,
   IOMode(..), openFile, openBinaryFile, fdToHandle_stat, fdToHandle, fdToHandle',
-  hFileSize, hSetFileSize, hIsEOF, isEOF, hLookAhead, hLookAhead', hSetBuffering, {- hSetBinaryMode, -}
+  hFileSize, hSetFileSize, hIsEOF, isEOF, hLookAhead, hLookAhead', {-hSetBuffering, -} {- hSetBinaryMode, -}
   hFlush, {- hDuplicate, hDuplicateTo, -}
 
   hClose, hClose_help,
@@ -64,7 +64,7 @@ module UHC.Handle (
   SeekMode(..), hSeek, hTell,
 
   hIsOpen, hIsClosed, hIsReadable, hIsWritable, hGetBuffering, hIsSeekable,
-  hSetEcho, hGetEcho, hIsTerminalDevice,
+  {- hSetEcho, hGetEcho, hIsTerminalDevice, [@@@] bug -> linking problem-}
 
   hShow,
 
@@ -1403,7 +1403,8 @@ hLookAhead' handle_ = do
   return c
 %%]
 
-%%[99
+%%[9999
+-- [@@@] commented -> linking problem
 -- ---------------------------------------------------------------------------
 -- Buffering Operations
 
@@ -1722,7 +1723,12 @@ hIsSeekable handle =
                                          && (haIsBin handle_  || tEXT_MODE_SEEK_ALLOWED))
 %%]
 
-%%[99
+%%[9999 
+{- [@@@] Commented since they cause a linking problem
+/usr/local/lib/uhc-1.0.2/lib/bc/pkg/base/libbase.a(Internals.o):(.data+0x8550): undefined reference to `set_console_echo__'
+/usr/local/lib/uhc-1.0.2/lib/bc/pkg/base/libbase.a(Internals.o):(.data+0x8560): undefined reference to `set_console_buffering__'
+/usr/local/lib/uhc-1.0.2/lib/bc/pkg/base/libbase.a(Internals.o):(.data+0x85c0): undefined reference to `get_console_echo__'
+-}
 -- -----------------------------------------------------------------------------
 -- Changing echo status (Non-standard GHC extensions)
 

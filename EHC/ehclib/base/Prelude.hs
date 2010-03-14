@@ -27,10 +27,8 @@ module Prelude
   , module UHC.Read
   , module UHC.Run
 --  , module UHC.Handle
---  , module System.IO
+  , module System.IO
   , module UHC.IOBase
---  , unsafePerformIO
-  , FilePath
   )
   where
 
@@ -53,20 +51,12 @@ import UHC.IOBase ( Handle, IOError, ioError, userError, catch, unsafePerformIO 
 -- import UHC.Handle -- hiding ( hPutStrLn )
 import UHC.Run
 
---import UHC.TestX
+import UHC.TestX -- [@@@] for testing purpose
 
-type FilePath = String -- [###] temporarely, until we can import System.IO
 -- [###] The IO function exported by  GHC prelude are from System.IO
---import System.IO
-{-import System.IO
-  ( -- * Basic Input and output
-    IO,
-    -- ** Simple I\/O operations
-    -- All I/O functions defined here are character oriented.  The
-    -- treatment of the newline character will vary on different systems.
-    -- For example, two characters of input, return and linefeed, may
-    -- read as a single newline character.  These functions cannot be
-    -- used portably for binary I/O.
+-- [@@@] Check what prelude export
+import System.IO
+  ( IO,
     -- *** Output functions
     putChar,
     putStr, putStrLn, print,
@@ -77,4 +67,3 @@ type FilePath = String -- [###] temporarely, until we can import System.IO
     FilePath,
     readFile, writeFile, appendFile, readIO, readLn
   )
--}

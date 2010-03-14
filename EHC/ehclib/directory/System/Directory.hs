@@ -120,6 +120,9 @@ import qualified System.Win32
 import qualified System.Posix
 #endif
 
+-- [@@@] Debug purposes
+import  Debug.Trace
+
 {- $intro
 A directory contains a series of entries, each of which is a named
 reference to a file system object (file, directory etc.).  Some
@@ -320,7 +323,7 @@ createDirectoryIfMissing :: Bool     -- ^ Create its parents too?
 		         -> IO ()
 createDirectoryIfMissing create_parents "" = return ()
 createDirectoryIfMissing create_parents path0
- = do  r <- try $ createDirectory path
+ =  do r <- try $ createDirectory path
        case (r :: Either IOException ()) of
           Right _ -> return ()
           Left e
@@ -328,13 +331,16 @@ createDirectoryIfMissing create_parents path0
              | isDoesNotExistError  e && create_parents -> do
                  createDirectoryIfMissing True (dropFileName path)
                  createDirectoryIfMissing True path
-             | otherwise -> throwIO $ IOException e  -- [###] analyze the effects of changing this code (originally: throw e
+             | otherwise -> throwIO $ IOException e  -- [@@@] analyze the effects of changing this code (originally: throw e)
   where
     -- we want createDirectoryIfMissing "a/" to behave like   
     -- createDirectoryIfMissing "a".  Also, unless we apply
     -- dropTrailingPathSeparator first, dropFileName won't drop
     -- anything from "a/".
     path = dropTrailingPathSeparator path0
+
+--throw :: e -> a
+--throw = unsafePerformIO . throwIO
 
 -- [###] added __UHC__ (changed from #if __GLASGOW_HASKELL__)
 #if defined(__GLASGOW_HASKELL__) || defined(__UHC__)

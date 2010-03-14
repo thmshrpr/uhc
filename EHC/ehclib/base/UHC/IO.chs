@@ -26,7 +26,7 @@
 module UHC.IO ( 
 -- [###] uncommented hWaitForInput, hGetChar, hGetLine, hGetContents. Test for them.
    hWaitForInput, hGetChar, hGetLine, hGetContents, hPutChar, hPutStr, 
--- [###] commitBuffer', hGetBuffered, hGetBuf, hGetBufNonBlocking, hPutBuf, hPutBufNonBlocking, slurpFile. Test for them.
+-- [###] commitBuffer', hGetcBuffered, hGetBuf, hGetBufNonBlocking, hPutBuf, hPutBufNonBlocking, slurpFile. Test for them.
    commitBuffer',       -- hack, see below
    hGetcBuffered,       -- needed by ghc/compiler/utils/StringBuffer.lhs
    hGetBuf, hGetBufNonBlocking, hPutBuf, hPutBufNonBlocking, slurpFile,
@@ -36,6 +36,7 @@ module UHC.IO (
    memcpy_baoff_ba,
    memcpy_baoff_ptr,
  ) where
+import Debug.Trace
 
 import Foreign
 import Foreign.C
@@ -111,11 +112,11 @@ hWaitForInput h msecs = do
                                   return True
                           else return False
 
--- [###] Added ifdes. Similar to how unsafe_fdReady is defined in Handle. Is this ok? Should I export it from Handle, or should I point directly to HsBase.h HsBase.h? 
+-- [@@@] Added ifdes. Similar to how unsafe_fdReady is defined in Handle. Is this ok? Should I export it from Handle, or should I point directly to HsBase.h? 
 #ifdef __UHC__
 -- no threading, we do not deal with blocking, so always ready
 fdReady :: CInt -> CInt -> CInt -> CInt -> IO CInt
-fdReady _ _ _ _ = return 1 -- [###] BUG? if you omit _ and write fdReady = return 1 I get error "Predicates remain unproven".
+fdReady _ _ _ _ = return 1 
 #else
 foreign import ccall safe "fdReady"
   fdReady :: CInt -> CInt -> CInt -> CInt -> IO CInt
@@ -215,7 +216,7 @@ hGetLineBuffered handle_ = do
   buf <- readIORef ref
   hGetLineBufferedLoop handle_ ref buf []
 
--- [###] Strange BUG I think. If you inline loop' you get a "Cannot derive coercion for type application."
+-- [###] BUG I think. If you inline loop' you get a "Cannot derive coercion for type application."
 hGetLineBufferedLoop :: Handle__ -> IORef Buffer -> Buffer -> [String]
                      -> IO String
 hGetLineBufferedLoop handle_ ref
@@ -521,7 +522,6 @@ hPutStr handle str = do
             writeLines handle buf str
        (BlockBuffering _, buf) -> do
             writeBlocks handle buf str
-
 
 getSpareBuffer :: Handle__ -> IO (BufferMode, Buffer)
 getSpareBuffer Handle__{haBuffer=ref, 

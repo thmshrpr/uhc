@@ -74,7 +74,7 @@ module System.IO (
     -- ** Buffering operations
 
     BufferMode(NoBuffering,LineBuffering,BlockBuffering),
-    hSetBuffering,             -- :: Handle -> BufferMode -> IO ()
+   --[@@@] BUG hSetBuffering,             -- :: Handle -> BufferMode -> IO ()
     hGetBuffering,             -- :: Handle -> IO BufferMode
     hFlush,                    -- :: Handle -> IO ()
 
@@ -99,10 +99,12 @@ module System.IO (
     -- ** Terminal operations (not portable: GHC\/Hugs only)
 
 #if !defined(__NHC__)
+{- [@@@] commeted because of a bug in UHC.Handle
     hIsTerminalDevice,          -- :: Handle -> IO Bool
 
     hSetEcho,                   -- :: Handle -> Bool -> IO ()
     hGetEcho,                   -- :: Handle -> IO Bool
+-}
 #endif
 
     -- ** Showing handle state (not portable: GHC only)
@@ -157,7 +159,6 @@ module System.IO (
     openTempFile,
     openBinaryTempFile,
   ) where
-
 
 #ifndef __NHC__
 import Data.Bits
@@ -264,6 +265,7 @@ putStr s        =  hPutStr stdout s
 putStrLn        :: String -> IO ()
 putStrLn s      =  do putStr s
                       putChar '\n'
+                      hFlush stdout  --- [@@@] probably a bug with flushing stdout -> discuss with Atze
 
 -- | The 'print' function outputs a value of any printable type to the
 -- standard output device.

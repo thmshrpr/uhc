@@ -1,4 +1,5 @@
-{-# OPTIONS_UHC -XNoImplicitPrelude #-}
-{-# LANGUAGE NoImplicitPrelude #-}
 module Test where
+
+f :: Int -> Int
+f a = a
 

@@ -9,6 +9,8 @@ module UHC.OldException
   ( bracket, bracket_
 
   , throwIO
+
+  , throw -- [###] added as in Control.Base.Exception
   
   , catchAny
   
@@ -89,5 +91,6 @@ assert False _ = error "Assertion failed"
 onException :: IO a -> IO b -> IO a
 onException io what = catchAny io (\e -> do what
                                             throwIO e)
+
 %%]
 
