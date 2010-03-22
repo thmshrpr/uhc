@@ -47,7 +47,7 @@ import UHC.Ix
 import UHC.Show
 import UHC.Read
 -- [###] Only this function are actualy exported by GHC prelude. Handle is not exported in the GHC Predude; is uhc design to export it?
-import UHC.IOBase ( Handle, IOError, ioError, userError, catch, unsafePerformIO )
+import UHC.IOBase ( IOError, ioError, userError, catch, unsafePerformIO )
 -- import UHC.Handle -- hiding ( hPutStrLn )
 import UHC.Run
 
@@ -56,7 +56,7 @@ import UHC.TestX -- [@@@] for testing purpose
 -- [###] The IO function exported by  GHC prelude are from System.IO
 -- [@@@] Check what prelude export
 import System.IO
-  ( IO,
+{-  ( IO,
     -- *** Output functions
     putChar,
     putStr, putStrLn, print,
@@ -65,5 +65,7 @@ import System.IO
     getLine, getContents, interact,
     -- *** Files
     FilePath,
-    readFile, writeFile, appendFile, readIO, readLn
+    readFile, writeFile, appendFile, readIO, readLn,
+    openFile
   )
+-}

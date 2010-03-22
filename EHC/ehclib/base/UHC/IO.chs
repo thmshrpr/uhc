@@ -36,6 +36,7 @@ module UHC.IO (
    memcpy_baoff_ba,
    memcpy_baoff_ptr,
  ) where
+
 import Debug.Trace
 
 import Foreign
@@ -216,14 +217,13 @@ hGetLineBuffered handle_ = do
   buf <- readIORef ref
   hGetLineBufferedLoop handle_ ref buf []
 
--- [###] BUG I think. If you inline loop' you get a "Cannot derive coercion for type application."
 hGetLineBufferedLoop :: Handle__ -> IORef Buffer -> Buffer -> [String]
                      -> IO String
 hGetLineBufferedLoop handle_ ref
         buf@Buffer{ bufRPtr=r0, bufWPtr=w, bufBuf=raw0 } xss =
   let
         -- find the end-of-line character, if there is one
-        loop:: RawBuffer -> Int -> IO (Bool, Int)  -- [###] added explicit signature
+        loop:: RawBuffer -> Int -> IO (Bool, Int)  -- [###] added explicit signature, otherwise "Cannot derive coercion for type application."
         loop raw r 
            | r == w    = return (False, w)
            | otherwise = 
@@ -240,7 +240,6 @@ hGetLineBufferedLoop handle_ ref
 #endif
 
   xs <- unpack raw0 r0 off
-
   -- if eol == True, then off is the offset of the '\n'
   -- otherwise off == w and the buffer is now empty.
   if eol
@@ -273,10 +272,10 @@ maybeFillReadBuffer fd is_line is_stream buf
                   then return Nothing 
                   else ioError e)
 
--- [###] remove primitive types. Transformed to  boxed version. Potentially very slow because of this.
+-- [###] remove primitive types. Transformed to  boxed version.
 unpack :: RawBuffer -> Int -> Int -> IO [Char]
 unpack _   _ 0   = return ""
-npack buf r len = IO $ \s -> unpackRB [] (len - 1) s
+unpack buf r len = IO $ \s -> unpackRB [] (len - 1) s
   where
     unpackRB acc i s
       | i < r  = (s, acc)
@@ -348,6 +347,18 @@ hGetLineUnBuffered h = do
 --
 --  * 'isEOFError' if the end of file has been reached.
 
+{- [###] UHC does not support concurency for the moment which cause 
+the call of withHandle inside of onther withHandle to fail. This is due
+to the fact that readMVar does not wait if the MVar is empty but fail with
+an error.
+
+In ghc hGetContents call lazyRead using the withHandle function. Since 
+lazyRead makes another call to withHandle the whole pipe fails.
+
+I adapted the lazyRead not to use the syncronization mechanism of withHandle
+and to return directly the result. For this the Hande__ must be passed 
+manually.
+-}
 hGetContents :: Handle -> IO String
 hGetContents handle = 
     withHandle "hGetContents" handle $ \handle_ ->
@@ -356,21 +367,23 @@ hGetContents handle =
       SemiClosedHandle     -> ioe_closedHandle
       AppendHandle         -> ioe_notReadable
       WriteHandle          -> ioe_notReadable
-      _ -> do xs <- lazyRead handle
+      _ -> do xs <- lazyRead handle handle_{ haType=SemiClosedHandle}
               return (handle_{ haType=SemiClosedHandle}, xs )
 
 -- Note that someone may close the semi-closed handle (or change its
 -- buffering), so each time these lazy read functions are pulled on,
 -- they have to check whether the handle has indeed been closed.
 
-lazyRead :: Handle -> IO String
-lazyRead handle = 
-   unsafeInterleaveIO $
-        withHandle "lazyRead" handle $ \ handle_ -> do
+lazyRead :: Handle -> Handle__ -> IO String
+lazyRead handle handle_= 
+   --unsafeInterleaveIO $
+        --withHandle "lazyRead" handle $ \ handle_ -> do
         case haType handle_ of
-          ClosedHandle     -> return (handle_, "")
-          SemiClosedHandle -> lazyRead' handle handle_
-          _ -> ioException 
+          ClosedHandle     -> return "" --return (handle_, "")
+          SemiClosedHandle -> --lazyRead' handle 
+                              do (_,xs) <- lazyRead' handle handle_
+                                 return xs
+          x -> ioException 
                   (IOError (Just handle) IllegalOperation "lazyRead"
                         "illegal handle type" Nothing)
 
@@ -383,7 +396,7 @@ lazyRead' h handle_ = do
   -- (see hLookAhead)
   buf <- readIORef ref
   if not (bufferEmpty buf)
-        then lazyReadHaveBuffer h handle_ fd ref buf
+        then lazyReadHaveBuffer h handle_ fd ref buf :: IO (Handle__, [Char])
         else do
 
   case haBufferMode handle_ of
@@ -395,7 +408,7 @@ lazyRead' h handle_ = do
            then do (handle_', _) <- hClose_help handle_ 
                    return (handle_', "")
            else do (c,_) <- readCharFromBuffer raw 0
-                   rest <- lazyRead h
+                   rest <- lazyRead h handle_
                    return (handle_, c : rest)
 
      LineBuffering    -> lazyReadBuffered h handle_ fd ref buf
@@ -417,7 +430,7 @@ lazyReadBuffered h handle_ fd ref buf = do
 
 lazyReadHaveBuffer :: Handle -> Handle__ -> FD -> IORef Buffer -> Buffer -> IO (Handle__, [Char])
 lazyReadHaveBuffer h handle_ _ ref buf = do
-   more <- lazyRead h
+   more <- lazyRead h handle_
    writeIORef ref buf{ bufRPtr=0, bufWPtr=0 }
    s <- unpackAcc (bufBuf buf) (bufRPtr buf) (bufWPtr buf) more
    return (handle_, s)

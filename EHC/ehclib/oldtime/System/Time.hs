@@ -232,7 +232,6 @@ noTimeDiff = TimeDiff 0 0 0 0 0 0 0
 -- [###] extracted as local defintion
 -- Converts a real to an integer by rounding it.
 realToInteger :: Real a => a -> Integer 
---realToInteger = round . realToFrac 
 realToInteger x = round (realToFrac x :: Double) -- [###] if I don't put double it leads to an ambiguous type)
 
 {- [###] commented

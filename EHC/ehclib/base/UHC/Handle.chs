@@ -1004,7 +1004,7 @@ openFile' filepath mode binary =
     -- for writing, so I think we're ok with a single open() here...
     fd <- throwErrnoIfMinus1Retry "openFile"
                 (c_open f (fromIntegral oflags) 0o666)
-
+    
     stat@(fd_type,_,_) <- fdStat fd
 
     h <- fdToHandle_stat fd (Just stat) False filepath mode binary
