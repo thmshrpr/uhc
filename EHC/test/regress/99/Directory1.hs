@@ -6,6 +6,7 @@
 module Main where
 
 import System.Directory
+import Control.Monad
 
 root :: String
 root = "filesForIOTesting"
@@ -19,15 +20,23 @@ rootn = root ++ "/" ++ "CreateDirIfMissing"
 cdim :: String
 cdim = rootn ++ "/" ++ "NewDir"
 
+cdim' :: String
+cdim' = rootn ++ "/" ++ "RenameDir"
+
+notExist :: String 
+notExist = "NotExist"
+
 main :: IO ()
 main = do
   createDirectory cdir
-  cde   <- doesDirectoryExist cdir
-  putStrLn $ show cde
+  doesDirectoryExist cdir >>= print
   createDirectoryIfMissing True cdim
-  cdime <- doesDirectoryExist cdim
-  putStrLn $ show cdime
+  doesDirectoryExist cdim >>= print
+  renameDirectory cdim cdim'
+  doesDirectoryExist cdim' >>= print
+ 
+  doesDirectoryExist notExist >>= print
+ 
   removeDirectory cdir
-  removeDirectory cdim
-  removeDirectory rootn
+  removeDirectoryRecursive rootn
 

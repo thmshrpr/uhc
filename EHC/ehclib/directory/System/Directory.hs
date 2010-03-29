@@ -17,7 +17,6 @@
 -----------------------------------------------------------------------------
 
 -- #include "HsDirectory.h"
-
 module System.Directory 
    ( 
     -- $intro
@@ -26,8 +25,8 @@ module System.Directory
       createDirectory		-- :: FilePath -> IO ()
     , createDirectoryIfMissing  -- :: Bool -> FilePath -> IO ()
     , removeDirectory		-- :: FilePath -> IO ()
-    -- , removeDirectoryRecursive  -- :: FilePath -> IO () --[###] commented until support to removeFile
-    -- , renameDirectory		-- :: FilePath -> FilePath -> IO () -- [###] commented until support to System.Posix.rename
+    , removeDirectoryRecursive  -- :: FilePath -> IO ()
+    , renameDirectory		-- :: FilePath -> FilePath -> IO ()
 
     , getDirectoryContents      -- :: FilePath -> IO [FilePath]
     , getCurrentDirectory       -- :: IO FilePath
@@ -40,9 +39,9 @@ module System.Directory
     , getTemporaryDirectory
 
     -- * Actions on files
-    --, removeFile		-- :: FilePath -> IO () --[###] commented until support to removeFile
-    --, renameFile                -- :: FilePath -> FilePath -> IO () --[###] commented until support to System.Posix.rename
-    --, copyFile                  -- :: FilePath -> FilePath -> IO () --[###] commented until support to removeFile
+    , removeFile		-- :: FilePath -> IO ()
+    , renameFile                -- :: FilePath -> FilePath -> IO ()
+    , copyFile                  -- :: FilePath -> FilePath -> IO ()
 
     
     , canonicalizePath
@@ -107,7 +106,7 @@ import GHC.IOBase	( IOException(..), IOErrorType(..), ioException )
 import Control.Exception.Base
 import System.IO.Error hiding ( catch, try )
 #elif __UHC__
-import UHC.IOBase  (IOException(..), IOErrorType(..), ioException, SomeException(..) )
+import UHC.IOBase
 import UHC.OldException
 import System.IO.Error --hiding ( catch, try ) -- [###] use the old catch and try for the moment. Originally it uses catch and throw from Control.Exception.Base 
 --throw    :: Exception e => e -> a
@@ -383,6 +382,7 @@ The implementation does not support removal in this situation.
 The operand refers to an existing non-directory object.
 @[ENOTDIR]@
 
+
 -}
 
 removeDirectory :: FilePath -> IO ()
@@ -394,9 +394,6 @@ removeDirectory path =
 #endif
 
 #endif
-{-
---[###] commented until support to removeFile
-
 -- | @'removeDirectoryRecursive' dir@  removes an existing directory /dir/
 -- together with its content and all subdirectories. Be careful, 
 -- if the directory contains symlinks, the function will follow them.
@@ -411,10 +408,9 @@ removeDirectoryRecursive startLoc = do
               case temp of
                 Left e  -> do isDir <- doesDirectoryExist f
                               -- If f is not a directory, re-throw the error
-                              unless isDir $ throw (e :: SomeException)
+                              unless isDir $ throwIOError e -- change throw to throwIOError
                               removeDirectoryRecursive f
                 Right _ -> return ()
--}
 
 -- [###] added __UHC__ (changed from #if __GLASGOW_HASKELL__)
 #if defined(__GLASGOW_HASKELL__) || defined(__UHC__)
@@ -452,8 +448,6 @@ The operand refers to an existing directory.
 
 -}
 
---[###] Commented
-{-
 removeFile :: FilePath -> IO ()
 removeFile path =
 #if mingw32_HOST_OS
@@ -461,7 +455,7 @@ removeFile path =
 #else
   System.Posix.removeLink path
 #endif
--}
+
 
 {- |@'renameDirectory' old new@ changes the name of an existing
 directory from /old/ to /new/.  If the /new/ directory
@@ -511,8 +505,6 @@ Either path refers to an existing non-directory object.
 @[ENOTDIR, EISDIR]@
 
 -}
-{-
---[###] commented until support to System.Posix.rename
 
 renameDirectory :: FilePath -> FilePath -> IO ()
 renameDirectory opath npath =
@@ -528,7 +520,7 @@ renameDirectory opath npath =
 #else
    System.Posix.rename opath npath
 #endif
--}
+
 {- |@'renameFile' old new@ changes the name of an existing file system
 object from /old/ to /new/.  If the /new/ object already
 exists, it is atomically replaced by the /old/ object.  Neither
@@ -572,8 +564,7 @@ Either path refers to an existing directory.
 @[ENOTDIR, EISDIR, EINVAL, EEXIST, ENOTEMPTY]@
 
 -}
-{-
---[###] commented until support to System.Posix.rename
+
 renameFile :: FilePath -> FilePath -> IO ()
 renameFile opath npath =
    -- XXX this test isn't performed atomically with the following rename
@@ -588,7 +579,7 @@ renameFile opath npath =
 #else
    System.Posix.rename opath npath
 #endif
--}
+
 #endif /* __GLASGOW_HASKELL__ || __UHC__*/
 
 {- |@'copyFile' old new@ copies the existing file from /old/ to /new/.
@@ -596,8 +587,6 @@ If the /new/ file already exists, it is atomically replaced by the /old/ file.
 Neither path may refer to an existing directory.  The permissions of /old/ are
 copied to /new/, if possible.
 -}
-
-{-- [###] commented until support for removeFile
 
 copyFile :: FilePath -> FilePath -> IO ()
 #ifdef __NHC__
@@ -607,7 +596,7 @@ copyFile fromFPath toFPath =
                      (\_ -> return ())
 #else
 copyFile fromFPath toFPath =
-    copy `Prelude.catch` (\exc -> throw $ ioeSetLocation exc "copyFile")
+    copy `Prelude.catch` (\exc -> throwIOError $ ioeSetLocation exc "copyFile") -- [###] modified throw to throwIOError
     where copy = bracket (openBinaryFile fromFPath ReadMode) hClose $ \hFrom ->
                  bracketOnError openTmp cleanTmp $ \(tmpFPath, hTmp) ->
                  do allocaBytes bufferSize $ copyContents hFrom hTmp
@@ -630,7 +619,7 @@ copyFile fromFPath toFPath =
           ioExceptionIgnorer :: IOException -> IO ()
           ioExceptionIgnorer _ = return ()
 #endif
--}
+
 
 #ifdef __UHC__
 {-- [###] Added bracketOnDefinition, taken from Control.Base.Exception (ghc) --}

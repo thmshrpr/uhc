@@ -70,23 +70,33 @@ cpOutputTyCore suff modNm
 %%]
 
 %%[(8 codegen) export(cpOutputCoreModule,cpOutputCore)
-cpOutputCoreModule :: String -> String -> HsName -> CModule -> EHCompilePhase ()
-cpOutputCoreModule nmsuff suff modNm cMod
+cpOutputCoreModule :: Bool -> String -> String -> HsName -> CModule -> EHCompilePhase ()
+cpOutputCoreModule binary nmsuff suff modNm cMod
   =  do  {  cr <- get
          ;  let  (ecu,crsi,opts,fp) = crBaseInfo modNm cr
                  fpC = mkOutputFPath opts modNm fp (suff ++ nmsuff) -- for now nmsuff after suff, but should be inside name
+                 fnC    = fpathToStr fpC
+%%[[8
          ;  lift $ putPPFPath fpC (ppCModule opts cMod) 100
+%%][20
+         ;  lift (if binary
+                  then do { fpathEnsureExists fpC		-- should be in FPath equivalent of putSerializeFile
+                          ; putSerializeFile fnC cMod
+                          }
+                  else putPPFPath fpC (ppCModule opts cMod) 100
+                 )
+%%]]
          }
 
-cpOutputCore :: String -> String -> HsName -> EHCompilePhase ()
-cpOutputCore nmsuff suff modNm
+cpOutputCore :: Bool -> String -> String -> HsName -> EHCompilePhase ()
+cpOutputCore binary nmsuff suff modNm
   =  do  {  cr <- get
          -- part 1: current .core
          ;  let  (ecu,_,_,_) = crBaseInfo modNm cr
                  mbCore = ecuMbCore ecu
                  cMod   = panicJust "cpOutputCore" mbCore
          ;  cpMsg modNm VerboseALot "Emit Core"
-         ;  cpOutputCoreModule nmsuff suff modNm cMod
+         ;  cpOutputCoreModule binary nmsuff suff modNm cMod
          }
 %%]
 
@@ -106,18 +116,27 @@ cpOutputJava suff modNm
 %%]
 
 %%[(8 codegen grin) export(cpOutputGrin)
-cpOutputGrin :: String -> HsName -> EHCompilePhase ()
-cpOutputGrin suff modNm
+cpOutputGrin :: Bool -> String -> HsName -> EHCompilePhase ()
+cpOutputGrin binary suff modNm
   =  do  {  cr <- get
          ;  let  (ecu,crsi,opts,fp) = crBaseInfo modNm cr
                  mbGrin = ecuMbGrin ecu
                  grin   = panicJust "cpOutputGrin" mbGrin
-                 grinPP = ppGrModule grin
                  mkb x  = x ++ suff
                  fpG    = mkOutputFPath opts (mkHNm $ mkb $ show modNm) (fpathUpdBase mkb fp) "grin"
+                 fnG    = fpathToStr fpG
          ;  when (True) -- ehcOptFullProgAnalysis opts)
                  (do { cpMsg modNm VerboseALot "Emit Grin"
-                     ; lift $ putPPFPath fpG grinPP 1000 --TODO ? getal
+%%[[8
+                     ; lift $ putPPFPath fpG (ppGrModule grin) 1000 --TODO ? getal
+%%][20
+                     ; lift (if binary
+                             then do { fpathEnsureExists fpG
+                                     ; putSerializeFile fnG grin
+                                     }
+                             else putPPFPath fpG (ppGrModule grin) 1000 --TODO ? getal
+                            )
+%%]]
                      })
          }
 
@@ -148,7 +167,7 @@ cpOutputHI suff modNm
                                { HI.hiiExps                 = mmiExps       mmi
                                , HI.hiiHiddenExps           = mmiHiddenExps mmi
                                , HI.hiiHasMain              = ecuHasMain ecu
-                               , HI.hiiTargetVariant        = ehcOptTargetVariant opts
+                               , HI.hiiTargetFlavor         = ehcOptTargetFlavor opts
                                , HI.hiiSrcTimeStamp         = Cfg.verTimestamp Cfg.version
                                , HI.hiiSrcSig               = Cfg.verSig Cfg.version
                                , HI.hiiSrcVersionMajor      = Cfg.verMajor Cfg.version
@@ -163,10 +182,12 @@ cpOutputHI suff modNm
          ;  hiExists <- lift $ doesFileExist fnH
          ;  when (hiExists)
                  (lift $ removeFile fnH)
-         ;  when (ehcOptVerbosity opts >= VerboseALot)
+         ;  when (ehcOptVerbosity opts > VerboseALot)
                  (do { lift $ putPPLn (pp hiinfo)
                      })
-         ;  lift $ putSerializeFile fnH hiinfo
+         ;  lift $ do { fpathEnsureExists fpH
+                      ; putSerializeFile fnH hiinfo
+                      }
          ;  now <- lift $ getClockTime
          ;  cpUpdCU modNm (ecuStoreHIInfoTime now)
          }

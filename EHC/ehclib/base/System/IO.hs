@@ -14,6 +14,7 @@
 --
 -----------------------------------------------------------------------------
 
+
 module System.IO (
     -- * The IO monad
 
@@ -74,7 +75,7 @@ module System.IO (
     -- ** Buffering operations
 
     BufferMode(NoBuffering,LineBuffering,BlockBuffering),
-   --[@@@] BUG hSetBuffering,             -- :: Handle -> BufferMode -> IO ()
+    hSetBuffering,             -- :: Handle -> BufferMode -> IO ()
     hGetBuffering,             -- :: Handle -> IO BufferMode
     hFlush,                    -- :: Handle -> IO ()
 
@@ -99,12 +100,10 @@ module System.IO (
     -- ** Terminal operations (not portable: GHC\/Hugs only)
 
 #if !defined(__NHC__)
-{- [@@@] commeted because of a bug in UHC.Handle
     hIsTerminalDevice,          -- :: Handle -> IO Bool
 
     hSetEcho,                   -- :: Handle -> Bool -> IO ()
     hGetEcho,                   -- :: Handle -> IO Bool
--}
 #endif
 
     -- ** Showing handle state (not portable: GHC only)
@@ -147,7 +146,7 @@ module System.IO (
     -- * Binary input and output
     withBinaryFile,
     openBinaryFile,            -- :: FilePath -> IOMode -> IO Handle
-   -- [###] commented hSetBinaryMode,            -- :: Handle -> Bool -> IO ()
+    hSetBinaryMode,            -- :: Handle -> Bool -> IO ()
     hPutBuf,                   -- :: Handle -> Ptr a -> Int -> IO ()
     hGetBuf,                   -- :: Handle -> Ptr a -> Int -> IO Int
 #if !defined(__NHC__) && !defined(__HUGS__)
@@ -159,7 +158,7 @@ module System.IO (
     openTempFile,
     openBinaryTempFile,
   ) where
-import Debug.Trace -- [@@@] Debug purpose
+import Debug.Trace --[DEBUG]
 
 #ifndef __NHC__
 import Data.Bits
@@ -259,7 +258,7 @@ putChar c       =  hPutChar stdout c
 -- (same as 'hPutStr' 'stdout').
 
 putStr          :: String -> IO ()
-putStr s        =  hPutStr stdout s >> hFlush stdout --- [@@@] probably a bug with flushing sdout
+putStr s        =  hPutStr stdout s  >> hFlush stdout --- [@@@] probably a bug with flushing sdout
 
 -- | The same as 'putStr', but adds a newline character.
 

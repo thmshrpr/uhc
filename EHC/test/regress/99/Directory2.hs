@@ -6,13 +6,18 @@
 module Main where
 
 import System.Directory
-import Data.Maybe
 
 root :: String
 root = "filesForIOTesting"
 
 pFile :: String
 pFile = root ++ "/" ++ "empty"
+
+pFile1 :: String
+pFile1 = root ++ "/" ++ "empty1"
+
+pFile2 :: String
+pFile2 = root ++ "/" ++ "empty2"
 
 main :: IO ()
 main = do
@@ -23,41 +28,30 @@ main = do
   cd'  <- getCurrentDirectory
   setCurrentDirectory cd
   rcd' <- makeRelativeToCurrentDirectory cd'
-  putStrLn $ show (root == rcd')
+  print (root == rcd')
 
   croot <- canonicalizePath root
   crcd' <- canonicalizePath cd'
   putStrLn $ show (croot == crcd')
-  --putStrLn croot
   
-  files  <- getDirectoryContents root
-  putStrLn $ show files
+  getDirectoryContents root >>= print
   
 
   perm   <- getPermissions pFile
-  putStrLn $ show perm
+  print perm
   setPermissions pFile perm{executable=True}
   perm'  <- getPermissions pFile
-  putStrLn $ show perm'
+  print perm'
   setPermissions pFile perm'{executable=False}
   perm'' <- getPermissions pFile
-  putStrLn $ show (perm == perm'')
+  print (perm == perm'')
 
-  modTime <- getModificationTime pFile -- [@@@] check this
-  putStrLn $ show modTime
+  doesFileExist pFile >>= print
 
-  ex <- doesFileExist pFile
-  putStrLn $ show ex
- 
-  exec <- findExecutable "ghc"
-  putStrLn $ show (isJust exec)
-
-  hd   <- getHomeDirectory             -- [@@@] comment this
-  audd <- getAppUserDataDirectory "cabal"
-  udd  <- getUserDocumentsDirectory
-  td   <- getTemporaryDirectory
-  putStrLn hd
-  putStrLn audd
-  putStrLn udd
-  putStrLn td
-
+  copyFile pFile pFile1
+  doesFileExist pFile1  >>= print
+  renameFile pFile1 pFile2
+  doesFileExist pFile1  >>= print
+  removeFile pFile2
+  doesFileExist pFile2  >>= print
+  

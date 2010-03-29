@@ -55,8 +55,8 @@ module UHC.Handle (
 
   stdin, stdout, stderr,
   IOMode(..), openFile, openBinaryFile, fdToHandle_stat, fdToHandle, fdToHandle',
-  hFileSize, hSetFileSize, hIsEOF, isEOF, hLookAhead, hLookAhead', {-hSetBuffering, -} {- hSetBinaryMode, -}
-  hFlush, {- hDuplicate, hDuplicateTo, -}
+  hFileSize, hSetFileSize, hIsEOF, isEOF, hLookAhead, hLookAhead', hSetBuffering,  hSetBinaryMode, 
+  hFlush,  hDuplicate, hDuplicateTo, 
 
   hClose, hClose_help,
 
@@ -64,7 +64,7 @@ module UHC.Handle (
   SeekMode(..), hSeek, hTell,
 
   hIsOpen, hIsClosed, hIsReadable, hIsWritable, hGetBuffering, hIsSeekable,
-  {- hSetEcho, hGetEcho, hIsTerminalDevice, [@@@] bug -> linking problem-}
+  hSetEcho, hGetEcho, hIsTerminalDevice,
 
   hShow,
 
@@ -85,7 +85,7 @@ import System.IO.Error
 import System.Posix.Internals
 import System.Posix.Types
 
-import Debug.Trace
+import Debug.Trace --[DEBUG]
 
 #ifdef __UHC__
 -- Low level functions should get/return a CSsize, but the original code does not do so, so mimic it here:
@@ -1403,8 +1403,7 @@ hLookAhead' handle_ = do
   return c
 %%]
 
-%%[9999
--- [@@@] commented -> linking problem
+%%[99
 -- ---------------------------------------------------------------------------
 -- Buffering Operations
 
@@ -1723,12 +1722,7 @@ hIsSeekable handle =
                                          && (haIsBin handle_  || tEXT_MODE_SEEK_ALLOWED))
 %%]
 
-%%[9999 
-{- [@@@] Commented since they cause a linking problem
-/usr/local/lib/uhc-1.0.2/lib/bc/pkg/base/libbase.a(Internals.o):(.data+0x8550): undefined reference to `set_console_echo__'
-/usr/local/lib/uhc-1.0.2/lib/bc/pkg/base/libbase.a(Internals.o):(.data+0x8560): undefined reference to `set_console_buffering__'
-/usr/local/lib/uhc-1.0.2/lib/bc/pkg/base/libbase.a(Internals.o):(.data+0x85c0): undefined reference to `get_console_echo__'
--}
+%%[99 
 -- -----------------------------------------------------------------------------
 -- Changing echo status (Non-standard GHC extensions)
 
@@ -1768,7 +1762,7 @@ hIsTerminalDevice handle = do
        _            -> fdIsTTY (haFD handle_))
 %%]
 
-%%[9999
+%%[99
 -- -----------------------------------------------------------------------------
 -- hSetBinaryMode
 
@@ -1794,7 +1788,7 @@ foreign import ccall unsafe "__hscore_setmode"
 #endif
 %%]
 
-%%[9999
+%%[99
 -- -----------------------------------------------------------------------------
 -- Duplicating a Handle
 
@@ -1848,7 +1842,7 @@ dupHandle_ other_side h_ new_fd = do
   return (h_, new_handle_)
 %%]
 
-%%[9999
+%%[99
 -- -----------------------------------------------------------------------------
 -- Replacing a Handle
 

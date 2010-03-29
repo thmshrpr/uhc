@@ -17,10 +17,9 @@ module System.Posix (
 {-  module System.Posix.Types,
   module System.Posix.Signals,
 -}  
-  module System.Posix.Directory
-{-
-  module System.Posix.Files,
-  module System.Posix.Unistd,
+  module System.Posix.Directory,
+  module System.Posix.Files
+{-  module System.Posix.Unistd,
   module System.Posix.IO,
   module System.Posix.Env,
   module System.Posix.Process,
@@ -39,8 +38,8 @@ import System.Posix.Types
 import System.Posix.Signals
 -}
 import System.Posix.Directory
-{-
 import System.Posix.Files
+{-
 import System.Posix.Unistd
 import System.Posix.Process
 import System.Posix.IO

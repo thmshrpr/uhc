@@ -1,8 +1,9 @@
 {-# LANGUAGE CPP #-}
-
 #define MODULE_NAME     Windows
-#define IS_WINDOWS      True
 
+#ifndef IS_WINDOWS
+#define IS_WINDOWS      True
+#endif
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  System.FilePath.Windows

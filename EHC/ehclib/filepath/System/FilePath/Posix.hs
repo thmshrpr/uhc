@@ -1,7 +1,9 @@
 {-# LANGUAGE CPP #-}
 #define MODULE_NAME     Posix
-#define IS_WINDOWS      False
 
+#ifndef IS_WINDOWS
+#define IS_WINDOWS      False
+#endif
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  System.FilePath.Posix

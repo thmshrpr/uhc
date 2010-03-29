@@ -554,7 +554,7 @@ getSpareBuffer Handle__{haBuffer=ref,
                 new_buf <- allocateBuffer (bufSize buf) WriteBuffer
                 return (mode, new_buf)
 
-
+--[DEBUG]
 writeLines :: Handle -> Buffer -> String -> IO ()
 writeLines hdl Buffer{ bufBuf=raw, bufSize=len } s =
   let
@@ -575,23 +575,28 @@ writeLines hdl Buffer{ bufBuf=raw, bufSize=len } s =
          else 
               shoveString n' cs
   in
+  {-trace ("X" ++ s)-}
   shoveString 0 s
 
+--[DEBUG]
 writeBlocks :: Handle -> Buffer -> String -> IO ()
 writeBlocks hdl Buffer{ bufBuf=raw, bufSize=len } s =
   let
    shoveString :: Int -> [Char] -> IO ()
         -- check n == len first, to ensure that shoveString is strict in n.
    shoveString n cs | n == len = do
-        new_buf <- commitBuffer hdl raw len n True{-needs flush-} False
+        new_buf <- {- trace ("1:" ++ cs) -} commitBuffer hdl raw len n True{-needs flush-} False
         writeBlocks hdl new_buf cs
    shoveString n [] = do
+        {- trace "2:" -} 
         commitBuffer hdl raw len n False{-no flush-} True{-release-}
         return ()
    shoveString n (c:cs) = do
         n' <- writeCharIntoBuffer raw n c
+        {- trace ("3:" ++ (c:cs)) -} 
         shoveString n' cs
   in
+  {- trace ("writeBlocks: " ++ show len ) -} 
   shoveString 0 s
 %%]
 

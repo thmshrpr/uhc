@@ -13,13 +13,11 @@
 // #include "HsFFI.h" [###] commented
 
 /* ultra-evil... */
-/* [###] commented
 #undef PACKAGE_BUGREPORT
 #undef PACKAGE_NAME
 #undef PACKAGE_STRING
 #undef PACKAGE_TARNAME
 #undef PACKAGE_VERSION
-*/
 
 #ifdef solaris2_HOST_OS
 #define _POSIX_PTHREAD_SEMANTICS
@@ -95,12 +93,15 @@
 
 extern char **environ;
 
+// [@@@] shouldn't __GNUC__ to be set from outside? Otherwise will cause linking problems :: multiple definition of first defined here; at leas with gnu compilers
+// [@@@] Moreover, for some particular resons this pattern of including headers does not work (http://www.greenend.org.uk/rjk/2003/03/inline.html). Thus I define INLINE as static inline.
 #ifndef INLINE
-# if defined(__GNUC__)
-#  define INLINE extern inline
-# else
-#  define INLINE inline
-# endif
+#define INLINE static inline
+// # if defined(__GNUC__)
+//#  define INLINE extern inline
+//# else
+//#  define INLINE inline
+//# endif
 #endif
 
 INLINE int __hsunix_wifexited   (int stat) { return WIFEXITED(stat); }
