@@ -321,7 +321,9 @@ $(EHCLIB_HSC_ALL_DRV_HS): $(EHCLIB_BLD_VARIANT_ASPECTS_PREFIX)%.hs: $(EHCLIB_SRC
 	  --cflag='-D$(EHC_VARIANT_TARGET_UHC_DEFINE2)' \
 	  -I$(call FUN_INSTALLABS_VARIANT_INC_TARGET_PREFIX,$(EHC_VARIANT),$(EHC_VARIANT_TARGET)) \
 	  -I$(call FUN_INSTALLABS_VARIANT_INC_SHARED_PREFIX,$(EHC_VARIANT)) \
-	  $< && \
+    $(foreach pkg,$(EHC_PACKAGES_ASSUMED),-I$(EHCLIB_SRC_PREFIX)$(pkg)/include/) \
+	  $(foreach pkg,$(EHC_PACKAGES_ASSUMED),-I$(call FUN_MK_PKG_INC_DIR,$(call FUN_INSTALL_PKG_PREFIX,$(pkg)))) \
+    $< && \
 	touch $@
 
 ###########################################################################################
