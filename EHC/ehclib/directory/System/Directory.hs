@@ -181,7 +181,7 @@ The operation may fail with:
 getPermissions :: FilePath -> IO Permissions
 getPermissions name = do
   withCString name $ \s -> do
-#ifdef mingw32_HOST_OS
+#if defined(mingw32_HOST_OS) || defined (__CYGWIN32__)
   -- stat() does a better job of guessing the permissions on Windows
   -- than access() does.  e.g. for execute permission, it looks at the
   -- filename extension :-)
@@ -966,7 +966,7 @@ foreign import ccall unsafe "__hscore_X_OK" x_OK :: CInt
 foreign import ccall unsafe "__hscore_S_IRUSR" s_IRUSR :: CMode
 foreign import ccall unsafe "__hscore_S_IWUSR" s_IWUSR :: CMode
 foreign import ccall unsafe "__hscore_S_IXUSR" s_IXUSR :: CMode
-#ifdef mingw32_HOST_OS
+#if defined(mingw32_HOST_OS) || defined(__CYGWIN32__)
 foreign import ccall unsafe "__hscore_S_IFDIR" s_IFDIR :: CMode
 #endif
 

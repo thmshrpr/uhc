@@ -224,8 +224,10 @@ tcSetAttr fd fun = do
         throwErrnoIfMinus1Retry "tcSetAttr"
            (c_tcgetattr fd p_tios)
 
--- [@@@] same problem with sizeof_sigset_t which is not defined in windows systems.
-#if defined(__GLASGOW_HASKELL__) || defined(__UHC__)
+-- [@@@] UHC is not compatible with this stuff since it doesn't have the 
+-- definition for __hscore_get_saved_termios and __hscore_set_saved_termios.
+-- Maybe they should be ifdefs in HsBase also.
+#if defined(__GLASGOW_HASKELL__)
         -- Save a copy of termios, if this is a standard file descriptor.
         -- These terminal settings are restored in hs_exit().
         when (fd <= 2) $ do
@@ -252,8 +254,8 @@ tcSetAttr fd fun = do
              c_sigprocmask const_sig_setmask p_old_sigset nullPtr
              return r))
 
--- [@@@] don't forget to test this
-#if defined(__GLASGOW_HASKELL__) || defined(__UHC__)
+-- [@@@]  UHC is not compatible with this stuff since it doesn't have the corresponding definition
+#if defined(__GLASGOW_HASKELL__)
 foreign import ccall unsafe "HsBase.h __hscore_get_saved_termios"
    get_saved_termios :: CInt -> IO (Ptr CTermios)
 

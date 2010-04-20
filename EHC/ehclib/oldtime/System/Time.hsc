@@ -370,7 +370,7 @@ gmtoff x    = (#peek struct tm,tm_gmtoff) x
 #   define tzname _tzname
 #  endif
 #  ifndef mingw32_HOST_OS
-foreign import ccall unsafe "HsTime.h &tzname" tzname :: Ptr CString
+foreign import ccall unsafe "HsTime.h tzname_aux" tzname :: Ptr CString
 #  else
 foreign import ccall unsafe "__hscore_timezone" timezone :: Ptr CLong
 foreign import ccall unsafe "__hscore_tzname"   tzname :: Ptr CString

@@ -39,10 +39,10 @@ main = do
 
   perm   <- getPermissions pFile
   print perm
-  setPermissions pFile perm{executable=True}
+  setPermissions pFile perm{readable=False}
   perm'  <- getPermissions pFile
   print perm'
-  setPermissions pFile perm'{executable=False}
+  setPermissions pFile perm'{readable=True}
   perm'' <- getPermissions pFile
   print (perm == perm'')
 
