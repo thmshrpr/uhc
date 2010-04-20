@@ -1,4 +1,4 @@
-{-# LANGUAGE NoImplicitPrelude #-} -- [###] Added
+{-# LANGUAGE NoImplicitPrelude #-}
 %%[99
 -----------------------------------------------------------------------------
 -- |
@@ -68,6 +68,7 @@ module UHC.Handle (
 
   hShow,
 
+  unsafe_fdReady -- needed in UHC.IO
  ) where
 
 import UHC.Base
@@ -84,8 +85,6 @@ import Foreign
 import System.IO.Error
 import System.Posix.Internals
 import System.Posix.Types
-
-import Debug.Trace --[DEBUG]
 
 #ifdef __UHC__
 -- Low level functions should get/return a CSsize, but the original code does not do so, so mimic it here:

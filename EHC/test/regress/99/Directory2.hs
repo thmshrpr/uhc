@@ -6,6 +6,7 @@
 module Main where
 
 import System.Directory
+import Data.List (sort)
 
 root :: String
 root = "filesForIOTesting"
@@ -32,9 +33,9 @@ main = do
 
   croot <- canonicalizePath root
   crcd' <- canonicalizePath cd'
-  putStrLn $ show (croot == crcd')
+  print (croot == crcd')
   
-  getDirectoryContents root >>= print
+  getDirectoryContents root >>= print . sort
   
 
   perm   <- getPermissions pFile
