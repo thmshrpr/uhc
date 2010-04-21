@@ -16,6 +16,7 @@ f1 _ = do let x = [23] :: [Int]
           print x
           w <- mkWeak x x (Just $ print "fin1")
           x2 <- deRefWeak w
+          finalize w
           print x2
           
 
@@ -26,7 +27,7 @@ f2 _ = do let x = [45] :: [Int]
           x2 <- deRefWeak w
           f1 5
           print x2
-
+          finalize w
 main = do f2 3
           gc
           return ()

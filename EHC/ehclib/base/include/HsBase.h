@@ -698,11 +698,11 @@ INLINE off_t __hscore_lseek(int fd, off_t off, int whence) {
 }
 #endif
 
-INLINE int __hscore_stat(char *file, struct_stat *buf) {
+INLINE HsInt __hscore_stat(char *file, struct_stat *buf) {
 	return (stat(file,buf));
 }
 
-INLINE int __hscore_fstat(int fd, struct_stat *buf) {
+INLINE HsInt __hscore_fstat(int fd, struct_stat *buf) {
 	return (fstat(fd,buf));
 }
 

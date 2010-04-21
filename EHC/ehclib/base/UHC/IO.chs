@@ -530,7 +530,6 @@ getSpareBuffer Handle__{haBuffer=ref,
                 new_buf <- allocateBuffer (bufSize buf) WriteBuffer
                 return (mode, new_buf)
 
---[DEBUG]
 writeLines :: Handle -> Buffer -> String -> IO ()
 writeLines hdl Buffer{ bufBuf=raw, bufSize=len } s =
   let

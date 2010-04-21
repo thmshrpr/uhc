@@ -85,7 +85,6 @@ import Foreign
 import System.IO.Error
 import System.Posix.Internals
 import System.Posix.Types
-
 #ifdef __UHC__
 -- Low level functions should get/return a CSsize, but the original code does not do so, so mimic it here:
 #define CSsize		CInt
@@ -358,17 +357,15 @@ ioe_bufsiz n = ioException
 
 stdHandleFinalizer :: FilePath -> MVar Handle__ -> IO ()
 stdHandleFinalizer fp m = do
-  return ()
-{-
+ -- return ()
   h_ <- takeMVar m
   flushWriteBufferOnly h_
   putMVar m (ioe_finalizedHandle fp)
--}
+
 
 handleFinalizer :: FilePath -> MVar Handle__ -> IO ()
 handleFinalizer fp m = do
-  return ()
-{-
+ -- return ()
   handle_ <- takeMVar m
   case haType handle_ of
       ClosedHandle -> return ()
@@ -378,7 +375,7 @@ handleFinalizer fp m = do
               hClose_handle_ handle_
               return ()
   putMVar m (ioe_finalizedHandle fp)
--}
+
 %%]
 
 %%[99

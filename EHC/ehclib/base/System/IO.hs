@@ -255,14 +255,13 @@ putChar c       =  hPutChar stdout c
 -- (same as 'hPutStr' 'stdout').
 
 putStr          :: String -> IO ()
-putStr s        =  hPutStr stdout s   >> hFlush stdout -- to remove this after the proble with flushing IO buffers is solved
+putStr s        =  hPutStr stdout s
 
 -- | The same as 'putStr', but adds a newline character.
 
 putStrLn        :: String -> IO ()
 putStrLn s      =  do putStr s
                       putChar '\n'
-                      hFlush stdout  -- to remove this after the proble with flushing IO buffers is solved
 
 -- | The 'print' function outputs a value of any printable type to the
 -- standard output device.
