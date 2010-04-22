@@ -1,0 +1,93 @@
+%%[main doclatex
+
+\section{How to add a new package}
+
+%%@InternalDocEhcLibrary.howto
+
+\section{Known issues}
+
+%%@InternalDocEhcLibrary.issues
+
+\section{Notes, suggestions}
+
+%%@InternalDocEhcLibrary.notes
+
+\section{Modifications}
+
+%%@InternalDocEhcLibrary.modif
+
+%%]
+
+%%[howto
+Currently you will need to modify \verb|src/ehc/variant.mk| and add it to the entry list \verb|EHC_PACKAGES_ASSUMED|. The order matters since it will be the the order of compilation.
+
+If the package makes use of c headers then you'll need to also modify @ehclib/files2.mk@. When doing so lookup for the following entries (you can easily follow the example of the other packages) :
+\begin{itemize}
+ \item \verb|EHCLIB_SYNC_ALL_PKG_name*| - if the package has files that need to be copy from the archive;
+ \item \verb|EHCLIB_ASIS_ALL_SRC_name_ASIS| - if the package has c headers files;
+ \item \verb|EHCLIB_ASIS_ALL_DRV_name_ASIS| - if the package has c headers files;
+ \item \verb|EHCLIB_FROZEN_ALL_DRV_name_ASIS| - if the package has haskell file which are copied from archive;
+ \item bellow the line \verb|# plainly copy .h files to install directly|] - you need to add an entry if the package makes use of c headers.
+\end{itemize}
+Here @name*@ is the name of the package and @*@ means that there are multiple entries which you'll need to modify.
+
+If the package needs to be configure (eg. has files like \verb|HsBaseConfig.h.in|) unfortunately you'll need to modify  \verb|configure.ac| file and generate the \verb|configure| again with \verb|autoconf|. The entry you'll need to adapt is \verb|AC_CONFIG_HEADERS|.
+%%]
+
+%%[issues
+There are several issues in the current implementation of libraries. Some with side effects...
+\begin{itemize}
+  \item \textbf{GC crash}. The bug is caused by the call to \verb|print| inside the weak ptr finalizer (eg: \verb|mkWeak x x (Just (print "fin"))|). The crash occurs at the level of \verb|withHandle_'| function when trying to take the \verb|Handle__| from the \verb|MVar| (\verb|Handle.chs:175|).
+  \item \textbf{Buffer corruption on x64 linux machines}. If \verb|hPutChar| is used in combination with line buffering the new lines will not be printed correctly.
+\end{itemize}
+%%]
+
+%%[notes
+This notes are here as suggestions for further improvements.
+
+\begin{itemize}
+ \item In order to configure a package this must modify \verb|autoconf.ac| and generate the configure again. This is not very nice and can/will be correcting by building the libraries with cabal. Also, another side effect of this is that the global configure is polluted with tests for flags needed only in certain libraries.
+ \item \verb|configure.ac| can be made nicer by not checking the \verb|size| of the flags and then test with \verb|ifdefs| in headers but rather output directly the type. I think GHC variant of configure is much better. It defines a macro \verb|FP_CHECK_HTYPE| which produces the correct C type in the headers file. It doesn't use \verb|sizeof| but rather define the type direclty.
+ 
+For example:
+
+\verb|FP_CHECK_HTYPE(tcflag_t)| will produce \verb|Word32|. Thus putting \verb|#undef HTYPE_TCFLAG_T| in \verb|HsBaseConfig.h.in| will produce the same result as:
+
+\verb|AC_CHECK_SIZEOF(tcflag_,,FP_INCLUDES_MORE)| and the following in \verb|HsBaseConfig.h.in|
+\begin{verbatim}
+#ifdef SIZEOF_TCFLAG_T
+# if SIZEOF_TCFLAG_T == 8
+#  define HTYPE_TCFLAG_T 			Word64
+# elif SIZEOF_TCFLAG_T == 4
+#  define HTYPE_TCFLAG_T 			Word32
+# elif SIZEOF_TCFLAG_T == 2
+#  define HTYPE_TCFLAG_T 			Word16
+# else
+# endif
+#endif
+\end{verbatim}
+\end{itemize}
+%%]
+
+%%[modif
+This is here in as a reminder for some modifications that occurred during the library implementation.
+ 
+Among the configuration files modified are:
+\begin{itemize}
+    \item \verb|ehclib/files2.mk|
+    \item \verb|configure.ac| - generating a new configure file
+    \item \verb|src/ehc/variant.mk|
+\end{itemize}
+
+Some other reminders:
+\begin{itemize}
+    \item When an \verb|hsc| file need some c headers this is not copied at the build location. The hack was to include the original \verb|include| directory when compile the file.
+   
+    \item The \verb|unix| package is largely dependent of lots of external stuff (through \verb|#ifdefs|). I imported only \verb|Files| and \verb|Directory| used in standard packages. Thus I added configuration only for these two - most of the \verb|HsUnixConfig.h.in| is still \emph{unconfigured}, meaning that \verb|#ifdef| tests are not added in \verb|configure.ac|. Proabably it will be best to migrate to some sort of building mechanism as in GHC, where packages are configured individually instead of globally.
+   
+    \item In order to fix the test for some \verb|#ifedef| falgs and in the same time to keep the current design of \verb|configure.ac| I defined a macro, \verb|FP_INCLUDES_MORE| which defines additional headers and pass it to \verb|AC_CHECK_SIZEOF| for the broken definitions. This fixed: \verb|cc_t, speed_t, tcflag_t, rlim_t, clock_t|.
+   
+    \item Because \verb|hsc2hs| does not work  properly in cywin/windows I do its job manually. This means, generating the corresponding c code, compile and run it. The problem was tricky: \verb|hsc2hs| (and in general ghc) is independent of \verb|cygwin|, thus it threats paths in windows style, and, forwards them in windows style to subsequent commands (eg. gcc), which in turn don't understand them. The apparent solution (found on mailing lists) is to pass "ghc" as the c compiler, but then ghc does not know about specific \verb|cygwin| include directories (eg.\verb|/usr/include|) which will cause big problems. The solution is to simulate the work of \verb|hsc2hs|: generate the c file, compile and run it manually.
+\end{itemize}
+
+%%]

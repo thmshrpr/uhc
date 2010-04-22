@@ -92,13 +92,14 @@ EHCLIB_C_ALL_DRV_C						:= $(patsubst $(EHCLIB_SRC_PREFIX)%,$(EHCLIB_BLD_VARIANT
 EHCLIB_ASIS_ALL_SRC_ASIS				:= $(foreach pkg,$(EHC_PACKAGES_ASSUMED),$(wildcard $(EHCLIB_SRC_PREFIX)$(pkg)/include/*.h))
 EHCLIB_ASIS_ALL_SRC_base_ASIS			:= $(wildcard $(EHCLIB_SRC_PREFIX)base/include/*.h)
 EHCLIB_ASIS_ALL_SRC_array_ASIS			:= $(wildcard $(EHCLIB_SRC_PREFIX)array/include/*.h)
-EHCLIB_ASIS_ALL_SRC_oldtime_ASIS			:= $(wildcard $(EHCLIB_SRC_PREFIX)oldtime/include/*.h)
+EHCLIB_ASIS_ALL_SRC_oldtime_ASIS			:= $(wildcard $(EHCLIB_SRC_PREFIX)old-time/include/*.h)
 EHCLIB_ASIS_ALL_SRC_unix_ASIS			:= $(wildcard $(EHCLIB_SRC_PREFIX)unix/include/*.h)
 EHCLIB_ASIS_ALL_SRC_directory_ASIS			:= $(wildcard $(EHCLIB_SRC_PREFIX)directory/include/*.h)
 EHCLIB_ASIS_ALL_DRV_ASIS				:= $(foreach pkg,$(EHC_PACKAGES_ASSUMED),$(patsubst $(EHCLIB_SRC_PREFIX)$(pkg)/%.h,$(call FUN_INSTALL_PKG_PREFIX,$(pkg))%.h,$(EHCLIB_ASIS_ALL_SRC_ASIS)))
+
 EHCLIB_ASIS_ALL_DRV_base_ASIS			:= $(patsubst $(EHCLIB_SRC_PREFIX)base/%.h,$(call FUN_INSTALL_PKG_PREFIX,base)%.h,$(EHCLIB_ASIS_ALL_SRC_base_ASIS))
 EHCLIB_ASIS_ALL_DRV_array_ASIS			:= $(patsubst $(EHCLIB_SRC_PREFIX)array/%.h,$(call FUN_INSTALL_PKG_PREFIX,array)%.h,$(EHCLIB_ASIS_ALL_SRC_array_ASIS))
-EHCLIB_ASIS_ALL_DRV_oldtime_ASIS			:= $(patsubst $(EHCLIB_SRC_PREFIX)oldtime/%.h,$(call FUN_INSTALL_PKG_PREFIX,oldtime)%.h,$(EHCLIB_ASIS_ALL_SRC_oldtime_ASIS))
+EHCLIB_ASIS_ALL_DRV_oldtime_ASIS			:= $(patsubst $(EHCLIB_SRC_PREFIX)old-time/%.h,$(call FUN_INSTALL_PKG_PREFIX,old-time)%.h,$(EHCLIB_ASIS_ALL_SRC_oldtime_ASIS))
 EHCLIB_ASIS_ALL_DRV_unix_ASIS			:= $(patsubst $(EHCLIB_SRC_PREFIX)unix/%.h,$(call FUN_INSTALL_PKG_PREFIX,unix)%.h,$(EHCLIB_ASIS_ALL_SRC_unix_ASIS))
 EHCLIB_ASIS_ALL_DRV_directory_ASIS			:= $(patsubst $(EHCLIB_SRC_PREFIX)directory/%.h,$(call FUN_INSTALL_PKG_PREFIX,directory)%.h,$(EHCLIB_ASIS_ALL_SRC_directory_ASIS))
 
@@ -269,7 +270,7 @@ $(EHCLIB_ASIS_ALL_DRV_array_ASIS): $(call FUN_INSTALL_PKG_PREFIX,array)%.h : $(E
 	cp $< $@
 	touch $@
 
-$(EHCLIB_ASIS_ALL_DRV_oldtime_ASIS): $(call FUN_INSTALL_PKG_PREFIX,oldtime)%.h : $(EHCLIB_SRC_PREFIX)oldtime/%.h
+$(EHCLIB_ASIS_ALL_DRV_oldtime_ASIS): $(call FUN_INSTALL_PKG_PREFIX,old-time)%.h : $(EHCLIB_SRC_PREFIX)old-time/%.h
 	mkdir -p $(@D)
 	cp $< $@
 	touch $@
