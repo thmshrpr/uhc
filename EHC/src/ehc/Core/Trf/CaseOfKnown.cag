@@ -1,0 +1,23 @@
+%%[93 hs module {%{EH}Core.Trf.CaseOfKnown} import ({%{EH}Base.HsName}, {%{EH}Core}, {%{EH}Base.Common}, {%{EH}AbstractCore}, {%{EH}Ty} )  
+%%]
+
+%%[93 ag import ({Core/AbsSyn})
+{
+
+caseOfCase :: CExpr -> CExpr
+caseOfCase expr = 
+        let t = wrap_CExpr (sem_CExpr expr) (Inh_CExpr {})
+        in trf_Syn_CExpr t
+}
+
+WRAPPER CExpr
+
+ATTR AllCodeNT [ | | trf : SELF]
+
+SEM CExpr
+        | Case lhs.trf = case @expr.trf of
+                                CExpr_App (CExpr_Tup tag) args -> case filter (\ (CAlt_Alt (CPat_Con ptag _ _) _) -> tag == ptag) @alts.trf of
+                                                                []                                            -> @trf
+                                                                ((CAlt_Alt (CPat_Con _ rest binds) expr) : _) -> @trf {- TODO:Do some substitution -} 
+                                _                          -> @trf
+%%]
