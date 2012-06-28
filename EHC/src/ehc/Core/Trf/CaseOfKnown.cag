@@ -1,4 +1,4 @@
-%%[93 hs module {%{EH}Core.Trf.CaseOfKnown} import ({%{EH}Base.HsName}, {%{EH}Core}, {%{EH}Base.Common}, {%{EH}AbstractCore}, {%{EH}Ty} )  
+%%[93 hs module {%{EH}Core.Trf.CaseOfKnown} import ({%{EH}Base.HsName}, {%{EH}Core}, {%{EH}Base.Common}, {%{EH}AbstractCore}, {%{EH}Ty}, {%{EH}Core.Trf.Subst}(cexprSubst))  
 %%]
 
 %%[93 ag import ({Core/AbsSyn})
@@ -8,6 +8,14 @@ caseOfCase :: CExpr -> CExpr
 caseOfCase expr = 
         let t = wrap_CExpr (sem_CExpr expr) (Inh_CExpr {})
         in trf_Syn_CExpr t
+
+getfldNm :: CPatFld -> HsName
+getfldNm (CPatFld_Fld _ _ fldNm _) = fldNm
+
+getArgs :: CExpr -> [CExpr]
+getArgs (CExpr_App func arg) = arg : getArgs func
+getArgs _                    = []
+
 }
 
 WRAPPER CExpr
@@ -15,9 +23,21 @@ WRAPPER CExpr
 ATTR AllCodeNT [ | | trf : SELF]
 
 SEM CExpr
-        | Case lhs.trf = case @expr.trf of
-                                CExpr_App (CExpr_Tup tag) args -> case filter (\ (CAlt_Alt (CPat_Con ptag _ _) _) -> tag == ptag) @alts.trf of
-                                                                []                                            -> @trf
-                                                                ((CAlt_Alt (CPat_Con _ rest binds) expr) : _) -> @trf {- TODO:Do some substitution -} 
-                                _                          -> @trf
+        | Case lhs.trf = maybe @trf id $ do 
+                            cTag <- @expr.con
+                            let possibleAlts = filter (\ (CAlt_Alt (CPat_Con pTag _ _) _) -> cTag == pTag) @alts.trf
+                            case possibleAlts of
+                                []                                            -> Nothing 
+                                ((CAlt_Alt (CPat_Con _ rest binds) expr) : _) -> let args = reverse (getArgs expr)
+                                                                                     nms  = map getfldNm binds
+                                                                                 in  return $ foldr (\ (arg,bind) expr -> cexprSubst bind expr arg) expr (zip args nms)
+                                
+
+ATTR CExpr [ | | con : {Maybe CTag} ] 
+
+SEM CExpr
+        | App lhs.con = @func.con 
+        | Tup lhs.con = Just @tag
+        -- vars should look themselves up to see if their are constructor tags
+        | * - App Tup lhs.con = Nothing
 %%]
