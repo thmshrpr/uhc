@@ -1,4 +1,4 @@
-%%[93 hs module {%{EH}Core.Trf.Inline} import ({%{EH}Ty},{%{EH}Base.Common},{%{EH}LamInfo},{%{EH}Core},{%{EH}AbstractCore}, {%{EH}Core.Trf.Subst} (apply), {%{EH}Core.Trf.Rewrite}(ConvMp(..)), qualified Data.Map as Map, Debug.Trace(trace), Data.Maybe(fromJust,isJust,isNothing), Control.Monad(when))
+%%[93 hs module {%{EH}Core.Trf.Inline} import ({%{EH}Ty},{%{EH}Base.Common},{%{EH}LamInfo},{%{EH}Core},{%{EH}AbstractCore}, {%{EH}Core.Trf.Subst} (apply), {%{EH}Core.Trf.Rewrite}(ConvMp(..)), qualified Data.Map as Map, Debug.Trace(trace), Data.Maybe(fromJust,isJust,isNothing), Control.Monad(when), {%{EH}Core.Trf.CaseOfKnown}(caseOfKnown))
 %%]
 
 %%[93 ag import ({Core/AbsSyn})
@@ -52,13 +52,47 @@ SEM CBind
 
 SEM CExpr 
         | App lhs.inlined = if @func.isInlinable 
-                            then {- trace ("Inlining " ++ show @func.inlined) $ -} inline @lhs.funcMp @lhs.convMp $ (apply @func.inlined @arg.inlined)
+                            then {- trace ("Inlining " ++ show @func.inlined) $ -} inline @lhs.funcMp @lhs.convMp $ (apply @func.inlined @arg.inlined) -- application may have triggered new opportunies, hence the recursive call.
                             else acoreApp1 @func.inlined @arg.inlined
         | Var lhs.inlined = if @isInlinable
                             then fromJust (Map.lookup (acbrefNm @ref) @lhs.funcMp)
                             else @inlined
-        | Case lhs.inlined = acoreCaseDflt @expr.original @alts.inlined (Just @dflt.inlined) -- no inlining case scrutinees for now
+        | Case lhs.inlined = maybe (acoreCaseDflt @expr.original @alts.inlined (Just @dflt.inlined))
+                               (inline @lhs.funcMp @lhs.convMp)
+                               (do { scrutineeNm <- @expr.varName
+                                   ; scrutinee   <- Map.lookup scrutineeNm @lhs.funcMp
+                                   ; ctag        <- getConstructor scrutinee --what if it is wrapped in a let clause?, with result expression wrapped in same let clause
+                                   ; let cargs = reverse (getArgs scrutinee)
+                                   ; let alts = @alts.altPairs
+                                   ; caseOfKnown ctag cargs alts -- Call case of known
+                                   })
 
+{
+getConstructor :: CExpr -> Maybe CTag
+getConstructor (CExpr_App func arg) = getConstructor func
+getConstructor (CExpr_Tup tag)      = Just tag
+getConstructor _                    = Nothing 
+
+getArgs :: CExpr -> [CExpr] 
+getArgs (CExpr_App func arg) = arg : getArgs func
+getArgs _                    = []
+}
+
+
+ATTR AllCodeNT [ | | self : SELF ]
+
+ATTR CAlt [ | | altPair : {(CPat,CExpr)} ]
+
+SEM CAlt
+        | Alt lhs.altPair = (@pat.self, @expr.inlined)
+
+
+ATTR CAltL [ | | altPairs : {[(CPat, CExpr)]} ]
+
+SEM CAltL
+        | Cons lhs.altPairs = @hd.altPair : @tl.altPairs
+        | Nil  lhs.altPairs = []  
+                                
 ATTR CExpr [ | | isInlinable : Bool ]
 
 SEM CExpr
