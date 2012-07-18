@@ -3,21 +3,25 @@
 
 %%[93 ag import ({Core/AbsSyn})
 {
+caseOfKnown :: CTag -> [CExpr] -> [(CPat,CExpr)] -> Maybe CExpr
+caseOfKnown ctag cargs calts = do (binds,expr) <- match ctag calts
+                                  let substs = zip cargs binds
+                                  return $ foldr (\ (carg,bind) expr -> cexprSubst bind expr carg) expr substs
 
-caseOfCase :: CExpr -> CExpr
-caseOfCase expr = 
-        let t = wrap_CExpr (sem_CExpr expr) (Inh_CExpr {})
-        in trf_Syn_CExpr t
+-- Only matches identical CTags, not vars that would work or the default, which would be preferred.
+
+match :: CTag -> [(CPat,CExpr)] -> Maybe ([HsName],CExpr)
+match ctag x@((CPat_Con ptag _ binds, expr):xs)
+        | ctag == ptag = Just (map getfldNm binds,expr) -- vars to be subst and the expr                           
+        | otherwise    = match ctag xs 
+match ctag (_:xs) = match ctag xs
+match ctag []     = Nothing
 
 getfldNm :: CPatFld -> HsName
 getfldNm (CPatFld_Fld _ _ fldNm _) = fldNm
-
-getArgs :: CExpr -> [CExpr]
-getArgs (CExpr_App func arg) = arg : getArgs func
-getArgs _                    = []
-
 }
 
+%%]
 WRAPPER CExpr
 
 ATTR AllCodeNT [ | | trf : SELF]
@@ -40,4 +44,3 @@ SEM CExpr
         | Tup lhs.con = Just @tag
         -- vars should look themselves up to see if their are constructor tags
         | * - App Tup lhs.con = Nothing
-%%]
