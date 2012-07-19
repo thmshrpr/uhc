@@ -1,10 +1,10 @@
-%%[93 hs module {%{EH}Core.Trf.CaseOfKnown} import ({%{EH}Base.HsName}, {%{EH}Core}, {%{EH}Base.Common}, {%{EH}AbstractCore}, {%{EH}Ty}, {%{EH}Core.Trf.Subst}(cexprSubst))  
+%%[93 hs module {%{EH}Core.Trf.CaseOfKnown} import ({%{EH}Base.HsName}, {%{EH}Core}, {%{EH}Base.Common}, {%{EH}AbstractCore}, {%{EH}Ty}, {%{EH}Core.Trf.Subst}(cexprSubst), Debug.Trace)  
 %%]
 
 %%[93 ag import ({Core/AbsSyn})
 {
 caseOfKnown :: CTag -> [CExpr] -> [(CPat,CExpr)] -> Maybe CExpr
-caseOfKnown ctag cargs calts = do (binds,expr) <- match ctag calts
+caseOfKnown ctag cargs calts = do (binds,expr) <- (case match ctag calts of {Nothing -> trace "CoK: no match found" Nothing; x -> x})
                                   let substs = zip cargs binds
                                   return $ foldr (\ (carg,bind) expr -> cexprSubst bind expr carg) expr substs
 
