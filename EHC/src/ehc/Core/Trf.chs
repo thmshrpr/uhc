@@ -50,7 +50,7 @@
 %%]
 %%[(8 codegen grin) hs import(Debug.Trace)
 %%]
-%%[93 import ({%{EH}Core.Trf.Fusion})
+%%[93 import ({%{EH}Core.Trf.Fusion},{%{EH}Core.Trf.ElimDeadCode})
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -157,6 +157,7 @@ trfCore opts dataGam modNm trfcore
                       (do { t_let_unrec
                           ; t_fusion
                           ; t_ren_uniq emptyRenUniqOpts
+                          ; t_elim_dead_code
                           })
 %%]] 
                  -- put in A-normal form, where args to app only may be identifiers
@@ -224,6 +225,7 @@ trfCore opts dataGam modNm trfcore
         t_initial       = liftTrf  "initial"            $ id
 %%[[93
         t_fusion        = liftTrf  "fusion"             $ cmodTrfFusion (trfcoreInhLamMp trfcore)
+        t_elim_dead_code = liftTrf "elim-dead-code"     $ cmodTrfElimDeadCode
 %%]]
         t_eta_red       = liftTrf  "eta-red"            $ cmodTrfEtaRed
         t_erase_ty      = liftTrf2 "erase-ty" lamMpPropagate

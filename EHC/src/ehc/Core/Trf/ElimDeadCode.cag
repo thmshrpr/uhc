@@ -1,0 +1,41 @@
+%%[93 hs module {%{EH}Core.Trf.ElimDeadCode} import ({%{EH}Base.Common},{%{EH}Core},{%{EH}Ty}, qualified Data.Set as Set, Data.Set(Set(..)))
+%%]
+
+
+%%[93 ag import ({Core/AbsSyn})
+-- Assumes all var names are unique!
+
+{
+cmodTrfElimDeadCode :: CModule -> CModule
+cmodTrfElimDeadCode cmod = 
+        let t = wrap_CodeAGItf (sem_CodeAGItf (CodeAGItf_AGItf cmod))
+                               (Inh_CodeAGItf {})
+        in trf_Syn_CodeAGItf t
+}
+
+WRAPPER CodeAGItf 
+
+ATTR AllCodeNT [ | | varS USE {`Set.union`} {Set.empty} : {Set HsName} ]
+
+SEM CExpr
+        | Var lhs.varS = Set.singleton $ acbrefNm @ref
+
+ATTR CodeAGItf [ | | trf: CModule]
+ATTR AllCodeNT [ | | trf : SELF]
+
+SEM CExpr
+        | Let lhs.trf = if Set.fold (\ a b -> a `elem` @binds.nms || b) False @body.varS
+                        then @trf
+                        else @body.trf
+
+ATTR CBind [ | | nm : {HsName} ]
+
+SEM CBind 
+        | Bind lhs.nm = @nm
+
+ATTR CBindL [ | | nms : {[HsName]} ]
+
+SEM CBindL
+        | Cons lhs.nms = @hd.nm : @tl.nms
+        | Nil  lhs.nms = [] 
+%%]
