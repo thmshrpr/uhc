@@ -14,6 +14,12 @@ inline funcMp convMp expr =
                                       }
                            )
         in inlined_Syn_CExpr t
+
+caseOfCase :: CExpr -> [(CPat, CExpr)] -> CExpr -> CAltL -> CExpr -> CExpr
+caseOfCase e ps pdflt qs rdflt = acoreCaseDflt e (pushCases ps) (Just $ acoreCaseDflt pdflt qs (Just rdflt))  
+   where
+     pushCases :: [(CPat, CExpr)] -> CAltL 
+     pushCases = map (\ (p,r) -> CAlt_Alt p (acoreCaseDflt r qs (Just rdflt)))
 }
 
 {
