@@ -3,6 +3,8 @@
 
 %%[93 ag import ({Core/AbsSyn})
 
+-- CURRENTLY BROKEN FOR TYPECLASSES
+
 { 
 inline :: FuncMp -> ConvMp -> CExpr -> CExpr
 inline funcMp convMp expr = 
@@ -70,8 +72,8 @@ SEM CExpr
 
 {
 getConstructorExpr :: CExpr -> Maybe CExpr
-getConstructorExpr (CExpr_Ann (CExprAnn_Ty (Ty_Con _)) expr) = Just expr
-getConstructorExpr _			                     = Nothing
+getConstructorExpr (CExpr_Ann _ expr) = Just expr
+getConstructorExpr _	              = Nothing
 
 getConstructor :: CExpr -> Maybe CTag
 getConstructor (CExpr_App func arg)       = getConstructor func
