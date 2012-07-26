@@ -65,18 +65,42 @@ SEM CExpr
         | Var lhs.inlined = if @isInlinable
                             then fromJust (Map.lookup (acbrefNm @ref) @lhs.funcMp)
                             else @inlined
-        | Case lhs.inlined = trace "Looking to apply CoK" $ maybe (acoreCaseDflt @expr.original @alts.inlined (Just @dflt.inlined))
+        | Case lhs.inlined = trace "Looking to apply CoK" $ maybe @loc.coc 
                                (inline @lhs.funcMp @lhs.convMp)
-                               (do { scrutineeNm <- @expr.varName
-                                   ; scrutinee   <- case Map.lookup scrutineeNm @lhs.funcMp of { Nothing -> trace "Cok: No case scrutinee found in funcMp" Nothing; Just x -> trace ("Cok: Found scrutinee " ++ show x) (Just x) } 
-                                   ; constExpr   <- getConstructorExpr scrutinee --what if it is wrapped in a let clause?, with result expression wrapped in same let clause
+                               (do {
+                                   ; constExpr   <- getConstructorExpr @loc.coc --what if it is wrapped in a let clause?, with result expression wrapped in same let clause
                                    ; ctag        <- getConstructor constExpr 
-				   ; let cargs   = reverse (getArgs constExpr)
-                                   ; let alts    = @alts.altPairs
+                                   ; let cargs   = reverse (getArgs constExpr)
+                                   ; let alts    = map (\ (CAlt_Alt p e) -> (p,e)) (fst (getCaseAlts @loc.coc))
                                    ; trace "CoK: Calling CoK" $ caseOfKnown ctag cargs alts -- Call case of known
                                    })
 
+ATTR AllCodeNT [ | | coc : SELF ]
+
+SEM CExpr 
+        | Case loc.coc = trace "Looking to apply CoC" $ maybe (acoreCaseDflt @expr.original @alts.inlined (Just @dflt.inlined))
+                           (inline @lhs.funcMp @lhs.convMp) 
+                           (do { scrutineeNm <- @expr.varName
+                               ; scrutinee   <- case Map.lookup scrutineeNm @lhs.funcMp of { Nothing -> trace "CoC: No case scrutinee found in funcMp" Nothing; Just x -> trace ("CoC: Found scrutinee " ++ show x) (Just x) }
+                               ; if isCase scrutinee 
+                                 then let e          = getCaseExpr scrutinee 
+                                          (qs,qdflt) = getCaseAlts scrutinee
+                                      in trace "Case statement found, calling CoC" $ return $ caseOfCase e @alts.altPairs @dflt.inlined qs qdflt
+                                 else trace "No case statement found in scrutinee" Nothing
+                               })
+
 {
+
+isCase :: CExpr -> Bool
+isCase (CExpr_Case _ _ _) = True
+isCase _                  = False
+
+getCaseExpr :: CExpr -> CExpr
+getCaseExpr (CExpr_Case expr _ _) = expr  
+
+getCaseAlts :: CExpr -> (CAltL, CExpr)
+getCaseAlts (CExpr_Case _ alts dflt) = (alts,dflt)
+
 getConstructorExpr :: CExpr -> Maybe CExpr
 getConstructorExpr (CExpr_Ann _ expr) = Just expr
 getConstructorExpr _	              = Nothing
