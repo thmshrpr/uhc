@@ -68,7 +68,9 @@ SEM CExpr
         | Case lhs.inlined = trace "Looking to apply CoK" $ maybe @loc.coc 
                                (inline @lhs.funcMp @lhs.convMp)
                                (do {
-                                   ; constExpr   <- getConstructorExpr @loc.coc --what if it is wrapped in a let clause?, with result expression wrapped in same let clause
+				   ; scrutineeNm <- case (getCaseExpr @loc.coc) of {CExpr_Var ref -> Just $ acbrefNm ref; _ -> Nothing}
+                                   ; scrutinee   <- case Map.lookup scrutineeNm @lhs.funcMp of { Nothing -> trace "CoK: No case scrutinee found in funcMp" Nothing; Just x -> trace ("CoK: Found scrutinee " ++ show x) (Just x) }
+                                   ; constExpr   <- getConstructorExpr scrutinee --what if it is wrapped in a let clause?, with result expression wrapped in same let clause
                                    ; ctag        <- getConstructor constExpr 
                                    ; let cargs   = reverse (getArgs constExpr)
                                    ; let alts    = map (\ (CAlt_Alt p e) -> (p,e)) (fst (getCaseAlts @loc.coc))
