@@ -65,33 +65,38 @@ SEM CExpr
         | Var lhs.inlined = if @isInlinable
                             then fromJust (Map.lookup (acbrefNm @ref) @lhs.funcMp)
                             else @inlined
-        | Case lhs.inlined = trace "Looking to apply CoK" $ maybe (acoreCaseDflt @expr.original @alts.inlined (Just @dflt.inlined)) --failure! everything goes back to normal
-                               (inline @lhs.funcMp @lhs.convMp . (\ cok -> (foldr (\ (categ, bind) expr -> acoreLetBase categ bind expr) cok @loc.scrutineeLets))) -- float the lets and call inline
-                               (do { scrutineeExpr <- @loc.scrutineeExpr
-                                   ; let coc = case @loc.coc of { Nothing -> (acoreCaseDflt scrutineeExpr @alts.inlined (Just @dflt.inlined)); Just coc -> coc } --did coc succeed? 
-                                   ; scrutinee   <- getCaseExpr coc
-                                   ; constExpr   <- getConstructorExpr scrutinee
-                                   ; ctag        <- getConstructor constExpr 
-                                   ; let cargs   = reverse (getArgs constExpr)
-                                   ; let alts    = map (\ (CAlt_Alt p e) -> (p,e)) ((fst . fromJust) (getCaseAlts coc))
-                                   ; trace "CoK: Calling CoK" $ caseOfKnown ctag cargs alts -- Call case of known
-                                   })
+	| Case lhs.inlined = maybe (acoreCaseDflt @expr.original @alts.inlined (Just @dflt.inlined)) (inline @lhs.funcMp @lhs.convMp) (orElse @loc.coc @loc.cok)
 
-
-SEM CExpr 
-        | Case loc.coc = do { scrutineeExpr <- @loc.scrutineeExpr
-                            ; e          <- getCaseExpr scrutineeExpr 
-                            ; (qs,qdflt) <- getCaseAlts scrutineeExpr
-                            ; trace "Case statement found, calling CoC" $ (return $ caseOfCase e @alts.altPairs @dflt.inlined qs qdflt)
-                            }
-
+SEM CExpr
+	| Case loc.cok = trace "Looking to apply CoK" $ 
+                           (do { scrutineeExpr <- @loc.scrutineeExpr
+                               ; constExpr   <- getConstructorExpr scrutineeExpr 
+                               ; ctag        <- getConstructor constExpr
+                               ; let cargs   = reverse (getArgs constExpr)
+                               ; let alts    = @alts.altPairs
+                               ; cok <- trace "CoK: Calling CoK" $ caseOfKnown ctag cargs alts
+                               ; let cok' = foldr (\ (cat,bind) e -> acoreLetBase cat bind e) cok @loc.scrutineeLets
+                               ; return cok'
+                               })
+        | Case loc.coc = trace "Looking to apply CoC" $ 
+			   do { scrutineeExpr <- @loc.scrutineeExpr
+                              ; e          <- getCaseExpr scrutineeExpr 
+                              ; (qs,qdflt) <- getCaseAlts scrutineeExpr
+                              ; let coc = foldr (\ (categ,binds) expr -> acoreLetBase categ binds expr) (trace "Case statement found in scrutinee, calling CoC" $ caseOfCase e @alts.altPairs @dflt.inlined qs qdflt) @loc.scrutineeLets
+                              ; return coc
+                              }
 
 SEM CExpr 
        | Case loc.scrutinee = do scrutineeNm <- @expr.varName 
                                  case Map.lookup scrutineeNm @lhs.funcMp of { Nothing -> trace "No case scrutinee found in funcMp" Nothing; Just x -> trace ("Found scrutinee " ++ show x) (Just x) }
        | Case loc.scrutineeLets = maybe [] getLets @loc.scrutinee
        | Case loc.scrutineeExpr = @loc.scrutinee >>= (return . getLetExpr)
+
 {
+orElse :: Maybe a -> Maybe a -> Maybe a
+orElse x y = case x of
+		Just _  -> x
+		Nothing -> y
 
 getLets :: CExpr -> [(CBindCateg,CBindL)]
 getLets (CExpr_Let categ binds expr) = (categ, binds) : getLets expr
