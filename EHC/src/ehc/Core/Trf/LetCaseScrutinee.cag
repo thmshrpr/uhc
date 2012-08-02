@@ -1,0 +1,51 @@
+%%[93 hs module {%{EH}Core.Trf.LetCaseScrutinee} import ({%{EH}Base.Common}, {%{EH}Ty}) export (cmodTrfLetCaseScrutinee)
+%%]
+
+%%[(8 codegen) hs import({%{EH}AbstractCore},{%{EH}Core})
+%%]
+
+%%[93 ag import ({Core/AbsSyn})
+{
+cmodTrfLetCaseScrutinee :: HsName -> UID -> CModule -> CModule
+cmodTrfLetCaseScrutinee modNm uniq cmod
+  = let t = wrap_CodeAGItf (sem_CodeAGItf (CodeAGItf_AGItf cmod))
+                           (Inh_CodeAGItf { gUniq_Inh_CodeAGItf = uniq
+                                          , modNm_Inh_CodeAGItf = modNm
+                                          })
+    in cTrf_Syn_CodeAGItf t
+}
+
+ 
+WRAPPER CodeAGItf
+
+ATTR AllCodeNT CodeAGItf [ modNm: HsName | | ]
+
+ATTR AllCodeNT [ | gUniq: UID | ]
+ATTR CodeAGItf [ gUniq: UID | | ]
+
+SEM CExpr
+  | App         (func.gUniq,loc.lUniq)      =   mkNewUID @lhs.gUniq
+  | Lam         (body.gUniq,loc.lUniq,loc.lUniq2)
+                                            =   mkNewLevUID2 @lhs.gUniq
+  | Let         (binds.gUniq,loc.lUniq)     =   mkNewUID @lhs.gUniq
+  | Case TupDel TupIns TupUpd
+                (expr.gUniq,loc.lUniq)      =   mkNewUID @lhs.gUniq
+
+ATTR AllCodeNT [ | | cTrf : SELF ]
+ATTR CodeAGItf [ | | cTrf : CModule]
+ 
+SEM CExpr
+  | Case lhs.cTrf = if @expr.isVar 
+                     then acoreCaseDflt @expr.cTrf @alts.cTrf (Just @dflt.cTrf)
+                     else acoreLet acoreBindcategStrict [(acoreBind1 @trNm @expr.cTrf)] (acoreCaseDflt (acoreVar @trNm) @alts.cTrf (Just @dflt.cTrf))
+
+SEM CExpr
+  | Case loc.trNm = hsnQualUniqify @lhs.modNm $ uidHNm @lUniq
+
+ATTR CExpr [ | | isVar : Bool ]
+
+SEM CExpr
+  | Var lhs.isVar     = True
+  | * - Var lhs.isVar = False
+
+%%]

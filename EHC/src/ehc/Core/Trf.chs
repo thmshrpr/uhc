@@ -50,7 +50,7 @@
 %%]
 %%[(8 codegen grin) hs import(Debug.Trace)
 %%]
-%%[93 import ({%{EH}Core.Trf.Fusion},{%{EH}Core.Trf.ElimDeadCode})
+%%[93 import ({%{EH}Core.Trf.Fusion},{%{EH}Core.Trf.ElimDeadCode}, {%{EH}Core.Trf.LetCaseScrutinee})
 %%]
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -154,8 +154,10 @@ trfCore opts dataGam modNm trfcore
                ; t_elim_trivapp
 %%[[93
                ; when (ehcOptFusion opts) 
-                      (do { t_let_unrec
+                      (do { u1 <- modifyGets uniq 
+                          ; t_let_unrec
                           ; t_fusion
+                          ; t_let_case_scrutinee u1
                           ; t_ren_uniq emptyRenUniqOpts
                           ; t_elim_dead_code
                           })
@@ -224,8 +226,9 @@ trfCore opts dataGam modNm trfcore
 
         t_initial       = liftTrf  "initial"            $ id
 %%[[93
-        t_fusion        = liftTrf  "fusion"             $ cmodTrfFusion (trfcoreInhLamMp trfcore)
-        t_elim_dead_code = liftTrf "elim-dead-code"     $ cmodTrfElimDeadCode
+        t_fusion               = liftTrf "fusion"             $ cmodTrfFusion (trfcoreInhLamMp trfcore)
+        t_elim_dead_code       = liftTrf "elim-dead-code"     $ cmodTrfElimDeadCode
+        t_let_case_scrutinee u = liftTrf "let-case-scrutinee" $ cmodTrfLetCaseScrutinee modNm u
 %%]]
         t_eta_red       = liftTrf  "eta-red"            $ cmodTrfEtaRed
         t_erase_ty      = liftTrf2 "erase-ty" lamMpPropagate
