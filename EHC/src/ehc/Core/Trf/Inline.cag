@@ -15,11 +15,11 @@ inline funcMp convMp expr =
                            )
         in inlined_Syn_CExpr t
 
-caseOfCase :: CExpr -> [(CPat, CExpr)] -> CExpr -> CAltL -> CExpr -> CExpr
-caseOfCase e ps pdflt qs rdflt = acoreCaseDflt e (pushCases ps) (Just $ acoreCaseDflt pdflt qs (Just rdflt))  
+caseOfCase :: CExpr -> CAltL -> CExpr -> CAltL -> CExpr -> CExpr
+caseOfCase e outerAlts outerDflt innerAlts innerDflt = acoreCaseDflt e (pushCases outerAlts outerDflt innerAlts) (Just $ acoreCaseDflt innerDflt outerAlts (Just outerDflt))  
    where
-     pushCases :: [(CPat, CExpr)] -> CAltL 
-     pushCases = map (\ (p,r) -> CAlt_Alt p (acoreCaseDflt r qs (Just rdflt)))
+     pushCases :: CAltL -> CExpr -> CAltL -> CAltL
+     pushCases outer dflt inner = map (\ (CAlt_Alt p r) -> CAlt_Alt p (acoreCaseDflt r outer (Just dflt))) inner
 }
 
 {
@@ -79,11 +79,11 @@ SEM CExpr
                                ; return cok'
                                })
         | Case loc.coc = trace "Looking to apply CoC" $ 
-			   do { scrutineeExpr <- @loc.scrutineeExpr
-                              ; e          <- getCaseExpr scrutineeExpr 
-                              ; (qs,qdflt) <- getCaseAlts scrutineeExpr
-                              ; let coc = foldr (\ (categ,binds) expr -> acoreLetBase categ binds expr) (trace "Case statement found in scrutinee, calling CoC" $ caseOfCase e @alts.altPairs @dflt.inlined qs qdflt) @loc.scrutineeLets
-                              ; return coc
+			   do { scrutineeExpr         <- @loc.scrutineeExpr -- the thing being scrutinised
+                              ; e                     <- getCaseExpr scrutineeExpr  -- is it another case? If so, return the scrutinee
+                              ; (innerAlts,innerDflt) <- getCaseAlts scrutineeExpr -- then get the alts and the default
+                              ; let coc = foldr (\ (categ,binds) expr -> acoreLetBase categ binds expr) (trace "Case statement found in scrutinee, calling CoC" $ caseOfCase e @alts.inlined @dflt.inlined innerAlts innerDflt) @loc.scrutineeLets
+                              ; trace ("CoC result: " ++ show coc) $return coc
                               }
 
 SEM CExpr 
