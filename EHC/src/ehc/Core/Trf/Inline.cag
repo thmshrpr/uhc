@@ -68,8 +68,11 @@ SEM CExpr
 SEM CExpr
 	| Case loc.cok = trace "Looking to apply CoK" $ 
                            (do { scrutineeExpr <- @loc.scrutineeExpr
-                               ; constExpr   <- getConstructorExpr scrutineeExpr 
+                               ; trace ("CoK: Found scrutinee: " ++ show scrutineeExpr) $ return ()
+                               ; constExpr   <- return scrutineeExpr
+			       ; trace ("CoK: Found constructor expression: " ++ show constExpr) $ return () 
                                ; ctag        <- getConstructor constExpr
+			       ; trace ("CoK: Found constructor: " ++ show constExpr) $ return ()
                                ; let cargs   = reverse (getArgs constExpr)
                                ; let alts    = @alts.altPairs
                                ; cok <- trace "CoK: Calling CoK" $ caseOfKnown ctag cargs alts
@@ -83,6 +86,8 @@ SEM CExpr
                               ; let coc = foldr (\ (categ,binds) expr -> acoreLetBase categ binds expr) (trace "Case statement found in scrutinee, calling CoC" $ caseOfCase e @alts.inlined @dflt.inlined innerAlts innerDflt) @loc.scrutineeLets
                               ; trace ("CoC result: " ++ show coc) $return coc
                               }
+SEM CExpr
+       | Ann lhs.inlined = trace "Removing an annotation" $ @expr.inlined
 
 SEM CExpr 
        | Case loc.scrutinee = do scrutineeNm <- @expr.varName 
@@ -119,9 +124,10 @@ getCaseAlts :: CExpr -> Maybe (CAltL, CExpr)
 getCaseAlts (CExpr_Case _ alts dflt) = Just (alts,dflt)
 getCaseAlts _                        = Nothing
 
-getConstructorExpr :: CExpr -> Maybe CExpr
-getConstructorExpr (CExpr_Ann _ expr) = Just expr
-getConstructorExpr _	              = Nothing
+-- getConstructorExpr :: CExpr -> Maybe CExpr
+-- getConstructorExpr (CExpr_Ann _ expr) = getConstructorExpr expr
+-- getConstructorExpr expr	              = Just expr
+
 
 getConstructor :: CExpr -> Maybe CTag
 getConstructor (CExpr_App func arg)       = getConstructor func
