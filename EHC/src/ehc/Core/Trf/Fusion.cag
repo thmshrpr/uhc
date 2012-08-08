@@ -72,8 +72,6 @@ SEM CExpr
 -- Gather the names of conversions and their role into a Map 
 ------------------------------------------------------------------------------
 
-ATTR AllCodeNT [ | | original : SELF]
-
 ATTR AllCodeNT [ convMp : ConvMp | | ]
 
 SEM CodeAGItf

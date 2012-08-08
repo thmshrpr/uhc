@@ -30,8 +30,6 @@ type FuncMp = Map.Map HsName CExpr
     
 WRAPPER CExpr
 
-ATTR AllCodeNT [ | | original : SELF ]
-
 ATTR AllCodeNT [ funcMp : FuncMp convMp : ConvMp | | inlined : SELF ]
 
 SEM CExpr
@@ -65,7 +63,7 @@ SEM CExpr
         | Var lhs.inlined = if @isInlinable
                             then fromJust (Map.lookup (acbrefNm @ref) @lhs.funcMp)
                             else @inlined
-	| Case lhs.inlined = maybe (acoreCaseDflt @expr.original @alts.inlined (Just @dflt.inlined)) (inline @lhs.funcMp @lhs.convMp) (orElse @loc.coc @loc.cok)
+	| Case lhs.inlined = maybe (acoreCaseDflt @expr.inlined @alts.inlined (Just @dflt.inlined)) (inline @lhs.funcMp @lhs.convMp) (orElse @loc.coc @loc.cok)
 
 SEM CExpr
 	| Case loc.cok = trace "Looking to apply CoK" $ 
