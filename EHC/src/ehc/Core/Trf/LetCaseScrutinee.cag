@@ -1,7 +1,10 @@
 %%[93 hs module {%{EH}Core.Trf.LetCaseScrutinee} import ({%{EH}Base.Common}, {%{EH}Ty}) export (cmodTrfLetCaseScrutinee)
 %%]
 
-%%[(8 codegen) hs import({%{EH}AbstractCore},{%{EH}Core})
+%%[93 hs import (Debug.Trace, Data.Set(Set(..)), qualified Data.Set as Set, Data.Maybe(fromMaybe))
+%%]
+
+%%[93 hs import({%{EH}AbstractCore},{%{EH}Core})
 %%]
 
 %%[93 ag import ({Core/AbsSyn})
@@ -31,21 +34,43 @@ SEM CExpr
   | Case TupDel TupIns TupUpd
                 (expr.gUniq,loc.lUniq)      =   mkNewUID @lhs.gUniq
 
+ATTR AllCodeNT [ sBindS : {Set HsName} | | ]
+
+SEM CodeAGItf
+  | AGItf module.sBindS = Set.empty
+
+SEM CExpr
+  | Let body.sBindS = if @categ == acoreBindcategStrict
+                      then foldr Set.insert @lhs.sBindS @binds.nmL
+		      else @lhs.sBindS
+
+ATTR CBindL [ | | nmL : {[HsName]} ]
+
+SEM CBindL
+  | Cons lhs.nmL = @hd.nm : @tl.nmL
+  | Nil lhs.nmL  = []
+
+ATTR CBind [ | | nm : HsName ]
+
+SEM CBind
+  | Bind lhs.nm = @nm
+
 ATTR AllCodeNT [ | | cTrf : SELF ]
 ATTR CodeAGItf [ | | cTrf : CModule]
  
 SEM CExpr
-  | Case lhs.cTrf = if @expr.isVar 
-                     then acoreCaseDflt @expr.cTrf @alts.cTrf (Just @dflt.cTrf)
-                     else acoreLet acoreBindcategStrict [(acoreBind1 @trNm @expr.cTrf)] (acoreCaseDflt (acoreVar @trNm) @alts.cTrf (Just @dflt.cTrf))
+  | Case lhs.cTrf = fromMaybe (trace ("Found non-strictly bound scrutinee" ++ show @expr.cTrf) $ acoreLet acoreBindcategStrict [(acoreBind1 @trNm @expr.cTrf)] (acoreCaseDflt (acoreVar @trNm) @alts.cTrf (Just @dflt.cTrf)))
+                      (do { nm <- @expr.varName 
+                          ; if Set.member nm @lhs.sBindS 
+			    then return $ trace "Found strictly bound scrutinee, nbd" $ acoreCaseDflt @expr.cTrf @alts.cTrf (Just @dflt.cTrf)
+			    else Nothing})  
 
 SEM CExpr
   | Case loc.trNm = hsnQualUniqify @lhs.modNm $ uidHNm @lUniq
 
-ATTR CExpr [ | | isVar : Bool ]
+ATTR CExpr [ | | varName : {Maybe HsName} ]
 
 SEM CExpr
-  | Var lhs.isVar     = True
-  | * - Var lhs.isVar = False
-
+  | Var lhs.varName     = Just $ acbrefNm @ref
+  | * - Var lhs.varName = Nothing
 %%]
