@@ -1,4 +1,4 @@
-%%[93 hs module {%{EH}Core.Trf.Inline} import ({%{EH}Ty},{%{EH}Base.Common},{%{EH}LamInfo},{%{EH}Core},{%{EH}AbstractCore}, {%{EH}Core.Trf.Subst} (apply), {%{EH}Core.Trf.Rewrite}(ConvMp(..)), qualified Data.Map as Map, Debug.Trace(trace), Data.Maybe(fromJust,isJust,isNothing), Control.Monad(when), {%{EH}Core.Trf.CaseOfKnown}(caseOfKnown))
+%%[93 hs module {%{EH}Core.Trf.Inline} import ({%{EH}Ty},{%{EH}Base.Common},{%{EH}LamInfo},{%{EH}Core},{%{EH}AbstractCore}, {%{EH}Core.Trf.Subst} (apply), {%{EH}Core.Trf.Rewrite}(ConvMp(..)), qualified Data.Map as Map, Debug.Trace(trace), Data.Maybe(fromJust,isJust,isNothing), Control.Monad(when), {%{EH}Core.Trf.Subst}(cexprSubst))
 %%]
 
 %%[93 ag import ({Core/AbsSyn})
@@ -20,6 +20,28 @@ caseOfCase e outerAlts outerDflt innerAlts innerDflt = acoreCaseDflt e (pushCase
    where
      pushCases :: CAltL -> CExpr -> CAltL -> CAltL
      pushCases outer dflt inner = map (\ (CAlt_Alt p r) -> CAlt_Alt p (acoreCaseDflt r outer (Just dflt))) inner
+}
+
+{
+caseOfKnown :: CTag -> [CExpr] -> [(CPat,CExpr)] -> Maybe CExpr
+caseOfKnown ctag cargs calts = do (binds,expr) <- (case match ctag calts of {Nothing -> trace "CoK: no match found" Nothing; x -> x})
+                                  trace ("CoK: Found match with binds " ++ show binds ++ " and expr " ++ show expr) $ return ()
+                                  let substs = zip cargs binds
+			          trace ("CoK: Making substs " ++ show substs) $ return ()
+				  let expr' = foldr (\ (carg,bind) expr -> cexprSubst bind expr carg) expr substs
+				  trace ("CoK: result is " ++ show expr') $ return expr'
+
+-- Only matches identical CTags, not vars that would work or the default, which would be preferred.
+
+match :: CTag -> [(CPat,CExpr)] -> Maybe ([HsName],CExpr)
+match ctag x@((CPat_Con ptag _ binds, expr):xs)
+        | ctag == ptag = Just (map getfldNm binds,expr) -- vars to be subst and the expr                           
+        | otherwise    = match ctag xs 
+match ctag (_:xs) = match ctag xs
+match ctag []     = Nothing
+
+getfldNm :: CPatFld -> HsName
+getfldNm (CPatFld_Fld _ _ fldNm _) = fldNm
 }
 
 {
