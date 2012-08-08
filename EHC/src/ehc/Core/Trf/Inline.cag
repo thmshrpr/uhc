@@ -90,8 +90,8 @@ SEM CExpr
        | Ann lhs.inlined = trace "Removing an annotation" $ @expr.inlined
 
 SEM CExpr 
-       | Case loc.scrutinee = do scrutineeNm <- @expr.varName 
-                                 case Map.lookup scrutineeNm @lhs.funcMp of { Nothing -> trace "No case scrutinee found in funcMp" Nothing; Just x -> trace ("Found scrutinee " ++ show x) (Just x) }
+       | Case loc.scrutinee = orElse (do { scrutineeNm <- @expr.varName 
+                                         ; case Map.lookup scrutineeNm @lhs.funcMp of { Nothing -> trace "No case scrutinee found in funcMp" Nothing; Just x -> trace ("Found scrutinee " ++ show x) (Just x) } } ) (Just @expr.inlined)
        | Case loc.scrutineeLets = maybe [] getLets @loc.scrutinee
        | Case loc.scrutineeExpr = @loc.scrutinee >>= (return . getLetExpr)
 
