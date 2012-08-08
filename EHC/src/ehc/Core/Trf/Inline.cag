@@ -52,7 +52,7 @@ SEM CBindAspect
 
 SEM CBind 
         | Bind lhs.gathFuncMp = if not (isNothing (Map.lookup @nm @lhs.convMp))
-                                then trace ("Not adding function " ++ show @nm ++ "because it was a conversion function") $ Map.empty          
+                                then {-trace ("Not adding function " ++ show @nm ++ "because it was a conversion function") $-} Map.empty 
                                 else {-trace ("Adding function " ++ show @nm ++ "to the funcMp") $-} Map.singleton @nm $ head @bindAspects.gathExpr
    
 
@@ -131,8 +131,8 @@ getCaseAlts _                        = Nothing
 
 getConstructor :: CExpr -> Maybe CTag
 getConstructor (CExpr_App func arg)       = getConstructor func
-getConstructor (CExpr_Tup tag)            = trace ("Cok: Found constructor" ++ show tag) $ Just tag
-getConstructor _                          = trace "Cok: No constructor found" $ Nothing 
+getConstructor (CExpr_Tup tag)            = Just tag
+getConstructor _                          = Nothing 
 
 getArgs :: CExpr -> [CExpr] 
 getArgs (CExpr_App func arg) = arg : getArgs func

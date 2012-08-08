@@ -5,8 +5,11 @@
 {
 caseOfKnown :: CTag -> [CExpr] -> [(CPat,CExpr)] -> Maybe CExpr
 caseOfKnown ctag cargs calts = do (binds,expr) <- (case match ctag calts of {Nothing -> trace "CoK: no match found" Nothing; x -> x})
+                                  trace ("CoK: Found match with binds " ++ show binds ++ " and expr " ++ show expr) $ return ()
                                   let substs = zip cargs binds
-                                  return $ foldr (\ (carg,bind) expr -> cexprSubst bind expr carg) expr substs
+			          trace ("CoK: Making substs " ++ show substs) $ return ()
+				  let expr' = foldr (\ (carg,bind) expr -> cexprSubst bind expr carg) expr substs
+				  trace ("CoK: result is " ++ show expr') $ return expr'
 
 -- Only matches identical CTags, not vars that would work or the default, which would be preferred.
 
