@@ -3,7 +3,6 @@
 
 
 %%[93 ag import ({Core/AbsSyn})
--- Assumes all var names are unique!
 
 {
 cmodTrfElimDeadCode :: CModule -> CModule
@@ -19,14 +18,20 @@ ATTR AllCodeNT [ | | varS USE {`Set.union`} {Set.empty} : {Set HsName} ]
 
 SEM CExpr
         | Var lhs.varS = Set.singleton $ acbrefNm @ref
+	| Let lhs.varS = if @loc.removable 
+                         then @body.varS 
+                         else (@binds.varS `Set.union` @body.varS) `Set.difference` Set.fromList @binds.nms
 
-ATTR CodeAGItf [ | | trf: CModule]
+ATTR CodeAGItf [ | | trf : CModule]
 ATTR AllCodeNT [ | | trf : SELF]
 
+SEM CExpr 
+	| Let loc.removable = not $ Set.fold (\ a b -> a `elem` @binds.nms || b) False @body.varS
+
 SEM CExpr
-        | Let lhs.trf = if Set.fold (\ a b -> a `elem` @binds.nms || b) False @body.varS
-                        then @trf
-                        else @body.trf
+        | Let lhs.trf = if @loc.removable 
+                        then @body.trf
+                        else @trf
 
 ATTR CBind [ | | nm : {HsName} ]
 
