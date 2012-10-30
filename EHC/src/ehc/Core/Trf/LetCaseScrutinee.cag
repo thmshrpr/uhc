@@ -62,8 +62,8 @@ SEM CExpr
   | Case lhs.cTrf = fromMaybe (trace ("Found non-strictly bound scrutinee" ++ show @expr.cTrf) $ acoreLet acoreBindcategStrict [(acoreBind1 @trNm @expr.cTrf)] (acoreCaseDflt (acoreVar @trNm) @alts.cTrf (Just @dflt.cTrf)))
                       (do { nm <- @expr.varName 
                           ; if Set.member nm @lhs.sBindS 
-			    then return $ trace "Found strictly bound scrutinee, nbd" $ acoreCaseDflt @expr.cTrf @alts.cTrf (Just @dflt.cTrf)
-			    else Nothing})  
+			    then return $ acoreCaseDflt @expr.cTrf @alts.cTrf (Just @dflt.cTrf)
+			    else if (show @expr.cTrf) == "UHC.Base.undefined" then return @expr.cTrf else Nothing })   
 
 SEM CExpr
   | Case loc.trNm = hsnQualUniqify @lhs.modNm $ uidHNm @lUniq

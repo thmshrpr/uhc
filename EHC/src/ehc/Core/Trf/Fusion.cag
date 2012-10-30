@@ -21,35 +21,40 @@ cmodTrfFusion lamMp cmod =
 --            rewritten should take the result and do forall x. cons (abs x) |-> x
 --            fused should finish the job
 
+-- applied should find fusible functions in a pipeline, inline them, and try to find the conversion functions
 
 ATTR CodeAGItf [ || applied : CModule]
 ATTR AllCodeNT [ || applied : SELF]
 
 SEM CExpr
         | App lhs.applied = @applied
-        | App loc.applied = if @func.isFusible -- && @arg.isFusible
-                            then apply @func.applied @arg.applied
+        | App loc.applied = if @func.isFusible
+                            then trace "Applying..." $ apply @func.applied @arg.applied
                             else acoreApp1 @func.applied @arg.applied
         | Var lhs.applied = if @isFusible 
                             then fromMaybe @applied (Map.lookup (acbrefNm @ref) @lhs.fuseMp)
                             else @applied
 
+
 ATTR CodeAGItf [ | | rewritten : CModule]
 ATTR AllCodeNT [ | | rewritten : SELF]
  
 SEM CExpr 
-       | App lhs.rewritten = @rewritten
-       | App loc.rewritten = if @func.isFusible -- || @lhs.inFusibleFunc 
-                             then rewrite @lhs.convMp @applied 
+       | App lhs.rewritten = @loc.rewritten
+       | App loc.rewritten = if @func.isFusible && @arg.isFusible 
+                             then trace "Rewriting..." $ rewrite @lhs.convMp @loc.applied 
                              else acoreApp1 @func.rewritten @arg.rewritten
+
+--Fuse all the things.  Any fusible function should be fair game, regardless of whether it is applied to a fusible one or not.  We are no longer looking for rewrite rules, so conversion functions inlined, too, if they remain
 
 ATTR CodeAGItf [ | | inlined : CModule]
 ATTR AllCodeNT [ | | inlined : SELF   ]
  
 SEM CExpr 
-       | App lhs.inlined = if @func.isFusible -- || @lhs.inFusibleFunc
-                           then trace ("Calling inline with funcMp " ++ (show $ Map.keys @lhs.funcMp)) $ inline @lhs.funcMp @lhs.convMp @loc.applied -- circumventing the rewritten attribute whilst we do some testing...
+       | App lhs.inlined = if @func.isFusible
+                           then trace ("Calling inline with funcMp " ++ (show $ Map.keys @lhs.funcMp)) $ inline @lhs.funcMp @lhs.convMp @loc.rewritten 
                            else acoreApp1 @func.inlined @arg.inlined
+
 ------------------------------------------------------------------------------
 -- Tests to see if a function is fusible.  A @func of an App is fusible if it 
 -- is a named function found in the fuseMp, if it is a function application 
@@ -62,7 +67,9 @@ SEM CExpr
         | Var loc.isFusible           = isJust (Map.lookup (acbrefNm @ref) @lhs.fuseMp)
         | Var lhs.isFusible           = @isFusible
         | App lhs.isFusible           = @func.isFusible
-        | * - App Var lhs.isFusible   = False
+	| Ann lhs.isFusible           = @expr.isFusible
+        | Let lhs.isFusible           = @body.isFusible
+        | * - App Var Ann Let lhs.isFusible   = False
 
 -- Transformations to actually perform a beta reduction. An App node is beta reduced by calling 
 -- subst nm body expr, where nm is the variable to replace, body is the body of the function, and 
